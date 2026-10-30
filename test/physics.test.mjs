@@ -78,7 +78,7 @@ test('Tor-Durchflug zählt', () => {
 test('Treffer auf Torpfosten ergibt Absturz', () => {
   const g = gates[0], lat = -(GATE_IN + 0.12);   // Mitte des linken Pfostens
   airborne([g.c[0] + g.r[0]*lat - g.n[0]*1.5, g.c[1], g.c[2] + g.r[2]*lat - g.n[2]*1.5], hoverThrottle());
-  game.sim.v = [g.n[0]*8, 0, g.n[2]*8];
+  game.sim.v = [g.n[0]*10, 0, g.n[2]*10];
   run(0.5);
   assert.equal(game.state, 'crashed');
   assert.equal(game.sim.crashMsg, 'Hindernis getroffen');
@@ -169,3 +169,45 @@ test('Physik 2.0: Vollgas und voller Rollbefehl, mindestens ein Motor unter 100 
   assert.ok(Math.max(...game.sim.cmd) > 0.99, 'Vollgas bleibt genutzt');
   assert.ok(game.sim.w[2] < -3, 'rollt trotzdem rechts: ' + game.sim.w[2]);
 });
+
+test('Schaden: beschädigter Rotor wird ausgeglichen, solange Reserve da ist', () => {
+  const thr = hoverThrottle();
+  airborne([0, 20, 0], thr);
+  game.sim.vrc = (1 + BAT.amax*Math.pow(thr, 1.6))*BAT.r2;
+  game.sim.hp[0] = 0.6;
+  // Pilot gleicht die Höhe mit dem Gas aus (wie in echt; die Flugsteuerung regelt nur die Lage)
+  for (let i = 0; i < 240*5 && game.state === 'fly'; i++) {
+    game.throttle = Math.min(1, Math.max(0, thr + 0.08*(20 - game.sim.p[1]) - 0.06*game.sim.v[1]));
+    step(STEP);
+  }
+  const s = game.sim, up = qRotUp(s.q);
+  assert.equal(game.state, 'fly');
+  assert.ok(up > 0.995, 'bleibt fast gerade: ' + up);
+  assert.ok(Math.abs(s.p[1] - 20) < 2, 'hält etwa die Höhe: ' + s.p[1]);
+  assert.ok(s.cmd[0] > s.cmd[1], 'Regler gibt dem schwachen Motor mehr');
+});
+
+test('Schaden: Rotor auf 0 führt zu Drehung und Höhenverlust', () => {
+  const thr = hoverThrottle();
+  airborne([0, 40, 0], thr);
+  game.sim.hp[2] = 0;
+  let maxRate = 0;
+  for (let i = 0; i < 240*2 && game.state === 'fly'; i++) { step(STEP); maxRate = Math.max(maxRate, Math.hypot(...game.sim.w)); }
+  assert.ok(maxRate > 5, 'dreht unkontrolliert: ' + maxRate);
+  assert.ok(game.sim.p[1] < 37, 'verliert Höhe: ' + game.sim.p[1]);
+});
+
+test('Schaden: leichter Treffer beschädigt statt Absturz (nachsichtig), aus = kein Schaden', () => {
+  for (const mode of ['mild', 'off']) {
+    cfg.dmg = mode; respawn(); inp.pitch = inp.roll = inp.yaw = 0;
+    const g = gates[0], lat = -(GATE_IN + 0.12);
+    airborne([g.c[0] + g.r[0]*lat - g.n[0]*1.0, g.c[1], g.c[2] + g.r[2]*lat - g.n[2]*1.0], hoverThrottle());
+    game.sim.v = [g.n[0]*4, 0, g.n[2]*4];
+    run(0.5);
+    assert.equal(game.state, 'fly', mode);
+    const worst = Math.min(...game.sim.hp);
+    if (mode === 'mild') assert.ok(worst < 0.95, 'Schaden ' + worst); else assert.equal(worst, 1);
+  }
+  cfg.dmg = 'mild';
+});
+function qRotUp(q) { const [x, , z] = q; return 1 - 2*(x*x + z*z); }   // y-Anteil der Hochachse

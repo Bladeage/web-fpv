@@ -8,7 +8,7 @@ import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, presetMass } from './drone.js';
-import { PHYS } from './physics.js';
+import { PHYS, DMG } from './physics.js';
 import { OSD_ITEMS, osdOn } from './osd.js';
 
 export const $ = id => document.getElementById(id);
@@ -53,6 +53,7 @@ export function syncMenu() {
   $('sound').checked = cfg.sound;
   press('#videoSeg button', b => b.dataset.video === cfg.video);
   press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
+  press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   $('propsView').checked = cfg.propsView;
   $('gpPreset').value = cfg.gpPreset;
@@ -86,6 +87,8 @@ function start() {
 
 for (const x of SCENARIOS) addChoice($('scenList'), x.name, x.info, () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
 for (const [id, d] of Object.entries(DIFF)) addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }).dataset.id = id;
+const DMG_INFO = { off: 'Nur Absturz, wie früher', mild: 'Leichte Treffer beschädigen Rotoren', real: 'Mehr Schaden, früher Absturz' };
+for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, DMG_INFO[id], () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DRONES)) addChoice($('droneSeg'), d.name, d.info, () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); }).dataset.id = id;
 document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('click', () => { cfg.drone.cells = +b.dataset.cells; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));

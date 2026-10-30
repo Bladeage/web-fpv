@@ -204,7 +204,11 @@ export function render(dt) {
   const proj = mPersp(vf, asp, 0.05, 1500);
   let view, eye;
   if (cfg.cam === 'fpv') {
-    const qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
+    let qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
+    if (sim.vib > 0.01 && game.state === 'fly') {   // Zittern durch Unwucht
+      const k = Math.min(0.05, sim.vib*0.08);
+      qc = qMul(qc, qMul(qAxis([1,0,0], (Math.random() - 0.5)*k), qAxis([0,0,1], (Math.random() - 0.5)*k)));
+    }
     // Kamera sitzt vorne im Rahmen, leicht unter den Propellern
     const sz = PHYS.size;
     eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), -0.01*sz)));
@@ -313,7 +317,10 @@ function drawProps(md, dt) {
   for (let i = 0; i < 4; i++) {
     const [mx, mz, dir] = MOTORS[i];
     propAng[i] += dir*w*dt;
+    const hp = sim.hp[i];
+    if (hp <= 0) continue;   // Propeller abgebrochen
     const mp = mMul(md, mFromQT(qAxis([0,1,0], propAng[i]), [mx*0.088*S, 0.026*S, mz*0.088*S]));
+    if (hp < 0.5) { mp[0] *= 0.55; mp[1] *= 0.55; mp[2] *= 0.55; }   // stark beschädigt: kurzes Blatt
     gl.uniformMatrix4fv(P.u.uModel, false, mp);
     if (mz < 0) gl.uniform4f(P.u.uOver, 0.92, 0.22, 0.14, 0.9); else gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
     gl.uniform1f(P.u.uAlpha, 1 - blur*0.75);

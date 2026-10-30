@@ -20,7 +20,7 @@ export function audioUpd() {
   if (!ac) return;
   const sim = game.sim;
   const on = cfg.sound && !game.paused && game.state === 'fly';
-  const t = sim.thr, now = ac.currentTime, f = 85 + t*280 + vLen(sim.w)*4;
+  const t = sim.thr, now = ac.currentTime, f = (85 + t*280 + vLen(sim.w)*4)*(1 + Math.min(0.15, (sim.vib || 0)*0.3)*Math.sin(now*55));   // Unwucht: Ton schwankt
   osc1.frequency.setTargetAtTime(f, now, 0.03);
   osc2.frequency.setTargetAtTime(f*1.5, now, 0.03);
   filt.frequency.setTargetAtTime(450 + t*2600, now, 0.05);
