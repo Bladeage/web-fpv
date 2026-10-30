@@ -10,7 +10,7 @@ export const OSD_ITEMS = [
   ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['vmin', 'Tiefste Spannung', true], ['eff', 'mAh pro Minute', false],
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
   ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
-  ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true]
+  ['motors', 'Motorschaden', true], ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true]
 ];
 const DEFAULT = Object.fromEntries(OSD_ITEMS.map(([id, , on]) => [id, on]));
 // o: cfg.osd mit den Abweichungen von der Vorgabe
@@ -27,6 +27,7 @@ export function osdLines(o, d) {
   add('tl', 'mode', d.mode === 'acro' ? 'ACRO' : 'ANGL', d.mode === 'acro' ? '#ffb27a' : '#9be7ff');
   add('tl', 'task', d.label);
   if (d.crashes) add('tl', 'crashes', 'CRASH ' + d.crashes, '#ffd0c8');
+  (d.hp || []).forEach((hp, i) => { if (hp < 0.98) add('tl', 'motors', 'M' + (i + 1) + ' ' + (hp > 0 ? pad(Math.round(hp*100), 3) + '%' : 'AUS'), hp < 0.5 ? RED : YEL); });
   add('tr', 'timer', fmtTime(d.cur));
   add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');
   add('tr', 'timer', 'BESTE ' + fmtTime(d.best), '#c8ffd4');
@@ -53,6 +54,7 @@ export function osdWarning(d) {
   const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;   // Volt pro Zelle, im Menü einstellbar
   if (d.cellRest < minV + 0.15 || d.cell < minV) return 'LAND NOW';
   if (d.cell < warnV) return 'LOW BATTERY';
+  if (d.hp && d.hp.some(x => x <= 0)) return 'MOTOR FAIL';
   if (d.lq < 35) return 'LQ LOW';
   return null;
 }

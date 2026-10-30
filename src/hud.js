@@ -184,7 +184,7 @@ export function drawHud() {
     lq, mode: cfg.mode, label: scenLabel(), crashes: game.crashes,
     cur: s.lapStart !== null ? s.t - s.lapStart : null, last: s.lastLap, best: game.best,
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
-    vpack: s.vpack, vmin: s.vmin, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
+    vpack: s.vpack, vmin: s.vmin, hp: s.hp, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
     kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.radius), homeD: Math.hypot(s.p[0], s.p[2]),
     thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
   };

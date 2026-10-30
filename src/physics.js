@@ -76,7 +76,7 @@ export function respawn() {
     p: [0, PHYS.radius + 0.04, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
-    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0]   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
+    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
   };
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
@@ -150,6 +150,11 @@ export function step(h) {
   const T = s.mot.map((m, i) => m*Tm*s.hp[i]);
   let M = [0, 0, 0];
   MOTORS.forEach(([mx, mz, dir], i) => { M[0] += -mz*a*T[i]; M[2] += mx*a*T[i]; M[1] += dir*PHYS.kYaw*T[i]; });
+  // Unwucht beschädigter Propeller: Zittern um Nick- und Rollachse
+  let vib = 0;
+  for (let i = 0; i < 4; i++) vib += (1 - s.hp[i])*s.mot[i]*Tm;
+  s.vib = vib/(PHYS.mass*PHYS.g);
+  M[0] += vib*a*0.15*Math.sin(s.t*157); M[2] += vib*a*0.15*Math.cos(s.t*173);
   const I = PHYS.I, w = s.w, Iw = [I[0]*w[0], I[1]*w[1], I[2]*w[2]], gyro = vCross(w, Iw);
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
   if (!armed) { w[0] = w[1] = w[2] = 0; }
@@ -168,7 +173,9 @@ export function step(h) {
   s.grounded = false;
   if (s.p[1] < PHYS.radius) {
     const vDown = -s.v[1], vh = Math.hypot(s.v[0], s.v[2]);
-    if (vDown > PHYS.crashV*1.2 || vh > 9) { crash('Bodenkontakt zu schnell'); return; }
+    const ck = dmgMode().crashK;
+    if (vDown > PHYS.crashV*1.2*ck || vh > 9*ck) { crash('Bodenkontakt zu schnell'); return; }
+    damage([0, 1, 0], vDown, 0.4);
     s.p[1] = PHYS.radius;
     if (s.v[1] < 0) s.v[1] = 0;
     const fr = Math.max(0, 1 - 6*h);
@@ -206,11 +213,34 @@ export function collide(c, h) {
   return contact([nx*c.cs + nz*c.sn, ny, -nx*c.sn + nz*c.cs], pen, h);
 }
 
+// Schadmodell (E4). crashK: Faktor auf die Absturzgeschwindigkeit; k: Schaden je (m/s)^2 Aufprall.
+// Schätzwerte für das Spielgefühl. Aus: wie Stufe 1 (nur Absturz, kein Schaden).
+export const DMG = {
+  off:  { name: 'Aus', crashK: 1, k: 0 },
+  mild: { name: 'Nachsichtig', crashK: 1.4, k: 0.012 },
+  real: { name: 'Realistisch', crashK: 1, k: 0.03 }
+};
+export const dmgMode = () => DMG[cfg.dmg] || DMG.mild;
+// Aufprall mit Normale n (zeigt vom Hindernis weg) und Geschwindigkeit v in m/s. Rotoren auf der
+// Aufprallseite trifft es stärker; base ist der Anteil, den jeder Rotor abbekommt.
+export function damage(n, v, base) {
+  const s = game.sim, k = dmgMode().k;
+  if (!k || v < 1.5) return;
+  const c = [-s.q[0], -s.q[1], -s.q[2], s.q[3]], nb = qRot(c, n);   // Normale im Körpersystem
+  MOTORS.forEach(([mx, mz], i) => {
+    if (s.hp[i] <= 0) return;
+    const w = Math.max(0, -(mx*nb[0] + mz*nb[2])/Math.SQRT2);
+    s.hp[i] = Math.max(0, s.hp[i] - k*v*v*(base + w));
+    if (s.hp[i] === 0) say('Motor ' + (i + 1) + ' ausgefallen', 2);
+  });
+}
+
 // Berührung mit Flächennormale n und Eindringtiefe pen: zu schnell = Absturz, sonst abgleiten.
 export function contact(n, pen, h) {
   const s = game.sim;
   const vn = vDot(s.v, n);
-  if (-vn > PHYS.crashV) { crash('Hindernis getroffen'); return true; }
+  if (-vn > PHYS.crashV*dmgMode().crashK) { crash('Hindernis getroffen'); return true; }
+  damage(n, -vn, 0.15);
   s.p = vAdd(s.p, vScale(n, pen));
   if (vn < 0) s.v = vSub(s.v, vScale(n, vn));
   s.v = vScale(s.v, Math.max(0, 1 - 3*h));

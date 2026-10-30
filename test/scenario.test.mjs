@@ -45,7 +45,7 @@ test('Durchflug durch einen geneigten Ring zählt', () => {
 test('Treffer auf den Ring ergibt Absturz', () => {
   setScenario('rings'); respawn();
   const g = rings[0];
-  const [p, v] = along(g.c, g.n, 1.5, 8, vScaleLocal(g.e1, diff().ringR));
+  const [p, v] = along(g.c, g.n, 1.5, 10, vScaleLocal(g.e1, diff().ringR));
   place(p, v);
   run(0.5);
   assert.equal(game.state, 'crashed');
@@ -87,7 +87,7 @@ test('Slalom zählt nur auf der richtigen Seite', () => {
 test('Stange treffen ergibt Absturz', () => {
   setScenario('slalom'); respawn();
   const g = poles[0];
-  const [p, v] = along([g.c[0], 2, g.c[2]], g.n, 1.5, 8);
+  const [p, v] = along([g.c[0], 2, g.c[2]], g.n, 1.5, 10);
   place(p, v); run(0.5);
   assert.equal(game.state, 'crashed');
 });
