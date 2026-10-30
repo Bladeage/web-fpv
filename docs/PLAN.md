@@ -27,13 +27,13 @@ E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
  │                 └─ E4 Schadmodell
  ├─ E5 Szenarien und Ringe (erledigt) ── E6 Ziel-Drohnen mit Verhalten
  ├─ M1 Menü in Schritten, Drohnen-Vorlagen (erledigt)
- ├─ O1 OSD realistischer, Bildmodus, OSD-Optionen, Stick-Anzeige
+ ├─ O1 OSD realistischer, Bildmodus, OSD-Optionen, Stick-Anzeige (erledigt)
  ├─ G1 Grafik: Farbe und Licht
  └─ G2 Grafik: Boden, Bäume, Gebäude
 ```
 
 E5, E6, G1 und G2 hängen nicht an E1 bis E4 und können vorgezogen werden.
-Vorgeschlagene Reihenfolge: O1, E6, G1, G2, danach E1 bis E4.
+Vorgeschlagene Reihenfolge: E6, G1, G2, danach E1 bis E4.
 G1 und G2 ändern nur das Aussehen. Hindernisse und Kollision bleiben gleich.
 
 ---
@@ -176,7 +176,7 @@ G1 und G2 ändern nur das Aussehen. Hindernisse und Kollision bleiben gleich.
 - Einstellungen über Esc, P oder ☰ oben links, von überall.
 - Trägheit, Gewicht und Größe der Drohne folgen mit E2/E3.
 
-## O1: OSD realistischer, Bildmodus, OSD-Optionen (mittel)
+## O1: OSD realistischer, Bildmodus, OSD-Optionen (erledigt)
 
 Wunsch des Nutzers vom 30.10.2026.
 

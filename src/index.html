@@ -73,8 +73,19 @@
       <input type="range" id="tilt" min="0" max="50" step="1">
 
       <label class="check"><input type="checkbox" id="sound"> Motorgeräusch</label>
-      <label class="check"><input type="checkbox" id="analog"> Analog-Look (Rauschen, Bildstörung bei schwachem Empfang)</label>
       <label class="check"><input type="checkbox" id="propsView"> Propeller im Kamerabild</label>
+
+      <h2>Bildmodus</h2>
+      <div class="seg seg3" id="videoSeg">
+        <button data-video="analog"><b>Analog</b><span>Rauschen, Streifen bei schwachem Empfang</span></button>
+        <button data-video="digital"><b>Digital</b><span>Klötzchen und Standbild bei schwachem Empfang</span></button>
+        <button data-video="clean"><b>Ohne</b><span>Sauberes Bild</span></button>
+      </div>
+
+      <details>
+        <summary>OSD-Anzeigen</summary>
+        <div class="osdgrid" id="osdList"></div>
+      </details>
 
       <h2>Funke oder Gamepad</h2>
       <p class="gpstat" id="gpStat"></p>
