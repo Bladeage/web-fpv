@@ -1,7 +1,22 @@
 # Etappenplan FPV-Simulator
 
-Fassung 2 vom 30.10.2026 (E6 neu als Jagd-Modus, Entscheidung des Nutzers). Jede Etappe ist eine abgeschlossene Einheit: umsetzen, prüfen, committen, berichten, anhalten.
+Fassung 3 vom 30.10.2026. Jede Etappe ist eine abgeschlossene Einheit: umsetzen, prüfen, committen, berichten, anhalten.
 Aufwand ist eine Schätzung. Annahme: „mittel“ ist eine Arbeitssitzung, „groß“ etwa zwei.
+
+## Entscheidungen des Nutzers (30.10.2026)
+
+- **Eine Karte, mehrere Szenarien.** Die bisherige Karte bleibt. Auf ihr liegen verschiedene Aufgaben: Tore am Boden, Ringe in der Luft, fliegende Ziel-Drohnen und weitere.
+- **Ziel-Drohnen sind Ziele, keine Hindernisse.** Ein Treffer gibt Punkte. Die getroffene Drohne stürzt ab. Sind x Drohnen getroffen, ist die Aufgabe erfüllt.
+- **Verhalten der Ziel-Drohnen ist unterschiedlich:** dumm, zufällig, ausweichend, verschieden schnell.
+- **Grafik:** zuerst Farbe und Licht, dann Boden, Bäume und Gebäude.
+
+Offene Details mit Vorschlag (gelten, bis der Nutzer anders entscheidet):
+
+| Frage | Vorschlag |
+|---|---|
+| Anzahl Ziele und x | 6 Ziele, x = 5, im Menü 1 bis 6 |
+| Wertung | 1 Punkt pro Treffer. Wertung ist die Zeit bis zur erfüllten Aufgabe. Bestzeit je Szenario. |
+| Eigener Absturz im Szenario | Versuch endet. Neustart setzt alles zurück. |
 
 ## Abhängigkeiten
 
@@ -10,11 +25,14 @@ E0 Repo, Module, Build, Tests   (erledigt)
  ├─ E1 Stick-HUD, LiPo-Modell
  ├─ E2 Physik 2.0 ─┬─ E3 Drohnen-Vorlagen
  │                 └─ E4 Schadmodell
- ├─ E5 Streckenformat, Tunnel, Ringe
- └─ E6 Jagd-Modus: Ziel-Drohnen treffen
+ ├─ E5 Szenarien und Ringe ── E6 Ziel-Drohnen mit Verhalten
+ ├─ G1 Grafik: Farbe und Licht
+ └─ G2 Grafik: Boden, Bäume, Gebäude
 ```
 
-E5 und E6 hängen nur an E0 und können vorgezogen werden.
+E5, E6, G1 und G2 hängen nicht an E1 bis E4 und können vorgezogen werden.
+Vorgeschlagene Reihenfolge: E5, E6, G1, G2, danach E1 bis E4.
+G1 und G2 ändern nur das Aussehen. Hindernisse und Kollision bleiben gleich.
 
 ---
 
@@ -100,35 +118,76 @@ E5 und E6 hängen nur an E0 und können vorgezogen werden.
 - Test: Schaden an einem Rotor wird vom Regler ausgeglichen, solange Reserve da ist.
 - Test: Ein Rotor auf 0 führt zu Drehung und Höhenverlust.
 
-## E5: Streckenformat, Tunnel, Ringe (mittel)
+## E5: Szenarien auf einer Karte, Ringe (mittel)
 
-- **Strecke als Daten:** Liste von Elementen mit `type`, Position, Ausrichtung, Größe. Typen: `gate`, `ring`, `tunnel`, `pole`, `flag`.
+**Ziel:** Die Karte bleibt. Szenarien legen fest, welche Aufgabe darauf liegt.
+
+- **Szenario als Daten:** Name, Liste von Elementen, Ziel (Runde, Anzahl Treffer, Landung ...).
+  Element: `type`, Position, Ausrichtung, Größe. Typen in E5: `gate`, `ring`, `pole`, `flag`, `pad`.
 - **Ring:** frei schwebend, beliebig geneigt. Kollision analytisch über den Abstand zur Kreislinie (Torus). Durchflug über die Ringebene.
-- **Tunnel:** gerade Segmente mit Boden, Wänden und Decke. Durchflug über Ein- und Ausfahrt. Innen dunklere Farben und Lichtstreifen.
-- **Drei Beispielstrecken:** bisherige Tore, Ringparcours mit Höhenwechseln, Tunnelstrecke mit Kurve.
-- **Menü:** Streckenauswahl. Bestzeit je Strecke.
-- **Später:** Strecken aus der SharePoint-Bibliothek laden. Das setzt ein positives Ergebnis der Technik-Probe für `.json` voraus.
+- **Szenarien in E5:**
+  - Torkurs: die bisherigen 8 Tore am Boden. Verhält sich genau wie bisher.
+  - Ringparcours: Ringe in der Luft mit Höhenwechseln und Neigung.
+  - Slalom: um Pfeiler und Fahnen, abwechselnd links und rechts.
+  - Präzisionslandung: auf einer kleinen Plattform landen, möglichst sanft und schnell.
+  - Freiflug: ohne Aufgabe.
+- **Menü:** Szenario-Auswahl. Bestzeit je Szenario in `localStorage`.
+- **OSD:** Fortschritt passend zum Szenario (Tor 3/8, Ring 2/10, Treffer 1/5).
+- **Später:** Szenarien aus der SharePoint-Bibliothek laden. Das setzt ein positives Ergebnis der Technik-Probe für `.json` voraus.
+- **Nicht in E5:** Tunnel. Er bräuchte neue Geometrie in der Karte. Kann später als eigenes Element kommen.
 
 **Abnahme:**
-- Test: Durchflug durch Ring und Tunnel zählt. Treffer auf Ring oder Wand ergibt Absturz oder Schaden.
+- Test: Durchflug durch einen geneigten Ring zählt. Treffer auf den Ring ergibt Absturz.
+- Test: Slalom zählt nur auf der richtigen Seite.
+- Test: Landung zählt nur unter einer Grenzgeschwindigkeit auf der Plattform.
+- Test: Torkurs verhält sich unverändert (Vergleich mit der Referenz aus E0).
 
-## E6: Jagd-Modus, Ziel-Drohnen treffen (mittel)
+## E6: Ziel-Drohnen mit Verhalten (mittel bis groß)
 
-Entscheidung des Nutzers vom 30.10.2026: Die frei fliegenden Drohnen sind Ziele, keine Hindernisse.
-Ein Treffer gibt Punkte. Die getroffene Drohne stürzt ab. Sind x Drohnen getroffen, ist die Aufgabe erfüllt.
+**Ziel:** Szenario „Jagd“: fliegende Drohnen treffen.
 
-- **Modus im Menü:** Torkurs (bisher) oder Jagd. Gleiche Karte.
-- **Ziel-Drohnen:** feste Routen aus Wegpunkten: Kreis, Acht, Hin und Her. Geschwindigkeit je Drohne.
-  Bewegung kinematisch, nicht voll simuliert, mit Schräglage in Kurven. Eigenes Farbschema, drehende Propeller.
 - **Treffer:** Kugel gegen Kugel über den Bewegungsweg des Schritts, nicht nur den Endpunkt.
-  Ein Treffer zählt einen Punkt. Die getroffene Drohne fällt mit Drehung zu Boden und bleibt dort liegen. Sie zählt nicht noch einmal.
-- **Eigene Drohne:** fliegt nach einem Treffer weiter. Ab E4 optional Schaden bei hartem Treffer.
+  Ein Treffer zählt einen Punkt. Die getroffene Drohne fällt mit Drehung zu Boden und bleibt liegen. Sie zählt nicht noch einmal.
+  Die eigene Drohne fliegt weiter. Ab E4 optional Schaden bei hartem Treffer.
 - **Aufgabe:** x Treffer. Danach Meldung mit benötigter Zeit. Bestzeit wird gespeichert.
-- **OSD:** Trefferzähler und Marker zum nächsten Ziel, wie der Tormarker.
-- **Neustart (R):** setzt Drohne, Akku, Ziele und Zähler zurück.
+- **Verhalten je Ziel-Drohne:**
+  - dumm: feste Route (Kreis, Acht, Hin und Her), gleichmäßiges Tempo.
+  - zufällig: wählt neue Wegpunkte im Gebiet, wechselt Richtung und Höhe unvorhersehbar.
+  - ausweichend: flieht, wenn der Spieler nahe kommt, mit begrenzter Beschleunigung und Wendigkeit. Bleibt im Gebiet und meidet Hindernisse grob.
+  - Tempo je Drohne einstellbar.
+  Alle Ziele bewegen sich kinematisch (nicht voll simuliert), mit Schräglage in Kurven. Ziele verfolgen den Spieler nicht.
+- **Optik:** eigenes Farbschema je Verhalten, drehende Propeller.
+- **OSD:** Trefferzähler, Marker zum nächsten Ziel wie der Tormarker.
+- **Zufall mit festem Startwert,** damit Tests und Bestzeiten vergleichbar bleiben.
 
 **Abnahme:**
 - Test: Frontalbegegnung mit 40 m/s Annäherung wird erkannt und nicht durchflogen.
 - Test: Treffer zählt genau einmal, das Ziel stürzt ab und liegt danach am Boden.
 - Test: Nach x Treffern ist die Aufgabe erfüllt.
-- Test: Torkurs verhält sich unverändert.
+- Test: Ausweichende Drohne vergrößert den Abstand, wenn der Spieler sich nähert. Dumme Drohne nicht.
+- Test: Zufällige Drohne bleibt im Gebiet.
+
+## G1: Grafik, Farbe und Licht (klein bis mittel)
+
+- Richtige Farbrechnung: lineares Licht, Tone-Mapping, Ausgabe in sRGB. Farben danach neu abstimmen.
+- Himmelslicht und Sonnenlicht getrennt, wärmeres Sonnenlicht, kühlere Schattenseite.
+- Vorberechnete Abdunklung (Ambient Occlusion pro Vertex): unter Kronen, am Fuß von Gebäuden und Pfeilern, in Ecken.
+- Leichter Dunst nahe dem Boden, Nebelfarbe passend zum Himmel.
+- Im Menü abschaltbar (Grafik: einfach / schön).
+
+**Abnahme:**
+- Sichtprüfung: Vorher-Nachher-Bilder am PC und mobil.
+- Bildrate in Headless-Chromium nicht deutlich schlechter. Messung im Bericht.
+- Physik-Tests unverändert grün.
+
+## G2: Grafik, Boden, Bäume, Gebäude (mittel)
+
+- Boden: Gras und Erde aus Rauschmustern im Shader, Wege zwischen den Toren, Startplatz deutlicher.
+- Bäume: runde oder kegelförmige Kronen aus mehreren Flächen, Farbschwankung je Baum. Kollision bleibt der Quader.
+- Gebäude: Fenster und Türen im Shader, Dachkante, leichte Verschmutzung am Fuß.
+- Alles mit festem Startwert 1949. Die Lage aller Objekte bleibt gleich.
+
+**Abnahme:**
+- Sichtprüfung: Vorher-Nachher-Bilder.
+- Test: Hindernisse (Lage und Größe) gleich wie in der Referenz aus E0.
+- Bildrate wie bei G1 gemessen.
