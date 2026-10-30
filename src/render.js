@@ -4,6 +4,7 @@ import { cfg, game, saveCfg, say } from './state.js';
 import { COURSE, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight } from './scenario.js';
 import { targets } from './targets.js';
+import { MOTORS } from './physics.js';
 
 /* ---------- WebGL ---------- */
 export const glc = document.getElementById('gl');
@@ -299,8 +300,6 @@ export function render(dt) {
   gl.bindVertexArray(null);
 }
 
-// Motoren: x-Seite, z-Seite, Drehrichtung (diagonal gleich, wie bei echten Quads)
-const MOTORS = [[1, -1, -1], [-1, -1, 1], [1, 1, 1], [-1, 1, -1]];
 const propAng = [0, 0.8, 1.6, 2.4];
 function drawProps(md, dt) {
   const sim = game.sim;
