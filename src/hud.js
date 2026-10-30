@@ -1,12 +1,12 @@
 /* HUD im Betaflight-OSD-Stil: Werte, Warnungen, Horizont, Tormarker, Touch-Sticks, Analog-Look. */
 import { clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { cfg, game, tch, ptr, messages } from './state.js';
-import { gates } from './world.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
 import { hctx, vw, vh, inset, lastVP, lastCamQ, lastVf } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { fmtTime, fmtClock } from './format.js';
+import { scenLabel, scenTarget } from './scenario.js';
 
 function linkQuality() { const d = Math.hypot(game.sim.p[0], game.sim.p[2]); return clamp(100 - Math.max(0, d - 80)*0.3, 0, 100); }
 
@@ -90,7 +90,7 @@ export function drawHud() {
   // links oben: Empfang, Modus, Tor
   txt('LQ ' + String(Math.round(lq)).padStart(3, ' '), L, T, 'left', lq < 50 ? RED : '#fff');
   txt(cfg.mode === 'acro' ? 'ACRO' : 'ANGL', L, T + lh, 'left', cfg.mode === 'acro' ? '#ffb27a' : '#9be7ff');
-  txt(`TOR ${s.next + 1}/${gates.length}`, L, T + lh*2);
+  txt(scenLabel(), L, T + lh*2);
   if (game.crashes) txt(`CRASH ${game.crashes}`, L, T + lh*3, 'left', '#ffd0c8');
   // rechts oben: Rundenzeiten
   const cur = s.lapStart !== null ? s.t - s.lapStart : null;
@@ -171,9 +171,10 @@ export function drawHud() {
 
 function drawGateMarker(c, W, H, fs) {
   if (!lastVP) return;
-  const g = gates[game.sim.next];
-  const cp = mApply(lastVP, g.c);
-  const dist = Math.round(vLen(vSub(g.c, game.sim.p)));
+  const tgt = scenTarget();
+  if (!tgt) return;
+  const cp = mApply(lastVP, tgt);
+  const dist = Math.round(vLen(vSub(tgt, game.sim.p)));
   c.lineWidth = 3;
   if (cp[3] > 0.01) {
     const nx = cp[0]/cp[3], ny = cp[1]/cp[3];

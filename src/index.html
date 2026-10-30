@@ -22,6 +22,10 @@
     <h1 id="mt">FPV-Simulator<small>Stufe 1: einfache Steuerung, einfache Welt</small></h1>
     <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
 
+    <h2>Szenario</h2>
+    <select id="scen" aria-label="Szenario"></select>
+    <p class="hint" id="scenInfo"></p>
+
     <h2>Flugmodus</h2>
     <div class="seg">
       <button data-mode="angle"><b>Angle</b><span>Richtet sich selbst gerade aus. Gut zum Einstieg.</span></button>
@@ -67,7 +71,7 @@
         <kbd>P / Esc</kbd><span>Menü</span>
       </div>
       <p><b>Touch:</b> Linker Daumen hoch und runter ist Gas, seitlich ist Gieren. Rechter Daumen steuert Nicken und Rollen. Beim Loslassen bleibt das Gas stehen. Alles andere geht auf Mitte.</p>
-      <p><b>Ziel:</b> Fliege die 8 Tore der Reihe nach. Das nächste Tor leuchtet grün. Die Runde endet wieder an Tor 1.</p>
+      <p><b>Ziel:</b> Hängt vom Szenario ab. Das nächste Ziel leuchtet grün, der grüne Marker zeigt die Richtung. Im Torkurs endet die Runde wieder an Tor 1.</p>
       <p><b>Tipp:</b> Schweben braucht etwa ein Viertel Gas. Der Akku hält etwa 3 Minuten. R setzt Drohne und Akku zurück.</p>
     </details>
   </div>

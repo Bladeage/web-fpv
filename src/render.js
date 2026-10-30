@@ -2,6 +2,7 @@
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say } from './state.js';
 import { gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
+import { scen, buildScenario, scenHighlight } from './scenario.js';
 
 /* ---------- WebGL ---------- */
 export const glc = document.getElementById('gl');
@@ -71,6 +72,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
+let scenMesh = null, scenParts = [], scenVer = -1;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
 
@@ -100,7 +102,7 @@ function upload(data) {
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24);
   gl.bindVertexArray(null);
-  return { vao, count: data.length / 10 };
+  return { vao, buf, count: data.length / 10 };
 }
 export function initGL() {
   P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha']);
@@ -198,10 +200,26 @@ export function render(dt) {
   gl.drawArrays(gl.TRIANGLES, 0, staticCount);
   const pulse = 0.75 + 0.15*Math.sin(performance.now()/180);
   gates.forEach((g, i) => {
-    if (i === sim.next) gl.uniform4f(P.u.uOver, 0.15, 1.0, 0.35, pulse);
+    if (i === sim.next && scen.id === 'gates') gl.uniform4f(P.u.uOver, 0.15, 1.0, 0.35, pulse);
     else gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
     gl.drawArrays(gl.TRIANGLES, g.start, g.count);
   });
+  // Elemente des Szenarios (Ringe, Stangen, Plattform), neu hochladen nach einem Wechsel
+  if (scenVer !== scen.version) {
+    if (scenMesh) { gl.deleteVertexArray(scenMesh.vao); gl.deleteBuffer(scenMesh.buf); scenMesh = null; }
+    const sm = buildScenario();
+    if (sm.data.length) scenMesh = upload(sm.data);
+    scenParts = sm.parts; scenVer = scen.version;
+  }
+  if (scenMesh) {
+    const hi = scenHighlight();
+    gl.bindVertexArray(scenMesh.vao);
+    scenParts.forEach((pt, i) => {
+      if (i === hi) gl.uniform4f(P.u.uOver, 0.15, 1.0, 0.35, pulse);
+      else gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+      gl.drawArrays(gl.TRIANGLES, pt.start, pt.count);
+    });
+  }
   // Drohne (Rumpf nur in der Verfolgerkamera, Propeller auch im Kamerabild)
   const md = mFromQT(sim.q, sim.p);
   if (cfg.cam !== 'fpv') {

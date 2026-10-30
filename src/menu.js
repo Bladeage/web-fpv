@@ -5,6 +5,7 @@ import { GP_FN, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
 import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
+import { SCENARIOS, setScenario } from './scenario.js';
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -14,6 +15,8 @@ export function setMode(m) {
 }
 export function syncMenu() {
   setMode(cfg.mode);
+  $('scen').value = cfg.scen;
+  $('scenInfo').textContent = SCENARIOS.find(x => x.id === cfg.scen).info;
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
@@ -84,6 +87,8 @@ export function updGpUI() {
   }
 }
 buildGpRows();
+for (const x of SCENARIOS) { const o = document.createElement('option'); o.value = x.id; o.textContent = x.name; $('scen').appendChild(o); }
+$('scen').addEventListener('change', e => { setScenario(e.target.value); saveCfg(); respawn(); syncMenu(); });
 $('go').addEventListener('click', resume);
 $('bMenu').addEventListener('click', () => game.paused ? resume() : openMenu());
 $('bReset').addEventListener('click', () => { respawn(); if (game.paused) resume(); });

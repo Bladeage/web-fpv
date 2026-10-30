@@ -5,7 +5,7 @@
 /* ---------- Einstellungen ---------- */
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
-export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null };
+export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates' };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(STORE_CFG) || '{}')); } catch (e) {}
 
 /* ---------- Spielzustand ---------- */
@@ -19,9 +19,15 @@ export const game = {
   camPos: [0, 1.2, 3], camHeading: [0, 0, -1],
   last: 0                // Zeitstempel des letzten Bildes (Hauptschleife)
 };
-try { const b = parseFloat(localStorage.getItem(STORE_BEST)); if (b > 0) game.best = b; } catch (e) {}
+// Bestzeit je Szenario. Der Torkurs behält den alten Schlüssel.
+const bestKey = () => cfg.scen === 'gates' ? STORE_BEST : STORE_BEST + '.' + cfg.scen;
+export function loadBest() {
+  game.best = null;
+  try { const b = parseFloat(localStorage.getItem(bestKey())); if (b > 0) game.best = b; } catch (e) {}
+}
+loadBest();
 export function saveCfg() { try { localStorage.setItem(STORE_CFG, JSON.stringify(cfg)); } catch (e) {} }
-export function saveBest() { try { localStorage.setItem(STORE_BEST, String(game.best)); } catch (e) {} }
+export function saveBest() { try { localStorage.setItem(bestKey(), String(game.best)); } catch (e) {} }
 
 /* ---------- Eingabewerte ---------- */
 export const kb = { pitch: 0, roll: 0, yaw: 0 };
