@@ -8,6 +8,7 @@ import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone } from './drone.js';
+import { OSD_ITEMS, osdOn } from './osd.js';
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -41,7 +42,8 @@ export function syncMenu() {
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
-  $('analog').checked = cfg.analog;
+  press('#videoSeg button', b => b.dataset.video === cfg.video);
+  document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   $('propsView').checked = cfg.propsView;
   $('gpPreset').value = cfg.gpPreset;
   syncGpRows();
@@ -82,7 +84,13 @@ $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('ca
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
 $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV').textContent = cfg.rate + ' °/s'; saveCfg(); });
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });
-$('analog').addEventListener('change', e => { cfg.analog = e.target.checked; saveCfg(); });
+document.querySelectorAll('#videoSeg button').forEach(b => b.addEventListener('click', () => { cfg.video = b.dataset.video; saveCfg(); syncMenu(); }));
+for (const [id, name] of OSD_ITEMS) {
+  const lab = document.createElement('label'), cb = document.createElement('input');
+  lab.className = 'check'; cb.type = 'checkbox'; cb.dataset.osd = id;
+  cb.addEventListener('change', () => { cfg.osd[id] = cb.checked; saveCfg(); });
+  lab.append(cb, ' ' + name); $('osdList').appendChild(lab);
+}
 $('propsView').addEventListener('change', e => { cfg.propsView = e.target.checked; saveCfg(); });
 
 // Funke-Zuordnung im Menü

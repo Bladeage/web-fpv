@@ -90,3 +90,5 @@ select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--lin
 .nav button{margin-top:0}
 .panel button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 [hidden]{display:none !important}
+.osdgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;margin-top:6px}
+.osdgrid .check{margin-top:6px;font-size:14px}
