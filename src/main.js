@@ -15,6 +15,7 @@ import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
 import { setScenario } from './scenario.js';
 import { applyDrone } from './drone.js';
+import { updSignal } from './signal.js';
 
 fx.beep = beep;
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
@@ -33,6 +34,7 @@ function frame(now) {
   if (!game.paused) {
     updKeyboard(dt);
     updTouch();
+    updSignal(dt);
     if (game.state === 'fly') {
       acc += dt;
       while (acc >= STEP) {

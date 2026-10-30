@@ -22,12 +22,13 @@ Offene Details mit Vorschlag (gelten, bis der Nutzer anders entscheidet):
 
 ```
 E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
- ├─ E1 Stick-HUD, LiPo-Modell
+ ├─ E1 LiPo-Modell (Stick-HUD schon mit O1 erledigt)
  ├─ E2 Physik 2.0 ─┬─ E3 Drohnen-Vorlagen
  │                 └─ E4 Schadmodell
  ├─ E5 Szenarien und Ringe (erledigt) ── E6 Ziel-Drohnen mit Verhalten
  ├─ M1 Menü in Schritten, Drohnen-Vorlagen (erledigt)
  ├─ O1 OSD realistischer, Bildmodus, OSD-Optionen, Stick-Anzeige (erledigt)
+ ├─ S1 Störsignale: Signalmodell mit Hindernissen, Bildfehler analog/digital (erledigt)
  ├─ G1 Grafik: Farbe und Licht
  └─ G2 Grafik: Boden, Bäume, Gebäude
 ```

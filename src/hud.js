@@ -7,8 +7,8 @@ import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf } from './render.js'
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
 import { scenLabel, scenTarget } from './scenario.js';
+import { signal } from './signal.js';
 
-function linkQuality() { const d = Math.hypot(game.sim.p[0], game.sim.p[2]); return clamp(100 - Math.max(0, d - 80)*0.3, 0, 100); }
 
 // Analog-Look: Rauschen, Zeilen, Störstreifen, Vignette
 const noisePats = []; let scanPat = null;
@@ -24,26 +24,96 @@ function makeNoise() {
   const sx = sc.getContext('2d'); sx.fillStyle = 'rgba(0,0,0,0.55)'; sx.fillRect(0, 0, 1, 1);
   scanPat = hctx.createPattern(sc, 'repeat');
 }
-function drawAnalog(c, W, H, lq) {
+// Farbe und Helligkeit des 3D-Bildes per CSS-Filter (billig, auf der Grafikkarte)
+let glFilter = '';
+function setGlFilter(f) { if (f !== glFilter) { glFilter = f; glc.style.filter = f; } }
+
+// Analogbild. q = Videosignal 0..100. Mit sinkendem Signal: mehr Schnee, Farbe geht verloren,
+// Zeilen reißen seitlich aus, Geisterbild (Mehrwege), wandernder Brummbalken, Bild rollt, am Ende nur Rauschen.
+function drawAnalog(c, W, H, q) {
   if (!noisePats.length) makeNoise();
-  const bad = clamp((100 - lq)/70, 0, 1);
+  const bad = clamp((100 - q)/85, 0, 1), now = performance.now(), k = glc.width/W;
+  const flick = bad > 0.3 ? 1 + (Math.random() - 0.5)*0.25*bad : 1;
+  setGlFilter(bad > 0.02 ? `saturate(${(1 - bad*0.9).toFixed(2)}) brightness(${(flick*(1 - bad*0.15)).toFixed(2)}) contrast(${(1 - bad*0.25).toFixed(2)})` : '');
   c.save();
-  c.globalAlpha = 0.05 + bad*0.4;
+  // Bild rollt (Synchronisation verloren)
+  if (bad > 0.75 && Math.random() < (bad - 0.75)*1.2) {
+    const off = Math.random()*H*0.25;
+    c.drawImage(glc, 0, 0, glc.width, glc.height, 0, off, W, H);
+    c.drawImage(glc, 0, 0, glc.width, glc.height, 0, off - H, W, H);
+  }
+  // Geisterbild durch Reflexionen, vor allem hinter Hindernissen
+  const ghost = clamp(bad*0.6 + signal.block/120, 0, 0.6);
+  if (ghost > 0.08) { c.globalAlpha = ghost*0.35; c.drawImage(glc, 0, 0, glc.width, glc.height, 5 + ghost*20, 0, W, H); c.globalAlpha = 1; }
+  // ausgerissene Zeilen
+  for (let i = 0; i < Math.round(bad*bad*10); i++) {
+    const y = Math.random()*H, h = 1 + Math.random()*14*bad, dx = (Math.random() - 0.5)*60*bad;
+    c.drawImage(glc, 0, y*k, glc.width, h*k, dx, y, W, h);
+  }
+  // Schnee
+  c.globalAlpha = q < 6 ? 0.95 : 0.05 + bad*bad*0.6;
   const ox = Math.random()*128, oy = Math.random()*128;
   c.translate(-ox, -oy); c.fillStyle = noisePats[(Math.random()*4) | 0]; c.fillRect(0, 0, W + 128, H + 128);
   c.translate(ox, oy);
   c.globalAlpha = 0.16; c.fillStyle = scanPat; c.fillRect(0, 0, W, H);
-  if (bad > 0.1) {
-    for (let i = 0; i < Math.round(bad*8); i++) {
-      if (Math.random() < 0.5) continue;
-      c.globalAlpha = bad*0.55; c.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#000000';
-      c.fillRect(0, Math.random()*H, W, 1 + Math.random()*5*bad);
-    }
+  // helle und dunkle Störstreifen
+  for (let i = 0; i < Math.round(bad*8); i++) {
+    if (Math.random() < 0.5) continue;
+    c.globalAlpha = bad*0.5; c.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#000000';
+    c.fillRect(0, Math.random()*H, W, 1 + Math.random()*5*bad);
+  }
+  // wandernder Brummbalken
+  if (bad > 0.25) {
+    const by = ((now/1000*70) % (H*1.6)) - H*0.3, bh = H*0.18;
+    const g = c.createLinearGradient(0, by, 0, by + bh);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, `rgba(0,0,0,${(bad*0.22).toFixed(2)})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.globalAlpha = 1; c.fillStyle = g; c.fillRect(0, by, W, bh);
   }
   c.globalAlpha = 1;
   const g = c.createRadialGradient(W/2, H/2, Math.min(W, H)*0.35, W/2, H/2, Math.hypot(W, H)*0.55);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.restore();
+}
+
+// Digitalbild. q = Videosignal 0..100. Mit sinkendem Signal: weniger Bitrate (grobes, weiches Bild),
+// Klötzchen mit Farbfehlern, kurze Standbilder. Ohne Signal bleibt das letzte Bild stehen und wird dunkel.
+const frozen = { cv: null, until: 0, lost: 0 };
+let lowCv = null;
+function drawDigital(c, W, H, q) {
+  const bad = clamp((60 - q)/50, 0, 1), now = performance.now(), k = glc.width/W;
+  setGlFilter('');
+  if (bad <= 0) { frozen.lost = 0; return; }
+  const snap = () => {
+    frozen.cv = frozen.cv || document.createElement('canvas');
+    frozen.cv.width = glc.width; frozen.cv.height = glc.height;
+    frozen.cv.getContext('2d').drawImage(glc, 0, 0);
+  };
+  c.save();
+  if (q < 4) {   // Signal weg: Standbild, wird nach und nach dunkel
+    if (!frozen.lost) { frozen.lost = now; snap(); }
+    c.drawImage(frozen.cv, 0, 0, W, H);
+    c.fillStyle = `rgba(0,0,0,${clamp((now - frozen.lost)/2500, 0, 0.85).toFixed(2)})`; c.fillRect(0, 0, W, H);
+    c.restore(); return;
+  }
+  frozen.lost = 0;
+  if (now > frozen.until && Math.random() < bad*bad*0.04) { snap(); frozen.until = now + 120 + Math.random()*600*bad; }
+  if (now < frozen.until && frozen.cv) c.drawImage(frozen.cv, 0, 0, W, H);
+  else if (bad > 0.2) {   // niedrige Bitrate: Bild in grober Auflösung
+    const f = 1 + bad*6, w = Math.max(16, Math.round(W/f)), h = Math.max(9, Math.round(H/f));
+    lowCv = lowCv || document.createElement('canvas');
+    if (lowCv.width !== w || lowCv.height !== h) { lowCv.width = w; lowCv.height = h; }
+    lowCv.getContext('2d').drawImage(glc, 0, 0, w, h);
+    c.imageSmoothingEnabled = bad < 0.5;
+    c.drawImage(lowCv, 0, 0, W, H);
+  }
+  c.imageSmoothingEnabled = false;
+  for (let i = 0; i < Math.round(bad*18); i++) {
+    const bs = 16*(1 + Math.floor(Math.random()*4)), x = Math.random()*(W - bs), y = Math.random()*(H - bs), r = Math.random();
+    if (r < 0.4) c.drawImage(glc, x*k, y*k, 4*k, 4*k, x, y, bs, bs);   // grobe Klötzchen
+    else if (r < 0.8) c.drawImage(glc, x*k, y*k, bs*k, bs*k, x + (Math.random() - 0.5)*bs, y, bs, bs);   // verschobener Block
+    else { c.fillStyle = Math.random() < 0.5 ? 'rgba(40,255,90,.35)' : 'rgba(255,40,200,.3)'; c.fillRect(x, y, bs, bs); }   // Farbfehler
+  }
   c.restore();
 }
 
@@ -65,29 +135,6 @@ function drawAHI(c, W, H) {
   c.restore();
 }
 
-// Digitalbild: bei schwachem Signal Klötzchen und kurze Standbilder statt Rauschen
-const frozen = { cv: null, until: 0 };
-function drawDigital(c, W, H, lq) {
-  const bad = clamp((65 - lq)/45, 0, 1), now = performance.now();
-  if (bad <= 0) return;
-  if (now > frozen.until && Math.random() < bad*bad*0.04) {
-    frozen.cv = frozen.cv || document.createElement('canvas');
-    frozen.cv.width = glc.width; frozen.cv.height = glc.height;
-    frozen.cv.getContext('2d').drawImage(glc, 0, 0);
-    frozen.until = now + 120 + Math.random()*600*bad;
-  }
-  c.save();
-  if (now < frozen.until && frozen.cv) c.drawImage(frozen.cv, 0, 0, W, H);
-  const k = glc.width/W;
-  c.imageSmoothingEnabled = false;
-  for (let i = 0; i < Math.round(bad*16); i++) {
-    const bs = 16*(1 + Math.floor(Math.random()*4)), x = Math.random()*(W - bs), y = Math.random()*(H - bs);
-    if (Math.random() < 0.5) c.drawImage(glc, x*k, y*k, 4*k, 4*k, x, y, bs, bs);   // grobe Klötzchen
-    else c.drawImage(glc, x*k, y*k, bs*k, bs*k, x + (Math.random() - 0.5)*bs, y, bs, bs);   // verschobener Block
-  }
-  c.restore();
-}
-
 // Kleine Quadrate mit der Knüppelstellung: links Gas/Gieren, rechts Nicken/Rollen (Mode 2)
 function drawStickBoxes(c, x, y, sz, lw) {
   const box = (cx, px, py) => {
@@ -104,11 +151,12 @@ function drawStickBoxes(c, x, y, sz, lw) {
 export function drawHud() {
   const c = hctx, W = vw, H = vh, s = game.sim;
   c.clearRect(0, 0, W, H);
-  if (game.paused) return;
-  const lq = linkQuality();
+  if (game.paused) { setGlFilter(''); return; }
+  const lq = signal.lq, q = signal.video;
   const fpv = cfg.cam === 'fpv', analog = cfg.video === 'analog';
-  if (fpv && analog) drawAnalog(c, W, H, lq);
-  if (fpv && cfg.video === 'digital') drawDigital(c, W, H, lq);
+  if (fpv && analog) drawAnalog(c, W, H, q);
+  else if (fpv && cfg.video === 'digital') drawDigital(c, W, H, q);
+  else setGlFilter('');
   const on = id => osdOn(cfg.osd, id);
 
   // Analog: Zeichensatz wie MAX7456 (fett, dicker schwarzer Rand, leicht weich).
@@ -146,7 +194,8 @@ export function drawHud() {
   c.save();
   if (analog && fpv) {
     c.filter = 'blur(0.45px)';
-    if (lq < 50 && Math.random() < (50 - lq)/80) c.translate((Math.random() - 0.5)*6, 0);
+    if (q < 50 && Math.random() < (50 - q)/80) c.translate((Math.random() - 0.5)*6, 0);
+    if (q < 10 && Math.random() < 0.35) c.globalAlpha = 0.25;   // OSD fast weg im Rauschen
   }
   lines.tl.forEach((l, i) => txt(l.t, Lt, T + lh*i, 'left', l.col));
   lines.tr.forEach((l, i) => txt(l.t, Rx, T + lh*i, 'right', l.col));
