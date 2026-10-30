@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>FPV-Simulator – Stufe 1</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+<div id="probe"></div>
+
+<div class="topbar">
+  <button id="bMenu" aria-label="Menü öffnen">☰</button>
+  <button id="bReset" aria-label="Neustart">↺</button>
+  <button id="bCam" aria-label="Kamera wechseln">◎</button>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="panel" role="dialog" aria-labelledby="mt">
+    <h1 id="mt">FPV-Simulator<small>Stufe 1: einfache Steuerung, einfache Welt</small></h1>
+    <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
+
+    <h2>Flugmodus</h2>
+    <div class="seg">
+      <button data-mode="angle"><b>Angle</b><span>Richtet sich selbst gerade aus. Gut zum Einstieg.</span></button>
+      <button data-mode="acro"><b>Acro</b><span>Knüppel steuert die Drehrate. So fliegen FPV-Piloten.</span></button>
+    </div>
+
+    <label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
+    <input type="range" id="tilt" min="0" max="50" step="1">
+
+    <label class="row" for="rate"><span>Max. Drehrate im Acro-Modus</span><output id="rateV"></output></label>
+    <input type="range" id="rate" min="200" max="900" step="10">
+
+    <label class="check"><input type="checkbox" id="sound"> Motorgeräusch</label>
+    <label class="check"><input type="checkbox" id="analog"> Analog-Look (Rauschen, Bildstörung bei schwachem Empfang)</label>
+    <label class="check"><input type="checkbox" id="propsView"> Propeller im Kamerabild</label>
+
+    <h2>Funke oder Gamepad</h2>
+    <p class="gpstat" id="gpStat"></p>
+    <label class="row" for="gpPreset" style="margin-top:4px"><span>Belegung</span></label>
+    <select id="gpPreset">
+      <option value="auto">Automatisch</option>
+      <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
+      <option value="gamepad">Gamepad (Xbox-Layout)</option>
+      <option value="custom">Eigene Zuordnung</option>
+    </select>
+    <div id="gpRows"></div>
+    <p class="hint">RadioMaster: Funke per USB anstecken und am Funkgerät „USB Joystick (HID)“ wählen. Dann einen Knüppel bewegen. Wirkt ein Knüppel falsch herum, Haken bei „umkehren“ setzen.</p>
+
+    <button id="go" class="primary">Fliegen</button>
+    <p class="best" id="bestTxt"></p>
+
+    <details>
+      <summary>Steuerung</summary>
+      <p>Belegung wie bei einer Funke im Mode 2.</p>
+      <div class="keys">
+        <kbd>W / S</kbd><span>Gas mehr / weniger. Der Wert bleibt stehen.</span>
+        <kbd>A / D</kbd><span>Gieren links / rechts</span>
+        <kbd>↑ / ↓</kbd><span>Nicken: Nase runter / Nase hoch</span>
+        <kbd>← / →</kbd><span>Rollen links / rechts</span>
+        <kbd>R</kbd><span>Neustart</span>
+        <kbd>V</kbd><span>Kamera: Drohne / Verfolger</span>
+        <kbd>M</kbd><span>Flugmodus wechseln</span>
+        <kbd>P / Esc</kbd><span>Menü</span>
+      </div>
+      <p><b>Touch:</b> Linker Daumen hoch und runter ist Gas, seitlich ist Gieren. Rechter Daumen steuert Nicken und Rollen. Beim Loslassen bleibt das Gas stehen. Alles andere geht auf Mitte.</p>
+      <p><b>Ziel:</b> Fliege die 8 Tore der Reihe nach. Das nächste Tor leuchtet grün. Die Runde endet wieder an Tor 1.</p>
+      <p><b>Tipp:</b> Schweben braucht etwa ein Viertel Gas. Der Akku hält etwa 3 Minuten. R setzt Drohne und Akku zurück.</p>
+    </details>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
