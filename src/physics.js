@@ -24,7 +24,21 @@ export const STEP = 1/240;   // feste Physik-Schrittweite
 // Akku (Schätzwerte): Zellen, Kapazität in mAh, Innenwiderstand in Ohm,
 // Strom bei Vollgas über Grundlast in A (amax), Spannung für vollen Schub in V (vnom = Zellen * 3,95).
 // drone.js überschreibt die Werte je Vorlage; hier die 5-Zoll-Vorlage aus Stufe 1.
-export const BAT = { cells: 4, cap: 1500, ri: 0.025, amax: 95, vnom: 15.8 };
+export const BAT = { cells: 4, cap: 1500, ri: 0.025, amax: 95, vnom: 15.8, r2: 0.025*0.8, tau: 4 };
+// r2, tau: RC-Glied für Spannungseinbruch und Erholung (Schätzung: Erholung in einigen Sekunden).
+// vnom: Spannung, für die Motoren und Propeller ausgelegt sind. Schub ~ (Spannung/vnom)^2.
+
+// Ruhespannung einer LiPo-Zelle über dem Ladestand (Schätzwerte aus typischen Entladekurven):
+// steil oben und unten, flach in der Mitte.
+const OCV = [[0, 3.27], [0.05, 3.5], [0.1, 3.62], [0.2, 3.7], [0.3, 3.75], [0.4, 3.79], [0.5, 3.83], [0.6, 3.87], [0.7, 3.92], [0.8, 4.0], [0.9, 4.08], [1, 4.2]];
+export function cellOcv(soc) {
+  soc = clamp(soc, 0, 1);
+  for (let i = 1; i < OCV.length; i++) if (soc <= OCV[i][0]) {
+    const [s0, v0] = OCV[i-1], [s1, v1] = OCV[i];
+    return v0 + (v1 - v0)*(soc - s0)/(s1 - s0);
+  }
+  return 4.2;
+}
 
 // Rückmeldungen nach außen. In Node bleiben sie leer.
 export const fx = { beep() {}, vibrate() {} };
@@ -36,7 +50,7 @@ export function respawn() {
   game.sim = {
     p: [0, PHYS.radius + 0.04, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
-    mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0
+    mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2
   };
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
@@ -85,11 +99,12 @@ export function step(h) {
   // Akku: Strom, Verbrauch, Spannung unter Last (vereinfachtes Modell)
   s.amp = 1.0 + BAT.amax*Math.pow(s.thr, 1.6);
   s.mah += s.amp*h/3.6;
-  const frac = s.mah/BAT.cap;
-  s.cellRest = Math.max(3.0, 4.2 - 0.55*Math.min(frac, 1) - Math.max(0, frac - 0.8)*2.5);
-  s.vpack = BAT.cells*s.cellRest - s.amp*BAT.ri;
+  s.cellRest = cellOcv(1 - s.mah/BAT.cap);
+  s.vrc += (s.amp*BAT.r2 - s.vrc)*Math.min(1, h/BAT.tau);
+  s.vpack = Math.max(0, BAT.cells*s.cellRest - s.amp*BAT.ri - s.vrc);
+  if (s.thr > 0.05) s.vmin = Math.min(s.vmin, s.vpack);
   if (s.thr > 0.05) s.flyT += h;
-  const aT = s.thr * PHYS.twr * PHYS.g * clamp(s.vpack/BAT.vnom, 0.55, 1.08);
+  const aT = s.thr * PHYS.twr * PHYS.g * clamp((s.vpack/BAT.vnom)**2, 0.3, 2.5);
   const sp = vLen(s.v), dr = PHYS.drag1 + PHYS.drag2*sp;
   const a = [up[0]*aT - s.v[0]*dr, up[1]*aT - PHYS.g - s.v[1]*dr, up[2]*aT - s.v[2]*dr];
   s.v = vAdd(s.v, vScale(a, h));

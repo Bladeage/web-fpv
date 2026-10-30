@@ -60,6 +60,10 @@
       <input type="range" id="cap" min="500" max="5000" step="50">
       <h2>Akku-Zellen</h2>
       <div class="seg" id="cellSeg"><button data-cells="4"><b>4S</b><span>14,8 V nominal</span></button><button data-cells="6"><b>6S</b><span>22,2 V nominal</span></button></div>
+      <label class="row" for="batWarn"><span>Warnung ab (pro Zelle)</span><output id="batWarnV"></output></label>
+      <input type="range" id="batWarn" min="3.3" max="3.8" step="0.05">
+      <label class="row" for="batMin"><span>Minimum (pro Zelle)</span><output id="batMinV"></output></label>
+      <input type="range" id="batMin" min="3.0" max="3.5" step="0.05">
       <h2>Flugmodus</h2>
       <div class="seg" id="modeSeg">
         <button data-mode="angle"><b>Angle</b><span>Richtet sich selbst gerade aus. Gut zum Einstieg.</span></button>

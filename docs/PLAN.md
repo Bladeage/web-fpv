@@ -22,7 +22,7 @@ Offene Details mit Vorschlag (gelten, bis der Nutzer anders entscheidet):
 
 ```
 E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
- ├─ E1 LiPo-Modell (Stick-HUD schon mit O1 erledigt)
+ ├─ E1 LiPo-Modell (erledigt; Stick-HUD mit O1)
  ├─ E2 Physik 2.0 ─┬─ E3 Drohnen-Vorlagen
  │                 └─ E4 Schadmodell
  ├─ E5 Szenarien und Ringe (erledigt) ── E6 Ziel-Drohnen mit Verhalten (erledigt)

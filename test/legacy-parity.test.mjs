@@ -7,10 +7,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, buildDrone, buildBlade, buildDisc, colliders, gates } from '../src/world.js';
-import { step, respawn } from '../src/physics.js';
-import { runScenarios, meshStats } from './trace-scenario.mjs';
+import { meshStats } from './trace-scenario.mjs';
 
 const ref = JSON.parse(readFileSync(new URL('./fixtures/legacy-trace.json', import.meta.url), 'utf8'));
 buildWorld();
@@ -46,10 +44,4 @@ test('Welt ist gleich: Hindernisse, Tore, Drohnenmodell', () => {
   close(meshStats(buildDisc()), ref.world.disc, 'disc');
 });
 
-test('Flugbahnen sind gleich wie in der Referenz', () => {
-  const api = { sim: () => game.sim, state: () => game.state, setThrottle: v => { game.throttle = v; },
-                inp, cfg, gates, step, respawn };
-  const trace = runScenarios(api);
-  assert.deepEqual(Object.keys(trace), Object.keys(ref.trace));
-  for (const name of Object.keys(ref.trace)) close(trace[name], ref.trace[name], name);
-});
+// Der Vergleich der Flugbahnen mit legacy/ entfällt seit E1 (neues Akkumodell ändert den Schub absichtlich).

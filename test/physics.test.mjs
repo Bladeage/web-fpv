@@ -22,8 +22,8 @@ function hoverThrottle() {
   let thr = 0.25;
   for (let i = 0; i < 30; i++) {
     const amp = 1 + 95*Math.pow(thr, 1.6);
-    const vpack = BAT.cells*4.2 - amp*BAT.ri;
-    thr = 1/(PHYS.twr*Math.min(Math.max(vpack/15.8, 0.55), 1.08));
+    const vpack = BAT.cells*4.2 - amp*(BAT.ri + BAT.r2);   // eingeschwungener Spannungseinbruch
+    thr = 1/(PHYS.twr*Math.min(Math.max((vpack/BAT.vnom)**2, 0.3), 2.5));
   }
   return thr;
 }
@@ -38,6 +38,7 @@ test('Schwebegas: nach 3 s ist die Steiggeschwindigkeit nahe 0', () => {
   const thr = hoverThrottle();
   assert.ok(thr > 0.15 && thr < 0.35, 'Schwebegas ' + thr);
   airborne([0, 5, 0], thr);
+  game.sim.vrc = (1 + BAT.amax*Math.pow(thr, 1.6))*BAT.r2;   // Akku schon eingeschwungen
   run(3);
   assert.equal(game.state, 'fly');
   assert.ok(Math.abs(game.sim.v[1]) < 0.1, 'vy = ' + game.sim.v[1]);
@@ -93,4 +94,26 @@ test('Akku verbraucht Strom', () => {
   assert.ok(Math.abs(s.mah - amp*3/3.6) < 0.5, 'mAh ' + s.mah);
   assert.ok(s.cellRest < 4.2, 'Ruhespannung sinkt');
   assert.ok(s.vpack < BAT.cells*s.cellRest, 'Spannung bricht unter Last ein');
+});
+
+test('LiPo: Spannung fällt unter Last und erholt sich ohne Last', () => {
+  airborne([0, 50, 0], 0.9);
+  run(3);
+  const loaded = game.sim.vpack, ocv = BAT.cells*game.sim.cellRest;
+  assert.ok(ocv - loaded > 1.5, 'Einbruch unter Last ' + (ocv - loaded));
+  game.throttle = 0; game.sim.thr = 0;
+  run(0.1);
+  const v0 = game.sim.vpack;
+  run(8);
+  assert.ok(game.sim.vpack > v0 + 0.3, 'Erholung ' + v0 + ' -> ' + game.sim.vpack);
+  assert.ok(game.sim.vmin <= loaded + 1e-9, 'tiefste Spannung gemerkt');
+});
+
+test('LiPo: 6S gibt mehr Schub als 4S, sonst gleich', () => {
+  const climb = cells => {
+    BAT.cells = cells; respawn(); game.throttle = 0.5; run(1); return game.sim.p[1];
+  };
+  const h4 = climb(4), h6 = climb(6);
+  BAT.cells = 4;
+  assert.ok(h6 > h4 + 1, `6S ${h6} > 4S ${h4}`);
 });

@@ -41,6 +41,8 @@ export function syncMenu() {
   $('twr').value = droneVal('twr'); $('twrV').textContent = (+droneVal('twr')).toFixed(1);
   $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh';
   press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
+  $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';
+  $('batMin').value = cfg.batMin; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V';
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
@@ -85,6 +87,8 @@ document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('cl
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
 $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; saveCfg(); });
 $('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von 6'; saveCfg(); });
+$('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
+$('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
 $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV').textContent = cfg.rate + ' °/s'; saveCfg(); });
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });
