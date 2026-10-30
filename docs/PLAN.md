@@ -29,7 +29,7 @@ E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
  ├─ M1 Menü in Schritten, Drohnen-Vorlagen (erledigt)
  ├─ O1 OSD realistischer, Bildmodus, OSD-Optionen, Stick-Anzeige (erledigt)
  ├─ S1 Störsignale: Signalmodell mit Hindernissen, Bildfehler analog/digital (erledigt)
- ├─ G1 Grafik: Farbe und Licht
+ ├─ G1 Grafik: Farbe und Licht (erledigt)
  └─ G2 Grafik: Boden, Bäume, Gebäude
 ```
 
