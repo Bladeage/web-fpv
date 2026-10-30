@@ -7,7 +7,7 @@
 - Vor jedem Commit: `npm run build` und `npm test`.
 - Regeln für Module in `src/` (der Build prüft sie): nur `import { a, b } from './x.js';` in einer Zeile, ohne `as`. Nur `export const|let|function|class`. Kein Name doppelt auf oberster Ebene über alle Module. Werte, die mehrere Module neu setzen, liegen in einem Objekt (zum Beispiel `game` in `state.js`).
 - Module ohne DOM bleiben ohne DOM: `math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`. Ton und Vibration erreicht die Physik nur über `fx`.
-- `test/fixtures/legacy-trace.json` ist die Referenz aus `legacy/`. Ändert eine Etappe die Physik absichtlich, passt der Vergleichstest nicht mehr. Dann den Test anpassen oder entfernen und das im Bericht nennen.
+- `test/fixtures/legacy-trace.json` ist die Referenz aus `legacy/`. Seit E1 vergleicht der Test nur noch Hindernisse, Tore und Drohnenmodell; die Flugbahnen weichen absichtlich ab.
 - Physik von DOM und WebGL trennen, damit sie in Node testbar bleibt.
 - Feste Physik-Schrittweite 1/240 s beibehalten, solange der Plan nichts anderes sagt.
 - Zahlenwerte für Drohnen, Akkus und Motoren als Schätzung kennzeichnen und die Annahme im Kommentar nennen.

@@ -7,7 +7,7 @@ import { fmtTime, fmtClock } from './format.js';
 export const OSD_ITEMS = [
   ['lq', 'Empfang (LQ)', true], ['mode', 'Flugmodus', true], ['task', 'Aufgabe', true], ['crashes', 'Abstürze', true],
   ['timer', 'Rundenzeiten', true], ['clock', 'Uhrzeit', false],
-  ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['eff', 'mAh pro Minute', false],
+  ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['vmin', 'Tiefste Spannung', true], ['eff', 'mAh pro Minute', false],
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
   ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
   ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true]
@@ -31,11 +31,13 @@ export function osdLines(o, d) {
   add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');
   add('tr', 'timer', 'BESTE ' + fmtTime(d.best), '#c8ffd4');
   add('tr', 'clock', d.clock);
-  const vcol = d.cell < 3.5 ? RED : d.cell < 3.7 ? YEL : WHITE;
+  const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;
+  const vcol = d.cell < warnV ? RED : d.cell < warnV + 0.2 ? YEL : WHITE;
   add('bl', 'volt', d.vpack.toFixed(1) + 'V', vcol);
   add('bl', 'cell', d.cell.toFixed(2) + 'V', vcol);
   add('bl', 'amp', d.amp.toFixed(1) + 'A');
   add('bl', 'mah', pad(Math.round(d.mah), 4, '0') + 'MAH', d.mah > d.cap*0.8 ? YEL : WHITE);
+  add('bl', 'vmin', 'MIN ' + (d.vmin ?? d.vpack).toFixed(1) + 'V', (d.vmin ?? d.vpack)/(d.vpack/d.cell) < minV ? RED : WHITE);
   add('bl', 'eff', (d.flyT > 5 ? Math.round(d.mah/(d.flyT/60)) : 0) + 'MAH/MIN');
   add('br', 'flytime', 'FLY ' + fmtClock(d.flyT));
   add('br', 'speed', pad(Math.round(d.kmh), 3, '0') + ' KMH');
@@ -48,8 +50,9 @@ export function osdLines(o, d) {
 
 // Warnung wie im Betaflight-OSD, oder null
 export function osdWarning(d) {
-  if (d.cellRest < 3.45) return 'LAND NOW';
-  if (d.cell < 3.5) return 'LOW BATTERY';
+  const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;   // Volt pro Zelle, im Menü einstellbar
+  if (d.cellRest < minV + 0.15 || d.cell < minV) return 'LAND NOW';
+  if (d.cell < warnV) return 'LOW BATTERY';
   if (d.lq < 35) return 'LQ LOW';
   return null;
 }
