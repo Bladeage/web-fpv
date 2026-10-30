@@ -27,6 +27,7 @@ export const PHYS = {
   kYaw: 0.012,                            // Gegenmoment der Propeller pro Newton Schub in m
   rotDamp: 0.002,                         // Luftdämpfung der Drehung in N m s
   kp: [22, 14, 22], ki: [20, 15, 20], iMax: 3,   // Rate-PID je Achse (Nicken, Gieren, Rollen); Ausgang als Winkelbeschleunigung
+  size: 1,                                // Modellgröße relativ zu 5 Zoll (Darstellung, Kamera)
   mass: 0, I: [0, 0, 0], Itune: [0, 0, 0] // aus der Geometrie berechnet (computeInertia)
 };
 // Motoren: x-Seite, z-Seite, Drehrichtung (diagonal gleich, wie Quad-X). Gleiche Reihenfolge wie im Modell.
