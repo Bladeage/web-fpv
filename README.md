@@ -24,6 +24,11 @@ Der Build schreibt `dist/fpvsim.html` und `dist/fpvsim.aspx`. `dist/` liegt nich
 Die CI baut bei jedem Push und legt `dist/` als Artefakt `fpvsim-dist` ab
 (GitHub, Reiter „Actions“, Lauf öffnen, unten bei „Artifacts“).
 
+Bei jedem Push auf den Standard-Branch veröffentlicht die CI die Seite auf GitHub Pages:
+https://bladeage.github.io/web-fpv/ (Simulator) und
+https://bladeage.github.io/web-fpv/fpvsim.aspx (Download der .aspx).
+Einmalig nötig: GitHub, Settings, Pages, Source auf „GitHub Actions“ stellen.
+
 Zum Entwickeln ohne Build: einen Webserver im Repo starten, zum Beispiel
 `python3 -m http.server`, dann `http://localhost:8000/src/index.html` öffnen.
 Per Doppelklick (`file://`) laden Browser keine ES-Module.
