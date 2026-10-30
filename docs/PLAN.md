@@ -21,11 +21,11 @@ Offene Details mit Vorschlag (gelten, bis der Nutzer anders entscheidet):
 ## Abhängigkeiten
 
 ```
-E0 Repo, Module, Build, Tests   (erledigt)
+E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
  ├─ E1 Stick-HUD, LiPo-Modell
  ├─ E2 Physik 2.0 ─┬─ E3 Drohnen-Vorlagen
  │                 └─ E4 Schadmodell
- ├─ E5 Szenarien und Ringe ── E6 Ziel-Drohnen mit Verhalten
+ ├─ E5 Szenarien und Ringe (erledigt) ── E6 Ziel-Drohnen mit Verhalten
  ├─ G1 Grafik: Farbe und Licht
  └─ G2 Grafik: Boden, Bäume, Gebäude
 ```

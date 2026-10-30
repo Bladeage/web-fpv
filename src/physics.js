@@ -25,6 +25,9 @@ export const BAT = { cells: 4, cap: 1500, ri: 0.025 };   // 4S-Akku, 1500 mAh, I
 
 // Rückmeldungen nach außen. In Node bleiben sie leer.
 export const fx = { beep() {}, vibrate() {} };
+// Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
+// check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
+export const task = { check: checkGate, collide: null, reset() {} };
 
 export function respawn() {
   game.sim = {
@@ -35,6 +38,7 @@ export function respawn() {
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
   game.camPos = [0, 1.0, 2.6]; game.camHeading = [0, 0, -1];
+  task.reset();
 }
 
 export function crash(why) {
@@ -102,8 +106,9 @@ export function step(h) {
   }
   // 5. Hindernisse
   for (const c of colliders) if (collide(c, h)) return;
-  // 6. Tore
-  checkGate(prev, s.p);
+  if (task.collide && task.collide(h)) return;
+  // 6. Aufgabe des Szenarios (Tore, Ringe ...)
+  task.check(prev, s.p, h);
   s.t += h;
 }
 
@@ -127,7 +132,12 @@ export function collide(c, h) {
     if (d >= R) return false;
     nx /= d; ny /= d; nz /= d; pen = R - d;
   }
-  const n = [nx*c.cs + nz*c.sn, ny, -nx*c.sn + nz*c.cs];
+  return contact([nx*c.cs + nz*c.sn, ny, -nx*c.sn + nz*c.cs], pen, h);
+}
+
+// Berührung mit Flächennormale n und Eindringtiefe pen: zu schnell = Absturz, sonst abgleiten.
+export function contact(n, pen, h) {
+  const s = game.sim;
   const vn = vDot(s.v, n);
   if (-vn > PHYS.crashV) { crash('Hindernis getroffen'); return true; }
   s.p = vAdd(s.p, vScale(n, pen));

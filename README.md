@@ -43,6 +43,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/math.js`, `src/format.js` | Vektoren, Quaternionen, Matrizen, Zeitformate |
 | `src/world.js` | Welt, Tore, Hindernisse, Drohnenmodell |
 | `src/physics.js` | Flugmodell, Akku, Kollision, Tore |
+| `src/scenario.js` | Szenarien: Torkurs, Ringe, Slalom, Landung, Freiflug |
 | `src/gamepad.js`, `src/input.js` | Funke/Gamepad, Tastatur, Touch |
 | `src/render.js`, `src/hud.js`, `src/audio.js`, `src/menu.js` | WebGL, OSD, Ton, Menü |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |
@@ -50,4 +51,4 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `tools/record-legacy-trace.mjs` | Nimmt Referenzdaten aus `legacy/` auf. Braucht Playwright, nicht Teil von Build und Tests. |
 | `test/` | Tests mit `node:test` |
 
-`math.js`, `format.js`, `state.js`, `world.js`, `physics.js` und `gamepad.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js` und `scenario.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.

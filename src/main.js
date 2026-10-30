@@ -13,9 +13,11 @@ import { gl, initGL, render, resize } from './render.js';
 import { $, menu, resume, syncMenu, updGpUI } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
+import { setScenario } from './scenario.js';
 
 fx.beep = beep;
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+setScenario(cfg.scen);
 respawn();
 
 /* ---------- Hauptschleife ---------- */
