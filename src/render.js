@@ -4,7 +4,7 @@ import { cfg, game, saveCfg, say } from './state.js';
 import { COURSE, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight } from './scenario.js';
 import { targets } from './targets.js';
-import { MOTORS } from './physics.js';
+import { MOTORS, PHYS } from './physics.js';
 
 /* ---------- WebGL ---------- */
 export const glc = document.getElementById('gl');
@@ -206,13 +206,15 @@ export function render(dt) {
   if (cfg.cam === 'fpv') {
     const qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
     // Kamera sitzt vorne im Rahmen, leicht unter den Propellern
-    eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09), vScale(qRot(sim.q, [0,1,0]), -0.01)));
+    const sz = PHYS.size;
+    eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), -0.01*sz)));
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {
     const f = qRot(sim.q, [0,0,-1]), fl = Math.hypot(f[0], f[2]);
     if (fl > 0.2) game.camHeading = [f[0]/fl, 0, f[2]/fl];
-    const target = [sim.p[0] - game.camHeading[0]*2.4, Math.max(0.4, sim.p[1] + 0.8), sim.p[2] - game.camHeading[2]*2.4];
+    const cd = 2.4*clamp(PHYS.size, 0.45, 1.5), ch = 0.8*clamp(PHYS.size, 0.45, 1.5);   // Verfolger-Abstand nach Drohnengröße
+    const target = [sim.p[0] - game.camHeading[0]*cd, Math.max(0.4, sim.p[1] + ch), sim.p[2] - game.camHeading[2]*cd];
     const k = Math.min(1, dt*6);
     game.camPos = vAdd(game.camPos, vScale(vSub(target, game.camPos), k));
     eye = game.camPos;
@@ -290,6 +292,7 @@ export function render(dt) {
   }
   // Drohne (Rumpf nur in der Verfolgerkamera, Propeller auch im Kamerabild)
   const md = mFromQT(sim.q, sim.p);
+  for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) md[i] *= PHYS.size;   // Modell nach Drohnengröße
   if (cfg.cam !== 'fpv') {
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
     gl.uniformMatrix4fv(P.u.uModel, false, md);

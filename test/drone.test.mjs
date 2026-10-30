@@ -24,7 +24,22 @@ test('Vorlagen und eigene Werte wirken auf Physik und Akku', () => {
 
 test('Schwebegas aller Vorlagen liegt zwischen 10 % und 50 %', () => {
   for (const id of Object.keys(DRONES)) {
-    const d = DRONES[id];
-    assert.ok(1/d.twr > 0.1 && 1/d.twr < 0.5, id);
+    applyDrone({ preset: id });
+    const amp = 1 + BAT.amax*Math.pow(0.3, 1.6);   // Strom bei etwa Schwebegas
+    const vf = Math.min(Math.max(((BAT.cells*4.2 - amp*(BAT.ri + BAT.r2))/BAT.vnom)**2, 0.3), 2.5);
+    const hover = 1/(PHYS.twr*vf);
+    assert.ok(hover > 0.1 && hover < 0.5, id + ': ' + hover);
   }
+  applyDrone({ preset: '5' });
+});
+
+test('Trägheit und Größe steigen mit der Drohne', () => {
+  const ids = ['whoop', '3', '5', '7'], I = [], m = [], r = [];
+  for (const id of ids) { applyDrone({ preset: id }); I.push(PHYS.I[0]); m.push(PHYS.mass); r.push(PHYS.radius); }
+  for (let i = 1; i < ids.length; i++) {
+    assert.ok(I[i] > I[i-1] && m[i] > m[i-1] && r[i] > r[i-1], ids[i]);
+  }
+  applyDrone({ preset: '5', mass: PHYS.mass*2 });
+  assert.ok(PHYS.I[0] > I[2]*1.9, 'doppeltes Gewicht, etwa doppelte Trägheit');
+  applyDrone({ preset: '5' });
 });

@@ -53,13 +53,16 @@
     <section data-screen="drone" hidden>
       <p class="stepno">Schritt 3 von 3</p>
       <h1>Drohne</h1>
-      <div class="seg seg3" id="droneSeg"></div>
+      <div class="seg" id="droneSeg"></div>
+      <p class="hint" id="droneInfo"></p>
       <label class="row" for="twr"><span>Schub zu Gewicht</span><output id="twrV"></output></label>
       <input type="range" id="twr" min="2" max="6" step="0.1">
+      <label class="row" for="mass"><span>Gewicht</span><output id="massV"></output></label>
+      <input type="range" id="mass" min="20" max="1500" step="5">
       <label class="row" for="cap"><span>Akku-Kapazität</span><output id="capV"></output></label>
-      <input type="range" id="cap" min="500" max="5000" step="50">
+      <input type="range" id="cap" min="200" max="5000" step="50">
       <h2>Akku-Zellen</h2>
-      <div class="seg" id="cellSeg"><button data-cells="4"><b>4S</b><span>14,8 V nominal</span></button><button data-cells="6"><b>6S</b><span>22,2 V nominal</span></button></div>
+      <div class="seg seg3" id="cellSeg"><button data-cells="1"><b>1S</b><span>3,7 V</span></button><button data-cells="4"><b>4S</b><span>14,8 V</span></button><button data-cells="6"><b>6S</b><span>22,2 V</span></button></div>
       <label class="row" for="batWarn"><span>Warnung ab (pro Zelle)</span><output id="batWarnV"></output></label>
       <input type="range" id="batWarn" min="3.3" max="3.8" step="0.05">
       <label class="row" for="batMin"><span>Minimum (pro Zelle)</span><output id="batMinV"></output></label>
@@ -71,7 +74,7 @@
       </div>
       <label class="row" for="rate"><span>Max. Drehrate im Acro-Modus</span><output id="rateV"></output></label>
       <input type="range" id="rate" min="200" max="900" step="10">
-      <p class="hint">Alle Werte sind Schätzungen. Trägheit, Gewicht und Größe wirken erst mit Physik 2.0.</p>
+      <p class="hint">Alle Werte sind Schätzungen. Mehr Gewicht macht die Drohne träger; der Regler wird darauf abgestimmt.</p>
       <div class="nav"><button class="secondary" data-go="course">Zurück</button><button class="primary" id="bStart">Start</button></div>
     </section>
 

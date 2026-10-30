@@ -7,7 +7,8 @@ import { toggleCam } from './render.js';
 import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
-import { DRONES, applyDrone } from './drone.js';
+import { DRONES, applyDrone, presetMass } from './drone.js';
+import { PHYS } from './physics.js';
 import { OSD_ITEMS, osdOn } from './osd.js';
 
 export const $ = id => document.getElementById(id);
@@ -39,6 +40,10 @@ export function syncMenu() {
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von 6';
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
   $('twr').value = droneVal('twr'); $('twrV').textContent = (+droneVal('twr')).toFixed(1);
+  const pm = presetMass(DRONES[cfg.drone.preset] || DRONES['5']), mass = cfg.drone.mass ?? pm;
+  $('mass').value = Math.round(mass*1000); $('massV').textContent = Math.round(mass*1000) + ' g';
+  applyDrone(cfg.drone);   // nur zur Anzeige der Trägheit; beim Start wird ohnehin neu angewendet
+  $('droneInfo').textContent = 'Trägheit Nicken/Gieren/Rollen: ' + PHYS.I.map(x => (x*1e4).toFixed(1)).join(' / ') + ' kg·cm²';
   $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh';
   press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
   $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';
@@ -85,6 +90,7 @@ for (const [id, d] of Object.entries(DRONES)) addChoice($('droneSeg'), d.name, d
 document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('click', () => { cfg.drone.cells = +b.dataset.cells; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
+$('mass').addEventListener('input', e => { cfg.drone.mass = +e.target.value/1000; saveCfg(); syncMenu(); });
 $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; saveCfg(); });
 $('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von 6'; saveCfg(); });
 $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
