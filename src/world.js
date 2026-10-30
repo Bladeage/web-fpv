@@ -34,6 +34,18 @@ export class MeshBuilder {
     this.quad(p011, p111, p110, p010, col);
     this.quad(p000, p100, p101, p001, col);
   }
+  // Runde Baumkrone: Achtflächner, einmal unterteilt, auf Halbachsen h gestreckt, leicht unregelmäßig.
+  // Unregelmäßigkeit aus der Position (nicht aus dem Zufallsgenerator), damit die Welt sonst gleich bleibt.
+  blob(c, h, col) {
+    const jit = v => { const k = Math.sin(v[0]*12.9898 + v[1]*78.233 + v[2]*37.719 + c[0]*1.7 + c[2]*2.3)*43758.5453; return 0.88 + 0.24*(k - Math.floor(k)); };
+    const P = v => { const n = vNorm(v), j = jit(n); return [c[0] + n[0]*h[0]*j, c[1] + n[1]*h[1]*j, c[2] + n[2]*h[2]*j]; };
+    const mid = (a, b) => vNorm([a[0]+b[0], a[1]+b[1], a[2]+b[2]]);
+    const X = [1,0,0], Y = [0,1,0], Z = [0,0,1], x = [-1,0,0], y = [0,-1,0], z = [0,0,-1];
+    for (const [a, b, d] of [[X,Y,Z],[Z,Y,x],[x,Y,z],[z,Y,X],[Z,y,X],[x,y,Z],[z,y,x],[X,y,z]]) {
+      const ab = mid(a, b), bd = mid(b, d), da = mid(d, a);
+      for (const [p, q, r] of [[a,ab,da],[ab,b,bd],[da,bd,d],[ab,bd,da]]) this.tri(P(p), P(q), P(r), col);
+    }
+  }
   cone(cx, cz, r, h, seg, col) {
     const apex = [cx, h, cz];
     for (let i = 0; i < seg; i++) {
@@ -97,7 +109,9 @@ export function buildWorld() {
     if (nearCourse(x, z, 9)) continue;
     const s = 0.8 + R()*0.6, yaw = R()*Math.PI;
     addSolid(mb, [x, 1.5*s, z], [0.2*s, 1.5*s, 0.2*s], yaw, [0.36, 0.25, 0.16]);
-    addSolid(mb, [x, 4.2*s, z], [1.3*s, 1.5*s, 1.3*s], yaw, [0.17 + R()*0.05, 0.36 + R()*0.08, 0.16]);
+    const crown = [x, 4.2*s, z], ch = [1.3*s, 1.5*s, 1.3*s];   // Kollision bleibt der Quader, sichtbar ist eine runde Krone
+    mb.blob(crown, [ch[0]*1.25, ch[1]*1.15, ch[2]*1.25], [0.17 + R()*0.05, 0.36 + R()*0.08, 0.16]);
+    colliders.push({ c: crown, h: ch, cs: Math.cos(yaw), sn: Math.sin(yaw) });
     placed++;
   }
   // Gebäude
@@ -109,7 +123,7 @@ export function buildWorld() {
     if (nearCourse(x, z, 25)) continue;
     const hx = 4 + R()*5, hy = 3 + R()*5, hz = 4 + R()*4, yaw = R()*Math.PI;
     const g = 0.55 + R()*0.15;
-    addSolid(mb, [x, hy, z], [hx, hy, hz], yaw, [g, g*0.97, g*0.93]);
+    addSolid(mb, [x, hy, z], [hx, hy, hz], yaw, [g, g*0.97, g*0.93, 0.25]);   // Alpha 0,25: Fenster im Shader
     mb.box([x, hy*2 + 0.25, z], [hx + 0.3, 0.25, hz + 0.3], yaw, [0.45, 0.22, 0.18]);
     placed++;
   }

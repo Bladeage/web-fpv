@@ -30,7 +30,7 @@ E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
  ├─ O1 OSD realistischer, Bildmodus, OSD-Optionen, Stick-Anzeige (erledigt)
  ├─ S1 Störsignale: Signalmodell mit Hindernissen, Bildfehler analog/digital (erledigt)
  ├─ G1 Grafik: Farbe und Licht (erledigt)
- └─ G2 Grafik: Boden, Bäume, Gebäude
+ └─ G2 Grafik: Boden, Bäume, Gebäude (erledigt)
 ```
 
 E5, E6, G1 und G2 hängen nicht an E1 bis E4 und können vorgezogen werden.
