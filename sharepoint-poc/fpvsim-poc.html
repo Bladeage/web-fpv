@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPV-Sim Technik-Probe</title>
+<style>
+:root{--bg:#eef2f4;--card:#ffffff;--text:#16212a;--muted:#53646f;--line:#d3dbe0;--ok:#1a7f37;--warn:#9a6700;--err:#b42318;--accent:#ff6a13;--accent-text:#1a0c02;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#10171c;--card:#172028;--text:#e6edf1;--muted:#97a8b3;--line:#2b3842;--ok:#4ac26b;--warn:#d4a72c;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,"Segoe UI",Roboto,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:20px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:16px;margin:0 0 10px}
+p.sub{margin:0 0 16px;color:var(--muted);max-width:70ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse}
+td{padding:7px 4px;border-top:1px solid var(--line);vertical-align:top}
+td.s{font-weight:700;white-space:nowrap;width:5.5em}
+td small{display:block;color:var(--muted);word-break:break-word}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.run{color:var(--muted)}
+canvas{width:100%;aspect-ratio:4/3;display:block;border-radius:8px;background:#b9cbd6}
+button{font:inherit;padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-text);font-weight:700;cursor:pointer}
+button:focus-visible{outline:3px solid var(--text);outline-offset:2px}
+.bar{display:grid;grid-template-columns:4.5em 1fr 4em;gap:8px;align-items:center;font:13px ui-monospace,Consolas,monospace;margin:3px 0}
+.bar i{display:block;height:10px;background:var(--line);border-radius:5px;position:relative}
+.bar b{position:absolute;top:0;height:10px;width:4px;margin-left:-2px;background:var(--accent);border-radius:2px}
+pre{white-space:pre-wrap;font:12px/1.4 ui-monospace,Consolas,monospace;background:var(--bg);padding:10px;border-radius:8px;max-height:320px;overflow:auto;margin:10px 0 0}
+#copied{color:var(--muted);margin-left:8px}
+</style>
+</head>
+<body>
+<main>
+  <h1>FPV-Sim Technik-Probe</h1>
+  <p class="sub">Diese Seite prüft, ob der FPV-Simulator auf dieser SharePoint-Seite laufen kann. Sie liest nur und schreibt nichts nach SharePoint. Am Ende auf „Ergebnis kopieren“ klicken und den Text an Claude schicken.</p>
+  <div class="grid">
+    <section class="card">
+      <h2>Prüfungen</h2>
+      <table id="res"></table>
+      <p><button id="copy">Ergebnis kopieren</button><span id="copied"></span></p>
+    </section>
+    <div>
+      <section class="card">
+        <h2>Testbild</h2>
+        <canvas id="c" width="800" height="600"></canvas>
+        <p id="fps" class="run">Bildrate wird gemessen ...</p>
+      </section>
+      <section class="card">
+        <h2>Funke oder Gamepad</h2>
+        <p id="gpInfo" class="run">Gerät per USB anstecken und einen Knüppel bewegen. Firefox zeigt das Gerät erst nach einer Bewegung.</p>
+        <div id="gpBars"></div>
+      </section>
+    </div>
+  </div>
+  <details class="card"><summary>Bericht als Text ansehen</summary><pre id="rep"></pre></details>
+</main>
+<script>
+'use strict';
+var ASSET_DIR = 'assets/';
+var PROBE_VERSION = 'poc-1';
+
+/* ---------- Ergebnisliste ---------- */
+var rows = [];
+var LBL = { ok: 'OK', warn: 'HINWEIS', err: 'FEHLER', run: '...' };
+function addRow(id, name) { rows.push({ id: id, name: name, status: 'run', detail: 'läuft' }); paint(); }
+function setRow(id, status, detail) {
+  for (var i = 0; i < rows.length; i++) if (rows[i].id === id) { rows[i].status = status; rows[i].detail = detail; }
+  paint();
+}
+function paint() {
+  var t = document.getElementById('res');
+  t.textContent = '';
+  rows.forEach(function (r) {
+    var tr = document.createElement('tr');
+    var s = document.createElement('td'); s.className = 's ' + r.status; s.textContent = LBL[r.status];
+    var d = document.createElement('td'); d.textContent = r.name;
+    var sm = document.createElement('small'); sm.textContent = r.detail; d.appendChild(sm);
+    tr.appendChild(s); tr.appendChild(d); t.appendChild(tr);
+  });
+  document.getElementById('rep').textContent = report();
+}
+var gpSeen = null;
+function report() {
+  var L = [];
+  L.push('FPV-Sim Technik-Probe ' + PROBE_VERSION);
+  L.push('Zeit: ' + new Date().toISOString());
+  L.push('Seite: ' + location.href);
+  L.push('Browser: ' + navigator.userAgent);
+  L.push('');
+  rows.forEach(function (r) { L.push('[' + LBL[r.status] + '] ' + r.name + ': ' + r.detail); });
+  if (gpSeen) {
+    L.push('');
+    L.push('Gamepad: ' + gpSeen.id + ' | mapping=' + (gpSeen.mapping || '(leer)') + ' | Achsen=' + gpSeen.min.length + ' | Tasten=' + gpSeen.buttons);
+    for (var i = 0; i < gpSeen.min.length; i++) L.push('  Achse ' + i + ': min ' + gpSeen.min[i].toFixed(3) + '  max ' + gpSeen.max[i].toFixed(3));
+  }
+  return L.join('\n');
+}
+document.getElementById('copy').addEventListener('click', function () {
+  var text = report(), info = document.getElementById('copied');
+  function fallback() {
+    var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    info.textContent = ok ? 'Kopiert.' : 'Kopieren ging nicht. Bitte den Bericht unten markieren und kopieren.';
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function () { info.textContent = 'Kopiert.'; }, fallback);
+  } else fallback();
+});
+
+/* ---------- Abruf mit Messung ---------- */
+function probe(url, as) {
+  var ctl = ('AbortController' in window) ? new AbortController() : null;
+  var tm = setTimeout(function () { if (ctl) ctl.abort(); }, 15000);
+  var t0 = performance.now(), res = { url: url };
+  return fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+    .then(function (r) {
+      res.status = r.status; res.ct = r.headers.get('content-type') || '-';
+      if (!r.ok) { res.ok = false; return res; }
+      return (as === 'text' ? r.text() : r.arrayBuffer()).then(function (b) {
+        res.ok = true; res.body = b; res.bytes = as === 'text' ? b.length : b.byteLength;
+        res.ms = Math.round(performance.now() - t0); return res;
+      });
+    })
+    .catch(function (e) { res.ok = false; res.status = 0; res.err = e.name === 'AbortError' ? 'Zeitüberschreitung' : e.message; return res; })
+    .then(function (x) { clearTimeout(tm); return x; });
+}
+function kb(n) { return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB'; }
+function failText(r) { return r.status ? 'HTTP ' + r.status + ', Typ ' + r.ct : 'kein Abruf möglich (' + (r.err || 'unbekannt') + ')'; }
+
+/* ---------- Matrizen ---------- */
+function persp(f, a, n, fa) { var t = 1 / Math.tan(f / 2), m = new Float32Array(16); m[0] = t / a; m[5] = t; m[10] = (fa + n) / (n - fa); m[11] = -1; m[14] = 2 * fa * n / (n - fa); return m; }
+function mul(a, b) { var o = new Float32Array(16); for (var c = 0; c < 4; c++) for (var r = 0; r < 4; r++) { var s = 0; for (var k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k]; o[c * 4 + r] = s; } return o; }
+function lookAt(e, t) {
+  var bx = e[0] - t[0], by = e[1] - t[1], bz = e[2] - t[2], bl = Math.hypot(bx, by, bz); bx /= bl; by /= bl; bz /= bl;
+  var rx = bz, ry = 0, rz = -bx, rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+  var ux = by * rz - bz * ry, uy = bz * rx - bx * rz, uz = bx * ry - by * rx;
+  var m = new Float32Array(16);
+  m[0] = rx; m[4] = ry; m[8] = rz; m[1] = ux; m[5] = uy; m[9] = uz; m[2] = bx; m[6] = by; m[10] = bz;
+  m[12] = -(rx * e[0] + ry * e[1] + rz * e[2]); m[13] = -(ux * e[0] + uy * e[1] + uz * e[2]); m[14] = -(bx * e[0] + by * e[1] + bz * e[2]); m[15] = 1;
+  return m;
+}
+
+/* ---------- GLB-Leser (glTF 2.0 binär, ohne Bibliothek) ---------- */
+function parseGLB(buf) {
+  var dv = new DataView(buf);
+  if (buf.byteLength < 20 || dv.getUint32(0, true) !== 0x46546C67) throw new Error('keine GLB-Datei (Kennung fehlt)');
+  if (dv.getUint32(4, true) !== 2) throw new Error('glTF-Version nicht 2');
+  var off = 12, json = null, bin = null;
+  while (off + 8 <= buf.byteLength) {
+    var len = dv.getUint32(off, true), type = dv.getUint32(off + 4, true), s = off + 8;
+    if (type === 0x4E4F534A) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, s, len)));
+    else if (type === 0x004E4942) bin = buf.slice(s, s + len);
+    off = s + len;
+  }
+  if (!json || !bin) throw new Error('JSON- oder BIN-Block fehlt');
+  var SIZE = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+  function acc(i) {
+    var a = json.accessors[i], bv = json.bufferViews[a.bufferView];
+    var o = (bv.byteOffset || 0) + (a.byteOffset || 0), n = SIZE[a.type] * a.count;
+    if (a.componentType === 5126) return new Float32Array(bin, o, n);
+    if (a.componentType === 5123) return new Uint16Array(bin, o, n);
+    if (a.componentType === 5125) return new Uint32Array(bin, o, n);
+    throw new Error('Datentyp ' + a.componentType + ' nicht unterstützt');
+  }
+  var parts = [], tris = 0;
+  json.meshes.forEach(function (m) {
+    m.primitives.forEach(function (p) {
+      var mat = p.material !== undefined ? json.materials[p.material] : null;
+      var col = (mat && mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorFactor) || [0.8, 0.8, 0.8, 1];
+      var part = { pos: acc(p.attributes.POSITION), nor: p.attributes.NORMAL !== undefined ? acc(p.attributes.NORMAL) : null,
+                   idx: p.indices !== undefined ? acc(p.indices) : null, col: col };
+      tris += (part.idx ? part.idx.length : part.pos.length / 3) / 3;
+      parts.push(part);
+    });
+  });
+  return { parts: parts, tris: tris, generator: (json.asset && json.asset.generator) || '-' };
+}
+
+/* ---------- WebGL ---------- */
+var canvas = document.getElementById('c');
+var gl = null, prog = null, U = {}, ground = null, modelParts = [], tex = null;
+var VS = '#version 300 es\n' +
+  'layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNor; layout(location=2) in vec2 aUV;\n' +
+  'uniform mat4 uVP; out vec3 vNor; out vec2 vUV; out vec3 vW;\n' +
+  'void main(){ vNor=aNor; vUV=aUV; vW=aPos; gl_Position=uVP*vec4(aPos,1.0); }';
+var FS = '#version 300 es\nprecision highp float;\n' +
+  'in vec3 vNor; in vec2 vUV; in vec3 vW; uniform sampler2D uTex; uniform float uUseTex; uniform vec4 uCol; uniform vec3 uSun;\n' +
+  'out vec4 o;\n' +
+  'void main(){ vec3 n=normalize(vNor); vec3 c=uCol.rgb; if(uUseTex>0.5){ c=texture(uTex,vUV).rgb; }\n' +
+  ' float d=max(dot(n,uSun),0.0); vec3 amb=mix(vec3(0.3,0.29,0.26),vec3(0.52,0.6,0.7),0.5+0.5*n.y);\n' +
+  ' vec3 col=c*(amb+d*0.75); float f=1.0-exp(-length(vW)*0.02); o=vec4(mix(col,vec3(0.78,0.85,0.9),f*0.6),1.0); }';
+function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function initGL() {
+  prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  ['uVP', 'uTex', 'uUseTex', 'uCol', 'uSun'].forEach(function (n) { U[n] = gl.getUniformLocation(prog, n); });
+  var S = 15, R = 6;
+  var d = new Float32Array([
+    -S, 0, -S, 0, 1, 0, 0, 0,   -S, 0, S, 0, 1, 0, 0, R,   S, 0, S, 0, 1, 0, R, R,
+    -S, 0, -S, 0, 1, 0, 0, 0,    S, 0, S, 0, 1, 0, R, R,   S, 0, -S, 0, 1, 0, R, 0]);
+  ground = gl.createVertexArray(); gl.bindVertexArray(ground);
+  var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24);
+  gl.bindVertexArray(null);
+  gl.enable(gl.DEPTH_TEST);
+}
+function uploadModel(m) {
+  modelParts = m.parts.map(function (p) {
+    var vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+    var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, p.pos, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    if (p.nor) { var nb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, p.nor, gl.STATIC_DRAW); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0); }
+    else gl.vertexAttrib3f(1, 0, 1, 0);
+    gl.vertexAttrib2f(2, 0, 0);
+    var type = null, count = p.pos.length / 3;
+    if (p.idx) {
+      var ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, p.idx, gl.STATIC_DRAW);
+      type = p.idx instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT; count = p.idx.length;
+    }
+    gl.bindVertexArray(null);
+    return { vao: vao, type: type, count: count, col: p.col };
+  });
+}
+
+var frames = 0, fpsStart = 0, fpsDone = false;
+function frame(t) {
+  if (gl) {
+    var W = canvas.clientWidth, H = canvas.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.72, 0.8, 0.86, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    var a = t * 0.0004, eye = [Math.cos(a) * 7, 2.6, Math.sin(a) * 7];
+    var vp = mul(persp(60 * Math.PI / 180, canvas.width / canvas.height, 0.1, 200), lookAt(eye, [0, 1.4, 0]));
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(U.uVP, false, vp); gl.uniform3f(U.uSun, 0.45, 0.8, 0.3);
+    gl.uniform1i(U.uTex, 0);
+    gl.uniform1f(U.uUseTex, tex ? 1 : 0); gl.uniform4f(U.uCol, 0.35, 0.5, 0.27, 1);
+    if (tex) { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); }
+    gl.bindVertexArray(ground); gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.uniform1f(U.uUseTex, 0);
+    modelParts.forEach(function (p) {
+      gl.uniform4f(U.uCol, p.col[0], p.col[1], p.col[2], 1);
+      gl.bindVertexArray(p.vao);
+      if (p.type) gl.drawElements(gl.TRIANGLES, p.count, p.type, 0); else gl.drawArrays(gl.TRIANGLES, 0, p.count);
+    });
+    gl.bindVertexArray(null);
+    if (!fpsStart) fpsStart = t;
+    frames++;
+    if (!fpsDone && t - fpsStart > 5000) {
+      fpsDone = true;
+      var fps = frames * 1000 / (t - fpsStart);
+      var st = fps >= 50 ? 'ok' : fps >= 25 ? 'warn' : 'err';
+      setRow('fps', st, fps.toFixed(1) + ' Bilder pro Sekunde über 5 s' + (st !== 'ok' ? '. Für flüssiges Fliegen sind 50 oder mehr gut.' : ''));
+      document.getElementById('fps').textContent = 'Gemessen: ' + fps.toFixed(1) + ' Bilder pro Sekunde';
+    }
+  }
+  pollGamepad();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Gamepad ---------- */
+function pollGamepad() {
+  if (!navigator.getGamepads) return;
+  var pads = navigator.getGamepads(), gp = null;
+  for (var i = 0; i < pads.length; i++) if (pads[i]) { gp = pads[i]; break; }
+  if (!gp) return;
+  if (!gpSeen || gpSeen.id !== gp.id) {
+    gpSeen = { id: gp.id, mapping: gp.mapping, buttons: gp.buttons.length, min: gp.axes.map(function () { return 0; }), max: gp.axes.map(function () { return 0; }) };
+    setRow('gp', 'ok', 'Gerät erkannt: ' + gp.id + ' (' + gp.axes.length + ' Achsen, ' + gp.buttons.length + ' Tasten). Bitte alle Knüppel einmal bis zum Anschlag bewegen.');
+    document.getElementById('gpInfo').textContent = gp.id;
+    var box = document.getElementById('gpBars'); box.textContent = '';
+    gp.axes.forEach(function (v, k) {
+      var row = document.createElement('div'); row.className = 'bar';
+      row.innerHTML = '<span>Achse ' + k + '</span><i><b></b></i><span>0.00</span>';
+      box.appendChild(row);
+    });
+  }
+  var bars = document.getElementById('gpBars').children;
+  gp.axes.forEach(function (v, k) {
+    gpSeen.min[k] = Math.min(gpSeen.min[k], v); gpSeen.max[k] = Math.max(gpSeen.max[k], v);
+    if (bars[k]) { bars[k].querySelector('b').style.left = ((v + 1) * 50) + '%'; bars[k].lastChild.textContent = v.toFixed(2); }
+  });
+}
+
+/* ---------- Prüfablauf ---------- */
+function run() {
+  addRow('js', 'JavaScript läuft in der .aspx-Seite');
+  addRow('sec', 'Sicherer Kontext (HTTPS)');
+  addRow('gl', 'WebGL2 (3D-Grafik)');
+  addRow('tex', 'Textur aus der Bibliothek laden (assets/gras.png)');
+  addRow('glb', 'Modell als .glb laden (assets/tor.glb)');
+  addRow('bin', 'Modell als .bin laden (assets/tor.bin)');
+  addRow('json', 'Datei .json laden (assets/probe.json)');
+  addRow('txt', 'Datei .txt laden (assets/probe.txt)');
+  addRow('rest', 'SharePoint-REST: Dateien im Ordner assets auflisten');
+  addRow('ls', 'Lokaler Speicher (Einstellungen, Bestzeiten)');
+  addRow('gp', 'Gamepad-Schnittstelle (für Funke in Stufe 2)');
+  addRow('fps', 'Bildrate im Testbild');
+
+  setRow('js', 'ok', 'Pfad ' + decodeURIComponent(location.pathname));
+  setRow('sec', window.isSecureContext ? 'ok' : 'err', window.isSecureContext ? location.protocol + ' ist sicher' : 'Seite nicht sicher. Gamepad und Zwischenablage fallen dann aus.');
+
+  try { gl = canvas.getContext('webgl2', { antialias: true }); } catch (e) { gl = null; }
+  if (!gl) setRow('gl', 'err', 'WebGL2 nicht verfügbar. Mögliche Ursachen: Grafiktreiber, Firmenrichtlinie, Remote-Desktop.');
+  else {
+    try {
+      initGL();
+      var ren = '-', ext = gl.getExtension('WEBGL_debug_renderer_info');
+      ren = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      var soft = /swiftshader|llvmpipe|basic render|software|softpipe/i.test(String(ren));
+      setRow('gl', soft ? 'warn' : 'ok', 'Grafik: ' + ren + ', max. Texturgröße ' + gl.getParameter(gl.MAX_TEXTURE_SIZE) + (soft ? '. Software-Rendering erkannt, das ist langsam.' : ''));
+    } catch (e) { setRow('gl', 'err', 'Grafikfehler: ' + e.message); gl = null; }
+  }
+
+  probe(ASSET_DIR + 'gras.png', 'buf').then(function (r) {
+    if (!r.ok) return setRow('tex', 'err', failText(r));
+    var blob = new Blob([r.body], { type: 'image/png' });
+    return createImageBitmap(blob).then(function (img) {
+      if (gl) {
+        tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+      }
+      setRow('tex', 'ok', img.width + 'x' + img.height + ' px, ' + kb(r.bytes) + ', ' + r.ms + ' ms, Typ ' + r.ct);
+    }, function (e) { setRow('tex', 'err', 'Datei kam an (' + kb(r.bytes) + ', Typ ' + r.ct + '), Bild ließ sich nicht lesen: ' + e.message); });
+  });
+
+  function modelProbe(id, file) {
+    return probe(ASSET_DIR + file, 'buf').then(function (r) {
+      if (!r.ok) { setRow(id, 'err', failText(r)); return null; }
+      try {
+        var m = parseGLB(r.body);
+        setRow(id, 'ok', m.tris + ' Dreiecke, ' + m.parts.length + ' Teile, ' + kb(r.bytes) + ', ' + r.ms + ' ms, Typ ' + r.ct);
+        return m;
+      } catch (e) {
+        var head = new TextDecoder().decode(new Uint8Array(r.body, 0, Math.min(60, r.bytes))).replace(/\s+/g, ' ');
+        setRow(id, 'err', 'Datei kam an (' + kb(r.bytes) + ', Typ ' + r.ct + '), aber kein gültiges Modell: ' + e.message + '. Anfang: ' + head);
+        return null;
+      }
+    });
+  }
+  Promise.all([modelProbe('glb', 'tor.glb'), modelProbe('bin', 'tor.bin')]).then(function (ms) {
+    var m = ms[0] || ms[1];
+    if (m && gl) uploadModel(m);
+  });
+
+  probe(ASSET_DIR + 'probe.json', 'text').then(function (r) {
+    if (!r.ok) return setRow('json', 'err', failText(r));
+    try { var j = JSON.parse(r.body); setRow('json', j.probe === 'fpvsim' ? 'ok' : 'warn', 'Inhalt gelesen, ' + r.ms + ' ms, Typ ' + r.ct); }
+    catch (e) { setRow('json', 'err', 'Inhalt ist kein JSON (Typ ' + r.ct + '). Anfang: ' + r.body.slice(0, 60)); }
+  });
+  probe(ASSET_DIR + 'probe.txt', 'text').then(function (r) {
+    if (!r.ok) return setRow('txt', 'err', failText(r));
+    setRow('txt', r.body.indexOf('fpvsim-probe-ok') === 0 ? 'ok' : 'warn', 'Inhalt gelesen, ' + r.ms + ' ms, Typ ' + r.ct);
+  });
+
+  restCheck();
+
+  try {
+    localStorage.setItem('fpvsim.probe', '1');
+    var ok = localStorage.getItem('fpvsim.probe') === '1';
+    localStorage.removeItem('fpvsim.probe');
+    setRow('ls', ok ? 'ok' : 'warn', ok ? 'Schreiben und Lesen klappt' : 'Wert kam nicht zurück');
+  } catch (e) { setRow('ls', 'warn', 'Nicht verfügbar: ' + e.message + '. Einstellungen gehen dann beim Neuladen verloren.'); }
+
+  if (navigator.getGamepads) setRow('gp', 'ok', 'Schnittstelle vorhanden. Noch kein Gerät erkannt.');
+  else setRow('gp', 'warn', 'Schnittstelle fehlt in diesem Browser.');
+  if (!gl) setRow('fps', 'err', 'Ohne WebGL2 kein Testbild.');
+
+  requestAnimationFrame(frame);
+}
+
+function restCheck() {
+  var segs = location.pathname.split('/').filter(Boolean);
+  segs.pop();
+  var folder = decodeURIComponent('/' + segs.join('/')) + '/assets';
+  var cands = [];
+  for (var i = segs.length; i >= 0; i--) cands.push(i ? '/' + segs.slice(0, i).join('/') : '');
+  var H = { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'same-origin' };
+  function tryNext(k) {
+    if (k >= cands.length) return Promise.resolve(null);
+    return fetch(cands[k] + '/_api/web?$select=ServerRelativeUrl,Title', H)
+      .then(function (r) { return r.ok ? r.json() : null; }, function () { return null; })
+      .then(function (j) { return (j && j.d) ? j.d : tryNext(k + 1); }, function () { return tryNext(k + 1); });
+  }
+  tryNext(0).then(function (web) {
+    if (!web) return setRow('rest', 'warn', 'REST-Schnittstelle nicht erreicht. Für das Laden der Dateien ist sie nicht nötig.');
+    var base = String(web.ServerRelativeUrl).replace(/\/$/, '');
+    var url = base + "/_api/web/GetFolderByServerRelativeUrl('" + encodeURI(folder).replace(/'/g, "''") + "')/Files?$select=Name,Length";
+    return fetch(url, H).then(function (r) {
+      if (!r.ok) return setRow('rest', 'warn', 'Web "' + web.Title + '" gefunden (' + base + '), Ordnerliste HTTP ' + r.status + ' für ' + folder);
+      return r.json().then(function (j) {
+        var list = (j.d && j.d.results) || [];
+        setRow('rest', 'ok', 'Web "' + web.Title + '" (' + base + '). ' + list.length + ' Dateien: ' +
+          list.map(function (f) { return f.Name + ' (' + kb(+f.Length) + ')'; }).join(', '));
+      });
+    });
+  }).catch(function (e) { setRow('rest', 'warn', 'Fehler bei REST: ' + e.message); });
+}
+
+run();
+</script>
+</body>
+</html>
