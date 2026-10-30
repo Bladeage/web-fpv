@@ -15,7 +15,7 @@ function run(seconds) {
 // Drohne in der Luft absetzen, Motoren schon auf Drehzahl.
 function airborne(p, thr) {
   const s = game.sim;
-  s.p = p.slice(); s.grounded = false; s.thr = thr; game.throttle = thr;
+  s.p = p.slice(); s.grounded = false; s.thr = thr; s.mot = [thr, thr, thr, thr]; game.throttle = thr;
 }
 // Gas, bei dem der Schub die Schwerkraft gerade ausgleicht (voller Akku, gerade Lage).
 function hoverThrottle() {
@@ -116,4 +116,56 @@ test('LiPo: 6S gibt mehr Schub als 4S, sonst gleich', () => {
   const h4 = climb(4), h6 = climb(6);
   BAT.cells = 4;
   assert.ok(h6 > h4 + 1, `6S ${h6} > 4S ${h4}`);
+});
+
+test('Physik 2.0: Schweben ist 10 s stabil, ohne Aufschwingen', () => {
+  const thr = hoverThrottle();
+  airborne([0, 20, 0], thr);
+  game.sim.vrc = (1 + BAT.amax*Math.pow(thr, 1.6))*BAT.r2;
+  let maxRate = 0;
+  for (let i = 0; i < 240*10; i++) { step(STEP); if (i > 240) maxRate = Math.max(maxRate, Math.hypot(...game.sim.w)); }
+  const up = game.sim.q;
+  assert.equal(game.state, 'fly');
+  assert.ok(maxRate < 0.01, 'Drehrate ' + maxRate);
+  assert.ok(Math.abs(game.sim.p[1] - 20) < 1.5, 'Höhe ' + game.sim.p[1]);
+  assert.ok(Math.abs(up[0]) + Math.abs(up[2]) < 1e-3, 'bleibt gerade');
+});
+
+// Zeit, bis die Rollrate 63 % des Sollwerts erreicht (Acro, Rate-Sprung)
+function rollResponse() {
+  cfg.mode = 'acro';
+  airborne([0, 30, 0], 0.3);
+  inp.roll = 0.5;
+  const target = Math.abs(rateCurveTarget(0.5));
+  for (let i = 1; i < 240; i++) { step(STEP); if (Math.abs(game.sim.w[2]) >= 0.63*target) return i*STEP; }
+  return 1;
+}
+function rateCurveTarget(x) { const e = 0.45, a = Math.abs(x); return cfg.rate*Math.PI/180*((1 - e)*a + e*a*a*a); }
+
+test('Physik 2.0: doppelte Trägheit antwortet langsamer auf einen Rate-Sprung', () => {
+  const t1 = rollResponse();
+  const I0 = PHYS.I.slice();
+  PHYS.I = I0.map(x => x*2);
+  respawn(); inp.pitch = inp.yaw = 0;
+  const t2 = rollResponse();
+  PHYS.I = I0;
+  assert.ok(t1 < 0.1, 'Antwort ' + t1);
+  assert.ok(t2 > t1*1.4, `doppelt ${t2} gegen ${t1}`);
+});
+
+test('Physik 2.0: Vollgas und voller Rollbefehl, mindestens ein Motor unter 100 %', () => {
+  cfg.mode = 'acro';
+  airborne([0, 30, 0], 1);
+  inp.roll = 1;
+  const target = -rateCurveTarget(1);
+  let ok = true, checked = 0;
+  for (let i = 0; i < 120; i++) {
+    const err = Math.abs(target - game.sim.w[2]);
+    step(STEP);
+    if (err > 1) { checked++; if (Math.min(...game.sim.cmd) > 0.99) ok = false; }   // nur wenn Rollmoment verlangt ist
+  }
+  assert.ok(checked > 10);
+  assert.ok(ok, 'ein Motor unter 100 %, solange Rollmoment verlangt ist');
+  assert.ok(Math.max(...game.sim.cmd) > 0.99, 'Vollgas bleibt genutzt');
+  assert.ok(game.sim.w[2] < -3, 'rollt trotzdem rechts: ' + game.sim.w[2]);
 });
