@@ -27,8 +27,13 @@ precision highp float;
 in vec3 vNor; in vec4 vCol; in vec3 vW;
 uniform vec3 uSun, uCam, uFog;
 uniform vec4 uOver;
-uniform float uFogD, uAlpha;
+uniform float uFogD, uAlpha, uFancy;
 out vec4 o;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+  return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+}
 void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
@@ -43,13 +48,30 @@ void main(){
     float nn = sin(p.x*0.07)*sin(p.y*0.05) + sin(p.x*0.013 + p.y*0.021);
     c *= 0.94 + 0.06*nn;
   }
-  c = mix(c, uOver.rgb, uOver.a);
+  if (uFancy < 0.5) {
+    c = mix(c, uOver.rgb, uOver.a);
+    float dif = max(dot(n, uSun), 0.0);
+    vec3 amb = mix(vec3(0.30,0.29,0.26), vec3(0.52,0.60,0.70), 0.5 + 0.5*n.y);
+    vec3 col = c * (amb + dif*vec3(1.0,0.96,0.88)*0.72) + uOver.rgb*uOver.a*0.35;
+    float d = length(vW - uCam);
+    float f = 1.0 - exp(-pow(d*uFogD, 1.6));
+    o = vec4(mix(col, uFog, clamp(f, 0.0, 1.0)), uAlpha);
+    return;
+  }
+  // Schön: lineares Licht, warme Sonne, kühler Himmel, Abdunklung am Boden, Dunst, Tone-Mapping, sRGB
+  vec3 base = pow(mix(c, uOver.rgb, uOver.a), vec3(2.2));
   float dif = max(dot(n, uSun), 0.0);
-  vec3 amb = mix(vec3(0.30,0.29,0.26), vec3(0.52,0.60,0.70), 0.5 + 0.5*n.y);
-  vec3 col = c * (amb + dif*vec3(1.0,0.96,0.88)*0.72) + uOver.rgb*uOver.a*0.35;
+  vec3 sky = vec3(0.20, 0.27, 0.40), bounce = vec3(0.10, 0.09, 0.06);
+  vec3 amb = mix(bounce, sky, 0.5 + 0.5*n.y);
+  float ao = 1.0;
+  if (vCol.a >= 0.5) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
+  vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
   float d = length(vW - uCam);
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
-  o = vec4(mix(col, uFog, clamp(f, 0.0, 1.0)), uAlpha);
+  float hz = exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/350.0))*0.18;   // Dunst nah am Boden
+  col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + hz, 0.0, 1.0));
+  col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);   // ACES-Näherung
+  o = vec4(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2)), uAlpha);
 }`;
 const SKY_VS = `#version 300 es
 layout(location=0) in vec2 aP;
@@ -106,7 +128,7 @@ function upload(data) {
   return { vao, buf, count: data.length / 10 };
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uFancy']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun']);
   const w = buildWorld();
   staticCount = w.staticCount;
@@ -195,6 +217,7 @@ export function render(dt) {
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
   gl.uniform1f(P.u.uFogD, 1/260);
+  gl.uniform1f(P.u.uFancy, cfg.gfx === 'simple' ? 0 : 1);
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.bindVertexArray(worldMesh.vao);

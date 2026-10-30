@@ -6,7 +6,7 @@
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
 export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
-  diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5 };
+  diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5, gfx: 'nice' };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(STORE_CFG) || '{}')); } catch (e) {}
 // Bildmodus: 'analog' | 'digital' | 'clean'. Ältere Einstellungen kannten nur cfg.analog.
 if (!cfg.video) cfg.video = cfg.analog === false ? 'clean' : 'analog';
