@@ -46,6 +46,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/scenario.js` | Szenarien: Torkurs, Ringe, Slalom, Landung, Freiflug; Schwierigkeit |
 | `src/drone.js` | Drohnen-Vorlagen 3", 5", 7" (Schätzwerte) |
 | `src/osd.js` | OSD-Inhalt: Elemente, Beschriftung, Warnungen |
+| `src/signal.js` | Funkstrecke: Video und Steuerverbindung, Dämpfung durch Hindernisse |
 | `src/gamepad.js`, `src/input.js` | Funke/Gamepad, Tastatur, Touch |
 | `src/render.js`, `src/hud.js`, `src/audio.js`, `src/menu.js` | WebGL, OSD, Ton, Menü |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |
@@ -53,4 +54,4 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `tools/record-legacy-trace.mjs` | Nimmt Referenzdaten aus `legacy/` auf. Braucht Playwright, nicht Teil von Build und Tests. |
 | `test/` | Tests mit `node:test` |
 
-`math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js` und `osd.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js`, `osd.js` und `signal.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
