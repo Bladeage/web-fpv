@@ -1,19 +1,20 @@
 # Etappenplan FPV-Simulator
 
-Fassung 1 vom 30.10.2026. Jede Etappe ist eine abgeschlossene Einheit: umsetzen, prüfen, committen, berichten, anhalten.
+Fassung 2 vom 30.10.2026 (E6 neu als Jagd-Modus, Entscheidung des Nutzers). Jede Etappe ist eine abgeschlossene Einheit: umsetzen, prüfen, committen, berichten, anhalten.
 Aufwand ist eine Schätzung. Annahme: „mittel“ ist eine Arbeitssitzung, „groß“ etwa zwei.
 
 ## Abhängigkeiten
 
 ```
-E0 Repo, Module, Build, Tests
+E0 Repo, Module, Build, Tests   (erledigt)
  ├─ E1 Stick-HUD, LiPo-Modell
  ├─ E2 Physik 2.0 ─┬─ E3 Drohnen-Vorlagen
- │                 └─ E4 Schadmodell ── E6 Patrouille (Schaden bei Treffer)
- └─ E5 Streckenformat, Tunnel, Ringe
+ │                 └─ E4 Schadmodell
+ ├─ E5 Streckenformat, Tunnel, Ringe
+ └─ E6 Jagd-Modus: Ziel-Drohnen treffen
 ```
 
-E5 hängt nur an E0 und kann vorgezogen werden. E6 geht auch ohne E4, dann mit Absturz statt Schaden.
+E5 und E6 hängen nur an E0 und können vorgezogen werden.
 
 ---
 
@@ -111,14 +112,23 @@ E5 hängt nur an E0 und kann vorgezogen werden. E6 geht auch ohne E4, dann mit A
 **Abnahme:**
 - Test: Durchflug durch Ring und Tunnel zählt. Treffer auf Ring oder Wand ergibt Absturz oder Schaden.
 
-## E6: Patrouille-Drohnen (mittel)
+## E6: Jagd-Modus, Ziel-Drohnen treffen (mittel)
 
-- **Routen aus Wegpunkten:** Kreis, Acht, Hin und Her. Geschwindigkeit je Drohne.
-- **Bewegung kinematisch:** nicht voll simuliert, mit Schräglage in Kurven.
-- **Optik:** eigenes Farbschema und drehende Propeller.
-- **Kollision:** Kugel gegen Kugel über den Bewegungsweg des Schritts, nicht nur den Endpunkt.
-- **Folge:** ohne E4 Absturz, mit E4 Rotorschaden.
-- Optional: Beinahe-Treffer als OSD-Hinweis.
+Entscheidung des Nutzers vom 30.10.2026: Die frei fliegenden Drohnen sind Ziele, keine Hindernisse.
+Ein Treffer gibt Punkte. Die getroffene Drohne stürzt ab. Sind x Drohnen getroffen, ist die Aufgabe erfüllt.
+
+- **Modus im Menü:** Torkurs (bisher) oder Jagd. Gleiche Karte.
+- **Ziel-Drohnen:** feste Routen aus Wegpunkten: Kreis, Acht, Hin und Her. Geschwindigkeit je Drohne.
+  Bewegung kinematisch, nicht voll simuliert, mit Schräglage in Kurven. Eigenes Farbschema, drehende Propeller.
+- **Treffer:** Kugel gegen Kugel über den Bewegungsweg des Schritts, nicht nur den Endpunkt.
+  Ein Treffer zählt einen Punkt. Die getroffene Drohne fällt mit Drehung zu Boden und bleibt dort liegen. Sie zählt nicht noch einmal.
+- **Eigene Drohne:** fliegt nach einem Treffer weiter. Ab E4 optional Schaden bei hartem Treffer.
+- **Aufgabe:** x Treffer. Danach Meldung mit benötigter Zeit. Bestzeit wird gespeichert.
+- **OSD:** Trefferzähler und Marker zum nächsten Ziel, wie der Tormarker.
+- **Neustart (R):** setzt Drohne, Akku, Ziele und Zähler zurück.
 
 **Abnahme:**
 - Test: Frontalbegegnung mit 40 m/s Annäherung wird erkannt und nicht durchflogen.
+- Test: Treffer zählt genau einmal, das Ziel stürzt ab und liegt danach am Boden.
+- Test: Nach x Treffern ist die Aufgabe erfüllt.
+- Test: Torkurs verhält sich unverändert.
