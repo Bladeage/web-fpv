@@ -11,69 +11,102 @@
 <canvas id="hud"></canvas>
 <div id="probe"></div>
 
+<button id="bMenu" class="burger" aria-label="Einstellungen">☰</button>
 <div class="topbar">
-  <button id="bMenu" aria-label="Menü öffnen">☰</button>
   <button id="bReset" aria-label="Neustart">↺</button>
   <button id="bCam" aria-label="Kamera wechseln">◎</button>
 </div>
 
 <div id="menu" class="overlay">
   <div class="panel" role="dialog" aria-labelledby="mt">
-    <h1 id="mt">FPV-Simulator<small>Stufe 1: einfache Steuerung, einfache Welt</small></h1>
-    <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
+    <section data-screen="main">
+      <h1 id="mt">FPV-Simulator<small>Parcours wählen, Drohne wählen, fliegen</small></h1>
+      <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
+      <button id="bResume" class="primary" hidden>Weiterfliegen</button>
+      <button id="go" class="primary">Neuer Flug</button>
+      <button class="secondary" data-go="settings">Einstellungen</button>
+      <p class="best" id="bestTxt"></p>
+    </section>
 
-    <h2>Szenario</h2>
-    <select id="scen" aria-label="Szenario"></select>
-    <p class="hint" id="scenInfo"></p>
+    <section data-screen="mode" hidden>
+      <p class="stepno">Schritt 1 von 3</p>
+      <h1>Modus</h1>
+      <div class="list" id="scenList"></div>
+      <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="course">Weiter</button></div>
+    </section>
 
-    <h2>Flugmodus</h2>
-    <div class="seg">
-      <button data-mode="angle"><b>Angle</b><span>Richtet sich selbst gerade aus. Gut zum Einstieg.</span></button>
-      <button data-mode="acro"><b>Acro</b><span>Knüppel steuert die Drehrate. So fliegen FPV-Piloten.</span></button>
-    </div>
-
-    <label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
-    <input type="range" id="tilt" min="0" max="50" step="1">
-
-    <label class="row" for="rate"><span>Max. Drehrate im Acro-Modus</span><output id="rateV"></output></label>
-    <input type="range" id="rate" min="200" max="900" step="10">
-
-    <label class="check"><input type="checkbox" id="sound"> Motorgeräusch</label>
-    <label class="check"><input type="checkbox" id="analog"> Analog-Look (Rauschen, Bildstörung bei schwachem Empfang)</label>
-    <label class="check"><input type="checkbox" id="propsView"> Propeller im Kamerabild</label>
-
-    <h2>Funke oder Gamepad</h2>
-    <p class="gpstat" id="gpStat"></p>
-    <label class="row" for="gpPreset" style="margin-top:4px"><span>Belegung</span></label>
-    <select id="gpPreset">
-      <option value="auto">Automatisch</option>
-      <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
-      <option value="gamepad">Gamepad (Xbox-Layout)</option>
-      <option value="custom">Eigene Zuordnung</option>
-    </select>
-    <div id="gpRows"></div>
-    <p class="hint">RadioMaster: Funke per USB anstecken und am Funkgerät „USB Joystick (HID)“ wählen. Dann einen Knüppel bewegen. Wirkt ein Knüppel falsch herum, Haken bei „umkehren“ setzen.</p>
-
-    <button id="go" class="primary">Fliegen</button>
-    <p class="best" id="bestTxt"></p>
-
-    <details>
-      <summary>Steuerung</summary>
-      <p>Belegung wie bei einer Funke im Mode 2.</p>
-      <div class="keys">
-        <kbd>W / S</kbd><span>Gas mehr / weniger. Der Wert bleibt stehen.</span>
-        <kbd>A / D</kbd><span>Gieren links / rechts</span>
-        <kbd>↑ / ↓</kbd><span>Nicken: Nase runter / Nase hoch</span>
-        <kbd>← / →</kbd><span>Rollen links / rechts</span>
-        <kbd>R</kbd><span>Neustart</span>
-        <kbd>V</kbd><span>Kamera: Drohne / Verfolger</span>
-        <kbd>M</kbd><span>Flugmodus wechseln</span>
-        <kbd>P / Esc</kbd><span>Menü</span>
+    <section data-screen="course" hidden>
+      <p class="stepno">Schritt 2 von 3</p>
+      <h1>Parcours</h1>
+      <p class="hint" id="courseInfo"></p>
+      <div id="courseOpts">
+        <h2>Schwierigkeit</h2>
+        <div class="seg seg3" id="diffSeg"></div>
       </div>
-      <p><b>Touch:</b> Linker Daumen hoch und runter ist Gas, seitlich ist Gieren. Rechter Daumen steuert Nicken und Rollen. Beim Loslassen bleibt das Gas stehen. Alles andere geht auf Mitte.</p>
-      <p><b>Ziel:</b> Hängt vom Szenario ab. Das nächste Ziel leuchtet grün, der grüne Marker zeigt die Richtung. Im Torkurs endet die Runde wieder an Tor 1.</p>
-      <p><b>Tipp:</b> Schweben braucht etwa ein Viertel Gas. Der Akku hält etwa 3 Minuten. R setzt Drohne und Akku zurück.</p>
-    </details>
+      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
+    </section>
+
+    <section data-screen="drone" hidden>
+      <p class="stepno">Schritt 3 von 3</p>
+      <h1>Drohne</h1>
+      <div class="seg seg3" id="droneSeg"></div>
+      <label class="row" for="twr"><span>Schub zu Gewicht</span><output id="twrV"></output></label>
+      <input type="range" id="twr" min="2" max="6" step="0.1">
+      <label class="row" for="cap"><span>Akku-Kapazität</span><output id="capV"></output></label>
+      <input type="range" id="cap" min="500" max="5000" step="50">
+      <h2>Akku-Zellen</h2>
+      <div class="seg" id="cellSeg"><button data-cells="4"><b>4S</b><span>14,8 V nominal</span></button><button data-cells="6"><b>6S</b><span>22,2 V nominal</span></button></div>
+      <h2>Flugmodus</h2>
+      <div class="seg" id="modeSeg">
+        <button data-mode="angle"><b>Angle</b><span>Richtet sich selbst gerade aus. Gut zum Einstieg.</span></button>
+        <button data-mode="acro"><b>Acro</b><span>Knüppel steuert die Drehrate. So fliegen FPV-Piloten.</span></button>
+      </div>
+      <label class="row" for="rate"><span>Max. Drehrate im Acro-Modus</span><output id="rateV"></output></label>
+      <input type="range" id="rate" min="200" max="900" step="10">
+      <p class="hint">Alle Werte sind Schätzungen. Trägheit, Gewicht und Größe wirken erst mit Physik 2.0.</p>
+      <div class="nav"><button class="secondary" data-go="course">Zurück</button><button class="primary" id="bStart">Start</button></div>
+    </section>
+
+    <section data-screen="settings" hidden>
+      <h1>Einstellungen</h1>
+      <label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
+      <input type="range" id="tilt" min="0" max="50" step="1">
+
+      <label class="check"><input type="checkbox" id="sound"> Motorgeräusch</label>
+      <label class="check"><input type="checkbox" id="analog"> Analog-Look (Rauschen, Bildstörung bei schwachem Empfang)</label>
+      <label class="check"><input type="checkbox" id="propsView"> Propeller im Kamerabild</label>
+
+      <h2>Funke oder Gamepad</h2>
+      <p class="gpstat" id="gpStat"></p>
+      <label class="row" for="gpPreset" style="margin-top:4px"><span>Belegung</span></label>
+      <select id="gpPreset">
+        <option value="auto">Automatisch</option>
+        <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
+        <option value="gamepad">Gamepad (Xbox-Layout)</option>
+        <option value="custom">Eigene Zuordnung</option>
+      </select>
+      <div id="gpRows"></div>
+      <p class="hint">RadioMaster: Funke per USB anstecken und am Funkgerät „USB Joystick (HID)“ wählen. Dann einen Knüppel bewegen. Wirkt ein Knüppel falsch herum, Haken bei „umkehren“ setzen.</p>
+
+      <details>
+        <summary>Steuerung</summary>
+        <p>Belegung wie bei einer Funke im Mode 2.</p>
+        <div class="keys">
+          <kbd>W / S</kbd><span>Gas mehr / weniger. Der Wert bleibt stehen.</span>
+          <kbd>A / D</kbd><span>Gieren links / rechts</span>
+          <kbd>↑ / ↓</kbd><span>Nicken: Nase runter / Nase hoch</span>
+          <kbd>← / →</kbd><span>Rollen links / rechts</span>
+          <kbd>R</kbd><span>Neustart</span>
+          <kbd>V</kbd><span>Kamera: Drohne / Verfolger</span>
+          <kbd>M</kbd><span>Flugmodus wechseln</span>
+          <kbd>P / Esc</kbd><span>Einstellungen öffnen und schließen</span>
+        </div>
+        <p><b>Touch:</b> Linker Daumen hoch und runter ist Gas, seitlich ist Gieren. Rechter Daumen steuert Nicken und Rollen. Beim Loslassen bleibt das Gas stehen. Alles andere geht auf Mitte.</p>
+        <p><b>Ziel:</b> Hängt vom Modus ab. Das nächste Ziel leuchtet grün, der grüne Marker zeigt die Richtung.</p>
+        <p><b>Tipp:</b> Schweben braucht beim 5-Zoll etwa ein Viertel Gas. R setzt Drohne und Akku zurück.</p>
+      </details>
+      <div class="nav"><button class="secondary" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Zurück</button></div>
+    </section>
   </div>
 </div>
 

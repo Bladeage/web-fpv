@@ -26,12 +26,14 @@ E0 Repo, Module, Build, Tests   (erledigt, dazu GitHub Pages)
  ├─ E2 Physik 2.0 ─┬─ E3 Drohnen-Vorlagen
  │                 └─ E4 Schadmodell
  ├─ E5 Szenarien und Ringe (erledigt) ── E6 Ziel-Drohnen mit Verhalten
+ ├─ M1 Menü in Schritten, Drohnen-Vorlagen (erledigt)
+ ├─ O1 OSD realistischer, Bildmodus, OSD-Optionen, Stick-Anzeige
  ├─ G1 Grafik: Farbe und Licht
  └─ G2 Grafik: Boden, Bäume, Gebäude
 ```
 
 E5, E6, G1 und G2 hängen nicht an E1 bis E4 und können vorgezogen werden.
-Vorgeschlagene Reihenfolge: E5, E6, G1, G2, danach E1 bis E4.
+Vorgeschlagene Reihenfolge: O1, E6, G1, G2, danach E1 bis E4.
 G1 und G2 ändern nur das Aussehen. Hindernisse und Kollision bleiben gleich.
 
 ---
@@ -166,6 +168,27 @@ G1 und G2 ändern nur das Aussehen. Hindernisse und Kollision bleiben gleich.
 - Test: Nach x Treffern ist die Aufgabe erfüllt.
 - Test: Ausweichende Drohne vergrößert den Abstand, wenn der Spieler sich nähert. Dumme Drohne nicht.
 - Test: Zufällige Drohne bleibt im Gebiet.
+
+## M1: Menü in Schritten, Drohnen-Vorlagen (erledigt)
+
+- Hauptmenü: Neuer Flug, Einstellungen, Weiterfliegen (wenn ein Flug läuft).
+- Neuer Flug: Modus -> Parcours (Schwierigkeit) -> Drohne (Vorlage 3"/5"/7", Schub, Akku, Zellen, Flugmodus) -> Start.
+- Einstellungen über Esc, P oder ☰ oben links, von überall.
+- Trägheit, Gewicht und Größe der Drohne folgen mit E2/E3.
+
+## O1: OSD realistischer, Bildmodus, OSD-Optionen (mittel)
+
+Wunsch des Nutzers vom 30.10.2026.
+
+- Bildmodus: Analog (Rauschen, Störstreifen), Digital (sauber, bei schwachem Signal Klötzchen und Standbild), ohne Effekte.
+- OSD-Stil passend zum Bildmodus: Analog im Betaflight-Look (Zeichensatz, Symbole), Digital feiner und schärfer.
+- OSD-Elemente im Menü einzeln ein- und ausschalten.
+- Stick-Anzeige: zwei kleine Quadrate mit der Knüppelstellung (aus E1 vorgezogen).
+- Mehr Werte: zum Beispiel Neigung, Drehrate, Uhrzeit, Verbrauch pro Minute. Auswahl im Menü.
+
+**Abnahme:**
+- Sichtprüfung je Bildmodus am PC und mobil.
+- Test: ausgeschaltete OSD-Elemente werden nicht gezeichnet.
 
 ## G1: Grafik, Farbe und Licht (klein bis mittel)
 

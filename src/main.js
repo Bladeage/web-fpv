@@ -10,14 +10,16 @@ import { STEP, fx, respawn, step } from './physics.js';
 import { updGamepad } from './gamepad.js';
 import { audioUpd, beep } from './audio.js';
 import { gl, initGL, render, resize } from './render.js';
-import { $, menu, resume, syncMenu, updGpUI } from './menu.js';
+import { $, menu, resume, show, updGpUI } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
 import { setScenario } from './scenario.js';
+import { applyDrone } from './drone.js';
 
 fx.beep = beep;
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
-setScenario(cfg.scen);
+setScenario(cfg.scen); game.scenRun = cfg.scen;
+applyDrone(cfg.drone);
 respawn();
 
 /* ---------- Hauptschleife ---------- */
@@ -46,12 +48,12 @@ function frame(now) {
 }
 
 resize();
-syncMenu();
+show('main');
 if (!gl) {
-  $('glErr').hidden = false; $('go').disabled = true;
+  $('glErr').hidden = false; $('go').disabled = true; $('bStart').disabled = true;
 } else {
   try { initGL(); requestAnimationFrame(frame); }
-  catch (e) { $('glErr').hidden = false; $('glErr').textContent = 'Grafikfehler: ' + e.message; $('go').disabled = true; }
+  catch (e) { $('glErr').hidden = false; $('glErr').textContent = 'Grafikfehler: ' + e.message; $('go').disabled = true; $('bStart').disabled = true; }
 }
 // Testzugang für automatische Prüfungen
 window.__fpv = { get sim() { return game.sim; }, get state() { return game.state; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };

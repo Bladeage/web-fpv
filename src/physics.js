@@ -21,7 +21,10 @@ export const PHYS = {
   yawRateAngle: 200
 };
 export const STEP = 1/240;   // feste Physik-Schrittweite
-export const BAT = { cells: 4, cap: 1500, ri: 0.025 };   // 4S-Akku, 1500 mAh, Innenwiderstand in Ohm (Schätzwerte)
+// Akku (Schätzwerte): Zellen, Kapazität in mAh, Innenwiderstand in Ohm,
+// Strom bei Vollgas über Grundlast in A (amax), Spannung für vollen Schub in V (vnom = Zellen * 3,95).
+// drone.js überschreibt die Werte je Vorlage; hier die 5-Zoll-Vorlage aus Stufe 1.
+export const BAT = { cells: 4, cap: 1500, ri: 0.025, amax: 95, vnom: 15.8 };
 
 // Rückmeldungen nach außen. In Node bleiben sie leer.
 export const fx = { beep() {}, vibrate() {} };
@@ -80,13 +83,13 @@ export function step(h) {
   s.thr += (game.throttle - s.thr) * Math.min(1, h/PHYS.spool);
   const up = qRot(s.q, [0,1,0]);
   // Akku: Strom, Verbrauch, Spannung unter Last (vereinfachtes Modell)
-  s.amp = 1.0 + 95*Math.pow(s.thr, 1.6);
+  s.amp = 1.0 + BAT.amax*Math.pow(s.thr, 1.6);
   s.mah += s.amp*h/3.6;
   const frac = s.mah/BAT.cap;
   s.cellRest = Math.max(3.0, 4.2 - 0.55*Math.min(frac, 1) - Math.max(0, frac - 0.8)*2.5);
   s.vpack = BAT.cells*s.cellRest - s.amp*BAT.ri;
   if (s.thr > 0.05) s.flyT += h;
-  const aT = s.thr * PHYS.twr * PHYS.g * clamp(s.vpack/15.8, 0.55, 1.08);
+  const aT = s.thr * PHYS.twr * PHYS.g * clamp(s.vpack/BAT.vnom, 0.55, 1.08);
   const sp = vLen(s.v), dr = PHYS.drag1 + PHYS.drag2*sp;
   const a = [up[0]*aT - s.v[0]*dr, up[1]*aT - PHYS.g - s.v[1]*dr, up[2]*aT - s.v[2]*dr];
   s.v = vAdd(s.v, vScale(a, h));
