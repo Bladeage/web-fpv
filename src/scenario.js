@@ -6,12 +6,14 @@ import { cfg, game, say, saveBest, loadBest } from './state.js';
 import { COURSE, gates, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
+import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
   { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, auf verschiedenen Höhen und geneigt.' },
   { id: 'slalom',  name: 'Slalom',             info: '5 Stangen. Blaue Fahne: rechts vorbei. Rote Fahne: links vorbei.' },
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
+  { id: 'hunt',    name: 'Jagd',               info: '6 Ziel-Drohnen: dumm, zufällig, ausweichend. Triff die geforderte Anzahl.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
@@ -21,11 +23,11 @@ export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem W
 // zum nächsten Ring. Wegen der Höhenunterschiede sind die Ringe dadurch geneigt.
 const RING_H = [4, 7, 11, 6, 13, 9, 5, 8];
 export const RING_TUBE = 0.1;   // Rohrradius in m
-// Schwierigkeit (cfg.diff): Ringradius bis Rohrmitte, Slalom-Fenster, Landung (Grenzgeschwindigkeit, halbe Plattformbreite) in m und m/s
+// Schwierigkeit (cfg.diff): Ringradius bis Rohrmitte, Slalom-Fenster, Landung (Grenzgeschwindigkeit, halbe Plattformbreite) in m und m/s, Tempo der Ziel-Drohnen (Faktor)
 export const DIFF = {
-  easy: { name: 'Leicht', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5 },
-  mid:  { name: 'Mittel', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0 },
-  hard: { name: 'Schwer', ringR: 1.1, slalomW: 4, landV: 1.2, padHalf: 0.6 }
+  easy: { name: 'Leicht', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7 },
+  mid:  { name: 'Mittel', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0 },
+  hard: { name: 'Schwer', ringR: 1.1, slalomW: 4, landV: 1.2, padHalf: 0.6, huntSpeed: 1.4 }
 };
 export const diff = () => DIFF[cfg.diff] || DIFF.mid;
 const segMid = i => { const a = COURSE[i], b = COURSE[(i+1) % COURSE.length]; return [(a[0]+b[0])/2, RING_H[i], (a[1]+b[1])/2]; };
@@ -53,8 +55,8 @@ export const PAD = { c: [72.5, 0, -45] };
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
-const st = { done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
-function reset() { st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+const st = { hits: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
+function reset() { st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -128,11 +130,25 @@ function checkLanding(a, b, h) {
   st.onPad = onPad; st.vPrev = s.v.slice();
 }
 
+// Jagd: Ziele bewegen sich im Physikschritt; Zeit läuft ab dem Abheben, Ziel nach cfg.huntX Treffern
+export const huntNeed = () => Math.min(cfg.huntX || 5, targets.length || 6);
+function checkHunt(a, b, h) {
+  const s = game.sim;
+  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  const n = stepTargets(h, a, b, b);
+  if (!n || st.done) return;
+  st.hits += n; fx.beep(1100, 0.12);
+  say('Treffer ' + st.hits + '/' + huntNeed(), 1.2);
+  if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
+}
+export const huntHits = () => st.hits;
+
 const TASKS = {
   gates:   { check: checkGate, collide: null },
   rings:   { check: checkRing, collide: collideRings },
   slalom:  { check: checkPole, collide: collidePoles },
   landing: { check: checkLanding, collide: null },
+  hunt:    { check: checkHunt, collide: null },
   free:    { check() {}, collide: null }
 };
 task.reset = reset;
@@ -151,6 +167,7 @@ export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
   if (scen.id === 'free') return 'FREIFLUG';
+  if (scen.id === 'hunt') return st.done ? 'ZIEL' : `TREFFER ${st.hits}/${huntNeed()}`;
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;
@@ -161,6 +178,11 @@ export function scenTarget() {
   const s = game.sim;
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
   if (st.done || scen.id === 'free') return null;
+  if (scen.id === 'hunt') {   // nächstes noch fliegendes Ziel
+    let best = null, bd = 1e9;
+    for (const t of targets) if (t.state === 'fly') { const d = vLen(vSub(t.p, s.p)); if (d < bd) { bd = d; best = t.p; } }
+    return best;
+  }
   if (scen.id === 'rings') return rings[s.next].c;
   if (scen.id === 'slalom') { const g = poles[s.next]; return [g.c[0] + g.r[0]*g.side*2, 2, g.c[2] + g.r[2]*g.side*2]; }
   return [PAD.c[0], 0.5, PAD.c[2]];

@@ -3,6 +3,7 @@ import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul,
 import { cfg, game, saveCfg, say } from './state.js';
 import { gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight } from './scenario.js';
+import { targets } from './targets.js';
 
 /* ---------- WebGL ---------- */
 export const glc = document.getElementById('gl');
@@ -219,6 +220,23 @@ export function render(dt) {
       else gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
       gl.drawArrays(gl.TRIANGLES, pt.start, pt.count);
     });
+  }
+  // Ziel-Drohnen (Jagd): Farbe nach Verhalten, Neigung in Flugrichtung, beim Absturz drehend
+  if (scen.id === 'hunt') {
+    gl.bindVertexArray(droneMesh.vao);
+    const COL = { dumb: [1.0, 0.85, 0.1], random: [0.2, 0.6, 1.0], evade: [1.0, 0.2, 0.25] };
+    for (const t of targets) {
+      const sp = Math.hypot(t.v[0], t.v[2]), yaw = Math.atan2(-t.v[0], -t.v[2]);
+      let q = qMul(qAxis([0,1,0], sp > 0.1 ? yaw : 0), qAxis([1,0,0], -Math.min(0.5, sp*0.03)));
+      if (t.state !== 'fly') q = qMul(q, qAxis(vNorm([1, 0.3, 0.6]), t.ang));
+      const m = mFromQT(q, t.p);
+      for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) m[i] *= 1.8;   // größer als die eigene Drohne, besser sichtbar
+      const c = COL[t.beh];
+      gl.uniform4f(P.u.uOver, c[0], c[1], c[2], t.state === 'fly' ? 0.65 : 0.25);
+      gl.uniformMatrix4fv(P.u.uModel, false, m);
+      gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
+    }
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Drohne (Rumpf nur in der Verfolgerkamera, Propeller auch im Kamerabild)
   const md = mFromQT(sim.q, sim.p);

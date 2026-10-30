@@ -35,6 +35,8 @@ export function syncMenu() {
   $('courseInfo').textContent = sc.name + ': ' + sc.info;
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
+  $('huntOpts').hidden = cfg.scen !== 'hunt';
+  $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von 6';
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
   $('twr').value = droneVal('twr'); $('twrV').textContent = (+droneVal('twr')).toFixed(1);
   $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh';
@@ -81,6 +83,7 @@ document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('cl
 document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
 $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; saveCfg(); });
+$('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von 6'; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
 $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV').textContent = cfg.rate + ' °/s'; saveCfg(); });
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });

@@ -46,6 +46,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/scenario.js` | Szenarien: Torkurs, Ringe, Slalom, Landung, Freiflug; Schwierigkeit |
 | `src/drone.js` | Drohnen-Vorlagen 3", 5", 7" (Schätzwerte) |
 | `src/osd.js` | OSD-Inhalt: Elemente, Beschriftung, Warnungen |
+| `src/targets.js` | Ziel-Drohnen der Jagd: Routen, Verhalten, Treffer |
 | `src/signal.js` | Funkstrecke: Video und Steuerverbindung, Dämpfung durch Hindernisse |
 | `src/gamepad.js`, `src/input.js` | Funke/Gamepad, Tastatur, Touch |
 | `src/render.js`, `src/hud.js`, `src/audio.js`, `src/menu.js` | WebGL, OSD, Ton, Menü |
