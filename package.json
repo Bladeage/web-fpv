@@ -1,0 +1,11 @@
+{
+  "name": "fpvsim",
+  "private": true,
+  "type": "module",
+  "description": "FPV-Drohnensimulator im Browser. Reines HTML, CSS, JavaScript, WebGL2.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "engines": { "node": ">=22" }
+}
