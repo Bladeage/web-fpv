@@ -5,12 +5,12 @@ import { cfg, game, kb, tch, inp, keys, ptr, say } from './state.js';
 import { respawn } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam } from './render.js';
-import { openMenu, resume, setMode } from './menu.js';
+import { toggleMenu, setMode } from './menu.js';
 
 /* ---------- Eingabe: Tastatur ---------- */
 const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD'];
 addEventListener('keydown', e => {
-  if (e.code === 'Escape' || e.code === 'KeyP') { game.paused ? resume() : openMenu(); e.preventDefault(); return; }
+  if (e.code === 'Escape' || e.code === 'KeyP') { toggleMenu(); e.preventDefault(); return; }
   if (game.paused) return;
   if (GAME_KEYS.includes(e.code)) e.preventDefault();
   if (e.repeat) return;

@@ -82,16 +82,17 @@ export function drawHud() {
   const narrow = W < 600;
   const L = inset.l + 14, Rx = W - inset.r - 14, B = H - inset.b - 16;
   const T = inset.t + 16 + fs + (narrow ? 50 : 0);
+  const Lt = narrow ? L : L + 54;   // oben links Platz für ☰ (schmal: Zeilen rücken stattdessen nach unten)
   const lh = fs*1.35;
   const bot = touchUI ? B - stickR()*2 - 30 : B;
   const blink = (performance.now() % 800) < 500;
   const RED = '#ff7a6a', YEL = '#ffd27a';
 
   // links oben: Empfang, Modus, Tor
-  txt('LQ ' + String(Math.round(lq)).padStart(3, ' '), L, T, 'left', lq < 50 ? RED : '#fff');
-  txt(cfg.mode === 'acro' ? 'ACRO' : 'ANGL', L, T + lh, 'left', cfg.mode === 'acro' ? '#ffb27a' : '#9be7ff');
-  txt(scenLabel(), L, T + lh*2);
-  if (game.crashes) txt(`CRASH ${game.crashes}`, L, T + lh*3, 'left', '#ffd0c8');
+  txt('LQ ' + String(Math.round(lq)).padStart(3, ' '), Lt, T, 'left', lq < 50 ? RED : '#fff');
+  txt(cfg.mode === 'acro' ? 'ACRO' : 'ANGL', Lt, T + lh, 'left', cfg.mode === 'acro' ? '#ffb27a' : '#9be7ff');
+  txt(scenLabel(), Lt, T + lh*2);
+  if (game.crashes) txt(`CRASH ${game.crashes}`, Lt, T + lh*3, 'left', '#ffd0c8');
   // rechts oben: Rundenzeiten
   const cur = s.lapStart !== null ? s.t - s.lapStart : null;
   txt(fmtTime(cur), Rx, T, 'right');

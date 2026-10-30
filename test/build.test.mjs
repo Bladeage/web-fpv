@@ -24,7 +24,7 @@ test('Build erzeugt fpvsim.html und fpvsim.aspx', (t) => {
   // ASPX: reines ASCII, kein "<%", CRLF
   assert.ok(aspx.every(b => b < 128), 'nur ASCII');
   assert.ok(!aspx.toString('ascii').includes('<%'));
-  assert.match(aspx.toString('ascii'), /Men&#xFC; &#xF6;ffnen/);
+  assert.match(aspx.toString('ascii'), /Motorger&#xE4;usch/);
   assert.match(aspx.toString('ascii'), /'Zeit l\\u00E4uft'/);
 });
 

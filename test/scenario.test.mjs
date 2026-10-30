@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, gates } from '../src/world.js';
 import { STEP, step, respawn, task, checkGate } from '../src/physics.js';
-import { setScenario, scenDone, scenLabel, buildScenario, rings, poles, PAD, RING_R, SLALOM_W } from '../src/scenario.js';
+import { setScenario, scenDone, scenLabel, buildScenario, rings, poles, PAD, diff } from '../src/scenario.js';
 
 buildWorld();
 
@@ -45,7 +45,7 @@ test('Durchflug durch einen geneigten Ring zählt', () => {
 test('Treffer auf den Ring ergibt Absturz', () => {
   setScenario('rings'); respawn();
   const g = rings[0];
-  const [p, v] = along(g.c, g.n, 1.5, 8, vScaleLocal(g.e1, RING_R));
+  const [p, v] = along(g.c, g.n, 1.5, 8, vScaleLocal(g.e1, diff().ringR));
   place(p, v);
   run(0.5);
   assert.equal(game.state, 'crashed');
@@ -79,7 +79,7 @@ test('Slalom zählt nur auf der richtigen Seite', () => {
   assert.equal(game.sim.next, 1);
   // zu weit weg zählt nicht
   const g1 = poles[1];
-  [p, v] = along([g1.c[0], h, g1.c[2]], g1.n, 1.5, 6, vScaleLocal(g1.r, g1.side*(SLALOM_W + 1)));
+  [p, v] = along([g1.c[0], h, g1.c[2]], g1.n, 1.5, 6, vScaleLocal(g1.r, g1.side*(diff().slalomW + 1)));
   place(p, v); run(0.5);
   assert.equal(game.sim.next, 1);
 });
@@ -129,4 +129,21 @@ test('Freiflug: keine Aufgabe, Tore zählen nicht', () => {
   place(p, v); run(0.5);
   assert.equal(game.sim.next, 0);
   assert.equal(scenLabel(), 'FREIFLUG');
+});
+
+test('Schwierigkeit: leichter Ring ist größer, schwere Landung strenger', () => {
+  cfg.diff = 'easy'; const easy = diff();
+  cfg.diff = 'hard'; const hard = diff();
+  cfg.diff = 'mid';
+  assert.ok(easy.ringR > diff().ringR && diff().ringR > hard.ringR);
+  assert.ok(easy.landV > hard.landV);
+  // Durchflug 1,9 m neben der Ringmitte: leicht zählt, mittel trifft den Ring
+  for (const [d, ok] of [['easy', true], ['mid', false]]) {
+    cfg.diff = d; setScenario('rings'); respawn();
+    const g = rings[0];
+    const [p, v] = along(g.c, g.n, 1.5, 4, vScaleLocal(g.e1, 1.9));
+    place(p, v); run(0.6);
+    assert.equal(game.sim.next === 1, ok, d);
+  }
+  cfg.diff = 'mid';
 });

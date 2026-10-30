@@ -1,22 +1,43 @@
-/* Menü: Flugmodus, Kamera, Ton, Funke-Zuordnung mit Live-Anzeige. */
+/* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
+   Einstellungen (Kamera, Ton, Funke) sind über Esc oder ☰ von überall erreichbar. */
 import { cfg, game, keys, ptr, saveCfg } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
 import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
-import { SCENARIOS, setScenario } from './scenario.js';
+import { SCENARIOS, DIFF, setScenario } from './scenario.js';
+import { DRONES, applyDrone } from './drone.js';
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
+let screen = 'main';
+let from = null;   // Bildschirm vor den Einstellungen; null = aus dem Flug geöffnet
+
+const press = (sel, test) => document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', String(test(b))));
+function addChoice(box, label, info, onClick) {
+  const b = document.createElement('button'), t = document.createElement('b'), s = document.createElement('span');
+  t.textContent = label; s.textContent = info; b.append(t, s);
+  b.addEventListener('click', onClick); box.appendChild(b);
+  return b;
+}
+const droneVal = k => cfg.drone[k] ?? (DRONES[cfg.drone.preset] || DRONES['5'])[k];
+
 export function setMode(m) {
   cfg.mode = m; saveCfg();
-  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+  press('#modeSeg button', b => b.dataset.mode === m);
 }
 export function syncMenu() {
   setMode(cfg.mode);
-  $('scen').value = cfg.scen;
-  $('scenInfo').textContent = SCENARIOS.find(x => x.id === cfg.scen).info;
+  const sc = SCENARIOS.find(x => x.id === cfg.scen);
+  press('#scenList button', b => b.dataset.id === cfg.scen);
+  $('courseInfo').textContent = sc.name + ': ' + sc.info;
+  $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
+  press('#diffSeg button', b => b.dataset.id === cfg.diff);
+  press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
+  $('twr').value = droneVal('twr'); $('twrV').textContent = (+droneVal('twr')).toFixed(1);
+  $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh';
+  press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
@@ -24,12 +45,40 @@ export function syncMenu() {
   $('propsView').checked = cfg.propsView;
   $('gpPreset').value = cfg.gpPreset;
   syncGpRows();
-  $('go').textContent = game.started ? 'Weiterfliegen' : 'Fliegen';
-  $('bestTxt').textContent = game.best !== null ? 'Bestzeit: ' + fmtTime(game.best) : '';
+  $('bResume').hidden = !game.started;
+  $('bBack').textContent = from === null && game.started ? 'Weiterfliegen' : 'Zurück';
+  const cur = SCENARIOS.find(x => x.id === (game.started ? game.scenRun : cfg.scen)) || sc;
+  $('bestTxt').textContent = game.best !== null ? 'Bestzeit ' + cur.name + ': ' + fmtTime(game.best) : '';
 }
-export function openMenu() { game.paused = true; keys.clear(); ptr.clear(); syncMenu(); menu.hidden = false; $('go').focus({ preventScroll: true }); }
+export function show(name) {
+  screen = name;
+  document.querySelectorAll('#menu section').forEach(s => { s.hidden = s.dataset.screen !== name; });
+  syncMenu();
+  menu.scrollTop = 0;
+  const f = document.querySelector(`#menu section[data-screen="${name}"] .primary:not([hidden])`);
+  if (f) f.focus({ preventScroll: true });
+}
+export function openMenu(name = 'settings') {
+  if (menu.hidden) from = null; else if (name === 'settings' && screen !== 'settings') from = screen;
+  game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; show(name);
+}
 export function resume() { audioInit(); game.paused = false; game.started = true; menu.hidden = true; game.last = performance.now(); }
-document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
+// Esc, P und ☰: Einstellungen öffnen oder wieder schließen
+export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
+function start() {
+  setScenario(cfg.scen); applyDrone(cfg.drone); saveCfg();
+  game.scenRun = cfg.scen;
+  respawn(); resume();
+}
+
+for (const x of SCENARIOS) addChoice($('scenList'), x.name, x.info, () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+for (const [id, d] of Object.entries(DIFF)) addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }).dataset.id = id;
+for (const [id, d] of Object.entries(DRONES)) addChoice($('droneSeg'), d.name, d.info, () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); }).dataset.id = id;
+document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('click', () => { cfg.drone.cells = +b.dataset.cells; saveCfg(); syncMenu(); }));
+document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
+$('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
 $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV').textContent = cfg.rate + ' °/s'; saveCfg(); });
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });
@@ -87,10 +136,12 @@ export function updGpUI() {
   }
 }
 buildGpRows();
-for (const x of SCENARIOS) { const o = document.createElement('option'); o.value = x.id; o.textContent = x.name; $('scen').appendChild(o); }
-$('scen').addEventListener('change', e => { setScenario(e.target.value); saveCfg(); respawn(); syncMenu(); });
-$('go').addEventListener('click', resume);
-$('bMenu').addEventListener('click', () => game.paused ? resume() : openMenu());
+document.querySelectorAll('#menu [data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)));
+$('go').addEventListener('click', () => show('mode'));
+$('bResume').addEventListener('click', resume);
+$('bStart').addEventListener('click', start);
+$('bBack').addEventListener('click', back);
+$('bMenu').addEventListener('click', toggleMenu);
 $('bReset').addEventListener('click', () => { respawn(); if (game.paused) resume(); });
 $('bCam').addEventListener('click', toggleCam);
-document.addEventListener('visibilitychange', () => { if (document.hidden && !game.paused) openMenu(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !game.paused) openMenu('settings'); });

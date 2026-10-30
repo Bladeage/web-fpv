@@ -5,7 +5,8 @@
 /* ---------- Einstellungen ---------- */
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
-export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates' };
+export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
+  diff: 'mid', drone: { preset: '5' } };
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(STORE_CFG) || '{}')); } catch (e) {}
 
 /* ---------- Spielzustand ---------- */
@@ -17,7 +18,8 @@ export const game = {
   throttle: 0,
   best: null,
   camPos: [0, 1.2, 3], camHeading: [0, 0, -1],
-  last: 0                // Zeitstempel des letzten Bildes (Hauptschleife)
+  last: 0,               // Zeitstempel des letzten Bildes (Hauptschleife)
+  scenRun: 'gates'       // Szenario des laufenden Flugs (cfg.scen ist die Auswahl im Menü)
 };
 // Bestzeit je Szenario. Der Torkurs behält den alten Schlüssel.
 const bestKey = () => cfg.scen === 'gates' ? STORE_BEST : STORE_BEST + '.' + cfg.scen;

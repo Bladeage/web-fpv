@@ -36,12 +36,12 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
   padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
 .topbar{position:fixed;top:0;left:50%;transform:translateX(-50%);display:flex;gap:8px;
   padding-top:calc(env(safe-area-inset-top,0px) + 10px);z-index:5}
-.topbar button{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.28);
+.topbar button,.burger{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.28);
   background:var(--hud-btn-bg);color:var(--hud-btn-fg);font-size:19px;line-height:1;cursor:pointer}
-.topbar button:focus-visible,.panel button:focus-visible,.panel input:focus-visible,.panel summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.topbar button:focus-visible,.burger:focus-visible,.panel button:focus-visible,.panel input:focus-visible,.panel summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
   background:rgba(8,12,16,.42);overflow-y:auto;
-  padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px)}
+  padding:calc(env(safe-area-inset-top,0px) + 64px) 16px calc(env(safe-area-inset-bottom,0px) + 16px)}
 .overlay[hidden]{display:none}
 .panel{width:100%;max-width:440px;margin:auto;background:var(--panel);color:var(--panel-text);
   border-radius:18px;padding:22px 20px 18px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -75,3 +75,18 @@ select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--lin
 .gpbar{display:block;height:10px;background:var(--line);border-radius:5px;position:relative}
 .gpbar b{position:absolute;top:-1px;height:12px;width:4px;margin-left:-2px;background:var(--accent);border-radius:2px;left:50%}
 .hint{font-size:13px;color:var(--muted);margin:10px 0 0;line-height:1.4}
+.burger{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:calc(env(safe-area-inset-left,0px) + 10px);z-index:11}
+.secondary{display:block;width:100%;margin-top:10px;padding:12px;border:0;border-radius:12px;
+  background:var(--chip);color:var(--panel-text);font:inherit;font-size:16px;font-weight:600;cursor:pointer}
+.panel section > .primary:first-of-type{margin-top:20px}
+.stepno{margin:0 0 2px;font-size:13px;color:var(--muted);font-weight:600}
+.list{display:grid;gap:8px;margin-top:14px}
+.list button{text-align:left;border:0;border-radius:12px;padding:10px 12px;background:var(--chip);color:var(--panel-text);cursor:pointer;font:inherit}
+.list button b{display:block;font-size:16px}
+.list button span{display:block;font-size:13px;line-height:1.35;margin-top:3px;opacity:.8}
+.list button[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-text)}
+.seg3{grid-template-columns:1fr 1fr 1fr}
+.nav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.nav button{margin-top:0}
+.panel button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none !important}

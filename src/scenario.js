@@ -11,7 +11,7 @@ export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
   { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, auf verschiedenen Höhen und geneigt.' },
   { id: 'slalom',  name: 'Slalom',             info: '5 Stangen. Blaue Fahne: rechts vorbei. Rote Fahne: links vorbei.' },
-  { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen und sanft landen. 1 s ruhig stehen.' },
+  { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
@@ -20,8 +20,14 @@ export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem W
 // Ringe: in der Mitte jedes Kursabschnitts. Die Ringebene steht quer zur Linie vom vorigen
 // zum nächsten Ring. Wegen der Höhenunterschiede sind die Ringe dadurch geneigt.
 const RING_H = [4, 7, 11, 6, 13, 9, 5, 8];
-export const RING_R = 1.6;      // Radius bis zur Rohrmitte in m
 export const RING_TUBE = 0.1;   // Rohrradius in m
+// Schwierigkeit (cfg.diff): Ringradius bis Rohrmitte, Slalom-Fenster, Landung (Grenzgeschwindigkeit, halbe Plattformbreite) in m und m/s
+export const DIFF = {
+  easy: { name: 'Leicht', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5 },
+  mid:  { name: 'Mittel', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0 },
+  hard: { name: 'Schwer', ringR: 1.1, slalomW: 4, landV: 1.2, padHalf: 0.6 }
+};
+export const diff = () => DIFF[cfg.diff] || DIFF.mid;
 const segMid = i => { const a = COURSE[i], b = COURSE[(i+1) % COURSE.length]; return [(a[0]+b[0])/2, RING_H[i], (a[1]+b[1])/2]; };
 export const rings = COURSE.map((_, i) => {
   const c = segMid(i), n = vNorm(vSub(segMid((i+1) % COURSE.length), segMid((i+COURSE.length-1) % COURSE.length)));
@@ -35,7 +41,6 @@ const slDir = vNorm([SL_B[0]-SL_A[0], 0, SL_B[1]-SL_A[1]]);
 const slRight = [-slDir[2], 0, slDir[0]];
 const slYaw = Math.atan2(-slDir[0], -slDir[2]);
 export const SLALOM_H = 4;   // Stangenhöhe in m
-export const SLALOM_W = 6;   // so weit seitlich zählt ein Vorbeiflug noch, in m
 export const poles = [0.2, 0.35, 0.5, 0.65, 0.8].map((t, i) => ({
   c: [SL_A[0] + (SL_B[0]-SL_A[0])*t, SLALOM_H/2, SL_A[1] + (SL_B[1]-SL_A[1])*t],
   n: slDir, r: slRight,
@@ -44,8 +49,7 @@ export const poles = [0.2, 0.35, 0.5, 0.65, 0.8].map((t, i) => ({
 const poleCols = poles.map(p => ({ c: p.c, h: [0.08, SLALOM_H/2, 0.08], cs: 1, sn: 0 }));
 
 // Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden.
-export const PAD = { c: [72.5, 0, -45], half: 1.0 };
-export const LAND_V = 2.0;     // höchste Aufsetzgeschwindigkeit für eine gültige Landung in m/s
+export const PAD = { c: [72.5, 0, -45] };
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
@@ -78,16 +82,16 @@ function checkRing(a, b) {
   const g = rings[game.sim.next], p = crossed(a, b, g.c, g.n);
   if (!p) return;
   const d = vSub(p, g.c);
-  if (vLen(vSub(d, vScale(g.n, vDot(d, g.n)))) < RING_R - RING_TUBE) advance(rings.length);
+  if (vLen(vSub(d, vScale(g.n, vDot(d, g.n)))) < diff().ringR - RING_TUBE) advance(rings.length);
 }
 function collideRings(h) {
   const s = game.sim, lim = RING_TUBE + PHYS.radius;
   for (const g of rings) {
     const d = vSub(s.p, g.c);
-    if (vLen(d) > RING_R + lim) continue;
+    if (vLen(d) > diff().ringR + lim) continue;
     const inPlane = vSub(d, vScale(g.n, vDot(d, g.n))), l = vLen(inPlane);
     if (l < 1e-6) continue;
-    const dv = vSub(d, vScale(inPlane, RING_R/l)), dist = vLen(dv);   // Abstand zur Rohrmitte
+    const dv = vSub(d, vScale(inPlane, diff().ringR/l)), dist = vLen(dv);   // Abstand zur Rohrmitte
     if (dist < lim && dist > 1e-9 && contact(vScale(dv, 1/dist), lim - dist, h)) return true;
   }
   return false;
@@ -98,7 +102,7 @@ function checkPole(a, b) {
   const g = poles[game.sim.next], p = crossed(a, b, g.c, g.n);
   if (!p) return;
   const lat = vDot(vSub(p, g.c), g.r);
-  if (Math.abs(lat) > SLALOM_W || p[1] > SLALOM_H + 0.5) return;
+  if (Math.abs(lat) > diff().slalomW || p[1] > SLALOM_H + 0.5) return;
   if (lat*g.side > 0) advance(poles.length);
   else say('Falsche Seite', 1.2);
 }
@@ -111,9 +115,9 @@ function checkLanding(a, b, h) {
   const s = game.sim;
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
-  const onPad = s.grounded && Math.abs(s.p[0] - PAD.c[0]) < PAD.half && Math.abs(s.p[2] - PAD.c[2]) < PAD.half;
+  const onPad = s.grounded && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
   if (onPad && !st.onPad && st.takeoff !== null) {
-    st.hard = vLen(st.vPrev) > LAND_V;
+    st.hard = vLen(st.vPrev) > diff().landV;
     if (st.hard) say('Zu hart aufgesetzt', 1.5);
   }
   if (onPad && !st.hard && st.takeoff !== null && vLen(s.v) < 0.3) {
@@ -177,7 +181,7 @@ function torus(mb, g, col) {
   const at = (u, v) => {
     const cu = Math.cos(u), su = Math.sin(u), cv = Math.cos(v), sv = Math.sin(v);
     const radial = vAdd(vScale(g.e1, cu), vScale(g.e2, su));
-    return { p: vAdd(g.c, vAdd(vScale(radial, RING_R + RING_TUBE*cv), vScale(g.n, RING_TUBE*sv))),
+    return { p: vAdd(g.c, vAdd(vScale(radial, diff().ringR + RING_TUBE*cv), vScale(g.n, RING_TUBE*sv))),
              o: vAdd(vScale(radial, cv), vScale(g.n, sv)) };
   };
   for (let i = 0; i < U; i++) for (let j = 0; j < V; j++) {
@@ -197,12 +201,13 @@ export function buildScenario() {
     mb.box(fc, [0.25, 0.18, 0.015], slYaw, g.side > 0 ? [0.15, 0.4, 1.0] : [0.95, 0.15, 0.12]);
   });
   if (scen.id === 'landing') part(() => {
-    const [x, , z] = PAD.c, w = PAD.half, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];
+    const [x, , z] = PAD.c, w = diff().padHalf, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];
     mb.box([x, 0.025, z], [w, 0.025, w], 0, [0.25, 0.27, 0.3]);
     for (const [dx, dz, hx, hz] of [[0, -w, w, 0.05], [0, w, w, 0.05], [-w, 0, 0.05, w], [w, 0, 0.05, w]]) mb.box([x+dx, 0.055, z+dz], [hx, 0.005, hz], 0, orange);
-    mb.box([x-0.3, 0.055, z], [0.06, 0.005, 0.45], 0, white);
-    mb.box([x+0.3, 0.055, z], [0.06, 0.005, 0.45], 0, white);
-    mb.box([x, 0.055, z], [0.3, 0.005, 0.06], 0, white);
+    const k = w/1.0;   // H-Markierung mit der Plattform skalieren
+    mb.box([x-0.3*k, 0.055, z], [0.06*k, 0.005, 0.45*k], 0, white);
+    mb.box([x+0.3*k, 0.055, z], [0.06*k, 0.005, 0.45*k], 0, white);
+    mb.box([x, 0.055, z], [0.3*k, 0.005, 0.06*k], 0, white);
   });
   return { data: new Float32Array(mb.d), parts };
 }
