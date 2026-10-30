@@ -1,7 +1,7 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say } from './state.js';
-import { gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
+import { COURSE, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight } from './scenario.js';
 import { targets } from './targets.js';
 
@@ -28,6 +28,7 @@ in vec3 vNor; in vec4 vCol; in vec3 vW;
 uniform vec3 uSun, uCam, uFog;
 uniform vec4 uOver;
 uniform float uFogD, uAlpha, uFancy;
+uniform vec2 uPath[9];
 out vec4 o;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
 float vnoise(vec2 p){
@@ -37,7 +38,8 @@ float vnoise(vec2 p){
 void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
-  if (vCol.a < 0.5) {
+  bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5;
+  if (ground) {
     vec2 p = vW.xz;
     float ch = mod(floor(p.x/8.0) + floor(p.y/8.0), 2.0);
     c *= 0.88 + 0.12*ch;
@@ -59,12 +61,34 @@ void main(){
     return;
   }
   // Schön: lineares Licht, warme Sonne, kühler Himmel, Abdunklung am Boden, Dunst, Tone-Mapping, sRGB
+  if (ground) {   // Gras mit Struktur, Erdflecken, Wege entlang des Kurses
+    vec2 p = vW.xz;
+    float n1 = vnoise(p*0.08)*0.6 + vnoise(p*0.35)*0.3 + vnoise(p*1.7)*0.1;
+    c = vec3(0.27, 0.48, 0.18)*(0.8 + 0.4*n1);
+    c = mix(c, vec3(0.42, 0.36, 0.24), smoothstep(0.72, 0.86, vnoise(p*0.05 + 7.0))*0.55);
+    float dp = 1e9;
+    for (int i = 0; i < 8; i++) {
+      vec2 a = uPath[i], b = uPath[i == 7 ? 0 : i + 1], ab = b - a;
+      float t = clamp(dot(p - a, ab)/dot(ab, ab), 0.0, 1.0);
+      dp = min(dp, length(p - a - ab*t));
+    }
+    { vec2 a = vec2(0.0), ab = uPath[0]; float t = clamp(dot(p, ab)/dot(ab, ab), 0.0, 1.0); dp = min(dp, length(p - ab*t)); }
+    dp += (vnoise(p*0.5) - 0.5)*0.8;
+    c = mix(c, vec3(0.55, 0.47, 0.34)*(0.9 + 0.2*n1), 1.0 - smoothstep(0.9, 1.6, dp));
+  }
+  if (wall && abs(n.y) < 0.5) {   // Fenster: Raster auf den Wänden, unten Sockel
+    vec2 w = vec2(vW.x + vW.z, vW.y);
+    vec2 f = fract(w/vec2(2.6, 3.0));
+    float win = step(0.3, f.x)*step(f.x, 0.7)*step(0.35, f.y)*step(f.y, 0.75)*step(1.2, vW.y);
+    c = mix(c, vec3(0.16, 0.22, 0.30), win*0.85);
+    c *= mix(0.75, 1.0, smoothstep(0.0, 0.8, vW.y));
+  }
   vec3 base = pow(mix(c, uOver.rgb, uOver.a), vec3(2.2));
   float dif = max(dot(n, uSun), 0.0);
   vec3 sky = vec3(0.20, 0.27, 0.40), bounce = vec3(0.10, 0.09, 0.06);
   vec3 amb = mix(bounce, sky, 0.5 + 0.5*n.y);
   float ao = 1.0;
-  if (vCol.a >= 0.5) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
+  if (!ground) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
   vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
   float d = length(vW - uCam);
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
@@ -97,6 +121,7 @@ let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
 let scenMesh = null, scenParts = [], scenVer = -1;
 const SUN = vNorm([0.45, 0.8, 0.3]);
+const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
 
 function compile(type, src) {
@@ -128,7 +153,7 @@ function upload(data) {
   return { vao, buf, count: data.length / 10 };
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uFancy']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uFancy', 'uPath']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun']);
   const w = buildWorld();
   staticCount = w.staticCount;
@@ -218,6 +243,7 @@ export function render(dt) {
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
   gl.uniform1f(P.u.uFogD, 1/260);
   gl.uniform1f(P.u.uFancy, cfg.gfx === 'simple' ? 0 : 1);
+  gl.uniform2fv(P.u.uPath, PATH);
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.bindVertexArray(worldMesh.vao);
