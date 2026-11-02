@@ -3,7 +3,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { cfg, game } from '../src/state.js';
 import { respawn } from '../src/physics.js';
-import { GP_PRESETS, gp, gpMap, padValues, updGamepad, calAxis, switchOn } from '../src/gamepad.js';
+import { GP_PRESETS, gp, gpMap, padValues, updGamepad, calAxis, switchOn, gpAct } from '../src/gamepad.js';
 
 // Achsen einer Funke in AETR-Reihenfolge: 0 Rollen, 1 Nicken, 2 Gas, 3 Gieren
 const AETR = (roll, pitch, thr, yaw) => [roll, pitch, thr, yaw];
@@ -108,4 +108,22 @@ test('Arm-Schalter der Funke: scharf beim Umlegen mit Gas unten, aus beim Zurüc
   assert.equal(game.armed, false, 'zurück: aus');
   game.throttle = 0.5; pad.axes[2] = 0; pad.axes[4] = 1; updGamepad();
   assert.equal(game.armed, false, 'mit Gas oben nicht scharf');
+});
+
+test('Taste statt Schalter: jeder Druck schaltet Angle/Acro und Scharf um', (t) => {
+  const pad = { id: 'Pad', connected: true, mapping: 'standard', axes: [0, 1, 0, 0], buttons: [{ pressed: false }, { pressed: false }] };
+  const orig = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+  const modeOrig = gpAct.mode;
+  gpAct.mode = m => { cfg.mode = m; };
+  t.after(() => { if (orig) Object.defineProperty(globalThis, 'navigator', orig); else delete globalThis.navigator; cfg.gpSw = {}; gpAct.mode = modeOrig; cfg.mode = 'angle'; });
+  cfg.gpSw = { arm: { src: 'b0', inv: false }, mode: { src: 'b1', inv: false } };
+  cfg.mode = 'angle'; respawn(); game.paused = false; gp.swPrev = {}; game.throttle = 0;
+  const press = i => { pad.buttons[i].pressed = true; updGamepad(); pad.buttons[i].pressed = false; updGamepad(); };
+  updGamepad();
+  assert.equal(game.armed, true, 'Taste nicht gedrückt: Zustand bleibt');
+  press(1); assert.equal(cfg.mode, 'acro', 'Druck: Acro');
+  press(1); assert.equal(cfg.mode, 'angle', 'nächster Druck: Angle');
+  press(0); assert.equal(game.armed, false, 'Druck: aus');
+  press(0); assert.equal(game.armed, true, 'nächster Druck: scharf');
 });

@@ -12,7 +12,7 @@ export const GP_PRESETS = {
 };
 // Schalter-Funktionen: frei belegbar mit einer Achse (Schalter an der Funke, an ab 0,3) oder einer Taste.
 // Quelle: '' aus, 'a4' Achse 4, 'b0' Taste 0. cfg.gpSw = { arm: { src, inv }, ... }
-export const GP_SW = [['arm', 'Arm-Schalter'], ['mode', 'Acro an'], ['reset', 'Neustart'], ['cam', 'Kamera'], ['rewind', 'Rückspulen']];
+export const GP_SW = [['arm', 'Arm-Schalter'], ['mode', 'Angle/Acro'], ['reset', 'Neustart'], ['cam', 'Kamera'], ['rewind', 'Rückspulen']];
 // Aktionen, die das Browser-Modul (main.js) einsetzt: Kamera, Zurückspulen, Flugmodus
 export const gpAct = { cam() {}, rewind() {}, mode() {} };
 export const gp = { connected: false, id: '', mapping: '', axes: [], buttons: [], throttle: 0, yaw: 0, pitch: 0, roll: 0, btn: false, sw: {}, swPrev: {} };
@@ -57,8 +57,16 @@ export function updGamepad() {
     const on = switchOn(m.src, m.inv, gp.axes, gp.buttons, cfg.gpCal), was = !!gp.swPrev[fn];
     gp.sw[fn] = on;
     if (game.paused) { gp.swPrev[fn] = on; continue; }
-    if (fn === 'arm') { if (!on && game.armed) setArmed(false); else if (on && !was) setArmed(true); }   // wie Betaflight: scharf nur beim Umlegen und mit Gas unten
-    if (fn === 'mode' && on !== was) gpAct.mode(on ? 'acro' : 'angle');
+    // Taste (Gamepad): jeder Druck schaltet um. Schalter an der Funke (Achse): die Stellung gilt.
+    const btn = m.src[0] === 'b', press = on && !was;
+    if (fn === 'arm') {
+      if (btn) { if (press) setArmed(!game.armed); }
+      else if (!on && game.armed) setArmed(false); else if (press) setArmed(true);   // wie Betaflight: scharf nur beim Umlegen und mit Gas unten
+    }
+    if (fn === 'mode') {
+      if (btn) { if (press) gpAct.mode(cfg.mode === 'acro' ? 'angle' : 'acro'); }
+      else if (on !== was) gpAct.mode(on ? 'acro' : 'angle');
+    }
     if (fn === 'reset' && on && !was) respawn();
     if (fn === 'cam' && on && !was) gpAct.cam();
     if (fn === 'rewind' && on && !was) gpAct.rewind();
