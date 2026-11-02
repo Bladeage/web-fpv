@@ -3,7 +3,7 @@
    nur eigene Elemente dazu und tauscht die Aufgabe der Physik (task) aus. */
 import { vAdd, vSub, vScale, vDot, vLen, vNorm, vCross } from './math.js';
 import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
-import { COURSE, gates, MeshBuilder } from './world.js';
+import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
@@ -11,8 +11,8 @@ import { vehicles, initVehicles, stepVehicles, VEH_HALF } from './vehicles.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
-  { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, auf verschiedenen Höhen und geneigt.' },
-  { id: 'slalom',  name: 'Slalom',             info: '5 Stangen. Blaue Fahne: rechts vorbei. Rote Fahne: links vorbei.' },
+  { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, geneigt. Bei jedem Start neu angeordnet.' },
+  { id: 'slalom',  name: 'Slalom',             info: '5 Stangen, bei jedem Start neu. Blau: rechts vorbei, rot: links vorbei.' },
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
   { id: 'hunt',    name: 'Jagd Luft',          info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.' },
   { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
@@ -21,8 +21,8 @@ export const SCENARIOS = [
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
 
 /* ---------- Elemente ---------- */
-// Ringe: in der Mitte jedes Kursabschnitts. Die Ringebene steht quer zur Linie vom vorigen
-// zum nächsten Ring. Wegen der Höhenunterschiede sind die Ringe dadurch geneigt.
+// Ringe: einer je Kursabschnitt, bei jedem Start zufällig versetzt und geprüft (makeRings). Die Ringebene steht
+// quer zur Linie vom vorigen zum nächsten Ring; wegen der Höhenunterschiede sind die Ringe geneigt.
 const RING_H = [4, 7, 11, 6, 13, 9, 5, 8];
 export const RING_TUBE = 0.1;   // Rohrradius in m
 // Schwierigkeit (cfg.diff): Ringradius bis Rohrmitte, Slalom-Fenster, Landung (Grenzgeschwindigkeit, halbe Plattformbreite) in m und m/s, Tempo der Ziel-Drohnen (Faktor)
@@ -32,25 +32,89 @@ export const DIFF = {
   hard: { name: 'Schwer', ringR: 1.1, slalomW: 4, landV: 1.2, padHalf: 0.6, huntSpeed: 1.4 }
 };
 export const diff = () => DIFF[cfg.diff] || DIFF.mid;
+/* ---------- Zufällige Anordnung mit Prüfung (Ringe, Slalom) ---------- */
+// Abstand eines Punktes zu einem Hindernis-Quader (0 = innen)
+function boxDist(p, c) {
+  const dx = p[0] - c.c[0], dz = p[2] - c.c[2], lx = dx*c.cs - dz*c.sn, lz = dx*c.sn + dz*c.cs, ly = p[1] - c.c[1];
+  return Math.hypot(Math.max(0, Math.abs(lx) - c.h[0]), Math.max(0, Math.abs(ly) - c.h[1]), Math.max(0, Math.abs(lz) - c.h[2]));
+}
+const clearOf = (p, d) => colliders.every(c => boxDist(p, c) > d);
+// Weg a->b frei: Punkte alle 0,75 m mit Abstand d zu allen Hindernissen
+function pathClear(a, b, d) {
+  const n = Math.ceil(vLen(vSub(b, a))/0.75);
+  for (let i = 0; i <= n; i++) if (!clearOf(vAdd(a, vScale(vSub(b, a), i/n)), d)) return false;
+  return true;
+}
+const RING_CHECK_R = 2.4;   // größter Ringradius (leicht) plus Rohr, für die Prüfung
+function ringFrame(c, n) { const e1 = vNorm(vCross(n, [0,1,0])); return { c, n, e1, e2: vCross(e1, n) }; }
+function framesFromCenters(cs) {
+  return cs.map((c, i) => ringFrame(c, vNorm(vSub(cs[(i + 1) % cs.length], cs[(i + cs.length - 1) % cs.length]))));
+}
+// Prüfung einer Ringanordnung: Höhe über Boden, Abstand zu Hindernissen, Neigung, freier Weg zum nächsten Ring, Abstand der Ringe.
+export function ringLayoutOk(list) {
+  return list.every((g, i) => {
+    const nx = list[(i + 1) % list.length], d = vLen(vSub(nx.c, g.c));
+    return g.c[1] - RING_CHECK_R > 1 && clearOf(g.c, RING_CHECK_R + 1.5) && Math.abs(g.n[1]) < 0.6
+      && d > 12 && d < 70 && pathClear(g.c, nx.c, 1.2);
+  });
+}
+// Feste Anordnung (Mitte jedes Kursabschnitts) als Rückfall
 const segMid = i => { const a = COURSE[i], b = COURSE[(i+1) % COURSE.length]; return [(a[0]+b[0])/2, RING_H[i], (a[1]+b[1])/2]; };
-export const rings = COURSE.map((_, i) => {
-  const c = segMid(i), n = vNorm(vSub(segMid((i+1) % COURSE.length), segMid((i+COURSE.length-1) % COURSE.length)));
-  const e1 = vNorm(vCross(n, [0,1,0])), e2 = vCross(e1, n);
-  return { c, n, e1, e2 };
-});
+export const rings = [];
+function makeRings(R) {
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const cs = COURSE.map((a, i) => {
+      const b = COURSE[(i + 1) % COURSE.length], t = 0.3 + 0.4*R(), lat = (R() - 0.5)*12;
+      const d = vNorm([b[0] - a[0], 0, b[1] - a[1]]);
+      return [a[0] + (b[0] - a[0])*t - d[2]*lat, 3 + R()*12, a[1] + (b[1] - a[1])*t + d[0]*lat];
+    });
+    const list = framesFromCenters(cs);
+    if (ringLayoutOk(list)) return list;
+  }
+  return framesFromCenters(COURSE.map((_, i) => segMid(i)));
+}
 
-// Slalom: Stangen auf der Linie von Tor 1 zu Tor 2. Dort stehen keine Bäume (world.js hält 9 m Abstand).
-const SL_A = COURSE[0], SL_B = COURSE[1];
-const slDir = vNorm([SL_B[0]-SL_A[0], 0, SL_B[1]-SL_A[1]]);
-const slRight = [-slDir[2], 0, slDir[0]];
-const slYaw = Math.atan2(-slDir[0], -slDir[2]);
+// Slalom: 5 Stangen auf einem geraden Kursabschnitt ohne Pfeiler, zufällig versetzt; Seiten wechseln sich ab.
 export const SLALOM_H = 4;   // Stangenhöhe in m
-export const poles = [0.2, 0.35, 0.5, 0.65, 0.8].map((t, i) => ({
-  c: [SL_A[0] + (SL_B[0]-SL_A[0])*t, SLALOM_H/2, SL_A[1] + (SL_B[1]-SL_A[1])*t],
-  n: slDir, r: slRight,
-  side: i % 2 ? -1 : 1     // +1: rechts an der Stange vorbei, -1: links
-}));
-const poleCols = poles.map(p => ({ c: p.c, h: [0.08, SLALOM_H/2, 0.08], cs: 1, sn: 0 }));
+export const poles = [];
+let poleCols = [];
+export function slalomLayoutOk(list) {
+  return list.every((g, k) => {
+    if (!clearOf(g.c, 2)) return false;
+    for (let w = 1; w <= 8; w++) for (const y of [1, 3]) {   // Durchflug-Fenster auf der richtigen Seite frei
+      if (!clearOf([g.c[0] + g.r[0]*g.side*w, y, g.c[2] + g.r[2]*g.side*w], 0.8)) return false;
+    }
+    const nx = list[k + 1];
+    if (!nx) return true;
+    const pa = [g.c[0] + g.r[0]*g.side*3, 2, g.c[2] + g.r[2]*g.side*3], pb = [nx.c[0] + nx.r[0]*nx.side*3, 2, nx.c[2] + nx.r[2]*nx.side*3];
+    return pathClear(pa, pb, 1.0);
+  });
+}
+function makeSlalom(R) {
+  const segs = [0, 2, 3, 5, 7];   // Abschnitte ohne Pfeiler
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const i = segs[Math.floor(R()*segs.length)], A = COURSE[i], B = COURSE[(i + 1) % COURSE.length];
+    const n = vNorm([B[0] - A[0], 0, B[1] - A[1]]), r = [-n[2], 0, n[0]], yaw = Math.atan2(-n[0], -n[2]);
+    const first = R() < 0.5 ? 1 : -1;
+    const list = [0, 1, 2, 3, 4].map(k => {
+      const t = 0.18 + k*0.16 + (R() - 0.5)*0.05, lat = (R() - 0.5)*3;
+      return { c: [A[0] + (B[0] - A[0])*t + r[0]*lat, SLALOM_H/2, A[1] + (B[1] - A[1])*t + r[2]*lat], n, r, yaw, side: k % 2 ? -first : first };
+    });
+    if (slalomLayoutOk(list)) return list;
+  }
+  const A = COURSE[0], B = COURSE[1], n = vNorm([B[0] - A[0], 0, B[1] - A[1]]);
+  return [0.2, 0.35, 0.5, 0.65, 0.8].map((t, k) => ({ c: [A[0] + (B[0] - A[0])*t, SLALOM_H/2, A[1] + (B[1] - A[1])*t], n, r: [-n[2], 0, n[0]], yaw: Math.atan2(-n[0], -n[2]), side: k % 2 ? -1 : 1 }));
+}
+// Startwert für die Anordnung: null = bei jedem Start neu (Zufall), Zahl = feste Anordnung (Tests)
+let layoutSeed = null;
+export function setLayoutSeed(n) { layoutSeed = n; }
+function newLayout() {
+  const R = rng(layoutSeed ?? Math.floor(Math.random()*1e9));
+  rings.length = 0; rings.push(...makeRings(R));
+  poles.length = 0; poles.push(...makeSlalom(R));
+  poleCols = poles.map(p => ({ c: p.c, h: [0.08, SLALOM_H/2, 0.08], cs: 1, sn: 0 }));
+  scen.version++;   // Modell neu bauen
+}
 
 // Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden.
 export const PAD = { c: [72.5, 0, -45] };
@@ -58,7 +122,7 @@ const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
 const st = { hits: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
-function reset() { st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+function reset() { if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout(); st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -228,9 +292,9 @@ export function buildScenario() {
   const part = f => { const start = mb.count; f(); parts.push({ start, count: mb.count - start }); };
   if (scen.id === 'rings') for (const g of rings) part(() => torus(mb, g, [1.0, 0.72, 0.1]));
   if (scen.id === 'slalom') for (const g of poles) part(() => {
-    mb.box(g.c, [0.08, SLALOM_H/2, 0.08], slYaw, [0.92, 0.92, 0.9]);
+    mb.box(g.c, [0.08, SLALOM_H/2, 0.08], g.yaw, [0.92, 0.92, 0.9]);
     const fc = [g.c[0] + g.r[0]*g.side*0.33, SLALOM_H - 0.25, g.c[2] + g.r[2]*g.side*0.33];
-    mb.box(fc, [0.25, 0.18, 0.015], slYaw, g.side > 0 ? [0.15, 0.4, 1.0] : [0.95, 0.15, 0.12]);
+    mb.box(fc, [0.25, 0.18, 0.015], g.yaw, g.side > 0 ? [0.15, 0.4, 1.0] : [0.95, 0.15, 0.12]);
   });
   if (scen.id === 'landing') part(() => {
     const [x, , z] = PAD.c, w = diff().padHalf, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];

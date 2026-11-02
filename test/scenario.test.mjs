@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, gates } from '../src/world.js';
 import { STEP, step, respawn, task, checkGate } from '../src/physics.js';
-import { setScenario, scenDone, scenLabel, buildScenario, rings, poles, PAD, diff } from '../src/scenario.js';
+import { setScenario, scenDone, scenLabel, buildScenario, rings, poles, PAD, diff, setLayoutSeed, ringLayoutOk, slalomLayoutOk } from '../src/scenario.js';
 
 buildWorld();
 
@@ -20,7 +20,7 @@ function place(p, v, thr = 0.24) {
 const along = (c, n, back, speed, off = [0, 0, 0]) =>
   [[c[0] - n[0]*back + off[0], c[1] - n[1]*back + off[1], c[2] - n[2]*back + off[2]], [n[0]*speed, n[1]*speed, n[2]*speed]];
 
-beforeEach(() => { cfg.mode = 'angle'; inp.pitch = inp.roll = inp.yaw = 0; });
+beforeEach(() => { setLayoutSeed(7); cfg.mode = 'angle'; inp.pitch = inp.roll = inp.yaw = 0; });
 
 test('Vorgabe ist der Torkurs mit der alten Torprüfung', () => {
   setScenario('gates'); respawn();
@@ -146,4 +146,21 @@ test('Schwierigkeit: leichter Ring ist größer, schwere Landung strenger', () =
     assert.equal(game.sim.next === 1, ok, d);
   }
   cfg.diff = 'mid';
+});
+
+test('Ringe und Slalom: bei jedem Start neue Anordnung, jede besteht die Prüfung', () => {
+  const seen = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    setLayoutSeed(seed);
+    setScenario('rings'); respawn();
+    assert.equal(rings.length, 8);
+    assert.ok(ringLayoutOk(rings), 'Ringe Startwert ' + seed);
+    assert.ok(slalomLayoutOk(poles), 'Slalom Startwert ' + seed);
+    seen.add(rings.map(g => g.c.map(x => x.toFixed(1)).join()).join('|'));
+  }
+  assert.ok(seen.size > 25, 'Anordnungen unterscheiden sich');
+  setLayoutSeed(null); setScenario('rings'); respawn();
+  const a = rings[0].c.slice(); respawn();
+  assert.notDeepEqual(rings[0].c, a, 'ohne festen Startwert bei jedem Start neu');
+  setLayoutSeed(7);
 });
