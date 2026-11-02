@@ -7,7 +7,7 @@ import { toggleCam } from './render.js';
 import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
-import { DRONES, applyDrone, presetMass, presetTwr } from './drone.js';
+import { DRONES, applyDrone, presetMass } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, osdOn } from './osd.js';
 
@@ -24,7 +24,35 @@ function addChoice(box, label, info, onClick) {
   b.addEventListener('click', onClick); box.appendChild(b);
   return b;
 }
-const droneVal = k => cfg.drone[k] ?? (k === 'twr' ? presetTwr(DRONES[cfg.drone.preset] || DRONES['5']) : (DRONES[cfg.drone.preset] || DRONES['5'])[k]);
+/* ---------- Symbole (SVG, im Code gezeichnet) ---------- */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function icon(w, h, inner) {
+  const s = document.createElementNS(SVGNS, 'svg');
+  s.setAttribute('viewBox', `0 0 ${w} ${h}`); s.setAttribute('width', w); s.setAttribute('height', h);
+  s.setAttribute('aria-hidden', 'true'); s.setAttribute('class', 'ico'); s.innerHTML = inner;
+  return s;
+}
+// Drehzahl als Farbe: 18000 U/min und weniger blau, 42000 und mehr rot
+const rpmColor = rpm => `hsl(${Math.round(220*(1 - Math.min(1, Math.max(0, (rpm - 18000)/24000))))},85%,52%)`;
+// Quad-Symbol: Größe nach Vorlage, Propeller in der Drehzahlfarbe
+function droneIcon(p) {
+  const f = 0.42 + 0.58*Math.min(1, p.size/1.35), c = 20, a = 13*f, r = 3 + 5*f, col = rpmColor(p.motor.rpm);
+  let g = `<g stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="${c-a}" y1="${c-a}" x2="${c+a}" y2="${c+a}"/><line x1="${c+a}" y1="${c-a}" x2="${c-a}" y2="${c+a}"/></g>`;
+  for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g += `<circle cx="${c+x*a}" cy="${c+y*a}" r="${r}" fill="${col}" fill-opacity=".45" stroke="${col}" stroke-width="1.5"/>`;
+  g += `<rect x="${c-3.5*f-1}" y="${c-5*f-1}" width="${7*f+2}" height="${10*f+2}" rx="1.5" fill="currentColor"/>`;
+  return icon(40, 40, g);
+}
+// Akku-Symbol: Breite nach Kapazität, Segmente nach Zellen
+function batteryIcon(cap, cells) {
+  const w = Math.round(12 + 26*Math.pow(Math.min(1, Math.max(0, (cap - 200)/4800)), 0.6)), h = 14;
+  let g = `<rect x="1" y="1" width="${w}" height="${h-2}" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="${w+1}" y="${h/2-2.5}" width="2.5" height="5" rx="1" fill="currentColor"/>`;
+  const n = Math.max(1, cells), sw = (w - 4)/n;
+  for (let i = 0; i < n; i++) g += `<rect x="${3 + i*sw + 0.6}" y="3" width="${sw - 1.2}" height="${h-6}" rx="1" fill="#3cb371"/>`;
+  return icon(w + 5, h, g);
+}
+function setCapIcon() { const b = $('capIco'); b.textContent = ''; b.appendChild(batteryIcon(droneVal('cap'), droneVal('cells'))); }
+
+const droneVal = k => cfg.drone[k] ?? (DRONES[cfg.drone.preset] || DRONES['5'])[k];
 
 export function setMode(m) {
   cfg.mode = m; saveCfg();
@@ -41,12 +69,12 @@ export function syncMenu() {
   $('huntOpts').hidden = cfg.scen !== 'hunt';
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von 6';
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
-  $('twr').value = droneVal('twr'); $('twrV').textContent = (+droneVal('twr')).toFixed(1);
   const pm = presetMass(DRONES[cfg.drone.preset] || DRONES['5']), mass = cfg.drone.mass ?? pm;
   $('mass').value = Math.round(mass*1000); $('massV').textContent = Math.round(mass*1000) + ' g';
   applyDrone(cfg.drone);   // nur zur Anzeige der Trägheit; beim Start wird ohnehin neu angewendet
+  $('twr').value = PHYS.twr; $('twrV').textContent = PHYS.twr.toFixed(1);   // berechnet aus Motor und Gewicht
   $('droneInfo').textContent = 'Schub zu Gewicht ' + PHYS.twr.toFixed(1) + ', Schweben bei ' + Math.round(hoverThrottle()*100) + ' % Gas. Trägheit Nicken/Gieren/Rollen: ' + PHYS.I.map(x => (x*1e4).toFixed(1)).join(' / ') + ' kg·cm²';
-  $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh';
+  $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh'; setCapIcon();
   press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
   $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';
   $('batMin').value = cfg.batMin; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V';
@@ -91,12 +119,16 @@ function start() {
 for (const x of SCENARIOS) addChoice($('scenList'), x.name, '', () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
 for (const [id, d] of Object.entries(DIFF)) addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
-for (const [id, d] of Object.entries(DRONES)) addChoice($('droneSeg'), d.name, '', () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); }).dataset.id = id;
+for (const [id, d] of Object.entries(DRONES)) {
+  const b = addChoice($('droneSeg'), d.name, '', () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); });
+  b.dataset.id = id; b.classList.add('withico'); b.prepend(droneIcon(d));
+}
+document.querySelectorAll('#cellSeg button').forEach(b => b.prepend(batteryIcon(600 + +b.dataset.cells*400, +b.dataset.cells)));
 document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('click', () => { cfg.drone.cells = +b.dataset.cells; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
 $('mass').addEventListener('input', e => { cfg.drone.mass = +e.target.value/1000; saveCfg(); syncMenu(); });
-$('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; saveCfg(); });
+$('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; setCapIcon(); saveCfg(); });
 $('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von 6'; saveCfg(); });
 $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
 $('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });

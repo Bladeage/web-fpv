@@ -49,6 +49,7 @@
       <div class="basic">
         <div class="list grid2" id="droneSeg"></div>
         <p class="hint" id="droneHint"></p>
+        <p class="hint">Propellerfarbe: blau = langsame Rotoren, rot = schnelle Rotoren.</p>
         <div class="seg small" id="modeSeg">
           <button data-mode="angle"><b>Angle</b></button>
           <button data-mode="acro"><b>Acro</b></button>
@@ -66,7 +67,7 @@
         <input type="range" id="mass" min="20" max="1500" step="5">
         </div>
         <div>
-        <label class="row" for="cap"><span>Akku-Kapazität</span><output id="capV"></output></label>
+        <label class="row" for="cap"><span>Kapazität</span><span class="val"><span id="capIco"></span><output id="capV"></output></span></label>
         <input type="range" id="cap" min="200" max="5000" step="50">
         </div>
         <div><span class="row">Akku-Zellen</span><div class="seg seg3 small" id="cellSeg"><button data-cells="1"><b>1S</b></button><button data-cells="4"><b>4S</b></button><button data-cells="6"><b>6S</b></button></div></div>

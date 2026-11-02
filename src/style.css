@@ -116,3 +116,8 @@ details{margin-top:10px}
 .osdgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .osdgrid .check{margin-top:4px;font-size:13.5px}
 .linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;padding:8px 0 0;cursor:pointer}
+.ico{flex:none;display:block}
+.list button.withico{display:flex;align-items:center;gap:8px;padding:6px 10px}
+.seg.small button .ico{margin:0 auto 3px}
+.row .val{display:flex;align-items:center;gap:6px}
+.row output{white-space:nowrap}
