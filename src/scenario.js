@@ -7,7 +7,7 @@ import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
-import { vehicles, initVehicles, stepVehicles, VEH_HALF } from './vehicles.js';
+import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
@@ -16,6 +16,8 @@ export const SCENARIOS = [
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
   { id: 'hunt',    name: 'Jagd Luft',          info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.' },
   { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
+  { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
+  { id: 'follow',  name: 'Verfolgung',         info: 'Folge dem orangen Auto: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
@@ -116,13 +118,33 @@ function newLayout() {
   scen.version++;   // Modell neu bauen
 }
 
+// Paketlieferung: Abholplatz neben der Startgeraden, Lieferplattformen auf Kursabschnitten ohne Pfeiler (Reihenfolge zufällig).
+export const PICKUP = [-5, 0, -12];
+const DROPS = [2, 3, 5, 7].map(i => { const a = COURSE[i], b = COURSE[(i + 1) % COURSE.length]; return [(a[0] + b[0])/2, 0, (a[1] + b[1])/2]; });
+export const DELIVER_N = 3, DROP_R = 1.5;   // Lieferungen, Plattform-Radius in m
+const DROP_HOLD = 0.8;                      // so lange tief und langsam über dem Platz schweben, in s
+export const dropOrder = [];
+// Verfolgung: Auto auf der inneren Runde, Tempo wechselt (Schätzung 5 bis 13 m/s, Schwierigkeit skaliert)
+export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
+const lead = { s: 0, t: 0, x: 0, z: 0, yaw: 0, ok: false, dist: 0 };
+export const followLead = () => lead;
+
 // Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden.
 export const PAD = { c: [72.5, 0, -45] };
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
-const st = { hits: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
-function reset() { if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout(); st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+const st = { hits: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
+function reset() {
+  if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout();
+  st.carry = false; st.deliv = 0; st.inBand = 0; game.payload = 0;
+  if (scen.id === 'deliver') {   // zufällige Reihenfolge von 3 der 4 Plattformen
+    const idx = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+    dropOrder.length = 0; dropOrder.push(...idx.slice(0, DELIVER_N));
+    scen.version++;
+  }
+  if (scen.id === 'follow') { lead.s = 0; lead.t = 0; const r = routeAt(ROUTES[0], 0); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw; }
+  st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -211,6 +233,43 @@ function checkHunt(a, b, h) {
 }
 export const huntHits = () => st.hits;
 
+// Paketlieferung: tief (unter 1,2 m) und langsam (unter 2,5 m/s) über dem Platz schweben
+function checkDeliver(a, b, h) {
+  const s = game.sim;
+  if (st.done) return;
+  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  const tgt = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP;
+  const near = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < DROP_R && s.p[1] - PHYS.radius < 1.2 && vLen(s.v) < 2.5;
+  st.hold = near ? st.hold + h : 0;
+  if (st.hold < DROP_HOLD) return;
+  st.hold = 0;
+  if (!st.carry) {
+    st.carry = true; game.payload = 0.25*PHYS.mass;   // Paket: ein Viertel der Drohnenmasse (Schätzung)
+    banner('PAKET AUFGENOMMEN', 'Lieferung ' + (st.deliv + 1) + ' / ' + DELIVER_N, 2); fx.beep(990, 0.12);
+  } else {
+    st.carry = false; game.payload = 0; st.deliv++; fx.beep(1180, 0.15);
+    if (st.deliv >= DELIVER_N) finish(s.t - st.takeoff);
+    else banner('GELIEFERT', st.deliv + ' / ' + DELIVER_N, 2);
+  }
+}
+// Verfolgung: Auto fährt los, sobald die Drohne abhebt; Zeit im Abstandsband zählt
+function checkFollow(a, b, h) {
+  const s = game.sim;
+  if (st.done) return;
+  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  if (st.takeoff !== null) {
+    lead.t += h;
+    lead.s += (9 + 4*Math.sin(lead.t*0.25))*diff().huntSpeed*h;
+    const r = routeAt(ROUTES[0], lead.s); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw;
+  }
+  lead.dist = Math.hypot(s.p[0] - lead.x, s.p[2] - lead.z);
+  const alt = s.p[1] - PHYS.radius;
+  lead.ok = st.takeoff !== null && lead.dist >= FOLLOW.dMin && lead.dist <= FOLLOW.dMax && alt >= FOLLOW.hMin && alt <= FOLLOW.hMax;
+  if (lead.ok) st.inBand += h;
+  if (st.inBand >= FOLLOW.need) finish(s.t - st.takeoff);
+}
+export const deliverState = () => ({ carry: st.carry, deliv: st.deliv, inBand: st.inBand });
+
 const TASKS = {
   gates:   { check: checkGate, collide: null },
   rings:   { check: checkRing, collide: collideRings },
@@ -218,6 +277,8 @@ const TASKS = {
   landing: { check: checkLanding, collide: null },
   hunt:    { check: checkHunt, collide: null, early: true },
   hunt2:   { check: checkHunt, collide: null, early: true },
+  deliver: { check: checkDeliver, collide: null },
+  follow:  { check: checkFollow, collide: null },
   free:    { check() {}, collide: null }
 };
 task.reset = reset;
@@ -236,6 +297,8 @@ export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
   if (scen.id === 'free') return 'FREIFLUG';
+  if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
+  if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
   if (scen.id === 'hunt' || scen.id === 'hunt2') return st.done ? 'ZIEL' : `TREFFER ${st.hits}/${huntNeed()}`;
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
@@ -247,6 +310,8 @@ export function scenTarget() {
   const s = game.sim;
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
   if (st.done || scen.id === 'free') return null;
+  if (scen.id === 'deliver') { const t = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP; return [t[0], 0.6, t[2]]; }
+  if (scen.id === 'follow') return [lead.x, 1.5, lead.z];
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
     let best = null, bd = 1e9;
     for (const v of vehicles) if (v.state !== 'hit') { const d = Math.hypot(v.x - s.p[0], v.z - s.p[2]); if (d < bd) { bd = d; best = [v.x, VEH_HALF[1]*2, v.z]; } }
@@ -264,6 +329,8 @@ export function scenTarget() {
 // Welches Teil des Szenario-Modells grün leuchtet, oder -1.
 export function scenHighlight() {
   if (st.done || scen.id === 'gates' || scen.id === 'free') return -1;
+  if (scen.id === 'deliver') return st.carry ? 1 + st.deliv : 0;
+  if (scen.id === 'follow') return -1;
   return scen.id === 'landing' ? 0 : game.sim.next;
 }
 
@@ -296,6 +363,14 @@ export function buildScenario() {
     const fc = [g.c[0] + g.r[0]*g.side*0.33, SLALOM_H - 0.25, g.c[2] + g.r[2]*g.side*0.33];
     mb.box(fc, [0.25, 0.18, 0.015], g.yaw, g.side > 0 ? [0.15, 0.4, 1.0] : [0.95, 0.15, 0.12]);
   });
+  if (scen.id === 'deliver') {   // Teil 0: Abholplatz (orange, mit Paketstapel), Teile 1..3: Lieferplattformen in Reihenfolge (blau)
+    const plate = (c, col) => {
+      mb.box([c[0], 0.03, c[2]], [DROP_R, 0.03, DROP_R], 0, col);
+      mb.box([c[0], 0.065, c[2]], [DROP_R*0.8, 0.005, DROP_R*0.8], 0, [0.92, 0.92, 0.92]);
+    };
+    part(() => { plate(PICKUP, [1.0, 0.5, 0.1]); for (let k = 0; k < 3; k++) mb.box([PICKUP[0] + (k - 1)*0.5, 0.15, PICKUP[2]], [0.18, 0.1, 0.18], k*0.4, [0.62, 0.45, 0.28]); });
+    for (const i of dropOrder) part(() => plate(DROPS[i], [0.15, 0.4, 0.95]));
+  }
   if (scen.id === 'landing') part(() => {
     const [x, , z] = PAD.c, w = diff().padHalf, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];
     mb.box([x, 0.025, z], [w, 0.025, w], 0, [0.25, 0.27, 0.3]);

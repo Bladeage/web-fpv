@@ -125,6 +125,7 @@ export function respawn() {
   resetDrone();
   game.armed = !cfg.needArm;
   game.pendingRespawn = false;
+  game.payload = 0;
   task.reset();
 }
 // Nur die Drohne neu an den Start setzen (Jagd nach Treffer). Szenario, Zeit, Akku und Scharf-Zustand bleiben.
@@ -263,7 +264,7 @@ export function step(h) {
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
   const upN = qRot(s.q, [0,1,0]);
-  const aT = (T[0] + T[1] + T[2] + T[3])/PHYS.mass;
+  const aT = (T[0] + T[1] + T[2] + T[3])/(PHYS.mass + (game.payload || 0));   // mit Paket schwerer
   const rd = PHYS.kRD*(s.om[0] + s.om[1] + s.om[2] + s.om[3])/(4*mc.wHover);
   const sp = vLen(s.v), cAx = sp > 1e-6 ? Math.abs(vAx)/sp : 0;
   const bd = 0.5*PHYS.rho*(PHYS.cdaF*(1 - cAx) + PHYS.cdaT*cAx)*sp/PHYS.mass;

@@ -26,7 +26,8 @@ export const game = {
   scenRun: 'gates',      // Szenario des laufenden Flugs (cfg.scen ist die Auswahl im Menü)
   armed: true,           // scharf geschaltet: Motoren und Regler aktiv
   banner: null,          // großer Text in der Bildmitte { text, sub, until }
-  pendingRespawn: false  // Drohne nach diesem Physikschritt neu starten (Jagd nach Treffer)
+  pendingRespawn: false, // Drohne nach diesem Physikschritt neu starten (Jagd nach Treffer)
+  payload: 0             // Masse eines getragenen Pakets in kg
 };
 // Bestzeit je Szenario. Der Torkurs behält den alten Schlüssel.
 const bestKey = () => cfg.scen === 'gates' ? STORE_BEST : STORE_BEST + '.' + cfg.scen;

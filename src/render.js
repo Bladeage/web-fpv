@@ -1,8 +1,8 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say } from './state.js';
-import { COURSE, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
-import { scen, buildScenario, scenHighlight } from './scenario.js';
+import { COURSE, MeshBuilder, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
+import { scen, buildScenario, scenHighlight, followLead } from './scenario.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS } from './physics.js';
@@ -135,7 +135,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
-let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null;
+let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -201,6 +201,7 @@ export function initGL() {
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
   vehMesh = upload(buildVehicle());
+  { const mb = new MeshBuilder(); mb.box([0, 0, 0], [0.07, 0.05, 0.07], 0, [0.62, 0.45, 0.28]); pkgMesh = upload(new Float32Array(mb.d)); }   // Paket
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -350,6 +351,22 @@ export function render(dt) {
       gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Verfolgung: das orange Auto
+  if (scen.id === 'follow') {
+    const L = followLead();
+    gl.bindVertexArray(vehMesh.vao);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], L.yaw), [L.x, 0, L.z]));
+    gl.uniform4f(P.u.uOver, 1.0, 0.5, 0.05, L.ok ? 0.75 : 0.55);
+    gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Paket unter der Drohne (Paketlieferung)
+  if (game.payload > 0) {
+    gl.bindVertexArray(pkgMesh.vao);
+    const pp = vAdd(sim.p, vScale(qRot(sim.q, [0, 1, 0]), -0.09*PHYS.size));
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(sim.q, pp));
+    gl.drawArrays(gl.TRIANGLES, 0, pkgMesh.count);
   }
   // Fahrzeuge (Jagd Boden): Farbe nach Tempo, getroffene dunkel und schief
   if (scen.id === 'hunt2') {

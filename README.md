@@ -43,7 +43,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/math.js`, `src/format.js` | Vektoren, Quaternionen, Matrizen, Zeitformate |
 | `src/world.js` | Welt, Tore, Hindernisse, Drohnenmodell |
 | `src/physics.js` | Flugmodell, Akku, Kollision, Tore |
-| `src/scenario.js` | Szenarien: Torkurs, Ringe, Slalom, Landung, Freiflug; Schwierigkeit |
+| `src/scenario.js` | Szenarien: Torkurs, Ringe, Slalom, Landung, Jagd, Paketlieferung, Verfolgung, Freiflug; Anordnung, Schwierigkeit |
 | `src/drone.js` | Drohnen-Vorlagen 3", 5", 7" (Schätzwerte) |
 | `src/osd.js` | OSD-Inhalt: Elemente, Beschriftung, Warnungen |
 | `src/targets.js` | Ziel-Drohnen der Jagd Luft: Routen, Verhalten, Treffer |

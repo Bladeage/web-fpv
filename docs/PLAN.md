@@ -272,7 +272,7 @@ Auflösung je nach Leistung mit FXAA, Instancing, Detailstufen, detailliertere M
 - Ringe und Slalom: bei jedem Start eine neue Anordnung, mit Prüfung (keine Hindernisse im Weg, fliegbar).
 - Reihenfolge: erst Grafik-Leistung, dann Modi, dann P2.
 
-## M3: Neue Modi und Varianten (mittel)
+## M3: Neue Modi und Varianten (erledigt)
 
 - Paketlieferung: Paket an einer Stelle aufnehmen (tief anfliegen, kurz halten), an Plattformen abliefern. Zeit und Präzision zählen.
 - Verfolgung: einem Fahrzeug oder einer Drohne folgen, Abstand im Zielband halten; Wertung = Zeit im Band.
