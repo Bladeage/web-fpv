@@ -104,21 +104,35 @@ export function cellOcv(soc) {
 export const fx = { beep() {}, vibrate() {} };
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
-export const task = { check: checkGate, collide: null, reset() {} };
+export const task = { check: checkGate, collide: null, reset() {}, early: false };   // early: vor Boden und Hindernissen prüfen
 
-export function respawn() {
-  game.sim = {
+function newSim() {
+  return {
     p: [0, PHYS.radius + 0.04, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
-    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,
-    om: [0, 0, 0, 0], rpm: [0, 0, 0, 0]   // Motordrehzahl in rad/s und U/min   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
+    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
+    om: [0, 0, 0, 0], rpm: [0, 0, 0, 0]   // Motordrehzahl in rad/s und U/min
   };
+}
+function resetDrone() {
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
-  game.armed = !cfg.needArm;
   game.camPos = [0, 1.0, 2.6]; game.camHeading = [0, 0, -1];
+}
+export function respawn() {
+  game.sim = newSim();
+  resetDrone();
+  game.armed = !cfg.needArm;
+  game.pendingRespawn = false;
   task.reset();
+}
+// Nur die Drohne neu an den Start setzen (Jagd nach Treffer). Szenario, Zeit, Akku und Scharf-Zustand bleiben.
+export function respawnDrone() {
+  const o = game.sim, s = newSim();
+  for (const k of ['t', 'next', 'lapStart', 'lastLap', 'mah', 'vrc', 'vmin', 'flyT', 'cellRest', 'vpack']) s[k] = o[k];
+  game.sim = s;
+  resetDrone();
 }
 
 // Scharf schalten oder aus (wie der Arm-Schalter an der Funke). Scharf nur mit Gas unten, wie bei Betaflight.
@@ -260,6 +274,11 @@ export function step(h) {
   const prev = s.p;
   s.p = vAdd(s.p, vScale(s.v, h));
 
+  // Jagd: Treffer vor Boden und Hindernissen prüfen, damit ein steiler Anflug zählt und nicht als Absturz endet
+  if (task.early) {
+    task.check(prev, s.p, h);
+    if (game.pendingRespawn) { game.pendingRespawn = false; respawnDrone(); return; }
+  }
   // 6. Boden
   s.grounded = false;
   if (s.p[1] < PHYS.radius) {
@@ -277,7 +296,7 @@ export function step(h) {
   for (const c of colliders) if (collide(c, h)) return;
   if (task.collide && task.collide(h)) return;
   // 8. Aufgabe des Szenarios (Tore, Ringe ...)
-  task.check(prev, s.p, h);
+  if (!task.early) task.check(prev, s.p, h);
   s.t += h;
 }
 

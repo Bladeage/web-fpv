@@ -2,7 +2,7 @@
    Ohne DOM, in Node testbar. Die Karte (world.js) bleibt immer gleich; ein Szenario legt
    nur eigene Elemente dazu und tauscht die Aufgabe der Physik (task) aus. */
 import { vAdd, vSub, vScale, vDot, vLen, vNorm, vCross } from './math.js';
-import { cfg, game, say, saveBest, loadBest } from './state.js';
+import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
 import { COURSE, gates, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
@@ -70,8 +70,8 @@ function crossed(a, b, c, n) {
 function finish(time) {
   const s = game.sim;
   s.lastLap = time; s.lapStart = null; st.done = true;
-  if (game.best === null || time < game.best) { game.best = time; saveBest(); say('Ziel! Neue Bestzeit ' + fmtTime(time), 3); fx.beep(1320, 0.25); }
-  else say('Ziel! ' + fmtTime(time), 3);
+  if (game.best === null || time < game.best) { game.best = time; saveBest(); banner('AUFGABE ERFÜLLT', 'Neue Bestzeit ' + fmtTime(time), 4); fx.beep(1320, 0.25); }
+  else banner('AUFGABE ERFÜLLT', fmtTime(time), 4);
 }
 function advance(count) {
   const s = game.sim;
@@ -141,8 +141,9 @@ function checkHunt(a, b, h) {
   const n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius) : stepTargets(h, a, b, b);
   if (!n || st.done) return;
   st.hits += n; fx.beep(1100, 0.12);
-  say('Treffer ' + st.hits + '/' + huntNeed(), 1.2);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
+  else banner('ZIEL GETROFFEN', st.hits + ' / ' + huntNeed());
+  game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug
 }
 export const huntHits = () => st.hits;
 
@@ -151,8 +152,8 @@ const TASKS = {
   rings:   { check: checkRing, collide: collideRings },
   slalom:  { check: checkPole, collide: collidePoles },
   landing: { check: checkLanding, collide: null },
-  hunt:    { check: checkHunt, collide: null },
-  hunt2:   { check: checkHunt, collide: null },
+  hunt:    { check: checkHunt, collide: null, early: true },
+  hunt2:   { check: checkHunt, collide: null, early: true },
   free:    { check() {}, collide: null }
 };
 task.reset = reset;
@@ -162,7 +163,7 @@ export function setScenario(id) {
   if (!TASKS[id]) id = 'gates';
   scen.id = id; scen.version++;
   cfg.scen = id;
-  task.check = TASKS[id].check; task.collide = TASKS[id].collide;
+  task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
 }
 

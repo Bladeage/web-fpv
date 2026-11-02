@@ -241,6 +241,13 @@ export function drawHud() {
   for (let i = messages.length - 1; i >= 0; i--) if (messages[i].until < tnow) messages.splice(i, 1);
   messages.forEach((m, i) => txt(m.text, W/2, H*0.3 + i*lh, 'center', '#fff6b0'));
 
+  if (game.banner && game.banner.until > performance.now()) {   // großer Text: Treffer, Aufgabe erfüllt
+    const fsb = c.font;
+    c.font = `800 ${Math.round(fs*2)}px ${FONT}`;
+    txt(game.banner.text, W/2, H*0.38, 'center', '#7dff9a');
+    c.font = fsb;
+    if (game.banner.sub) txt(game.banner.sub, W/2, H*0.38 + fs*1.6, 'center', '#ffffff');
+  }
   if (!game.armed && game.state === 'fly') txt('DISARMED', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.62, 'center', '#ffffff');
   else if (game.state === 'fly' && s.t < 6 && s.grounded && game.throttle < 0.2) {

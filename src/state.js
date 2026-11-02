@@ -24,7 +24,9 @@ export const game = {
   camPos: [0, 1.2, 3], camHeading: [0, 0, -1],
   last: 0,               // Zeitstempel des letzten Bildes (Hauptschleife)
   scenRun: 'gates',      // Szenario des laufenden Flugs (cfg.scen ist die Auswahl im Menü)
-  armed: true            // scharf geschaltet: Motoren und Regler aktiv
+  armed: true,           // scharf geschaltet: Motoren und Regler aktiv
+  banner: null,          // großer Text in der Bildmitte { text, sub, until }
+  pendingRespawn: false  // Drohne nach diesem Physikschritt neu starten (Jagd nach Treffer)
 };
 // Bestzeit je Szenario. Der Torkurs behält den alten Schlüssel.
 const bestKey = () => cfg.scen === 'gates' ? STORE_BEST : STORE_BEST + '.' + cfg.scen;
@@ -45,4 +47,6 @@ export const ptr = new Map();
 
 /* ---------- Meldungen im OSD ---------- */
 export const messages = [];
+// Großer Text in der Bildmitte, z. B. „ZIEL GETROFFEN“
+export function banner(text, sub = '', dur = 2.5) { game.banner = { text, sub, until: performance.now() + dur*1000 }; }
 export function say(text, dur = 1.6) { messages.push({ text, until: performance.now() + dur*1000 }); }

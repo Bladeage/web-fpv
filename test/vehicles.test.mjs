@@ -78,3 +78,19 @@ test('Keine Strecke doppelt: jedes fahrende Fahrzeug hat eine eigene Spur, Spure
     assert.ok(dmin > 3, `Spur ${i} und ${j}: ${dmin.toFixed(1)} m`);
   }
 });
+
+test('Steiler Anflug auf ein Bodenziel: Treffer, kein Absturz, Drohne startet neu', () => {
+  cfg.huntX = 3; setScenario('hunt2'); respawn(); inp.pitch = inp.roll = inp.yaw = 0;
+  const v = vehicles.find(x => x.kind === 'parked'), s = game.sim;
+  s.p = [v.x, 2.5, v.z]; s.v = [0, -15, 0]; s.grounded = false; s.t = 5; s.lapStart = 1; s.mah = 123;
+  for (let k = 0; k < 60 && v.state !== 'hit'; k++) step(STEP);
+  assert.equal(v.state, 'hit');
+  assert.equal(game.state, 'fly', 'kein Absturz');
+  const n = game.sim;
+  assert.ok(Math.hypot(n.p[0], n.p[2]) < 0.01 && n.grounded, 'Drohne steht wieder am Start');
+  assert.deepEqual(n.v, [0, 0, 0]);
+  assert.equal(scenLabel(), 'TREFFER 1/3', 'Treffer bleiben');
+  assert.ok(n.t >= 5 && n.lapStart !== null && n.mah >= 123, 'Zeit und Akku laufen weiter');
+  assert.equal(game.banner.text, 'ZIEL GETROFFEN');
+  cfg.huntX = 5; setScenario('gates');
+});
