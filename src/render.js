@@ -285,27 +285,44 @@ function readInsets() {
   inset = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0,
             b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
 }
-// Auflösung automatisch: misst jede Sekunde die Bildrate und rechnet das 3D-Bild bei Bedarf kleiner (bis 50 %).
-export const frameStat = { scale: 1, t: 0, n: 0, fps: 0 };
+// Auflösung automatisch: misst jede Sekunde die echte Bildrate (ohne Begrenzung von dt).
+// Ziel ist die beste Bildrate der letzten Sekunden (Bildschirmtakt, auch 30 im Stromsparmodus), begrenzt auf 30 bis 60.
+// Zu langsam: 3D-Bild kleiner (bis 50 %). Reicht das nicht, schaltet "lite" teure Bildeffekte ab
+// und rechnet das OSD mit einfacher Pixeldichte. Wieder schnell genug: erst Effekte zurück, dann Auflösung.
+export const frameStat = { scale: 1, t0: 0, n: 0, fps: 0, top: 0, lite: false, slow: 0, wait: 0, liteN: 0 };
 // Handy und Tablet (Finger statt Maus): höchstens 1,5-fache Pixeldichte, sonst bis 2. Annahme: spart auf Handys viel Rechenzeit, Bild bleibt scharf genug.
 const COARSE = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
-function adaptRes(dt) {
-  frameStat.t += dt; frameStat.n++;
-  if (frameStat.t < 1) return;
-  const fps = frameStat.n/frameStat.t, old = frameStat.scale;
-  frameStat.fps = fps;
-  frameStat.t = 0; frameStat.n = 0;
-  if (!cfg.autoRes) frameStat.scale = 1;
-  else if (fps < 45) frameStat.scale = Math.max(0.5, frameStat.scale*0.85);
-  else if (fps > 57) frameStat.scale = Math.min(1, frameStat.scale*1.1);
-  if (frameStat.scale !== old) resize();
+if (COARSE) frameStat.scale = 0.75;   // Handy: vorsichtig anfangen, bei Reserve geht es hoch
+function adaptRes() {
+  const f = frameStat, now = performance.now();
+  if (!f.t0) { f.t0 = now; return; }
+  f.n++;
+  if (now - f.t0 < 1000) return;
+  const fps = f.n*1000/(now - f.t0), old = f.scale, oldLite = f.lite;
+  f.t0 = now; f.n = 0; f.fps = fps;
+  f.top = Math.max(fps, f.top*0.97);   // Bildschirmtakt schätzen, langsam vergessen
+  const goal = clamp(f.top, 30, 60);   // Ziel: mindestens 30, höchstens 60 Bilder pro Sekunde
+  if (!cfg.autoRes) { f.scale = 1; f.lite = false; }
+  else if (f.wait > 0) f.wait--;   // nach einer Änderung kurz abwarten
+  else if (fps < goal*0.8) {
+    if (f.scale > 0.5) f.scale = Math.max(0.5, f.scale*(fps < goal*0.5 ? 0.7 : 0.85));
+    else if (++f.slow >= 2) { f.lite = true; f.liteN++; f.wait = Math.min(60, 5*f.liteN); }   // je öfter nötig, desto länger bleibt der Sparmodus
+    f.wait = Math.max(f.wait, 1);
+  } else if (fps > goal*0.93) {
+    f.slow = 0;
+    if (f.lite) f.lite = false;
+    else if (f.scale < 1) f.scale = Math.min(1, f.scale*1.1);
+    f.wait = 2;
+  }
+  if (f.scale !== old || f.lite !== oldLite) resize();
 }
 export function resize() {
   vw = innerWidth; vh = innerHeight;
   dpr = Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2);
-  hud.width = Math.round(vw*dpr); hud.height = Math.round(vh*dpr);
+  const hdpr = frameStat.lite ? Math.min(dpr, 1) : dpr;   // OSD im Sparmodus mit einfacher Pixeldichte
+  hud.width = Math.round(vw*hdpr); hud.height = Math.round(vh*hdpr);
   glc.width = Math.round(vw*dpr*frameStat.scale); glc.height = Math.round(vh*dpr*frameStat.scale);   // 3D-Bild ggf. kleiner, OSD bleibt scharf
-  hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  hctx.setTransform(hdpr, 0, 0, hdpr, 0, 0);
   readInsets();
 }
 addEventListener('resize', resize);
@@ -314,7 +331,7 @@ export function toggleCam() { cfg.cam = cfg.cam === 'fpv' ? 'chase' : 'fpv'; sav
 
 export function render(dt) {
   const sim = game.sim;
-  adaptRes(dt);
+  adaptRes();
   const W = glc.width, H = glc.height, asp = W/H;
   const hf = (cfg.fov || 110)*DEG;   // horizontales Blickfeld
   const vf = clamp(2*Math.atan(Math.tan(hf/2)/asp), 55*DEG, 120*DEG);

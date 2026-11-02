@@ -32,7 +32,7 @@ export function osdLines(o, d) {
   add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');
   add('tr', 'timer', 'BESTE ' + fmtTime(d.best), '#c8ffd4');
   add('tr', 'clock', d.clock);
-  add('tr', 'fps', Math.round(d.fps || 0) + ' FPS', (d.fps || 0) < 40 ? YEL : WHITE);
+  add('tr', 'fps', Math.round(d.fps || 0) + ' FPS ' + Math.round((d.res ?? 1)*100) + '%' + (d.lite ? ' L' : ''), (d.fps || 0) < 40 ? YEL : WHITE);   // L = Sparmodus
   const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;
   const vcol = d.cell < warnV ? RED : d.cell < warnV + 0.2 ? YEL : WHITE;
   add('bl', 'volt', d.vpack.toFixed(1) + 'V', vcol);

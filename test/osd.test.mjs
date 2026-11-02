@@ -32,3 +32,9 @@ test('Warnungen und Farben', () => {
   assert.equal(osdOn({}, 'sticks'), true);
   assert.equal(osdOn({ sticks: false }, 'sticks'), false);
 });
+
+test('Bildrate ist aus, zeigt eingeschaltet Auflösung und Sparmodus', () => {
+  assert.ok(!osdLines({}, d).tr.some(l => l.id === 'fps'));
+  const l = osdLines({ fps: true }, { ...d, fps: 24.4, res: 0.5, lite: true }).tr.find(x => x.id === 'fps');
+  assert.equal(l.t, '24 FPS 50% L');
+});

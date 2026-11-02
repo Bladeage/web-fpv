@@ -33,20 +33,21 @@ function setGlFilter(f) { if (f !== glFilter) { glFilter = f; glc.style.filter =
 function drawAnalog(c, W, H, q) {
   if (!noisePats.length) makeNoise();
   const bad = clamp((100 - q)/85, 0, 1), now = performance.now(), k = glc.width/W;
-  const flick = bad > 0.3 ? 1 + (Math.random() - 0.5)*0.25*bad : 1;
-  setGlFilter(bad > 0.02 ? `saturate(${(1 - bad*0.9).toFixed(2)}) brightness(${(flick*(1 - bad*0.15)).toFixed(2)}) contrast(${(1 - bad*0.25).toFixed(2)})` : '');
+  const flick = bad > 0.3 ? 1 + (Math.random() - 0.5)*0.25*bad : 1, lite = frameStat.lite;
+  setGlFilter(bad > 0.02 && !lite ? `saturate(${(1 - bad*0.9).toFixed(2)}) brightness(${(flick*(1 - bad*0.15)).toFixed(2)}) contrast(${(1 - bad*0.25).toFixed(2)})` : '');
   c.save();
   // Bild rollt (Synchronisation verloren)
-  if (bad > 0.75 && Math.random() < (bad - 0.75)*1.2) {
+  // Sparmodus: keine Kopien des 3D-Bilds (auf Handys teuer), kein CSS-Filter
+  if (!lite && bad > 0.75 && Math.random() < (bad - 0.75)*1.2) {
     const off = Math.random()*H*0.25;
     c.drawImage(glc, 0, 0, glc.width, glc.height, 0, off, W, H);
     c.drawImage(glc, 0, 0, glc.width, glc.height, 0, off - H, W, H);
   }
   // Geisterbild durch Reflexionen, vor allem hinter Hindernissen
   const ghost = clamp(bad*0.6 + signal.block/120, 0, 0.6);
-  if (ghost > 0.08) { c.globalAlpha = ghost*0.35; c.drawImage(glc, 0, 0, glc.width, glc.height, 5 + ghost*20, 0, W, H); c.globalAlpha = 1; }
+  if (!lite && ghost > 0.08) { c.globalAlpha = ghost*0.35; c.drawImage(glc, 0, 0, glc.width, glc.height, 5 + ghost*20, 0, W, H); c.globalAlpha = 1; }
   // ausgerissene Zeilen
-  for (let i = 0; i < Math.round(bad*bad*10); i++) {
+  for (let i = 0; i < (lite ? 0 : Math.round(bad*bad*10)); i++) {
     const y = Math.random()*H, h = 1 + Math.random()*14*bad, dx = (Math.random() - 0.5)*60*bad;
     c.drawImage(glc, 0, y*k, glc.width, h*k, dx, y, W, h);
   }
@@ -70,10 +71,19 @@ function drawAnalog(c, W, H, q) {
     c.globalAlpha = 1; c.fillStyle = g; c.fillRect(0, by, W, bh);
   }
   c.globalAlpha = 1;
-  const g = c.createRadialGradient(W/2, H/2, Math.min(W, H)*0.35, W/2, H/2, Math.hypot(W, H)*0.55);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
-  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.fillStyle = vignette(c, W, H); c.fillRect(0, 0, W, H);
   c.restore();
+}
+
+// Randabdunklung: Verlauf nur bei neuer Bildgröße anlegen
+const vig = { w: 0, h: 0, g: null };
+function vignette(c, W, H) {
+  if (vig.w !== W || vig.h !== H || !vig.g) {
+    vig.g = c.createRadialGradient(W/2, H/2, Math.min(W, H)*0.35, W/2, H/2, Math.hypot(W, H)*0.55);
+    vig.g.addColorStop(0, 'rgba(0,0,0,0)'); vig.g.addColorStop(1, 'rgba(0,0,0,0.45)');
+    vig.w = W; vig.h = H;
+  }
+  return vig.g;
 }
 
 // Digitalbild. q = Videosignal 0..100. Mit sinkendem Signal: weniger Bitrate (grobes, weiches Bild),
@@ -98,6 +108,7 @@ function drawDigital(c, W, H, q) {
   }
   frozen.lost = 0;
   if (now > frozen.until && Math.random() < bad*bad*0.04) { snap(); frozen.until = now + 120 + Math.random()*600*bad; }
+  if (frameStat.lite) { c.restore(); return; }   // Sparmodus: keine Kopien des 3D-Bilds
   if (now < frozen.until && frozen.cv) c.drawImage(frozen.cv, 0, 0, W, H);
   else if (bad > 0.2) {   // niedrige Bitrate: Bild in grober Auflösung
     const f = 1 + bad*6, w = Math.max(16, Math.round(W/f)), h = Math.max(9, Math.round(H/f));
@@ -186,14 +197,14 @@ export function drawHud() {
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
     vpack: s.vpack, vmin: s.vmin, hp: s.hp, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
     kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.radius), homeD: Math.hypot(s.p[0], s.p[2]),
-    fps: frameStat.fps, thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
+    fps: frameStat.fps, res: cfg.autoRes ? frameStat.scale : 1, lite: frameStat.lite, thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
   };
   const lines = osdLines(cfg.osd, d);
 
-  // Analog: OSD leicht weich, bei schlechtem Empfang springt es seitlich (Synchronisation)
+  // Analog: bei schlechtem Empfang springt das OSD seitlich (Synchronisation).
+  // Kein Weichzeichnen (filter blur): kostete pro Textzeile viel Zeit, im Test 148 statt 9 ms pro Bild.
   c.save();
   if (analog && fpv) {
-    c.filter = 'blur(0.45px)';
     if (q < 50 && Math.random() < (50 - q)/80) c.translate((Math.random() - 0.5)*6, 0);
     if (q < 10 && Math.random() < 0.35) c.globalAlpha = 0.25;   // OSD fast weg im Rauschen
   }
