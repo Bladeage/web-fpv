@@ -43,3 +43,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 35 | 02.11.2026 | Am Handy hakte es mit „Auflösung automatisch“, teils 10 Bilder pro Sekunde und weniger. Vermutung: rechnet auf die höchste Auflösung hoch und passt nicht nach unten an. Prüfen, ob die Funktion bleibt oder standardmäßig aus ist. | Ursache Weichzeichnen im OSD, Auflösung automatisch überarbeitet, Sparmodus |
 | 36 | 02.11.2026 | Auflösung automatisch bleibt eingeschaltet. Turtle-Modus Variante 1 (schaltet sich auf dem Kopf von selbst ein). OSD-Häkchen für Uhrzeit und Bildrate, standardmäßig aus. | Turtle-Modus |
 | 37 | 02.11.2026 | Gerät die App in den Hintergrund (Bildschirm gesperrt), soll das Einstellungsbild kommen und die Simulation pausieren. Bisher läuft der Ton weiter, vermutlich auch die Simulation. | Ton aus im Hintergrund und im Menü |
+| 38 | 02.11.2026 | Hitbox-Füße reparieren. | Hitbox-Füße, flache Platten |

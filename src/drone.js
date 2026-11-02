@@ -51,6 +51,7 @@ export function applyDrone(d) {
   PHYS.motor = { ...p.motor };
   PHYS.spool = p.spool; PHYS.cdaF = p.cdaF; PHYS.cdaT = p.cdaT; PHYS.rotDamp = p.rotDamp;
   PHYS.size = p.size; PHYS.radius = p.radius;
+  PHYS.foot = 0.01*p.size; PHYS.propY = 0.034*p.size;   // Auflage und Propellerebene wie im Modell (Modell wird mit size skaliert)
   BAT.cells = d.cells ?? p.cells; BAT.cap = d.cap ?? p.cap; BAT.ri = p.ri;
   BAT.r2 = p.r2;
   PHYS.thrScale = 1;

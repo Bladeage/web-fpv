@@ -205,7 +205,7 @@ function checkLanding(a, b, h) {
   const s = game.sim;
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
-  const onPad = s.p[1] - PHYS.radius < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
+  const onPad = s.p[1] - PHYS.foot < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
   if (onPad && !st.onPad && st.takeoff !== null) {
     const hard = vLen(st.vPrev) > diff().landV;
     st.hard = st.hard || hard;   // einmal zu hart bleibt zu hart, bis die Drohne wieder abhebt
@@ -215,7 +215,7 @@ function checkLanding(a, b, h) {
     st.hold += h;
     if (st.hold >= LAND_HOLD) finish(s.t - st.takeoff);
   } else st.hold = 0;
-  if (s.p[1] - PHYS.radius > 0.2) st.hard = false;   // nach hartem Aufsetzen erst wieder abheben (Abpraller zählen nicht)
+  if (s.p[1] - PHYS.foot > 0.2) st.hard = false;   // nach hartem Aufsetzen erst wieder abheben (Abpraller zählen nicht)
   st.onPad = onPad; st.vPrev = s.v.slice();
 }
 
@@ -240,7 +240,7 @@ function checkDeliver(a, b, h) {
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const tgt = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP;
-  const near = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < DROP_R && s.p[1] - PHYS.radius < 1.2 && vLen(s.v) < 2.5;
+  const near = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < DROP_R && s.p[1] - PHYS.foot < 1.2 && vLen(s.v) < 2.5;
   st.hold = near ? st.hold + h : 0;
   if (st.hold < DROP_HOLD) return;
   st.hold = 0;
@@ -264,7 +264,7 @@ function checkFollow(a, b, h) {
     const r = routeAt(ROUTES[0], lead.s); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw;
   }
   lead.dist = Math.hypot(s.p[0] - lead.x, s.p[2] - lead.z);
-  const alt = s.p[1] - PHYS.radius;
+  const alt = s.p[1] - PHYS.foot;
   lead.ok = st.takeoff !== null && lead.dist >= FOLLOW.dMin && lead.dist <= FOLLOW.dMax && alt >= FOLLOW.hMin && alt <= FOLLOW.hMax;
   if (lead.ok) st.inBand += h;
   if (st.inBand >= FOLLOW.need) finish(s.t - st.takeoff);
@@ -366,20 +366,20 @@ export function buildScenario() {
   });
   if (scen.id === 'deliver') {   // Teil 0: Abholplatz (orange, mit Paketstapel), Teile 1..3: Lieferplattformen in Reihenfolge (blau)
     const plate = (c, col) => {
-      mb.box([c[0], 0.03, c[2]], [DROP_R, 0.03, DROP_R], 0, col);
-      mb.box([c[0], 0.065, c[2]], [DROP_R*0.8, 0.005, DROP_R*0.8], 0, [0.92, 0.92, 0.92]);
+      mb.box([c[0], 0.003, c[2]], [DROP_R, 0.003, DROP_R], 0, col);   // flache Platten: Drohne steht physikalisch auf y = 0
+      mb.box([c[0], 0.007, c[2]], [DROP_R*0.8, 0.001, DROP_R*0.8], 0, [0.92, 0.92, 0.92]);
     };
-    part(() => { plate(PICKUP, [1.0, 0.5, 0.1]); for (let k = 0; k < 3; k++) mb.box([PICKUP[0] + (k - 1)*0.5, 0.15, PICKUP[2]], [0.18, 0.1, 0.18], k*0.4, [0.62, 0.45, 0.28]); });
+    part(() => { plate(PICKUP, [1.0, 0.5, 0.1]); for (let k = 0; k < 3; k++) mb.box([PICKUP[0] + (k - 1)*0.5, 0.106, PICKUP[2]], [0.18, 0.1, 0.18], k*0.4, [0.62, 0.45, 0.28]); });
     for (const i of dropOrder) part(() => plate(DROPS[i], [0.15, 0.4, 0.95]));
   }
   if (scen.id === 'landing') part(() => {
     const [x, , z] = PAD.c, w = diff().padHalf, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];
-    mb.box([x, 0.025, z], [w, 0.025, w], 0, [0.25, 0.27, 0.3]);
-    for (const [dx, dz, hx, hz] of [[0, -w, w, 0.05], [0, w, w, 0.05], [-w, 0, 0.05, w], [w, 0, 0.05, w]]) mb.box([x+dx, 0.055, z+dz], [hx, 0.005, hz], 0, orange);
+    mb.box([x, 0.003, z], [w, 0.003, w], 0, [0.25, 0.27, 0.3]);
+    for (const [dx, dz, hx, hz] of [[0, -w, w, 0.05], [0, w, w, 0.05], [-w, 0, 0.05, w], [w, 0, 0.05, w]]) mb.box([x+dx, 0.007, z+dz], [hx, 0.001, hz], 0, orange);
     const k = w/1.0;   // H-Markierung mit der Plattform skalieren
-    mb.box([x-0.3*k, 0.055, z], [0.06*k, 0.005, 0.45*k], 0, white);
-    mb.box([x+0.3*k, 0.055, z], [0.06*k, 0.005, 0.45*k], 0, white);
-    mb.box([x, 0.055, z], [0.3*k, 0.005, 0.06*k], 0, white);
+    mb.box([x-0.3*k, 0.007, z], [0.06*k, 0.001, 0.45*k], 0, white);
+    mb.box([x+0.3*k, 0.007, z], [0.06*k, 0.001, 0.45*k], 0, white);
+    mb.box([x, 0.007, z], [0.3*k, 0.001, 0.06*k], 0, white);
   });
   return { data: new Float32Array(mb.d), parts };
 }

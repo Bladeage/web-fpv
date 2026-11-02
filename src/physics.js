@@ -10,7 +10,9 @@ import { fmtTime } from './format.js';
 export const PHYS = {
   g: 9.81,
   spool: 0.035,    // Hochlaufzeit des Motors um den Schwebepunkt in s (bestimmt die Drehträgheit J)
-  radius: 0.15,    // Kollisionsradius in m
+  radius: 0.15,    // Kollisionsradius in m (Ringe, Treffer, Hindernis-Vorprüfung)
+  foot: 0.01,      // Auflage: Rahmen-Unterseite unter dem Schwerpunkt in m (aus dem Modell, 1 cm je Größe 1)
+  propY: 0.034,    // Propellerebene über dem Schwerpunkt in m (aus dem Modell)
   crashV: 5.5,     // Aufprallgeschwindigkeit für Absturz in m/s
   rateTau: 0.04,   // nur Stufe 1: Reaktionszeit der Drehrate in s (seit Physik 2.0 ungenutzt)
   angleMax: 50,    // max. Neigung im Angle-Modus in Grad
@@ -109,7 +111,7 @@ export const task = { check: checkGate, collide: null, reset() {}, early: false 
 
 function newSim() {
   return {
-    p: [0, PHYS.radius + 0.04, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
+    p: [0, PHYS.foot + 0.005, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
     mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
@@ -190,7 +192,7 @@ export function step(h) {
   // 2. Aerodynamik am Rotor (gilt für alle vier gleich, außer Propwash-Rauschen)
   const vAx = vDot(s.v, up);                                  // Anströmung entlang der Rotorachse (+ = Steigflug)
   const vPerp = vSub(s.v, vScale(up, vAx)), vHor = vLen(vPerp);
-  const zr = Math.max(s.p[1] - PHYS.radius + 0.04*PHYS.size, mc.R*0.5);   // Rotorhöhe über Grund (Propeller ca. 4 cm über den Kufen)
+  const zr = Math.max(s.p[1] - PHYS.foot + PHYS.propY, mc.R*0.5);   // Rotorhöhe über Grund
   const ge = up[1] > 0.5 ? Math.min(1.4, 1/(1 - (mc.R/(4*zr))**2)) : 1;   // Bodeneffekt (Cheeseman-Bennett)
   const fac = [0, 0, 0, 0];
   for (let i = 0; i < 4; i++) {
@@ -245,13 +247,13 @@ export function step(h) {
     // Vereinfacht: Der Stick gibt eine Kipp-Drehrate vor, ein P-Regler liefert das Moment. Begrenzt auf zwei
     // rückwärts drehende Motoren (Schätzung 50 % Schub, Annahme: Propeller sind nur für eine Richtung gebaut).
     // Nicht physikalisch exakt: das Ziel ist ein zuverlässiges Umdrehen.
-    // Mit dem Schub der einzelnen Motoren war es zu unruhig: Die Füße der Hitbox liegen tief wie Stelzen
-    // (PHYS.radius aus legacy/), die Propeller sind Kugeln. Siehe PLAN, Hitbox-Füße.
+    // Mit dem Schub der einzelnen Motoren war es zu unruhig.
     // Mindestens das Dreifache des Schwerkraft-Moments am Kipppunkt, damit es auch die Whoop schafft (Vereinfachung).
     const mga = PHYS.mass*PHYS.g*PHYS.arm/Math.SQRT2, Mmax = Math.max(0.25*PHYS.twr, 3)*mga;
-    const fade = clamp((0.95 - up[1])/0.9, 0.15, 1);   // kurz vor aufrecht: bremsen, damit sie nicht auf die andere Seite kippt
-    const want = [sz*TURTLE.rate*fade, 0, sx*TURTLE.rate*fade];
-    turtleM = want.map((x, i) => (sx || sz) ? clamp(PHYS.I[i]*TURTLE.k*(x - s.w[i]), -Mmax, Mmax) : 0);
+    // Über die Senkrechte hinaus (oben zeigt etwas nach oben): Motoren aus, sie fällt von selbst auf die Füße
+    const push = (sx || sz) && up[1] < 0.2;
+    const want = [sz*TURTLE.rate, 0, sx*TURTLE.rate];
+    turtleM = want.map((x, i) => push ? clamp(PHYS.I[i]*TURTLE.k*(x - s.w[i]), -Mmax, Mmax) : 0);
     MOTORS.forEach(([mx, mz], i) => { const k = clamp(mz*sz - mx*sx, 0, 1); s.cmd[i] = k > 0.05 ? 0.15 + 0.35*k : 0; });   // Ton und Propeller
     s.wi[0] = s.wi[1] = s.wi[2] = 0;
   }
@@ -298,7 +300,8 @@ export function step(h) {
   const I = PHYS.I, w = s.w, Iw = [I[0]*w[0], I[1]*w[1], I[2]*w[2]], gyro = vCross(w, Iw);
   if (turtleM) for (let i = 0; i < 3; i++) M[i] += turtleM[i];
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
-  if (rest && !s.turtle && up[1] > 0.9) { w[0] = w[1] = w[2] = 0; }   // steht fast gerade: kein Zittern. Schräg kippt sie auf die Füße. Aus in der Luft: taumelt frei
+  if (rest && !(turtleM && turtleM.some(x => x))) { const k = Math.max(0, 1 - 10*h); w[0] *= k; w[1] *= k; w[2] *= k; }   // Bodenkontakt schluckt Energie (Schätzung, Abklingzeit 0,1 s)
+  if (rest && !s.turtle && up[1] > 0.995 && vLen(w) < 1) { w[0] = w[1] = w[2] = 0; }   // steht fast waagerecht und ruhig: kein Zittern. Schräg kippt sie auf die Füße. Aus in der Luft: taumelt frei
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
@@ -321,11 +324,12 @@ export function step(h) {
   }
   // 6. Boden: jede Kugel der Hitbox gegen den Boden (y = 0). Kufe unten trägt die Drohne, Propeller können aufsetzen.
   s.grounded = false; s.onGround = false;
-  const hb = hitbox(), ground = [];
+  const hb = hitbox(), ground = [], upB = qRot(s.q, [0, 1, 0]);
   for (let i = 0; i < hb.length; i++) {
-    const [x, y, z, rad, rot] = hb[i], r = qRot(s.q, [x, y, z]), pen = rad - (s.p[1] + r[1]);
+    const [x, y, z, rad, rot, thick] = hb[i], r = qRot(s.q, [x, y, z]), sp = support(rad, thick, [0, 1, 0], upB);
+    const pen = sp.r - (s.p[1] + r[1]);
     if (pen <= 0) continue;
-    ground.push({ n: [0, 1, 0], pen, r: vAdd(r, [0, -rad, 0]), rot });
+    ground.push({ n: [0, 1, 0], pen, r: vAdd(r, sp.d), rot });
     s.onGround = true;
     if (i < FEET) s.grounded = true;   // steht auf den Füßen
   }
@@ -384,15 +388,26 @@ export function damage(n, v, base) {
   });
 }
 
-// Hitbox (P2): Kugeln im Körpersystem [x, y, z, Radius, Rotor oder -1].
-// 0 bis 3: Füße unter den Armen (Auflage PHYS.radius unter der Mitte, wie bisher), 4: Rahmen, 5 bis 8: Propellerkreise.
+// Hitbox (P2): Teile im Körpersystem [x, y, z, Radius, Rotor oder -1, Dicke oder 0].
+// 0 bis 3: Füße unter den Armen, Auflage auf Höhe der Rahmen-Unterseite (PHYS.foot).
+// 4: Oberseite (Deckplatte, Akku), darauf liegt sie auf dem Kopf.
+// 5 bis 8: Propellerkreise als flache Scheiben (Dicke > 0), nicht als Kugeln. Kugeln würden die Drohne
+// anheben und schon bei kleiner Neigung kippen lassen.
 export const FEET = 4;
 export function hitbox() {
-  const a = PHYS.arm/Math.SQRT2, sz = PHYS.size, rs = 0.03*sz, f = 0.7*a;
-  const out = MOTORS.map(([mx, mz]) => [mx*f, -(PHYS.radius - rs), mz*f, rs, -1]);
-  out.push([0, 0, 0, 0.05*sz, -1]);
-  MOTORS.forEach(([mx, mz], i) => out.push([mx*a, 0.02*sz, mz*a, PHYS.m.R*0.95, i]));
+  const a = PHYS.arm/Math.SQRT2, sz = PHYS.size, rs = 0.006*sz, f = 0.7*a;
+  const out = MOTORS.map(([mx, mz]) => [mx*f, -(PHYS.foot - rs), mz*f, rs, -1, 0]);
+  out.push([0, 0.04*sz, 0, 0.03*sz, -1, 0]);
+  MOTORS.forEach(([mx, mz], i) => out.push([mx*a, PHYS.propY, mz*a, PHYS.m.R, i, 0.005*sz]));
   return out;
+}
+// Berührpunkt eines Hitbox-Teils in Richtung -n (n zeigt vom Hindernis zur Drohne), u = Drohne oben (Welt).
+// Kugel: Radius. Scheibe: Rand der Scheibe auf der Seite von -n, dazu halbe Dicke. Ergebnis: Versatz zur Teilmitte und wirksamer Radius.
+function support(rad, thick, n, u) {
+  if (!thick) return { d: vScale(n, -rad), r: rad };
+  const c = vDot(n, u), p = vAdd(vScale(n, -1), vScale(u, c)), l = vLen(p);
+  const d = vAdd(l > 1e-6 ? vScale(p, rad/l) : [0, 0, 0], vScale(u, c > 0 ? -thick : thick));
+  return { d, r: -vDot(d, n) };
 }
 // Mehrere gleichzeitige Berührungen mit einem Hindernis: ein gemeinsamer Stoß am mittleren Kontaktpunkt,
 // tiefste Eindringtiefe, gemittelte Normale. Sonst gäbe jede Kugel einen eigenen vollen Stoß (zu starker Rückprall).
@@ -427,10 +442,14 @@ export function collide(c, h) {
   const s = game.sim, reach = Math.max(PHYS.radius, PHYS.arm + PHYS.m.R) + 0.05;
   if (Math.abs(s.p[1] - c.c[1]) > c.h[1] + reach) return false;
   if (Math.hypot(s.p[0] - c.c[0], s.p[2] - c.c[2]) > Math.hypot(c.h[0], c.h[2]) + reach) return false;
-  const hits = [];
-  for (const [x, y, z, rad, rot] of hitbox()) {
-    const r = qRot(s.q, [x, y, z]), hit = sphereBox(vAdd(s.p, r), rad, c);
-    if (hit) hits.push({ n: hit.n, pen: hit.pen, r: vSub(r, vScale(hit.n, rad)), rot });
+  const hits = [], upB = qRot(s.q, [0, 1, 0]);
+  for (const [x, y, z, rad, rot, thick] of hitbox()) {
+    const r = qRot(s.q, [x, y, z]), pc = vAdd(s.p, r);
+    let hit = sphereBox(pc, rad + thick, c);
+    if (!hit) continue;
+    const sp = support(rad, thick, hit.n, upB);   // Scheibe: zweiter Durchgang mit dem wirksamen Radius in dieser Richtung
+    if (thick && !(hit = sphereBox(pc, sp.r, c))) continue;
+    hits.push({ n: hit.n, pen: hit.pen, r: vAdd(r, thick ? support(rad, thick, hit.n, upB).d : sp.d), rot });
   }
   return resolve(hits, PHYS.crashV*dmgMode().crashK, 'Hindernis getroffen');
 }

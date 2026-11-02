@@ -105,10 +105,12 @@ export function buildWorld() {
   const R = rng(1949);
   const L = 600;
   // Boden (Alpha 0 = Bodenmuster im Shader)
-  mb.quad([-L,0,-L], [-L,0,L], [L,0,L], [L,0,-L], [0.35, 0.50, 0.27, 0]);
+  // In Kacheln von 30 m: Ein einziges riesiges Viereck macht die Tiefe ungenau, flache Platten (Startplatz) verschwänden darin.
+  for (let x = -L; x < L; x += 30) for (let z = -L; z < L; z += 30)
+    mb.quad([x,0,z], [x,0,z+30], [x+30,0,z+30], [x+30,0,z], [0.35, 0.50, 0.27, 0]);
   // Startplatz
-  mb.box([0, 0.02, 0], [1.2, 0.02, 1.2], 0, [0.22, 0.27, 0.34]);
-  mb.box([0, 0.021, -0.9], [0.5, 0.02, 0.05], 0, [0.95, 0.95, 0.95]);
+  mb.box([0, 0.003, 0], [1.2, 0.003, 1.2], 0, [0.22, 0.27, 0.34]);   // flach: die Drohne steht physikalisch auf y = 0
+  mb.box([0, 0.007, -0.9], [0.5, 0.001, 0.05], 0, [0.95, 0.95, 0.95]);
 
   // Hügel am Horizont
   for (let i = 0; i < 30; i++) {

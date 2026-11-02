@@ -60,7 +60,7 @@ test('Durch Hindernisse fliegen: Wand hält nicht auf, Boden bleibt fest', () =>
   const along = (game.sim.p[0] - wall.c[0])*xAxis[0] + (game.sim.p[2] - wall.c[2])*xAxis[2];
   assert.ok(along < wall.h[0], 'in der Wand: ' + along);
   respawn(); place([0, 0.4, 10], [0, -3, 0], [0, 0, 0, 1], 0); run(1);
-  assert.ok(game.sim.p[1] >= PHYS.radius - 0.01, 'Boden trägt');
+  assert.ok(game.sim.p[1] >= PHYS.foot - 0.01, 'Boden trägt');
   cfg.ghost = false;
 });
 

@@ -38,7 +38,7 @@ test('Steigflug kostet Schub (Anströmung durch den Rotor)', () => {
 test('Bodeneffekt: dicht über dem Boden mehr Schub', () => {
   const h = hoverThrottle();
   airborne([0, 30, 0], [0, 0, 0], h); const aHigh = accel()[1];
-  respawn(); airborne([0, PHYS.radius + 0.005, 0], [0, 0, 0], h); const aLow = accel()[1];
+  respawn(); airborne([0, PHYS.foot + 0.005, 0], [0, 0, 0], h); const aLow = accel()[1];
   assert.ok(aLow > aHigh + 0.5, `am Boden ${aLow} > oben ${aHigh}`);
 });
 

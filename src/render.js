@@ -433,7 +433,7 @@ export function render(dt) {
   if (cfg.gfx !== 'simple') {
     const blobs = [];
     const add = (p, rx, rz, yaw) => { if (p[1] < 40) blobs.push([p[0] - SUN[0]/SUN[1]*p[1], p[2] - SUN[2]/SUN[1]*p[1], rx*(1 + p[1]*0.03), rz*(1 + p[1]*0.03), yaw, 0.5*Math.max(0, 1 - p[1]/30)]); };
-    if (cfg.cam !== 'fpv' || sim.p[1] < 20) add(vSub(sim.p, [0, PHYS.radius, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0);
+    if (cfg.cam !== 'fpv' || sim.p[1] < 20) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0);
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, 0, v.z], 1.15, 2.3, v.yaw);
     if (scen.id === 'follow') { const L = followLead(); add([L.x, 0, L.z], 1.15, 2.3, L.yaw); }
