@@ -96,11 +96,16 @@
         <button data-tab="general">Allgemein</button><button data-tab="radio">Funke</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
       </div>
       <div class="tabpane" data-pane="general">
-        <label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
-        <input type="range" id="tilt" min="0" max="50" step="1">
+        <div class="sliders">
+          <div><label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
+          <input type="range" id="tilt" min="0" max="60" step="1"></div>
+          <div><label class="row" for="fov"><span>Blickfeld</span><output id="fovV"></output></label>
+          <input type="range" id="fov" min="70" max="150" step="5"></div>
+        </div>
         <div class="checks">
           <label class="check"><input type="checkbox" id="sound"> Ton</label>
           <label class="check"><input type="checkbox" id="propsView"> Propeller im Bild</label>
+          <label class="check"><input type="checkbox" id="needArm"> Scharfschalten nötig</label>
         </div>
         <h2>Bild</h2>
         <div class="seg seg3 small" id="videoSeg">
@@ -139,6 +144,9 @@
           <kbd>R</kbd><span>Neustart</span>
           <kbd>V</kbd><span>Kamera wechseln</span>
           <kbd>M</kbd><span>Angle / Acro</span>
+          <kbd>Leertaste</kbd><span>Scharf schalten / aus (nur mit Gas unten)</span>
+          <kbd>Bild ↑ / ↓</kbd><span>Kamerawinkel</span>
+          <kbd>+ / −</kbd><span>Blickfeld</span>
           <kbd>Esc / P</kbd><span>Einstellungen</span>
         </div>
         <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>

@@ -7,7 +7,8 @@ export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
 export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
   diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5, gfx: 'nice',
-  batWarn: 3.5, batMin: 3.3, dmg: 'mild' };
+  batWarn: 3.5, batMin: 3.3, dmg: 'mild',
+  fov: 110, needArm: false };   // Blickfeld horizontal in Grad; Scharfschalten per Taste nötig
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(STORE_CFG) || '{}')); } catch (e) {}
 // Bildmodus: 'analog' | 'digital' | 'clean'. Ältere Einstellungen kannten nur cfg.analog.
 if (!cfg.video) cfg.video = cfg.analog === false ? 'clean' : 'analog';
@@ -22,7 +23,8 @@ export const game = {
   best: null,
   camPos: [0, 1.2, 3], camHeading: [0, 0, -1],
   last: 0,               // Zeitstempel des letzten Bildes (Hauptschleife)
-  scenRun: 'gates'       // Szenario des laufenden Flugs (cfg.scen ist die Auswahl im Menü)
+  scenRun: 'gates',      // Szenario des laufenden Flugs (cfg.scen ist die Auswahl im Menü)
+  armed: true            // scharf geschaltet: Motoren und Regler aktiv
 };
 // Bestzeit je Szenario. Der Torkurs behält den alten Schlüssel.
 const bestKey = () => cfg.scen === 'gates' ? STORE_BEST : STORE_BEST + '.' + cfg.scen;

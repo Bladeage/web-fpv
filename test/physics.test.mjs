@@ -197,3 +197,21 @@ test('Schaden: leichter Treffer beschädigt statt Absturz (nachsichtig), aus = k
   cfg.dmg = 'mild';
 });
 function qRotUp(q) { const [x, , z] = q; return 1 - 2*(x*x + z*z); }   // y-Anteil der Hochachse
+
+test('Scharfschalten: nur mit Gas unten; aus in der Luft heißt Motoren aus und Fall', async () => {
+  const { toggleArm } = await import('../src/physics.js');
+  assert.equal(game.armed, true, 'Standard: scharf (Scharfschalten nicht nötig)');
+  airborne([0, 30, 0], hoverThrottle());
+  assert.equal(toggleArm(), false); assert.equal(game.armed, false);
+  run(1);
+  assert.ok(game.sim.cmd.every(c => c === 0), 'Motoren aus');
+  assert.ok(game.sim.v[1] < -5, 'fällt: ' + game.sim.v[1]);
+  game.throttle = 0.5;
+  assert.equal(toggleArm(), false, 'mit Gas oben nicht scharf');
+  assert.equal(game.armed, false);
+  game.throttle = 0;
+  assert.equal(toggleArm(), true); assert.equal(game.armed, true);
+  cfg.needArm = true; respawn();
+  assert.equal(game.armed, false, 'Neustart ohne Scharfschalten, wenn nötig');
+  cfg.needArm = false; respawn();
+});

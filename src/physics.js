@@ -116,8 +116,17 @@ export function respawn() {
   };
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
+  game.armed = !cfg.needArm;
   game.camPos = [0, 1.0, 2.6]; game.camHeading = [0, 0, -1];
   task.reset();
+}
+
+// Scharf schalten oder aus (wie der Arm-Schalter an der Funke). Scharf nur mit Gas unten, wie bei Betaflight.
+export function toggleArm() {
+  if (game.armed) { game.armed = false; say('Disarmed', 1.2); return false; }
+  if (game.throttle > 0.05) { say('Gas runter zum Scharfschalten', 1.6); return false; }
+  game.armed = true; say('Armed', 1.2); fx.beep(660, 0.12);
+  return true;
 }
 
 export function crash(why) {
@@ -174,7 +183,8 @@ export function step(h) {
 
   // 3. Rate-PID und Mischer (Quad-X). Am Boden mit wenig Gas: Motoren aus, Regler ruht.
   const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
-  const armed = !(s.grounded && game.throttle < 0.05);
+  const rest = s.grounded && game.throttle < 0.05;   // steht am Boden mit Gas unten
+  const armed = game.armed && !rest;
   const tau = [0, 0, 0];
   for (let i = 0; i < 3; i++) {
     if (armed) s.wi[i] = clamp(s.wi[i] + err[i]*h, -PHYS.iMax, PHYS.iMax); else s.wi[i] = 0;
@@ -193,7 +203,7 @@ export function step(h) {
   else if (bot < 0) u = u.map(x => x - bot);    // Sättigung unten: alle hoch
   // 4. Motoren: J dω/dt = Kt (I - I0) - kQ ω², I = (u V - Ke ω)/Rm. Akkustrom = 1 A Grundlast + Σ u I (Regler als Spannungswandler).
   // Akkuspannung V = E - Ri·Iakku hängt selbst vom Strom ab: direkt gelöst (linear in V), sonst schaukelt es bei hohen Strömen.
-  for (let i = 0; i < 4; i++) s.cmd[i] = armed ? clamp(u[i], 0, 1) : 0;
+  for (let i = 0; i < 4; i++) s.cmd[i] = armed ? clamp(u[i], 0, 1) : game.armed ? PHYS.idle : 0;   // scharf am Boden: Leerlauf
   const E = BAT.cells*cellOcv(1 - s.mah/BAT.cap) - s.vrc;
   let su2 = 0, sue = 0;
   for (let i = 0; i < 4; i++) { su2 += s.cmd[i]*s.cmd[i]; sue += s.cmd[i]*mc.ke*s.om[i]; }
@@ -234,7 +244,7 @@ export function step(h) {
   M[0] += vib*a*0.15*Math.sin(s.t*157); M[2] += vib*a*0.15*Math.cos(s.t*173);
   const I = PHYS.I, w = s.w, Iw = [I[0]*w[0], I[1]*w[1], I[2]*w[2]], gyro = vCross(w, Iw);
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
-  if (!armed) { w[0] = w[1] = w[2] = 0; }
+  if (rest) { w[0] = w[1] = w[2] = 0; }   // aus in der Luft: Drohne taumelt frei
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage

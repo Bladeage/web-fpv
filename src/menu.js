@@ -80,6 +80,8 @@ export function syncMenu() {
   press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
   $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';
   $('batMin').value = cfg.batMin; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V';
+  $('fov').value = cfg.fov; $('fovV').textContent = cfg.fov + '°';
+  $('needArm').checked = cfg.needArm;
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
@@ -134,6 +136,8 @@ $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('ca
 $('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von ' + e.target.max; saveCfg(); });
 $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
 $('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });
+$('fov').addEventListener('input', e => { cfg.fov = +e.target.value; $('fovV').textContent = cfg.fov + '°'; saveCfg(); });
+$('needArm').addEventListener('change', e => { cfg.needArm = e.target.checked; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
 $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV').textContent = cfg.rate + ' °/s'; saveCfg(); });
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });

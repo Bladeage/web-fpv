@@ -1,14 +1,14 @@
 /* Eingabe: Tastatur (Mode 2) und Touch mit zwei Sticks.
    Ein verbundenes Gamepad überschreibt beides (siehe updTouch). */
 import { clamp } from './math.js';
-import { cfg, game, kb, tch, inp, keys, ptr, say } from './state.js';
-import { respawn } from './physics.js';
+import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg } from './state.js';
+import { respawn, toggleArm } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
 
 /* ---------- Eingabe: Tastatur ---------- */
-const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD'];
+const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','PageUp','PageDown'];
 addEventListener('keydown', e => {
   if (e.code === 'Escape' || e.code === 'KeyP') { toggleMenu(); e.preventDefault(); return; }
   if (game.paused) return;
@@ -18,6 +18,14 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') respawn();
   if (e.code === 'KeyV') toggleCam();
   if (e.code === 'KeyM') { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); }
+  if (e.code === 'Space') toggleArm();
+  // Kamerawinkel mit Bild auf/ab, Blickfeld mit + und - (e.key, damit es auf jeder Tastaturbelegung passt)
+  if (e.code === 'PageUp' || e.code === 'PageDown') {
+    cfg.tilt = clamp(cfg.tilt + (e.code === 'PageUp' ? 5 : -5), 0, 60); saveCfg(); say('Kamerawinkel ' + cfg.tilt + '°', 1);
+  }
+  if (e.key === '+' || e.key === '-') {
+    cfg.fov = clamp((cfg.fov || 110) + (e.key === '+' ? 5 : -5), 70, 150); saveCfg(); say('Blickfeld ' + cfg.fov + '°', 1);
+  }
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());

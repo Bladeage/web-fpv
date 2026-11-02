@@ -201,7 +201,7 @@ export function toggleCam() { cfg.cam = cfg.cam === 'fpv' ? 'chase' : 'fpv'; sav
 export function render(dt) {
   const sim = game.sim;
   const W = glc.width, H = glc.height, asp = W/H;
-  const hf = 110*DEG;
+  const hf = (cfg.fov || 110)*DEG;   // horizontales Blickfeld
   const vf = clamp(2*Math.atan(Math.tan(hf/2)/asp), 55*DEG, 120*DEG);
   const proj = mPersp(vf, asp, 0.05, 1500);
   let view, eye;
@@ -324,7 +324,7 @@ export function render(dt) {
 const propAng = [0, 0.8, 1.6, 2.4];
 function drawProps(md, dt) {
   const sim = game.sim;
-  const S = PROP_S, spin = game.state === 'fly' && !game.paused;
+  const S = PROP_S, spin = game.state === 'fly' && !game.paused && game.armed;
   const w = spin ? 9 + sim.thr*38 : 0;                 // sichtbare Drehung, gedrosselt gegen Flimmern
   const blur = spin ? clamp(0.3 + sim.thr*1.4, 0, 1) : 0;
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
