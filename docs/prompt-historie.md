@@ -50,3 +50,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 42 | 02.11.2026 | Angle und Acro im Spiel umschaltbar, per Tastatur und Controller belegbar. Rückmeldung: BetaFPV LiteRadio 4 und Radiomaster Pocket (Crush) funktionieren am Handy und PC in Chromium sehr gut. | Taste schaltet um (Angle/Acro, Scharf), Schalter nach Stellung |
 | 43 | 02.11.2026 | Rückmeldung: Der neue Ton klingt am Handy in Ordnung. | Keine Änderung |
 | 44 | 02.11.2026 | (Screenshot Handy, 7 Zoll, Acro) Nach der Landung und nach dem Turtle-Modus wackelt die Drohne am Boden und dreht sich im Kreis, bis sie stabil steht. | Bodenkontakt: nahe Füße zählen mit, kein Einfrieren; Regler am Boden erst nach Loslassen |
+| 45 | 02.11.2026 | P3 im Detail erklären, in einfachem technischem Englisch. | Erklärung P3 (Englisch) |
