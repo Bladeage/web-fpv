@@ -1,6 +1,7 @@
 # Arbeitsregeln für Claude Code
 
 - Lies zuerst `docs/handover-2026-10-30.md` und `docs/PLAN.md`.
+- Jeden Prompt des Nutzers gestrafft in `docs/prompt-historie.md` eintragen (Nr., Datum, Prompt, Ergebnis), auch Antworten auf Rückfragen. Mit dem nächsten Commit ablegen.
 - Arbeite in Etappen. Pro Sitzung genau eine Etappe: umsetzen, prüfen, committen, kurz berichten, dann anhalten und auf Freigabe warten.
 - Keine Bibliotheken, keine externen Quellen, keine CDNs. Nur HTML, CSS, JavaScript und WebGL2. Build und Tests nur mit Node-Standardmodulen.
 - Die `.aspx`-Ausgabe muss reines ASCII sein und darf kein `<%` enthalten. Immer über den Konverter erzeugen (`npm run build` nutzt `tools/aspx.mjs`).

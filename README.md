@@ -5,6 +5,7 @@ Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASC
 
 - Stand und Hintergrund: `docs/handover-2026-10-30.md`
 - Etappenplan: `docs/PLAN.md`
+- Prompt-Historie: `docs/prompt-historie.md`
 - Bisheriger Stand als Einzeldatei (Referenz, wird nicht mehr geändert): `legacy/fpv-sim-stufe1.html`
 - SharePoint-Technik-Probe: `sharepoint-poc/`
 
