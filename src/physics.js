@@ -116,7 +116,7 @@ function newSim() {
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
     mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
     om: [0, 0, 0, 0], rpm: [0, 0, 0, 0],   // Motordrehzahl in rad/s und U/min
-    flippedT: 0, turtle: false, turtleAir: 0   // Zeit auf dem Kopf liegend, Turtle-Modus
+    flippedT: 0, turtle: false, turtleAir: 0, afterTurtle: false   // Zeit auf dem Kopf liegend, Turtle-Modus
   };
 }
 function resetDrone() {
@@ -213,8 +213,11 @@ export function step(h) {
   const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
   // Liegt oder steht am Boden mit Gas unten und Sticks in der Mitte: Regler ruht, kämpft nicht gegen den Boden.
   // Mit Stick-Ausschlag regelt er auch am Boden (wie Betaflight mit Airmode): Gieren dreht die Drohne, Rollen kippt sie.
-  const sticks = Math.abs(inp.pitch) > 0.05 || Math.abs(inp.roll) > 0.05 || Math.abs(inp.yaw) > 0.05;
-  const rest = (s.grounded || s.onGround) && game.throttle < 0.05 && !sticks;
+  // Ab 10 % Ausschlag, damit Rauschen von Touch-Sticks und Funken nicht stört. Nach dem Turtle-Modus erst,
+  // wenn die Sticks einmal losgelassen wurden (sonst kippt der noch gehaltene Stick die Drohne gleich wieder).
+  const sticks = Math.abs(inp.pitch) > 0.1 || Math.abs(inp.roll) > 0.1 || Math.abs(inp.yaw) > 0.1;
+  if (s.afterTurtle && (!sticks || game.throttle >= 0.05)) s.afterTurtle = false;
+  const rest = (s.grounded || s.onGround) && game.throttle < 0.05 && (!sticks || s.afterTurtle);
   const armed = game.armed && !rest;
   const tau = [0, 0, 0];
   for (let i = 0; i < 3; i++) {
@@ -242,7 +245,7 @@ export function step(h) {
   // länger als 1 s in der Luft, geht es normal weiter. Kippt sie auf die Seite, greift er dort erneut.
   // Wenig Stick dreht langsam, voller Stick schnell.
   if (!s.turtle && game.armed && s.flippedT > 0.3) { s.turtle = true; s.turtleAir = 0; say('Turtle-Modus: Stick zum Umdrehen', 2); }
-  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) s.turtle = false;
+  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) { s.turtle = false; s.afterTurtle = true; }
   let turtleM = null;
   if (s.turtle) {
     s.turtleAir = s.onGround ? 0 : s.turtleAir + h;
@@ -305,7 +308,6 @@ export function step(h) {
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
   const calm = s.turtle ? !(turtleM && turtleM.some(x => x)) && (s.grounded || s.onGround) : rest;   // Turtle: nach dem Umdrehen, Stick noch gedrückt
   if (calm) { const k = Math.max(0, 1 - 10*h); w[0] *= k; w[1] *= k; w[2] *= k; }   // Bodenkontakt schluckt Energie (Schätzung, Abklingzeit 0,1 s)
-  if (rest && !s.turtle && up[1] > 0.995 && vLen(w) < 1) { w[0] = w[1] = w[2] = 0; }   // steht fast waagerecht und ruhig: kein Zittern. Schräg kippt sie auf die Füße. Aus in der Luft: taumelt frei
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
@@ -332,8 +334,10 @@ export function step(h) {
   for (let i = 0; i < hb.length; i++) {
     const [x, y, z, rad, rot, thick] = hb[i], r = qRot(s.q, [x, y, z]), sp = support(rad, thick, [0, 1, 0], upB);
     const pen = sp.r - (s.p[1] + r[1]);
-    if (pen <= 0) continue;
-    ground.push({ n: [0, 1, 0], pen, r: vAdd(r, sp.d), rot });
+    // Fast berührende Teile (unter 2 mm) zählen mit: Der Stoß wirkt dann in der Mitte zwischen den Füßen,
+    // statt abwechselnd an einzelnen Füßen. Sonst schaukelt und dreht sich die Drohne am Boden ohne Ende.
+    if (pen <= -0.002) continue;
+    ground.push({ n: [0, 1, 0], pen: Math.max(0, pen), r: vAdd(r, sp.d), rot });
     s.onGround = true;
     if (i < FEET) s.grounded = true;   // steht auf den Füßen
   }
