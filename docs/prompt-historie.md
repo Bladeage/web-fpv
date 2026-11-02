@@ -48,3 +48,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 40 | 02.11.2026 | Standardwerte setzen, die Anwendung startet meist als Demo: Was bietet sich an? Sounds verbessern, gern komplett neu. | Fragerunde |
 | 41 | 02.11.2026 | Antworten: Demo startet mit dem Torkurs (wie bisher), Spielstil „Lernen“, Bild ohne Rauschen, Zielmarker bleiben. Sound komplett neu, aus der Physik berechnet. | Demo-Vorgaben, Ton neu |
 | 42 | 02.11.2026 | Angle und Acro im Spiel umschaltbar, per Tastatur und Controller belegbar. Rückmeldung: BetaFPV LiteRadio 4 und Radiomaster Pocket (Crush) funktionieren am Handy und PC in Chromium sehr gut. | Taste schaltet um (Angle/Acro, Scharf), Schalter nach Stellung |
+| 43 | 02.11.2026 | Rückmeldung: Der neue Ton klingt am Handy in Ordnung. | Keine Änderung |
