@@ -33,3 +33,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 25 | 02.11.2026 | Jagd: Nach einem Treffer startet die eigene Drohne neu, im Bild erscheint „Ziel erfüllt“. Kein Einschlag im Boden nach dem Anflug auf ein Bodenziel. | Neustart nach Treffer, Treffer-Text |
 | 26 | 02.11.2026 | M3 umsetzen. | M3 |
 | 27 | 02.11.2026 | Neue Regel: Jeden Prompt gestrafft in einer Prompt-Historie im Repository ablegen, rückwirkend ab dem ersten. | Diese Datei, Regel in `CLAUDE.md` |
+| 28 | 02.11.2026 | P2 vor der Umsetzung noch einmal erklären. | Erklärung P2, Entscheidungsvorschläge |
