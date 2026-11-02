@@ -335,7 +335,7 @@ export function render(dt) {
   const W = glc.width, H = glc.height, asp = W/H;
   const hf = (cfg.fov || 110)*DEG;   // horizontales Blickfeld
   const vf = clamp(2*Math.atan(Math.tan(hf/2)/asp), 55*DEG, 120*DEG);
-  const proj = mPersp(vf, asp, 0.05, 1500);
+  const proj = mPersp(vf, asp, cfg.cam === 'fpv' ? 0.02 : 0.05, 1500);   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an
   let view, eye;
   if (cfg.cam === 'fpv') {
     let qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
@@ -343,9 +343,11 @@ export function render(dt) {
       const k = Math.min(0.05, sim.vib*0.08);
       qc = qMul(qc, qMul(qAxis([1,0,0], (Math.random() - 0.5)*k), qAxis([0,0,1], (Math.random() - 0.5)*k)));
     }
-    // Kamera sitzt vorne im Rahmen, leicht unter den Propellern
+    // Kamera sitzt vorne zwischen den Platten, 1,5 cm je Größe 1 über dem Schwerpunkt.
+    // Mindestens 3,5 cm über dem Boden, sonst sieht man am Boden durch die Karte (Bildebene 2 cm vor dem Auge).
     const sz = PHYS.size;
-    eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), -0.01*sz)));
+    eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), 0.015*sz)));
+    eye[1] = Math.max(eye[1], 0.035);
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {

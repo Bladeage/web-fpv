@@ -1,7 +1,7 @@
 // Hitbox-Füße: Auflage wie im Modell, Drohne kippt erst bei großer Neigung und legt sich flach hin.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { cfg, game } from '../src/state.js';
+import { cfg, game, inp } from '../src/state.js';
 import { buildWorld } from '../src/world.js';
 import { PHYS, STEP, step, respawn } from '../src/physics.js';
 import { applyDrone } from '../src/drone.js';
@@ -34,4 +34,18 @@ test('5 Zoll: auf dem Rücken liegt sie auf der Oberseite', () => {
   applyDrone({ preset: '5' }); drop(180);
   assert.ok(tilt() > 150);
   assert.ok(game.sim.p[1] < 0.1, 'liegt flach, Höhe ' + game.sim.p[1].toFixed(3));
+});
+
+test('Am Boden mit Gas unten: Gieren dreht die Drohne, ohne Stick bleibt sie stehen', () => {
+  applyDrone({ preset: '5' }); cfg.mode = 'angle'; cfg.dmg = 'off'; respawn(); game.throttle = 0; game.armed = true;
+  inp.pitch = inp.roll = inp.yaw = 0;
+  const head = () => { const f = qRot(game.sim.q, [0, 0, -1]); return Math.atan2(-f[0], -f[2]); };
+  for (let i = 0; i < 240; i++) step(STEP);
+  const h0 = head();
+  for (let i = 0; i < 240; i++) step(STEP);
+  assert.ok(Math.abs(head() - h0) < 0.01, 'ohne Stick keine Drehung');
+  inp.yaw = 0.3; for (let i = 0; i < 240; i++) step(STEP); inp.yaw = 0;
+  const d = Math.abs(head() - h0)*180/Math.PI;
+  assert.ok(d > 20, 'dreht sich, ' + d.toFixed(0) + '°');
+  assert.ok(tilt() < 5, 'bleibt auf den Füßen');
 });

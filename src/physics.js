@@ -211,7 +211,10 @@ export function step(h) {
 
   // 3. Rate-PID und Mischer (Quad-X). Am Boden mit wenig Gas: Motoren aus, Regler ruht.
   const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
-  const rest = (s.grounded || s.onGround) && game.throttle < 0.05;   // liegt oder steht am Boden mit Gas unten: Regler kämpft nicht gegen den Boden
+  // Liegt oder steht am Boden mit Gas unten und Sticks in der Mitte: Regler ruht, kämpft nicht gegen den Boden.
+  // Mit Stick-Ausschlag regelt er auch am Boden (wie Betaflight mit Airmode): Gieren dreht die Drohne, Rollen kippt sie.
+  const sticks = Math.abs(inp.pitch) > 0.05 || Math.abs(inp.roll) > 0.05 || Math.abs(inp.yaw) > 0.05;
+  const rest = (s.grounded || s.onGround) && game.throttle < 0.05 && !sticks;
   const armed = game.armed && !rest;
   const tau = [0, 0, 0];
   for (let i = 0; i < 3; i++) {
