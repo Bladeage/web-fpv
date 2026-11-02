@@ -295,3 +295,7 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Neu: Durch Hindernisse fliegen (Geist-Modus; Boden bleibt fest).
 - Neu: Flugspur der letzten Sekunden und Zurückspulen um 5 s per Taste.
 - Später entscheiden: Strecken-Editor (Ideen: Platzieren im Flug, Karte von oben).
+
+## Demo-Vorgaben und Ton (erledigt 02.11.2026)
+- Erster Start: Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur), Bild ohne Rauschen, Lautstärke 70 %. Gespeicherte Einstellungen bleiben.
+- Ton neu (audio.js): je Motor Propeller-Brummen (Drehzahl × 3 Blätter) und Motorpfeifen (Drehzahl × 7 Polpaare, Schätzung), Rauschen für Propeller, Fahrtwind und Propwash, Aufprall und Absturz, weiche Signaltöne, Lautstärke-Regler. Nur WebAudio.

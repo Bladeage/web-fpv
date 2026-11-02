@@ -6,14 +6,19 @@
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
 export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
-  diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
-  batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: false,   // Schaden standardmäßig aus; Akku unendlich
+  diff: 'mid', drone: { preset: '5' }, video: 'clean', osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
+  batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
-  ghost: false, trail: false };   // Lernhilfen: durch Hindernisse fliegen, Flugspur   // Schalter-Belegung der Funke, Kalibrierung je Achse [min, max]   // Blickfeld horizontal in Grad; Scharfschalten per Taste nötig
-try { Object.assign(cfg, JSON.parse(localStorage.getItem(STORE_CFG) || '{}')); } catch (e) {}
+  ghost: false, trail: true, vol: 0.7 };
+// Vorgaben für den ersten Start (Demo): Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur),
+// Bild ohne Rauschen. gpSw/gpCal: Schalter-Belegung und Kalibrierung der Funke. vol: Lautstärke 0..1.
+export const CFG_DEFAULT = JSON.parse(JSON.stringify(cfg));
+let storedCfg = {};
+try { storedCfg = JSON.parse(localStorage.getItem(STORE_CFG) || '{}') || {}; } catch (e) {}
+Object.assign(cfg, storedCfg);
 // Bildmodus: 'analog' | 'digital' | 'clean'. Ältere Einstellungen kannten nur cfg.analog.
-if (!cfg.video) cfg.video = cfg.analog === false ? 'clean' : 'analog';
+if (!storedCfg.video && 'analog' in storedCfg) cfg.video = storedCfg.analog === false ? 'clean' : 'analog';
 
 /* ---------- Spielzustand ---------- */
 export const game = {

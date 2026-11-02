@@ -77,6 +77,7 @@ test('Treffer auf Torpfosten ergibt Absturz', () => {
 });
 
 test('Akku verbraucht Strom', () => {
+  cfg.infBat = false;   // Vorgabe ist seit der Demo "Akku unendlich"
   airborne([0, 5, 0], 0.5);
   run(3);
   const s = game.sim;

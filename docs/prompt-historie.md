@@ -45,3 +45,5 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 37 | 02.11.2026 | Gerät die App in den Hintergrund (Bildschirm gesperrt), soll das Einstellungsbild kommen und die Simulation pausieren. Bisher läuft der Ton weiter, vermutlich auch die Simulation. | Ton aus im Hintergrund und im Menü |
 | 38 | 02.11.2026 | Hitbox-Füße reparieren. | Hitbox-Füße, flache Platten |
 | 39 | 02.11.2026 | Die FPV-Kamera liegt am Boden auf Kante, man sieht durch die Karte. Die Drohne soll sich am Boden bewegen, wenn man sie drehen will (wie in Uncrashed). | Kamera höher, nahe Bildebene; Regler am Boden mit Stick aktiv |
+| 40 | 02.11.2026 | Standardwerte setzen, die Anwendung startet meist als Demo: Was bietet sich an? Sounds verbessern, gern komplett neu. | Fragerunde |
+| 41 | 02.11.2026 | Antworten: Demo startet mit dem Torkurs (wie bisher), Spielstil „Lernen“, Bild ohne Rauschen, Zielmarker bleiben. Sound komplett neu, aus der Physik berechnet. | Demo-Vorgaben, Ton neu |

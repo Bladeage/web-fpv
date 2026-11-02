@@ -96,6 +96,7 @@ export function syncMenu() {
   $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';
   $('batMin').value = cfg.batMin; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V';
   $('fov').value = cfg.fov; $('fovV').textContent = cfg.fov + '°';
+  $('vol').value = Math.round((cfg.vol ?? 0.7)*100); $('volV').textContent = Math.round((cfg.vol ?? 0.7)*100) + ' %';
   $('needArm').checked = cfg.needArm;
   $('autoRes').checked = cfg.autoRes;
   $('infBat').checked = cfg.infBat;
@@ -157,6 +158,7 @@ $('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('hunt
 $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
 $('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });
 $('fov').addEventListener('input', e => { cfg.fov = +e.target.value; $('fovV').textContent = cfg.fov + '°'; saveCfg(); });
+$('vol').addEventListener('input', e => { cfg.vol = +e.target.value/100; $('volV').textContent = e.target.value + ' %'; saveCfg(); });
 $('infBat').addEventListener('change', e => { cfg.infBat = e.target.checked; saveCfg(); });
 $('ghost').addEventListener('change', e => { cfg.ghost = e.target.checked; saveCfg(); });
 $('trail').addEventListener('change', e => { cfg.trail = e.target.checked; saveCfg(); });

@@ -104,7 +104,7 @@ export function cellOcv(soc) {
 }
 
 // Rückmeldungen nach außen. In Node bleiben sie leer.
-export const fx = { beep() {}, vibrate() {} };
+export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {} };   // Ton und Vibration, setzt main.js
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
 export const task = { check: checkGate, collide: null, reset() {}, early: false };   // early: vor Boden und Hindernissen prüfen
@@ -161,7 +161,7 @@ export function crash(why) {
   game.state = 'crashed';
   game.sim.crashMsg = why; game.sim.crashT = performance.now();
   game.crashes++;
-  fx.beep(95, 0.35, 'sawtooth');
+  fx.crash();
   fx.vibrate(120);
 }
 
@@ -303,7 +303,8 @@ export function step(h) {
   const I = PHYS.I, w = s.w, Iw = [I[0]*w[0], I[1]*w[1], I[2]*w[2]], gyro = vCross(w, Iw);
   if (turtleM) for (let i = 0; i < 3; i++) M[i] += turtleM[i];
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
-  if (rest && !(turtleM && turtleM.some(x => x))) { const k = Math.max(0, 1 - 10*h); w[0] *= k; w[1] *= k; w[2] *= k; }   // Bodenkontakt schluckt Energie (Schätzung, Abklingzeit 0,1 s)
+  const calm = s.turtle ? !(turtleM && turtleM.some(x => x)) && (s.grounded || s.onGround) : rest;   // Turtle: nach dem Umdrehen, Stick noch gedrückt
+  if (calm) { const k = Math.max(0, 1 - 10*h); w[0] *= k; w[1] *= k; w[2] *= k; }   // Bodenkontakt schluckt Energie (Schätzung, Abklingzeit 0,1 s)
   if (rest && !s.turtle && up[1] > 0.995 && vLen(w) < 1) { w[0] = w[1] = w[2] = 0; }   // steht fast waagerecht und ruhig: kein Zittern. Schräg kippt sie auf die Füße. Aus in der Luft: taumelt frei
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
@@ -467,6 +468,7 @@ export function impact(n, pen, r, rotor, limit, why) {
   s.p = vAdd(s.p, vScale(n, pen));                  // aus dem Hindernis schieben
   if (vn >= 0) return false;                         // trennt sich schon
   if (-vn > limit) { crash(why); return true; }
+  if (-vn > 0.6) fx.hit(-vn, rotor >= 0);   // Aufprall hörbar, leichtes Aufsetzen nicht
   damage(n, -vn, 0.15);
   const k = dmgMode().k;
   if (rotor >= 0 && k && -vn > 1.5) s.hp[rotor] = Math.max(0, s.hp[rotor] - k*vn*vn*0.6);   // getroffener Propeller mehr

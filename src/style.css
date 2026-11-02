@@ -113,6 +113,7 @@ details{margin-top:10px}
 .panel{max-width:480px}
 .sliders{display:grid;grid-template-columns:1fr;gap:0 18px}
 @media (min-width:560px){ .sliders{grid-template-columns:1fr 1fr} }
+@media (min-width:760px){ .sliders{grid-template-columns:1fr 1fr 1fr} }   /* drei Regler nebeneinander, spart eine Zeile */
 .osdgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .osdgrid .check{margin-top:4px;font-size:13.5px}
 .linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;padding:8px 0 0;cursor:pointer}
