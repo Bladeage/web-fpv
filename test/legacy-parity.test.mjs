@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { buildWorld, buildDrone, buildBlade, buildDisc, colliders, gates } from '../src/world.js';
+import { buildWorld, buildBlade, buildDisc, colliders, gates } from '../src/world.js';
 import { meshStats } from './trace-scenario.mjs';
 
 const ref = JSON.parse(readFileSync(new URL('./fixtures/legacy-trace.json', import.meta.url), 'utf8'));
@@ -34,12 +34,12 @@ test('Referenzdatei passt zu legacy/', () => {
   assert.equal(sha, ref.legacySha256, 'legacy/ wurde geändert oder die Referenz ist veraltet');
 });
 
-test('Welt ist gleich: Hindernisse, Tore, Drohnenmodell', () => {
+test('Welt ist gleich: Hindernisse, Tore, Propeller', () => {
   close(colliders.map(c => ({ c: c.c, h: c.h, cs: c.cs, sn: c.sn })), ref.world.colliders, 'colliders');
   const geo = g => ({ c: g.c, yaw: g.yaw, n: g.n, r: g.r });   // ohne Lage im Vertex-Puffer
   close(gates.map(geo), ref.gates.map(geo), 'gates');
   // Sichtbares Weltmodell weicht seit G2 absichtlich ab (runde Kronen). Hindernisse und Tore bleiben gleich.
-  close(meshStats(buildDrone()), ref.world.drone, 'drone');
+  // Drohnenmodell seit R1 absichtlich detaillierter; Propeller und Unschärfescheibe bleiben gleich.
   close(meshStats(buildBlade()), ref.world.blade, 'blade');
   close(meshStats(buildDisc()), ref.world.disc, 'disc');
 });

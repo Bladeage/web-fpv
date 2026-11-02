@@ -262,9 +262,12 @@ Wunsch des Nutzers vom 30.10.2026.
 - LICENSE (GPLv3) ins Repo. Eigener Regler bleibt als Rückfall, Auswahl im Menü.
 - Turtle-Modus dann über Betaflight selbst.
 
-## R1: Grafik, später
+## R1: Grafik-Details (erledigt)
 
-Auflösung je nach Leistung mit FXAA, Instancing, Detailstufen, detailliertere Modelle, Sonnenschatten.
+- Sonnenschatten von Bäumen, Gebäuden, Pfeilern und Toren: einmal beim Start in die Bodentextur gerechnet (nur Schön, keine Laufzeitkosten).
+- Weiche Schatten unter Drohne, Ziel-Drohnen und Autos (Mittel und Schön).
+- Detailliertere Modelle: Drohne (Platten, Arme, Motorglocken, Kamera mit Linse, Akku mit Gurt, Antenne), Autos (Räder mit Felgen, Fensterband, Lichter), Baumkronen aus drei Teilen.
+- Nicht gemacht, weil derzeit ohne Nutzen: Instancing und Detailstufen (wenige Zeichenaufrufe, Kosten liegen bei den Pixeln), FXAA (Kantenglättung des Browsers ist an; Auflösung automatisch gibt es seit G3).
 
 ## Entscheidungen Grafik und Modi (02.11.2026)
 

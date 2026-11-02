@@ -1,7 +1,7 @@
 /* Welt: Gelände, Bäume, Gebäude, Pfeiler, Tore, Drohnenmodell.
    Alles per Zufall mit festem Startwert 1949. Ohne DOM, in Node testbar.
    buildWorld() füllt colliders und gates und darf nur einmal laufen. */
-import { clamp, vSub, vScale, vNorm, vCross } from './math.js';
+import { clamp, vSub, vScale, vNorm, vCross, vDot } from './math.js';
 
 export function rng(seed) {
   return function () {
@@ -44,6 +44,21 @@ export class MeshBuilder {
     for (const [a, b, d] of [[X,Y,Z],[Z,Y,x],[x,Y,z],[z,Y,X],[Z,y,X],[x,y,Z],[z,y,x],[X,y,z]]) {
       const ab = mid(a, b), bd = mid(b, d), da = mid(d, a);
       for (const [p, q, r] of [[a,ab,da],[ab,b,bd],[da,bd,d],[ab,bd,da]]) this.tri(P(p), P(q), P(r), col);
+    }
+  }
+  // Dreieck mit Normale in Richtung out (nach außen)
+  triOut(a, b, c, out, col) { if (vDot(vCross(vSub(b, a), vSub(c, a)), out) < 0) this.tri(a, c, b, col); else this.tri(a, b, c, col); }
+  // Zylinder um Mitte c, Radius r, halbe Länge h entlang der Achse 'x', 'y' oder 'z', mit Deckeln
+  cyl(c, r, h, seg, col, axis = 'y') {
+    const P = (a, t, rr = r) => {
+      const u = Math.cos(a)*rr, v = Math.sin(a)*rr;
+      return axis === 'y' ? [c[0] + u, c[1] + t, c[2] + v] : axis === 'x' ? [c[0] + t, c[1] + u, c[2] + v] : [c[0] + u, c[1] + v, c[2] + t];
+    };
+    const ax = axis === 'y' ? [0, 1, 0] : axis === 'x' ? [1, 0, 0] : [0, 0, 1];
+    for (let i = 0; i < seg; i++) {
+      const a0 = i/seg*Math.PI*2, a1 = (i + 1)/seg*Math.PI*2, out = vSub(P((a0 + a1)/2, 0), c);
+      this.triOut(P(a0, -h), P(a1, -h), P(a1, h), out, col); this.triOut(P(a0, -h), P(a1, h), P(a0, h), out, col);
+      this.triOut(P(0, h, 0), P(a0, h), P(a1, h), ax, col); this.triOut(P(0, -h, 0), P(a1, -h), P(a0, -h), vScale(ax, -1), col);
     }
   }
   cone(cx, cz, r, h, seg, col) {
@@ -110,7 +125,12 @@ export function buildWorld() {
     const s = 0.8 + R()*0.6, yaw = R()*Math.PI;
     addSolid(mb, [x, 1.5*s, z], [0.2*s, 1.5*s, 0.2*s], yaw, [0.36, 0.25, 0.16]);
     const crown = [x, 4.2*s, z], ch = [1.3*s, 1.5*s, 1.3*s];   // Kollision bleibt der Quader, sichtbar ist eine runde Krone
-    mb.blob(crown, [ch[0]*1.25, ch[1]*1.15, ch[2]*1.25], [0.17 + R()*0.05, 0.36 + R()*0.08, 0.16]);
+    const col = [0.17 + R()*0.05, 0.36 + R()*0.08, 0.16];
+    mb.blob(crown, [ch[0]*1.15, ch[1]*1.05, ch[2]*1.15], col);
+    // zwei kleinere Teilkronen, Lage aus der Position (nicht aus dem Zufallsgenerator, damit die Welt gleich bleibt)
+    const k = Math.sin(x*3.1 + z*1.7)*0.5 + 0.5, a2 = k*6.28;
+    mb.blob([x + Math.cos(a2)*ch[0]*0.7, crown[1] + ch[1]*0.45, z + Math.sin(a2)*ch[2]*0.7], [ch[0]*0.7, ch[1]*0.6, ch[2]*0.7], [col[0]*0.9, col[1]*1.08, col[2]]);
+    mb.blob([x - Math.cos(a2)*ch[0]*0.6, crown[1] - ch[1]*0.3, z - Math.sin(a2)*ch[2]*0.6], [ch[0]*0.65, ch[1]*0.55, ch[2]*0.65], [col[0]*0.85, col[1]*0.9, col[2]*0.9]);
     colliders.push({ c: crown, h: ch, cs: Math.cos(yaw), sn: Math.sin(yaw) });
     placed++;
   }
@@ -166,17 +186,27 @@ export function buildWorld() {
   return { data: new Float32Array(mb.d), staticCount };
 }
 
+// Drohnenmodell (5 Zoll, Maßstab 1,3 wie Stufe 1): Rahmen aus Carbon, Arme, Motorglocken, Kamera, Akku mit Gurt, Antenne
 export function buildDrone() {
   const mb = new MeshBuilder(), s = 1.3;
-  const S = v => vScale(v, s);
-  mb.box([0,0,0], S([0.04, 0.015, 0.07]), 0, [0.16, 0.16, 0.18]);
-  mb.box([0,0,0], S([0.012, 0.006, 0.125]), Math.PI/4, [0.08, 0.08, 0.09]);
-  mb.box([0,0,0], S([0.012, 0.006, 0.125]), -Math.PI/4, [0.08, 0.08, 0.09]);
-  mb.box(S([0, 0.035, 0.005]), S([0.025, 0.02, 0.05]), 0, [0.15, 0.38, 0.9]);
-  mb.box(S([0, 0.012, -0.075]), S([0.016, 0.016, 0.012]), 0, [0.95, 0.75, 0.1]);
-  for (const [px, pz] of [[1,-1], [-1,-1], [1,1], [-1,1]]) {
-    mb.box(S([px*0.088, 0.012, pz*0.088]), S([0.013, 0.011, 0.013]), 0, [0.25, 0.25, 0.27]);
+  const S = v => vScale(v, s), carbon = [0.11, 0.11, 0.12], dark = [0.06, 0.06, 0.07], metal = [0.55, 0.56, 0.6];
+  mb.box([0, -0.004*s, 0], S([0.035, 0.003, 0.06]), 0, carbon);                    // Bodenplatte
+  mb.box([0, 0.022*s, 0], S([0.028, 0.003, 0.045]), 0, carbon);                    // Deckplatte
+  for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) mb.cyl(S([x*0.022, 0.009, z*0.035]), 0.003*s, 0.013*s, 6, metal);   // Abstandshalter
+  mb.box(S([0, 0.009, 0]), S([0.018, 0.008, 0.02]), 0, [0.15, 0.3, 0.18]);        // Elektronik
+  mb.box([0, 0, 0], S([0.013, 0.005, 0.125]), Math.PI/4, carbon);                  // Arme
+  mb.box([0, 0, 0], S([0.013, 0.005, 0.125]), -Math.PI/4, carbon);
+  for (const [px, pz] of [[1, -1], [-1, -1], [1, 1], [-1, 1]]) {                   // Motoren: Stator, Glocke, Kappe
+    mb.cyl(S([px*0.088, 0.008, pz*0.088]), 0.014*s, 0.004*s, 10, dark);
+    mb.cyl(S([px*0.088, 0.016, pz*0.088]), 0.0135*s, 0.006*s, 10, metal);
+    mb.cyl(S([px*0.088, 0.0235, pz*0.088]), 0.006*s, 0.0015*s, 8, pz < 0 ? [0.85, 0.2, 0.12] : [0.2, 0.2, 0.22]);
   }
+  mb.box(S([0, 0.012, -0.058]), S([0.012, 0.012, 0.01]), 0, [0.95, 0.75, 0.1]);    // Kamera
+  mb.cyl(S([0, 0.012, -0.07]), 0.007*s, 0.004*s, 10, [0.05, 0.08, 0.12], 'z');     // Linse
+  mb.box(S([0, 0.04, 0.005]), S([0.02, 0.015, 0.04]), 0, [0.15, 0.38, 0.9]);       // Akku
+  mb.box(S([0, 0.04, 0.005]), S([0.022, 0.016, 0.006]), 0, dark);                  // Akkugurt
+  mb.cyl(S([0, 0.045, 0.055]), 0.0018*s, 0.022*s, 5, dark);                        // Antenne
+  mb.cyl(S([0, 0.069, 0.055]), 0.004*s, 0.003*s, 6, [0.9, 0.9, 0.92]);             // Antennenkappe
   return new Float32Array(mb.d);
 }
 export const PROP_S = 1.3;

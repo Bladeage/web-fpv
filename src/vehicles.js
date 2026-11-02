@@ -99,10 +99,19 @@ export const vehiclesLeft = () => vehicles.filter(v => v.state !== 'hit').length
 
 // Modell eines Fahrzeugs (Mitte am Boden, Länge entlang Z). Helles Grau; die Farbe kommt beim Zeichnen dazu.
 export function buildVehicle() {
-  const mb = new MeshBuilder(), [w, hh, l] = VEH_HALF, body = [0.75, 0.75, 0.78], dark = [0.12, 0.12, 0.13], glass = [0.25, 0.32, 0.4];
-  mb.box([0, 0.55, 0], [w, 0.4, l], 0, body);
-  mb.box([0, 1.2, 0.25], [w*0.85, 0.3, l*0.5], 0, glass);
-  for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) mb.box([x*(w - 0.05), 0.32, z*(l - 0.6)], [0.12, 0.32, 0.32], 0, dark);
+  const mb = new MeshBuilder(), [w, , l] = VEH_HALF, body = [0.75, 0.75, 0.78], dark = [0.1, 0.1, 0.11], glass = [0.22, 0.3, 0.38];
+  mb.box([0, 0.6, 0], [w, 0.32, l], 0, body);                                   // Karosserie
+  mb.box([0, 0.36, 0], [w*0.98, 0.1, l*1.01], 0, dark);                          // Schweller und Stoßfänger
+  mb.box([0, 1.1, 0.2], [w*0.86, 0.22, l*0.48], 0, glass);                       // Fensterband
+  mb.box([0, 1.34, 0.2], [w*0.82, 0.03, l*0.46], 0, body);                       // Dach
+  for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {                    // Räder mit Felge
+    mb.cyl([x*(w - 0.06), 0.33, z*(l - 0.68)], 0.33, 0.12, 12, dark, 'x');
+    mb.cyl([x*(w + 0.005), 0.33, z*(l - 0.68)], 0.17, 0.02, 10, [0.6, 0.6, 0.62], 'x');
+  }
+  for (const x of [-1, 1]) {
+    mb.box([x*(w - 0.25), 0.7, -l - 0.01], [0.18, 0.07, 0.02], 0, [1.0, 0.96, 0.75]);   // Scheinwerfer (vorn = -Z)
+    mb.box([x*(w - 0.22), 0.72, l + 0.01], [0.16, 0.06, 0.02], 0, [0.85, 0.08, 0.06]);   // Rücklichter
+  }
   return new Float32Array(mb.d);
 }
 export const VEH_COLORS = { parked: [0.55, 0.55, 0.5], slow: [0.2, 0.5, 1.0], fast: [1.0, 0.2, 0.2] };

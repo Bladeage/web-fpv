@@ -1,7 +1,7 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say } from './state.js';
-import { COURSE, MeshBuilder, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
+import { COURSE, MeshBuilder, colliders, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight, followLead } from './scenario.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
@@ -36,6 +36,7 @@ precision highp float;
 in vec2 vP;
 uniform vec2 uPath[9], uOrigin;
 uniform float uSize;
+uniform sampler2D uShadow;
 out vec4 o;
 ${NOISE}
 void main(){
@@ -52,8 +53,21 @@ void main(){
   { vec2 ab = uPath[0]; float t = clamp(dot(p, ab)/dot(ab, ab), 0.0, 1.0); dp = min(dp, length(p - ab*t)); }
   dp += (vnoise(p*0.5) - 0.5)*0.8;
   c = mix(c, vec3(0.55, 0.47, 0.34)*(0.9 + 0.2*n1), 1.0 - smoothstep(0.9, 1.6, dp));
+  // Sonnenschatten der Hindernisse, weichgezeichnet (9 Abtastpunkte)
+  vec2 uv = vP*0.5 + 0.5, t = 1.6/vec2(textureSize(uShadow, 0));
+  float sh = 0.0;
+  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) sh += texture(uShadow, uv + vec2(i, j)*t).r;
+  c *= 1.0 - 0.5*sh/9.0;
   o = vec4(c, 1.0);
 }`;
+// Schattenmaske: projizierte Umrisse der Hindernisse, weiß auf schwarz
+const SHADOW_VS = `#version 300 es
+layout(location=0) in vec2 aP;
+void main(){ gl_Position = vec4(aP, 0.0, 1.0); }`;
+const SHADOW_FS = `#version 300 es
+precision mediump float;
+out vec4 o;
+void main(){ o = vec4(1.0); }`;
 // uGfx: 0 einfach (wie Stufe 1), 1 mittel (Licht und Farbe), 2 schön (dazu Bodentextur, Fenster, Dunst)
 const FS = `#version 300 es
 precision highp float;
@@ -172,8 +186,48 @@ function upload(data) {
 // Danach liest der Boden pro Pixel nur noch einen Wert, statt Rauschen und Wege jedes Bild neu zu rechnen.
 const GROUND = { origin: [-170, -190], size: 400, res: 2048 };
 let groundTex = null;
+// Konvexe Hülle von 2D-Punkten (Monotone-Chain), gegen den Uhrzeigersinn
+function hull(pts) {
+  pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0])*(b[1] - o[1]) - (a[1] - o[1])*(b[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of pts) { while (lo.length > 1 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (const p of pts.reverse()) { while (up.length > 1 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+// Schatten jedes Hindernisses: Eckpunkte (Kronen: Ring, damit rund) entlang der Sonne auf den Boden projiziert,
+// Umriss als Dreiecksfächer in Textur-Koordinaten (-1..1) der Bodentextur.
+function shadowTris() {
+  const out = [], toNdc = (x, z) => [(x - GROUND.origin[0])/GROUND.size*2 - 1, (z - GROUND.origin[1])/GROUND.size*2 - 1];
+  for (const c of colliders) {
+    const pts = [], crown = c.c[1] - c.h[1] > 1 && Math.abs(c.h[0] - c.h[2]) < 0.01 && c.h[0] > 0.8;
+    const P = (lx, ly, lz) => [c.c[0] + lx*c.cs + lz*c.sn, c.c[1] + ly, c.c[2] - lx*c.sn + lz*c.cs];
+    if (crown) for (let k = 0; k < 12; k++) { const a = k/12*Math.PI*2; for (const ly of [-0.7, 0, 0.7]) pts.push(P(Math.cos(a)*c.h[0]*1.1*(1 - Math.abs(ly)*0.4), ly*c.h[1], Math.sin(a)*c.h[2]*1.1*(1 - Math.abs(ly)*0.4))); }
+    else for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) pts.push(P(x*c.h[0], y*c.h[1], z*c.h[2]));
+    const poly = hull(pts.map(p => toNdc(p[0] - SUN[0]/SUN[1]*p[1], p[2] - SUN[2]/SUN[1]*p[1])));
+    for (let i = 1; i < poly.length - 1; i++) out.push(...poly[0], ...poly[i], ...poly[i + 1]);
+  }
+  return new Float32Array(out);
+}
 function bakeGround() {
-  const prog = program(SKY_VS, BAKE_FS, ['uPath', 'uOrigin', 'uSize']);
+  // 1. Schattenmaske (1024², ca. 0,4 m je Pixel)
+  const sres = 1024, shadowTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, shadowTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, sres, sres, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const sfb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sfb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shadowTex, 0);
+  gl.viewport(0, 0, sres, sres); gl.disable(gl.DEPTH_TEST);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  const sp = program(SHADOW_VS, SHADOW_FS, []), tris = shadowTris(), svao = gl.createVertexArray(), sbuf = gl.createBuffer();
+  gl.bindVertexArray(svao); gl.bindBuffer(gl.ARRAY_BUFFER, sbuf); gl.bufferData(gl.ARRAY_BUFFER, tris, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.useProgram(sp.p); gl.drawArrays(gl.TRIANGLES, 0, tris.length/2);
+  gl.bindVertexArray(null); gl.deleteBuffer(sbuf); gl.deleteVertexArray(svao); gl.deleteFramebuffer(sfb);
+  // 2. Bodenmuster mit Schatten
+  const prog = program(SKY_VS, BAKE_FS, ['uPath', 'uOrigin', 'uSize', 'uShadow']);
   groundTex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, groundTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, GROUND.res, GROUND.res, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -184,8 +238,11 @@ function bakeGround() {
   gl.disable(gl.DEPTH_TEST);
   gl.useProgram(prog.p);
   gl.uniform2fv(prog.u.uPath, PATH); gl.uniform2f(prog.u.uOrigin, GROUND.origin[0], GROUND.origin[1]); gl.uniform1f(prog.u.uSize, GROUND.size);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, shadowTex); gl.uniform1i(prog.u.uShadow, 0);
   gl.bindVertexArray(skyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb);
+  gl.deleteTexture(shadowTex);
+  gl.bindTexture(gl.TEXTURE_2D, groundTex);
   gl.generateMipmap(gl.TEXTURE_2D);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -351,6 +408,29 @@ export function render(dt) {
       gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Weiche Schatten unter bewegten Objekten (Mittel und Schön), entlang der Sonne versetzt, schwächer mit der Höhe
+  if (cfg.gfx !== 'simple') {
+    const blobs = [];
+    const add = (p, rx, rz, yaw) => { if (p[1] < 40) blobs.push([p[0] - SUN[0]/SUN[1]*p[1], p[2] - SUN[2]/SUN[1]*p[1], rx*(1 + p[1]*0.03), rz*(1 + p[1]*0.03), yaw, 0.5*Math.max(0, 1 - p[1]/30)]); };
+    if (cfg.cam !== 'fpv' || sim.p[1] < 20) add(vSub(sim.p, [0, PHYS.radius, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0);
+    if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
+    if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, 0, v.z], 1.15, 2.3, v.yaw);
+    if (scen.id === 'follow') { const L = followLead(); add([L.x, 0, L.z], 1.15, 2.3, L.yaw); }
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 1);
+    gl.bindVertexArray(discMesh.vao);
+    const dr = 0.063*PROP_S;   // Radius der Scheibe im Modell
+    for (const [x, z, rx, rz, yaw, a] of blobs) for (const [k, al] of [[1.4, 0.45], [0.9, 1]]) {   // außen weich, innen dunkler
+      const m = mFromQT(qAxis([0,1,0], yaw), [x, 0.02, z]);
+      for (const i of [0, 1, 2]) m[i] *= rx*k/dr;
+      for (const i of [8, 9, 10]) m[i] *= rz*k/dr;
+      gl.uniformMatrix4fv(P.u.uModel, false, m); gl.uniform1f(P.u.uAlpha, a*al*0.6);
+      gl.drawArrays(gl.TRIANGLES, 0, discMesh.count);
+    }
+    gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND);
+    gl.uniform1f(P.u.uAlpha, 1); gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Verfolgung: das orange Auto
   if (scen.id === 'follow') {
