@@ -264,3 +264,16 @@ Wunsch des Nutzers vom 30.10.2026.
 ## R1: Grafik, später
 
 Auflösung je nach Leistung mit FXAA, Instancing, Detailstufen, detailliertere Modelle, Sonnenschatten.
+
+## Entscheidungen Grafik und Modi (02.11.2026)
+
+- Grafik: „Einfach“ bleibt unverändert. „Schön“ schneller (Bodenmuster vorab als Textur), neue Stufe „Mittel“, Auflösung automatisch. (G3, erledigt)
+- Neue Modi: Paketlieferung, Verfolgung.
+- Ringe und Slalom: bei jedem Start eine neue Anordnung, mit Prüfung (keine Hindernisse im Weg, fliegbar).
+- Reihenfolge: erst Grafik-Leistung, dann Modi, dann P2.
+
+## M3: Neue Modi und Varianten (mittel)
+
+- Paketlieferung: Paket an einer Stelle aufnehmen (tief anfliegen, kurz halten), an Plattformen abliefern. Zeit und Präzision zählen.
+- Verfolgung: einem Fahrzeug oder einer Drohne folgen, Abstand im Zielband halten; Wertung = Zeit im Band.
+- Ringe und Slalom: zufällige Anordnung bei jedem Start; Prüfung: freie Durchflüge, Abstände, Höhen, keine Hindernisse im Weg.
