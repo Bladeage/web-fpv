@@ -3,7 +3,7 @@ import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { cfg, game, tch, inp, ptr, messages } from './state.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
-import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf } from './render.js';
+import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
 import { scenLabel, scenTarget } from './scenario.js';
@@ -186,7 +186,7 @@ export function drawHud() {
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
     vpack: s.vpack, vmin: s.vmin, hp: s.hp, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
     kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.radius), homeD: Math.hypot(s.p[0], s.p[2]),
-    thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
+    fps: frameStat.fps, thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
   };
   const lines = osdLines(cfg.osd, d);
 

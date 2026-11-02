@@ -6,7 +6,7 @@ import { fmtTime, fmtClock } from './format.js';
 // [id, Name im Menü, Vorgabe an]
 export const OSD_ITEMS = [
   ['lq', 'Empfang (LQ)', true], ['mode', 'Flugmodus', true], ['task', 'Aufgabe', true], ['crashes', 'Abstürze', true],
-  ['timer', 'Rundenzeiten', true], ['clock', 'Uhrzeit', false],
+  ['timer', 'Rundenzeiten', true], ['clock', 'Uhrzeit', false], ['fps', 'Bildrate', false],
   ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['vmin', 'Tiefste Spannung', true], ['eff', 'mAh pro Minute', false],
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
   ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
@@ -32,6 +32,7 @@ export function osdLines(o, d) {
   add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');
   add('tr', 'timer', 'BESTE ' + fmtTime(d.best), '#c8ffd4');
   add('tr', 'clock', d.clock);
+  add('tr', 'fps', Math.round(d.fps || 0) + ' FPS', (d.fps || 0) < 40 ? YEL : WHITE);
   const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;
   const vcol = d.cell < warnV ? RED : d.cell < warnV + 0.2 ? YEL : WHITE;
   add('bl', 'volt', d.vpack.toFixed(1) + 'V', vcol);

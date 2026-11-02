@@ -6,7 +6,7 @@
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
 export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
-  diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5, gfx: 'nice',
+  diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: false,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},

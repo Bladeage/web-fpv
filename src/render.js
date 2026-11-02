@@ -286,22 +286,25 @@ function readInsets() {
             b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
 }
 // Auflösung automatisch: misst jede Sekunde die Bildrate und rechnet das 3D-Bild bei Bedarf kleiner (bis 50 %).
-const res = { scale: 1, t: 0, n: 0 };
+export const frameStat = { scale: 1, t: 0, n: 0, fps: 0 };
+// Handy und Tablet (Finger statt Maus): höchstens 1,5-fache Pixeldichte, sonst bis 2. Annahme: spart auf Handys viel Rechenzeit, Bild bleibt scharf genug.
+const COARSE = !!(window.matchMedia && matchMedia('(pointer:coarse)').matches);
 function adaptRes(dt) {
-  res.t += dt; res.n++;
-  if (res.t < 1) return;
-  const fps = res.n/res.t, old = res.scale;
-  res.t = 0; res.n = 0;
-  if (!cfg.autoRes) res.scale = 1;
-  else if (fps < 45) res.scale = Math.max(0.5, res.scale*0.85);
-  else if (fps > 57) res.scale = Math.min(1, res.scale*1.1);
-  if (res.scale !== old) resize();
+  frameStat.t += dt; frameStat.n++;
+  if (frameStat.t < 1) return;
+  const fps = frameStat.n/frameStat.t, old = frameStat.scale;
+  frameStat.fps = fps;
+  frameStat.t = 0; frameStat.n = 0;
+  if (!cfg.autoRes) frameStat.scale = 1;
+  else if (fps < 45) frameStat.scale = Math.max(0.5, frameStat.scale*0.85);
+  else if (fps > 57) frameStat.scale = Math.min(1, frameStat.scale*1.1);
+  if (frameStat.scale !== old) resize();
 }
 export function resize() {
   vw = innerWidth; vh = innerHeight;
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  dpr = Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2);
   hud.width = Math.round(vw*dpr); hud.height = Math.round(vh*dpr);
-  glc.width = Math.round(vw*dpr*res.scale); glc.height = Math.round(vh*dpr*res.scale);   // 3D-Bild ggf. kleiner, OSD bleibt scharf
+  glc.width = Math.round(vw*dpr*frameStat.scale); glc.height = Math.round(vh*dpr*frameStat.scale);   // 3D-Bild ggf. kleiner, OSD bleibt scharf
   hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   readInsets();
 }
