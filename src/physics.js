@@ -238,7 +238,7 @@ export function step(h) {
   s.rpm = s.om.map(w => w*60/(2*Math.PI));
   // Akku: Verbrauch, Spannung unter Last
   s.amp = ibat;
-  s.mah += s.amp*h/3.6;
+  if (!cfg.infBat) s.mah += s.amp*h/3.6;   // Akku unendlich: kein Verbrauch (Spannungseinbruch unter Last bleibt)
   s.cellRest = cellOcv(1 - s.mah/BAT.cap);
   s.vrc += (s.amp*BAT.r2 - s.vrc)*Math.min(1, h/BAT.tau);
   s.vpack = Vb;
@@ -302,9 +302,9 @@ export function step(h) {
 }
 
 // Schadmodell (E4). crashK: Faktor auf die Absturzgeschwindigkeit; k: Schaden je (m/s)^2 Aufprall.
-// Schätzwerte für das Spielgefühl. Aus: wie Stufe 1 (nur Absturz, kein Schaden).
+// Schätzwerte für das Spielgefühl. Aus: weder Schaden noch Absturz (Standard).
 export const DMG = {
-  off:  { name: 'Aus', crashK: 1, k: 0 },
+  off:  { name: 'Aus', crashK: Infinity, k: 0 },   // kein Schaden und kein Absturz: die Drohne prallt nur ab
   mild: { name: 'Nachsichtig', crashK: 1.4, k: 0.012 },
   real: { name: 'Realistisch', crashK: 1, k: 0.03 }
 };

@@ -65,6 +65,7 @@ test('Tor-Durchflug zählt', () => {
 });
 
 test('Treffer auf Torpfosten ergibt Absturz', () => {
+  cfg.dmg = 'mild';   // Absturz gibt es nur mit Schadmodell
   const g = gates[0], lat = -(GATE_IN + 0.12);   // Mitte des linken Pfostens
   airborne([g.c[0] + g.r[0]*lat - g.n[0]*1.5, g.c[1], g.c[2] + g.r[2]*lat - g.n[2]*1.5], hoverThrottle());
   game.sim.v = [g.n[0]*10, 0, g.n[2]*10];
@@ -72,6 +73,7 @@ test('Treffer auf Torpfosten ergibt Absturz', () => {
   assert.equal(game.state, 'crashed');
   assert.equal(game.sim.crashMsg, 'Hindernis getroffen');
   assert.equal(game.sim.next, 0, 'Tor zählt nicht');
+  cfg.dmg = 'off';
 });
 
 test('Akku verbraucht Strom', () => {
@@ -214,4 +216,20 @@ test('Scharfschalten: nur mit Gas unten; aus in der Luft heißt Motoren aus und 
   cfg.needArm = true; respawn();
   assert.equal(game.armed, false, 'Neustart ohne Scharfschalten, wenn nötig');
   cfg.needArm = false; respawn();
+});
+
+test('Schaden aus (Standard): kein Absturz, auch nicht bei 10 m/s; Akku unendlich: kein Verbrauch', () => {
+  assert.equal(cfg.dmg, 'off');
+  const g = gates[0], lat = -(GATE_IN + 0.12);
+  airborne([g.c[0] + g.r[0]*lat - g.n[0]*1.5, g.c[1], g.c[2] + g.r[2]*lat - g.n[2]*1.5], hoverThrottle());
+  game.sim.v = [g.n[0]*10, 0, g.n[2]*10];
+  run(0.5);
+  assert.equal(game.state, 'fly', 'prallt nur ab');
+  assert.ok(game.sim.hp.every(x => x === 1), 'kein Schaden');
+  respawn(); airborne([0, 0.5, 0], 0); game.sim.v = [0, -15, 0];
+  run(1);
+  assert.equal(game.state, 'fly', 'harter Bodenkontakt ohne Absturz');
+  cfg.infBat = true; respawn(); airborne([0, 30, 0], 0.8); run(3);
+  assert.equal(game.sim.mah, 0); assert.ok(game.sim.vpack < BAT.cells*4.2, 'Spannungseinbruch unter Last bleibt');
+  cfg.infBat = false;
 });

@@ -43,6 +43,7 @@ test('Durchflug durch einen geneigten Ring zählt', () => {
 });
 
 test('Treffer auf den Ring ergibt Absturz', () => {
+  cfg.dmg = 'mild';   // Absturz gibt es nur mit Schadmodell
   setScenario('rings'); respawn();
   const g = rings[0];
   const [p, v] = along(g.c, g.n, 1.5, 10, vScaleLocal(g.e1, diff().ringR));
@@ -50,6 +51,7 @@ test('Treffer auf den Ring ergibt Absturz', () => {
   run(0.5);
   assert.equal(game.state, 'crashed');
   assert.equal(game.sim.next, 0);
+  cfg.dmg = 'off';
 });
 function vScaleLocal(a, s) { return [a[0]*s, a[1]*s, a[2]*s]; }
 
@@ -85,11 +87,13 @@ test('Slalom zählt nur auf der richtigen Seite', () => {
 });
 
 test('Stange treffen ergibt Absturz', () => {
+  cfg.dmg = 'mild';   // Absturz gibt es nur mit Schadmodell
   setScenario('slalom'); respawn();
   const g = poles[0];
   const [p, v] = along([g.c[0], 2, g.c[2]], g.n, 1.5, 10);
   place(p, v); run(0.5);
   assert.equal(game.state, 'crashed');
+  cfg.dmg = 'off';
 });
 
 test('Landung zählt nur sanft und auf der Plattform', () => {
