@@ -281,3 +281,16 @@ Wunsch des Nutzers vom 30.10.2026.
 - Paketlieferung: Paket an einer Stelle aufnehmen (tief anfliegen, kurz halten), an Plattformen abliefern. Zeit und Präzision zählen.
 - Verfolgung: einem Fahrzeug oder einer Drohne folgen, Abstand im Zielband halten; Wertung = Zeit im Band.
 - Ringe und Slalom: zufällige Anordnung bei jedem Start; Prüfung: freie Durchflüge, Abstände, Höhen, keine Hindernisse im Weg.
+
+## L1: Spielstil-Karten und Lernhilfen (mittel)
+
+Entscheidung des Nutzers vom 02.11.2026.
+
+- Spielstil-Karten im Schritt „Drohne“ mit Symbol: Lernen, Normal, Realistisch, Gott-Modus. Eine Karte setzt mehrere Einstellungen auf einmal; einzelne Änderungen danach ergeben „Eigene“.
+  - Lernen: Angle, Schaden aus, Akku unendlich, Flugspur an.
+  - Normal: Angle, Schaden aus, Akku normal (heutiger Standard).
+  - Realistisch: Acro, Schaden realistisch, Akku normal, Scharfschalten nötig.
+  - Gott-Modus: Durch Hindernisse fliegen, Schaden aus, Akku unendlich, Flugspur an.
+- Neu: Durch Hindernisse fliegen (Geist-Modus; Boden bleibt fest).
+- Neu: Flugspur der letzten Sekunden und Zurückspulen um 5 s per Taste.
+- Später entscheiden: Strecken-Editor (Ideen: Platzieren im Flug, Karte von oben).
