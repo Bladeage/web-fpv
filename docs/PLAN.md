@@ -243,11 +243,12 @@ Wunsch des Nutzers vom 30.10.2026.
 
 **Abnahme:** Tests für Schub über Drehzahl gegen die Tabelle, Schubverlust im Steigflug, Bodeneffekt, Bremsweg; Nutzer fliegt.
 
-## P2: Kollision (Teil 1 erledigt) und Turtle-Modus (zurückgestellt)
+## P2: Kollision (Teil 1 erledigt) und Turtle-Modus (erledigt)
 
 - Abprallen mit Drehimpuls aus Stoßpunkt und Normale; Schaden wie E4.
 - Erledigt: Hitbox aus 4 Füßen, Rahmen und 4 Propellerkreisen; Stoß am Kontaktpunkt mit Masse und Trägheit (Rückprall 30 %, Reibung 0,5, Schätzwerte); ein gemeinsamer Stoß je Hindernis; harte Treffer bleiben Absturz; Hinweis UMGEDREHT.
-- Zurückgestellt (Nutzer, 02.11.2026): Turtle-Modus. Umgedreht liegen bleiben heißt vorerst Neustart mit R.
+- Turtle-Modus (Nutzer, 02.11.2026, Variante 1): schaltet sich von selbst ein, wenn die Drohne scharf geschaltet still auf dem Kopf liegt. Motoren drehen rückwärts (Schätzung 50 % Schub), Nicken oder Rollen kippt über die Kante in Stick-Richtung. Aufrecht oder 1 s in der Luft: normal weiter. Gilt in allen Schadmodi, auch in Seitenlage. Vereinfacht: Stick gibt eine Kipp-Drehrate vor.
+- Offen, Hitbox-Füße (gefunden 02.11.2026): Die Füße liegen PHYS.radius (5 Zoll: 15 cm) unter der Mitte, das Modell nur 1 cm. Die Drohne schwebt sichtbar über dem Boden und kippt schon ab etwa 25°. Bei vollem Turtle-Stick kippt sie darum bei 5 und 7 Zoll teils auf die Seite. Vorschlag: Füße und Propeller-Kugeln an das Modell anpassen, Bodenbezug von PHYS.radius trennen.
 
 ## P3: Sensoren und Umwelt (mittel)
 

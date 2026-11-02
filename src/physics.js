@@ -37,6 +37,7 @@ export const PHYS = {
   m: {}                                   // Motorkonstanten (computeMotor)
 };
 // Motoren: x-Seite, z-Seite, Drehrichtung (diagonal gleich, wie Quad-X). Gleiche Reihenfolge wie im Modell.
+export const TURTLE = { rate: 8, k: 300 };   // Kipp-Drehrate bei vollem Stick in rad/s, Reglerverstärkung in 1/s (Schätzung)
 export const MOTORS = [[1, -1, -1], [-1, -1, 1], [1, 1, 1], [-1, 1, -1]];
 
 // Masse und Trägheit (Diagonaltensor) aus Motoren als Punktmassen, Rahmen und Akku als Quader.
@@ -112,7 +113,8 @@ function newSim() {
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
     mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
-    om: [0, 0, 0, 0], rpm: [0, 0, 0, 0]   // Motordrehzahl in rad/s und U/min
+    om: [0, 0, 0, 0], rpm: [0, 0, 0, 0],   // Motordrehzahl in rad/s und U/min
+    flippedT: 0, turtle: false, turtleAir: 0   // Zeit auf dem Kopf liegend, Turtle-Modus
   };
 }
 function resetDrone() {
@@ -207,7 +209,7 @@ export function step(h) {
 
   // 3. Rate-PID und Mischer (Quad-X). Am Boden mit wenig Gas: Motoren aus, Regler ruht.
   const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
-  const rest = s.grounded && game.throttle < 0.05;   // steht am Boden mit Gas unten
+  const rest = (s.grounded || s.onGround) && game.throttle < 0.05;   // liegt oder steht am Boden mit Gas unten: Regler kämpft nicht gegen den Boden
   const armed = game.armed && !rest;
   const tau = [0, 0, 0];
   for (let i = 0; i < 3; i++) {
@@ -228,6 +230,31 @@ export function step(h) {
   // 4. Motoren: J dω/dt = Kt (I - I0) - kQ ω², I = (u V - Ke ω)/Rm. Akkustrom = 1 A Grundlast + Σ u I (Regler als Spannungswandler).
   // Akkuspannung V = E - Ri·Iakku hängt selbst vom Strom ab: direkt gelöst (linear in V), sonst schaukelt es bei hohen Strömen.
   for (let i = 0; i < 4; i++) s.cmd[i] = armed ? clamp(u[i], 0, 1) : game.armed ? PHYS.idle : 0;   // scharf am Boden: Leerlauf
+  // Turtle-Modus (Betaflight "Flip over after crash"), schaltet sich von selbst ein:
+  // Liegt die Drohne scharf geschaltet still auf dem Kopf oder auf der Seite, drehen die Motoren rückwärts. Kein Gas nötig.
+  // Nicken oder Rollen kippt sie über die Kante in Stick-Richtung (vorwärts = über die Nase, rechts = über
+  // den rechten Arm, bezogen auf die Drohne). Steht sie wieder auf den Füßen, gibst du Gas oder ist sie
+  // länger als 1 s in der Luft, geht es normal weiter. Kippt sie auf die Seite, greift er dort erneut.
+  // Wenig Stick dreht langsam, voller Stick schnell.
+  if (!s.turtle && game.armed && s.flippedT > 0.3) { s.turtle = true; s.turtleAir = 0; say('Turtle-Modus: Stick zum Umdrehen', 2); }
+  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) s.turtle = false;
+  let turtleM = null;
+  if (s.turtle) {
+    s.turtleAir = s.onGround ? 0 : s.turtleAir + h;
+    const sx = Math.abs(inp.roll) > 0.1 ? inp.roll : 0, sz = Math.abs(inp.pitch) > 0.1 ? inp.pitch : 0;
+    // Vereinfacht: Der Stick gibt eine Kipp-Drehrate vor, ein P-Regler liefert das Moment. Begrenzt auf zwei
+    // rückwärts drehende Motoren (Schätzung 50 % Schub, Annahme: Propeller sind nur für eine Richtung gebaut).
+    // Nicht physikalisch exakt: das Ziel ist ein zuverlässiges Umdrehen.
+    // Mit dem Schub der einzelnen Motoren war es zu unruhig: Die Füße der Hitbox liegen tief wie Stelzen
+    // (PHYS.radius aus legacy/), die Propeller sind Kugeln. Siehe PLAN, Hitbox-Füße.
+    // Mindestens das Dreifache des Schwerkraft-Moments am Kipppunkt, damit es auch die Whoop schafft (Vereinfachung).
+    const mga = PHYS.mass*PHYS.g*PHYS.arm/Math.SQRT2, Mmax = Math.max(0.25*PHYS.twr, 3)*mga;
+    const fade = clamp((0.95 - up[1])/0.9, 0.15, 1);   // kurz vor aufrecht: bremsen, damit sie nicht auf die andere Seite kippt
+    const want = [sz*TURTLE.rate*fade, 0, sx*TURTLE.rate*fade];
+    turtleM = want.map((x, i) => (sx || sz) ? clamp(PHYS.I[i]*TURTLE.k*(x - s.w[i]), -Mmax, Mmax) : 0);
+    MOTORS.forEach(([mx, mz], i) => { const k = clamp(mz*sz - mx*sx, 0, 1); s.cmd[i] = k > 0.05 ? 0.15 + 0.35*k : 0; });   // Ton und Propeller
+    s.wi[0] = s.wi[1] = s.wi[2] = 0;
+  }
   const E = BAT.cells*cellOcv(1 - s.mah/BAT.cap) - s.vrc;
   let su2 = 0, sue = 0;
   for (let i = 0; i < 4; i++) { su2 += s.cmd[i]*s.cmd[i]; sue += s.cmd[i]*mc.ke*s.om[i]; }
@@ -255,11 +282,13 @@ export function step(h) {
   if (s.thr > 0.05) s.flyT += h;
 
   // 5. Momente und Drehung: I dw/dt = M - w x (I w) - Dämpfung
-  const T = s.om.map((w, i) => mc.kT*w*w*fac[i]*s.hp[i]);
+  // Turtle-Modus: Schub und Moment der Motoren stecken in turtleM (siehe oben)
+  const rev = s.turtle ? 0 : 1;
+  const T = s.om.map((w, i) => rev*mc.kT*w*w*fac[i]*s.hp[i]);
   let M = [0, 0, 0];
   MOTORS.forEach(([mx, mz, dir], i) => {
     M[0] += -mz*a*T[i]; M[2] += mx*a*T[i];
-    M[1] += dir*(mc.kQ*s.om[i]*s.om[i] + mc.J*domega[i]);   // Propellermoment plus Reaktion beim Beschleunigen
+    M[1] += rev*dir*(mc.kQ*s.om[i]*s.om[i] + mc.J*domega[i]);   // Propellermoment plus Reaktion beim Beschleunigen
   });
   // Unwucht beschädigter Propeller: Zittern um Nick- und Rollachse
   let vib = 0;
@@ -267,8 +296,9 @@ export function step(h) {
   s.vib = vib/(PHYS.mass*PHYS.g);
   M[0] += vib*a*0.15*Math.sin(s.t*157); M[2] += vib*a*0.15*Math.cos(s.t*173);
   const I = PHYS.I, w = s.w, Iw = [I[0]*w[0], I[1]*w[1], I[2]*w[2]], gyro = vCross(w, Iw);
+  if (turtleM) for (let i = 0; i < 3; i++) M[i] += turtleM[i];
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
-  if (rest) { w[0] = w[1] = w[2] = 0; }   // aus in der Luft: Drohne taumelt frei
+  if (rest && !s.turtle && up[1] > 0.9) { w[0] = w[1] = w[2] = 0; }   // steht fast gerade: kein Zittern. Schräg kippt sie auf die Füße. Aus in der Luft: taumelt frei
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
@@ -300,8 +330,8 @@ export function step(h) {
     if (i < FEET) s.grounded = true;   // steht auf den Füßen
   }
   if (resolve(ground, PHYS.crashV*1.2*dmgMode().crashK, 'Bodenkontakt zu schnell')) return;
-  // Umgedreht liegen geblieben (ohne Turtle-Modus): Hinweis im OSD, R startet neu
-  s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < -0.2 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;
+  // Umgedreht liegen geblieben: startet den Turtle-Modus (siehe oben), sonst Hinweis im OSD
+  s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < 0.5 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;   // auf dem Kopf oder auf der Seite
   // 7. Hindernisse
   if (!cfg.ghost) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest
     for (const c of colliders) if (collide(c, h)) return;
@@ -326,7 +356,7 @@ export function rewind(sec = 5) {
   if (k < 0) k = 0;
   const h = history[k], s = game.sim;
   for (const key of ['p', 'v', 'q', 'w', 'om', 'mot', 'wi', 'hp']) s[key] = h[key].slice();
-  s.grounded = false; history.length = k + 1;
+  s.grounded = false; s.turtle = false; s.flippedT = 0; history.length = k + 1;
   game.state = 'fly';
   say('Zurückgespult', 1);
   return true;
