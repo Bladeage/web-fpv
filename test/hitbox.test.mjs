@@ -55,10 +55,11 @@ test('Nach Landung mit Schwung: kommt zur Ruhe, steht gerade, dreht nicht weg', 
     applyDrone({ preset: pre }); cfg.mode = mode; cfg.dmg = 'off'; respawn(); game.throttle = 0; inp.pitch = inp.roll = inp.yaw = 0;
     const s = game.sim; s.p = [0, 0.5, 0]; s.v = [3, -2, 1]; s.q = qAxis([0, 0, 1], 0.4);
     for (let i = 0; i < 480; i++) step(STEP);
-    const f0 = qRot(game.sim.q, [0, 0, -1]);
+    const head = () => { const f = qRot(game.sim.q, [0, 0, -1]); return Math.atan2(-f[0], -f[2])*180/Math.PI; };   // Kurswinkel
+    const h0 = head();
     let tmax = 0;
     for (let i = 0; i < 1200; i++) { step(STEP); tmax = Math.max(tmax, tilt()); }
-    const f1 = qRot(game.sim.q, [0, 0, -1]), turn = Math.acos(Math.min(1, f0[0]*f1[0] + f0[2]*f1[2]))*180/Math.PI;
+    const turn = Math.abs(((head() - h0) + 540) % 360 - 180);
     assert.ok(tmax < 3, pre + ' ' + mode + ': Neigung im Stand ' + tmax.toFixed(1) + '°');
     assert.ok(turn < 1, pre + ' ' + mode + ': dreht im Stand ' + turn.toFixed(2) + '°');
   }
