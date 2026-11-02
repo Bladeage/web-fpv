@@ -4,13 +4,13 @@
    Koordinaten: Y nach oben, Vorwärts der Drohne = -Z.
    Einstieg: verbindet die Module und startet die Hauptschleife.
    ========================================================= */
-import { cfg, game, inp } from './state.js';
+import { cfg, game, inp, say } from './state.js';
 import { gates } from './world.js';
 import { STEP, fx, respawn, step } from './physics.js';
-import { updGamepad } from './gamepad.js';
+import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep } from './audio.js';
-import { gl, initGL, render, resize } from './render.js';
-import { $, menu, resume, show, updGpUI } from './menu.js';
+import { gl, initGL, render, resize, toggleCam } from './render.js';
+import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
 import { setScenario } from './scenario.js';
@@ -18,6 +18,7 @@ import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 
 fx.beep = beep;
+gpAct.cam = toggleCam; gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 setScenario(cfg.scen); game.scenRun = cfg.scen;
 applyDrone(cfg.drone);

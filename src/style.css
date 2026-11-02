@@ -103,7 +103,7 @@ select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--lin
 .seg.small button b{font-size:15px}
 .checks{display:flex;flex-wrap:wrap;gap:4px 18px}
 .checks .check{margin-top:8px}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:12px 0 4px;background:var(--chip);border-radius:12px;padding:4px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:12px 0 4px;background:var(--chip);border-radius:12px;padding:4px}
 .tabs button{border:0;border-radius:9px;padding:8px 4px;background:transparent;color:var(--panel-text);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .tabpane{min-height:0}
@@ -121,3 +121,9 @@ details{margin-top:10px}
 .seg.small button .ico{margin:0 auto 3px}
 .row .val{display:flex;align-items:center;gap:6px}
 .row output{white-space:nowrap}
+.gprow{grid-template-columns:4.6em 6.5em auto 1fr auto}
+.gprow .learn{border:0;border-radius:8px;padding:4px 8px;background:var(--chip);color:var(--panel-text);font:inherit;font-size:12px;cursor:pointer}
+.gprow .learn.on{background:var(--accent);color:var(--accent-text)}
+.lamp{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--line)}
+.lamp.on{background:#3cb371}
+@media (max-width:480px){ .gprow{grid-template-columns:4.4em 5.6em auto 1fr auto;gap:6px} .gprow .invtxt{display:none} }

@@ -3,14 +3,14 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { cfg, game } from '../src/state.js';
 import { respawn } from '../src/physics.js';
-import { GP_PRESETS, gp, gpMap, padValues, updGamepad } from '../src/gamepad.js';
+import { GP_PRESETS, gp, gpMap, padValues, updGamepad, calAxis, switchOn } from '../src/gamepad.js';
 
 // Achsen einer Funke in AETR-Reihenfolge: 0 Rollen, 1 Nicken, 2 Gas, 3 Gieren
 const AETR = (roll, pitch, thr, yaw) => [roll, pitch, thr, yaw];
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, a + ' statt ' + b);
 
 beforeEach(() => {
-  cfg.gpPreset = 'auto'; cfg.gpMap = null;
+  cfg.gpPreset = 'auto'; cfg.gpMap = null; cfg.gpSw = {}; cfg.gpCal = {};
   gp.connected = false; gp.id = ''; gp.mapping = ''; gp.btn = false;
 });
 
@@ -73,4 +73,39 @@ test('updGamepad liest eine simulierte RadioMaster über die Gamepad-API', (t) =
   navigator.getGamepads = () => [];
   updGamepad();
   assert.equal(gp.connected, false);
+});
+
+test('Kalibrierung: Funke mit kleinerem Ausschlag wird auf -1..1 gestreckt', () => {
+  const cal = { 2: [-0.6, 0.6], 0: [-0.8, 0.7] };
+  near(calAxis(0.6, cal[2]), 1); near(calAxis(-0.6, cal[2]), -1); near(calAxis(0, cal[2]), 0);
+  const v = padValues(AETR(0.7, 0, 0.6, 0), GP_PRESETS.radiomaster, cal);
+  near(v.throttle, 1); near(v.roll, 1);
+  assert.equal(calAxis(0.3, [0.1, 0.2]), 0.3, 'zu kleiner Bereich: unverändert');
+});
+
+test('Schalter: Achse ab 0,3 an, Taste gedrückt an, umkehrbar', () => {
+  const axes = [0, 0, 0, 0, 0.8, -0.9], buttons = [{ pressed: false }, { pressed: true }];
+  assert.equal(switchOn('a4', false, axes, buttons), true);
+  assert.equal(switchOn('a5', false, axes, buttons), false);
+  assert.equal(switchOn('a5', true, axes, buttons), true);
+  assert.equal(switchOn('b1', false, axes, buttons), true);
+  assert.equal(switchOn('b0', false, axes, buttons), false);
+  assert.equal(switchOn('', false, axes, buttons), false);
+});
+
+test('Arm-Schalter der Funke: scharf beim Umlegen mit Gas unten, aus beim Zurücklegen', (t) => {
+  const pad = { id: 'TX', connected: true, mapping: '', axes: [0, 0, -1, 0, -1], buttons: [{ pressed: false }] };
+  const orig = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+  t.after(() => { if (orig) Object.defineProperty(globalThis, 'navigator', orig); else delete globalThis.navigator; cfg.gpSw = {}; });
+  cfg.gpSw = { arm: { src: 'a4', inv: false } };
+  respawn(); game.paused = false; gp.swPrev = {};
+  updGamepad();
+  assert.equal(game.armed, false, 'Schalter aus: nicht scharf');
+  pad.axes[4] = 1; updGamepad();
+  assert.equal(game.armed, true, 'umgelegt mit Gas unten: scharf');
+  pad.axes[4] = -1; updGamepad();
+  assert.equal(game.armed, false, 'zurück: aus');
+  game.throttle = 0.5; pad.axes[2] = 0; pad.axes[4] = 1; updGamepad();
+  assert.equal(game.armed, false, 'mit Gas oben nicht scharf');
 });

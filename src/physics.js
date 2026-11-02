@@ -144,6 +144,13 @@ export function toggleArm() {
   return true;
 }
 
+// Arm-Schalter der Funke: an = scharf schalten (nur mit Gas unten), aus = ausschalten
+export function setArmed(on) {
+  if (on === game.armed) return game.armed;
+  if (!on) { game.armed = false; say('Disarmed', 1.2); return false; }
+  return toggleArm();
+}
+
 export function crash(why) {
   game.state = 'crashed';
   game.sim.crashMsg = why; game.sim.crashT = performance.now();

@@ -2,7 +2,7 @@
    Einstellungen (Kamera, Ton, Funke) sind über Esc oder ☰ von überall erreichbar. */
 import { cfg, game, keys, ptr, saveCfg } from './state.js';
 import { respawn } from './physics.js';
-import { GP_FN, gp, gpMap } from './gamepad.js';
+import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
 import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
@@ -155,32 +155,96 @@ for (const [id, name] of OSD_ITEMS) {
 }
 $('propsView').addEventListener('change', e => { cfg.propsView = e.target.checked; saveCfg(); });
 
-// Funke-Zuordnung im Menü
+// Funke-Zuordnung im Menü: Knüppel-Achsen (Reiter Funke) und Schalter-Funktionen (Reiter Schalter)
+// Lernen: nach Klick wird die Achse mit der größten Bewegung (oder die gedrückte Taste) übernommen.
+const learn = { fn: null, sw: false, base: null, btn: null };
+function learnBtn(fn, sw) {
+  const b = document.createElement('button'); b.className = 'learn'; b.textContent = 'Lernen'; b.dataset.learn = fn;
+  b.addEventListener('click', () => {
+    if (learn.fn === fn) { learn.fn = null; } else { learn.fn = fn; learn.sw = sw; learn.base = gp.axes.slice(); learn.btn = gp.buttons.map(x => x.pressed); }
+    document.querySelectorAll('.learn').forEach(x => x.classList.toggle('on', x.dataset.learn === learn.fn));
+  });
+  return b;
+}
 function buildGpRows() {
   const box = $('gpRows'); box.textContent = '';
   for (const [fn, label] of GP_FN) {
     const row = document.createElement('div'); row.className = 'gprow';
     const lab = document.createElement('span'); lab.textContent = label;
     const sel = document.createElement('select'); sel.dataset.fn = fn; sel.setAttribute('aria-label', 'Achse für ' + label);
-    for (let i = 0; i < 8; i++) { const o = document.createElement('option'); o.value = i; o.textContent = 'Achse ' + i; sel.appendChild(o); }
+    for (let i = 0; i < 8; i++) { const o = document.createElement('option'); o.value = i; o.textContent = 'A' + i; sel.appendChild(o); }
     const inv = document.createElement('label');
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.inv = fn;
-    inv.appendChild(cb); inv.appendChild(document.createTextNode('umkehren'));
+    inv.title = 'umkehren'; inv.appendChild(cb); { const t = document.createElement('span'); t.className = 'invtxt'; t.textContent = 'umkehren'; inv.appendChild(t); }
     const bar = document.createElement('i'); bar.className = 'gpbar'; bar.dataset.bar = fn; bar.appendChild(document.createElement('b'));
-    row.append(lab, sel, inv, bar); box.appendChild(row);
+    row.append(lab, sel, inv, bar, learnBtn(fn, false)); box.appendChild(row);
     sel.addEventListener('change', gpFromUI); cb.addEventListener('change', gpFromUI);
+  }
+  const sb = $('swRows'); sb.textContent = '';
+  for (const [fn, label] of GP_SW) {
+    const row = document.createElement('div'); row.className = 'gprow';
+    const lab = document.createElement('span'); lab.textContent = label;
+    const sel = document.createElement('select'); sel.dataset.sw = fn; sel.setAttribute('aria-label', 'Quelle für ' + label);
+    const opt = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+    opt('', 'Aus'); for (let i = 0; i < 8; i++) opt('a' + i, 'A' + i); for (let i = 0; i < 16; i++) opt('b' + i, 'T' + i);
+    const inv = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.dataset.swinv = fn;
+    inv.title = 'umkehren'; inv.appendChild(cb); { const t = document.createElement('span'); t.className = 'invtxt'; t.textContent = 'umkehren'; inv.appendChild(t); }
+    const lamp = document.createElement('i'); lamp.className = 'lamp'; lamp.dataset.lamp = fn;
+    row.append(lab, sel, inv, lamp, learnBtn(fn, true)); sb.appendChild(row);
+    const save = () => { cfg.gpSw = { ...cfg.gpSw, [fn]: { src: sel.value, inv: cb.checked } }; saveCfg(); };
+    sel.addEventListener('change', save); cb.addEventListener('change', save);
   }
 }
 function syncGpRows() {
   const m = gpMap();
   document.querySelectorAll('#gpRows select').forEach(el => { el.value = m[el.dataset.fn][0]; });
   document.querySelectorAll('#gpRows input[type=checkbox]').forEach(el => { el.checked = m[el.dataset.inv][1]; });
+  document.querySelectorAll('#swRows select').forEach(el => { el.value = (cfg.gpSw[el.dataset.sw] || {}).src || ''; });
+  document.querySelectorAll('#swRows input[type=checkbox]').forEach(el => { el.checked = !!(cfg.gpSw[el.dataset.swinv] || {}).inv; });
 }
 function gpFromUI() {
   const m = {};
   for (const [fn] of GP_FN) m[fn] = [+document.querySelector(`#gpRows select[data-fn="${fn}"]`).value,
                                      document.querySelector(`#gpRows input[data-inv="${fn}"]`).checked];
   cfg.gpMap = m; cfg.gpPreset = 'custom'; $('gpPreset').value = 'custom'; saveCfg();
+}
+// Lernen auswerten (jedes Bild, solange das Menü offen ist)
+function learnStep() {
+  if (!learn.fn || !gp.connected) return;
+  if (learn.sw) {
+    const bi = gp.buttons.findIndex((x, i) => x.pressed && !learn.btn[i]);
+    if (bi >= 0) return learnDone('b' + bi, false);
+  }
+  let best = -1, bd = 0.5;
+  gp.axes.forEach((v, i) => { const d = Math.abs(v - (learn.base[i] || 0)); if (d > bd) { bd = d; best = i; } });
+  if (best < 0) return;
+  const up = gp.axes[best] - (learn.base[best] || 0) > 0;   // Knüppel nach oben/rechts oder Schalter auf „an“
+  learnDone(learn.sw ? 'a' + best : best, !up);
+}
+function learnDone(src, inv) {
+  const fn = learn.fn; learn.fn = null;
+  document.querySelectorAll('.learn').forEach(x => x.classList.remove('on'));
+  if (learn.sw) cfg.gpSw = { ...cfg.gpSw, [fn]: { src, inv } };
+  else { const m = JSON.parse(JSON.stringify(gpMap())); m[fn] = [src, inv]; cfg.gpMap = m; cfg.gpPreset = 'custom'; $('gpPreset').value = 'custom'; }
+  saveCfg(); syncGpRows();
+}
+// Kalibrieren: 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen; kleinster und größter Wert je Achse
+const calib = { until: 0, min: [], max: [] };
+$('bCal').addEventListener('click', () => {
+  calib.until = performance.now() + 6000; calib.min = gp.axes.slice(); calib.max = gp.axes.slice();
+  $('gpHint').textContent = 'Kalibrieren: 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen.';
+});
+$('bCalReset').addEventListener('click', () => { cfg.gpCal = {}; saveCfg(); $('gpHint').textContent = 'Kalibrierung gelöscht.'; });
+function calibStep() {
+  if (!calib.until) return;
+  gp.axes.forEach((v, i) => { calib.min[i] = Math.min(calib.min[i] ?? v, v); calib.max[i] = Math.max(calib.max[i] ?? v, v); });
+  if (performance.now() < calib.until) return;
+  calib.until = 0;
+  const cal = {};
+  calib.min.forEach((mn, i) => { if (calib.max[i] - mn > 0.5) cal[i] = [mn, calib.max[i]]; });
+  cfg.gpCal = cal; saveCfg();
+  $('gpHint').textContent = 'Kalibriert: ' + Object.keys(cal).length + ' Achsen.';
 }
 $('gpPreset').addEventListener('change', e => {
   const prev = JSON.parse(JSON.stringify(gpMap()));
@@ -189,6 +253,8 @@ $('gpPreset').addEventListener('change', e => {
   syncGpRows(); saveCfg();
 });
 export function updGpUI() {
+  learnStep(); calibStep();
+  for (const [fn] of GP_SW) { const l = document.querySelector(`[data-lamp="${fn}"]`); if (l) l.classList.toggle('on', !!gp.sw[fn]); }
   const st = $('gpStat');
   if (!gp.connected) {
     st.textContent = 'Kein Gerät erkannt. Funke oder Gamepad per USB anstecken und einen Knüppel bewegen.';

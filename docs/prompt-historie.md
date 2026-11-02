@@ -38,3 +38,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 30 | 02.11.2026 | Als Nächstes R1 (Grafik-Details). P3 und P4 im Detail erklären. | R1, Erklärung P3/P4 |
 | 31 | 02.11.2026 | Schadmodell standardmäßig aus; im Modus „Aus“ kein Absturz (kein Standbild). Checkbox „Akku unendlich“. Weitere Einstellungen zum Lernen oder als Gott-Modus vorschlagen, Darstellung als Presets. Ein Nutzer wünscht einen Editor; Gestaltung offen. | Schaden aus ohne Absturz, Akku unendlich, Vorschläge |
 | 32 | 02.11.2026 | Antworten: Lernhilfen „Durch Hindernisse fliegen“ sowie „Flugspur und Zurückspulen“. Präsentation als Spielstil-Karten. Editor später entscheiden. | Plan L1 |
+| 33 | 02.11.2026 | L1 umsetzen. Arm-Schalter an der Funke frei belegbar wie alle anderen Funktionen. Achsen sollen mit verschiedenen Funken funktionieren (später Bluetooth-Controller am Handy). Am Handy in Chrome ruckelt es stark. | Funke-Belegung, L1, Handy |
