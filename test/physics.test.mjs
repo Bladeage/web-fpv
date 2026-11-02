@@ -196,7 +196,7 @@ test('Schaden: leichter Treffer beschädigt statt Absturz (nachsichtig), aus = k
     const worst = Math.min(...game.sim.hp);
     if (mode === 'mild') assert.ok(worst < 0.95, 'Schaden ' + worst); else assert.equal(worst, 1);
   }
-  cfg.dmg = 'mild';
+  cfg.dmg = 'off';   // Standard
 });
 function qRotUp(q) { const [x, , z] = q; return 1 - 2*(x*x + z*z); }   // y-Anteil der Hochachse
 
