@@ -104,9 +104,10 @@ test('Landung zählt nur sanft und auf der Plattform', () => {
   place([PAD.c[0] + 3, 0.4, PAD.c[2]], [0, -0.8, 0], 0.2);
   run(2.5);
   assert.ok(!scenDone(), 'neben der Plattform zählt nicht');
-  // sanft auf der Plattform
+  // sanft auf der Plattform, nach dem Aufsetzen Gas weg (wie ein Pilot)
   place([PAD.c[0], 0.4, PAD.c[2]], [0, -0.8, 0], 0.2);
-  run(2.5);
+  run(0.8); game.throttle = 0;
+  run(2);
   assert.ok(scenDone());
   assert.equal(scenLabel(), 'GELANDET');
 });
@@ -115,7 +116,8 @@ test('Neustart setzt das Szenario zurück', () => {
   setScenario('landing'); respawn();
   game.sim.t = 1;
   place([PAD.c[0], 0.4, PAD.c[2]], [0, -0.8, 0], 0.2);
-  run(2.5);
+  run(0.8); game.throttle = 0;
+  run(2);
   assert.ok(scenDone());
   respawn();
   assert.ok(!scenDone());

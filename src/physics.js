@@ -1,7 +1,7 @@
 /* Physik (Stufe 1, vereinfacht): Flugmodell, Akku, Kollision, Tore.
    Ohne DOM und WebGL, in Node testbar. Ton und Vibration laufen über fx,
    main.js verbindet sie mit dem Browser. */
-import { DEG, clamp, vAdd, vSub, vScale, vDot, vLen, vCross, qMul, qNorm, qRot, qFromRotVec } from './math.js';
+import { DEG, clamp, vAdd, vSub, vScale, vDot, vLen, vNorm, vCross, qMul, qNorm, qRot, qFromRotVec } from './math.js';
 import { cfg, game, kb, inp, say, saveBest } from './state.js';
 import { colliders, gates, GATE_IN } from './world.js';
 import { fmtTime } from './format.js';
@@ -280,48 +280,25 @@ export function step(h) {
     task.check(prev, s.p, h);
     if (game.pendingRespawn) { game.pendingRespawn = false; respawnDrone(); return; }
   }
-  // 6. Boden
-  s.grounded = false;
-  if (s.p[1] < PHYS.radius) {
-    const vDown = -s.v[1], vh = Math.hypot(s.v[0], s.v[2]);
-    const ck = dmgMode().crashK;
-    if (vDown > PHYS.crashV*1.2*ck || vh > 9*ck) { crash('Bodenkontakt zu schnell'); return; }
-    damage([0, 1, 0], vDown, 0.4);
-    s.p[1] = PHYS.radius;
-    if (s.v[1] < 0) s.v[1] = 0;
-    const fr = Math.max(0, 1 - 6*h);
-    s.v[0] *= fr; s.v[2] *= fr;
-    s.grounded = true;
+  // 6. Boden: jede Kugel der Hitbox gegen den Boden (y = 0). Kufe unten trägt die Drohne, Propeller können aufsetzen.
+  s.grounded = false; s.onGround = false;
+  const hb = hitbox(), ground = [];
+  for (let i = 0; i < hb.length; i++) {
+    const [x, y, z, rad, rot] = hb[i], r = qRot(s.q, [x, y, z]), pen = rad - (s.p[1] + r[1]);
+    if (pen <= 0) continue;
+    ground.push({ n: [0, 1, 0], pen, r: vAdd(r, [0, -rad, 0]), rot });
+    s.onGround = true;
+    if (i < FEET) s.grounded = true;   // steht auf den Füßen
   }
+  if (resolve(ground, PHYS.crashV*1.2*dmgMode().crashK, 'Bodenkontakt zu schnell')) return;
+  // Umgedreht liegen geblieben (ohne Turtle-Modus): Hinweis im OSD, R startet neu
+  s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < -0.2 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;
   // 7. Hindernisse
   for (const c of colliders) if (collide(c, h)) return;
   if (task.collide && task.collide(h)) return;
   // 8. Aufgabe des Szenarios (Tore, Ringe ...)
   if (!task.early) task.check(prev, s.p, h);
   s.t += h;
-}
-
-export function collide(c, h) {
-  const s = game.sim, R = PHYS.radius;
-  const dx = s.p[0]-c.c[0], dy = s.p[1]-c.c[1], dz = s.p[2]-c.c[2];
-  if (Math.abs(dy) > c.h[1] + R) return false;
-  const lx = dx*c.cs - dz*c.sn, lz = dx*c.sn + dz*c.cs, ly = dy;
-  if (Math.abs(lx) > c.h[0] + R || Math.abs(lz) > c.h[2] + R) return false;
-  let nx = lx - clamp(lx, -c.h[0], c.h[0]);
-  let ny = ly - clamp(ly, -c.h[1], c.h[1]);
-  let nz = lz - clamp(lz, -c.h[2], c.h[2]);
-  const d = Math.hypot(nx, ny, nz);
-  let pen;
-  if (d < 1e-6) {
-    const px = c.h[0] - Math.abs(lx), py = c.h[1] - Math.abs(ly), pz = c.h[2] - Math.abs(lz);
-    if (px < py && px < pz) { nx = Math.sign(lx) || 1; ny = 0; nz = 0; pen = px + R; }
-    else if (py < pz)        { nx = 0; ny = Math.sign(ly) || 1; nz = 0; pen = py + R; }
-    else                     { nx = 0; ny = 0; nz = Math.sign(lz) || 1; pen = pz + R; }
-  } else {
-    if (d >= R) return false;
-    nx /= d; ny /= d; nz /= d; pen = R - d;
-  }
-  return contact([nx*c.cs + nz*c.sn, ny, -nx*c.sn + nz*c.cs], pen, h);
 }
 
 // Schadmodell (E4). crashK: Faktor auf die Absturzgeschwindigkeit; k: Schaden je (m/s)^2 Aufprall.
@@ -346,16 +323,84 @@ export function damage(n, v, base) {
   });
 }
 
-// Berührung mit Flächennormale n und Eindringtiefe pen: zu schnell = Absturz, sonst abgleiten.
-export function contact(n, pen, h) {
-  const s = game.sim;
-  const vn = vDot(s.v, n);
-  if (-vn > PHYS.crashV*dmgMode().crashK) { crash('Hindernis getroffen'); return true; }
+// Hitbox (P2): Kugeln im Körpersystem [x, y, z, Radius, Rotor oder -1].
+// 0 bis 3: Füße unter den Armen (Auflage PHYS.radius unter der Mitte, wie bisher), 4: Rahmen, 5 bis 8: Propellerkreise.
+export const FEET = 4;
+export function hitbox() {
+  const a = PHYS.arm/Math.SQRT2, sz = PHYS.size, rs = 0.03*sz, f = 0.7*a;
+  const out = MOTORS.map(([mx, mz]) => [mx*f, -(PHYS.radius - rs), mz*f, rs, -1]);
+  out.push([0, 0, 0, 0.05*sz, -1]);
+  MOTORS.forEach(([mx, mz], i) => out.push([mx*a, 0.02*sz, mz*a, PHYS.m.R*0.95, i]));
+  return out;
+}
+// Mehrere gleichzeitige Berührungen mit einem Hindernis: ein gemeinsamer Stoß am mittleren Kontaktpunkt,
+// tiefste Eindringtiefe, gemittelte Normale. Sonst gäbe jede Kugel einen eigenen vollen Stoß (zu starker Rückprall).
+function resolve(hits, limit, why) {
+  if (!hits.length) return false;
+  let n = [0, 0, 0], r = [0, 0, 0], pen = 0, rot = -1;
+  for (const k of hits) { n = vAdd(n, k.n); r = vAdd(r, k.r); if (k.pen > pen) { pen = k.pen; rot = k.rot; } }
+  return impact(vNorm(n), pen, vScale(r, 1/hits.length), rot, limit, why);
+}
+// Kugel (Mitte pc, Radius R) gegen gedrehten Quader c: Normale (vom Quader weg) und Eindringtiefe, oder null
+function sphereBox(pc, R, c) {
+  const dx = pc[0]-c.c[0], dy = pc[1]-c.c[1], dz = pc[2]-c.c[2];
+  if (Math.abs(dy) > c.h[1] + R) return null;
+  const lx = dx*c.cs - dz*c.sn, lz = dx*c.sn + dz*c.cs, ly = dy;
+  if (Math.abs(lx) > c.h[0] + R || Math.abs(lz) > c.h[2] + R) return null;
+  let nx = lx - clamp(lx, -c.h[0], c.h[0]), ny = ly - clamp(ly, -c.h[1], c.h[1]), nz = lz - clamp(lz, -c.h[2], c.h[2]);
+  const d = Math.hypot(nx, ny, nz);
+  let pen;
+  if (d < 1e-6) {
+    const px = c.h[0] - Math.abs(lx), py = c.h[1] - Math.abs(ly), pz = c.h[2] - Math.abs(lz);
+    if (px < py && px < pz) { nx = Math.sign(lx) || 1; ny = 0; nz = 0; pen = px + R; }
+    else if (py < pz)        { nx = 0; ny = Math.sign(ly) || 1; nz = 0; pen = py + R; }
+    else                     { nx = 0; ny = 0; nz = Math.sign(lz) || 1; pen = pz + R; }
+  } else {
+    if (d >= R) return null;
+    nx /= d; ny /= d; nz /= d; pen = R - d;
+  }
+  return { n: [nx*c.cs + nz*c.sn, ny, -nx*c.sn + nz*c.cs], pen };
+}
+// Alle Kugeln der Hitbox gegen ein Hindernis. true = Absturz.
+export function collide(c, h) {
+  const s = game.sim, reach = Math.max(PHYS.radius, PHYS.arm + PHYS.m.R) + 0.05;
+  if (Math.abs(s.p[1] - c.c[1]) > c.h[1] + reach) return false;
+  if (Math.hypot(s.p[0] - c.c[0], s.p[2] - c.c[2]) > Math.hypot(c.h[0], c.h[2]) + reach) return false;
+  const hits = [];
+  for (const [x, y, z, rad, rot] of hitbox()) {
+    const r = qRot(s.q, [x, y, z]), hit = sphereBox(vAdd(s.p, r), rad, c);
+    if (hit) hits.push({ n: hit.n, pen: hit.pen, r: vSub(r, vScale(hit.n, rad)), rot });
+  }
+  return resolve(hits, PHYS.crashV*dmgMode().crashK, 'Hindernis getroffen');
+}
+
+// Stoß am Kontaktpunkt (P2): Drohne als starrer Körper mit Masse und Trägheit. Rückprall und Reibung sind Schätzwerte.
+// n: Normale (vom Hindernis weg), pen: Eindringtiefe, r: Kontaktpunkt relativ zur Mitte (Welt), rotor: getroffener Rotor oder -1.
+export const RESTITUTION = 0.3, FRICTION = 0.5;
+export function impact(n, pen, r, rotor, limit, why) {
+  const s = game.sim, q = s.q, qi = [-q[0], -q[1], -q[2], q[3]], I = PHYS.I, m = PHYS.mass + (game.payload || 0);
+  const vc = vAdd(s.v, vCross(qRot(q, s.w), r));   // Geschwindigkeit des Kontaktpunkts
+  const vn = vDot(vc, n);
+  s.p = vAdd(s.p, vScale(n, pen));                  // aus dem Hindernis schieben
+  if (vn >= 0) return false;                         // trennt sich schon
+  if (-vn > limit) { crash(why); return true; }
   damage(n, -vn, 0.15);
-  s.p = vAdd(s.p, vScale(n, pen));
-  if (vn < 0) s.v = vSub(s.v, vScale(n, vn));
-  s.v = vScale(s.v, Math.max(0, 1 - 3*h));
+  const k = dmgMode().k;
+  if (rotor >= 0 && k && -vn > 1.5) s.hp[rotor] = Math.max(0, s.hp[rotor] - k*vn*vn*0.6);   // getroffener Propeller mehr
+  const Iinv = x => { const b = qRot(qi, x); return qRot(q, [b[0]/I[0], b[1]/I[1], b[2]/I[2]]); };   // I⁻¹ in Weltkoordinaten
+  const eff = d => 1/m + vDot(d, vCross(Iinv(vCross(r, d)), r));
+  const e = -vn > 0.5 ? RESTITUTION : 0;            // langsam: kein Rückprall (ruhiges Aufliegen)
+  let J = vScale(n, -(1 + e)*vn/eff(n));
+  const vt = vSub(vc, vScale(n, vn)), vtl = vLen(vt);
+  if (vtl > 1e-6) { const t = vScale(vt, -1/vtl); J = vAdd(J, vScale(t, Math.min(FRICTION*vLen(J), vtl/eff(t)))); }
+  s.v = vAdd(s.v, vScale(J, 1/m));
+  const dw = qRot(qi, Iinv(vCross(r, J)));          // Drehstoß, zurück ins Körpersystem
+  for (let i = 0; i < 3; i++) s.w[i] += dw[i];
   return false;
+}
+// Berührung einer Szenario-Fläche (Ring) mit Normale n: Stoß am Rand der Drohne
+export function contact(n, pen, h) {
+  return impact(n, pen, vScale(n, -PHYS.radius*0.6), -1, PHYS.crashV*dmgMode().crashK, 'Hindernis getroffen');
 }
 
 export function checkGate(a, b) {

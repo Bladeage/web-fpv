@@ -243,10 +243,11 @@ Wunsch des Nutzers vom 30.10.2026.
 
 **Abnahme:** Tests für Schub über Drehzahl gegen die Tabelle, Schubverlust im Steigflug, Bodeneffekt, Bremsweg; Nutzer fliegt.
 
-## P2: Kollision und Turtle-Modus (mittel)
+## P2: Kollision (Teil 1 erledigt) und Turtle-Modus (zurückgestellt)
 
 - Abprallen mit Drehimpuls aus Stoßpunkt und Normale; Schaden wie E4.
-- Turtle-Modus: umgedrehte Drohne am Boden mit Motoren wieder umdrehen (Schalter oder Taste).
+- Erledigt: Hitbox aus 4 Füßen, Rahmen und 4 Propellerkreisen; Stoß am Kontaktpunkt mit Masse und Trägheit (Rückprall 30 %, Reibung 0,5, Schätzwerte); ein gemeinsamer Stoß je Hindernis; harte Treffer bleiben Absturz; Hinweis UMGEDREHT.
+- Zurückgestellt (Nutzer, 02.11.2026): Turtle-Modus. Umgedreht liegen bleiben heißt vorerst Neustart mit R.
 
 ## P3: Sensoren und Umwelt (mittel)
 

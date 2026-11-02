@@ -34,3 +34,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 26 | 02.11.2026 | M3 umsetzen. | M3 |
 | 27 | 02.11.2026 | Neue Regel: Jeden Prompt gestrafft in einer Prompt-Historie im Repository ablegen, rückwirkend ab dem ersten. | Diese Datei, Regel in `CLAUDE.md` |
 | 28 | 02.11.2026 | P2 vor der Umsetzung noch einmal erklären. | Erklärung P2, Entscheidungsvorschläge |
+| 29 | 02.11.2026 | P2: Abprallen mit Drehung und genauere Hitbox umsetzen. Turtle-Modus nach hinten stellen, stattdessen andere Weiterentwicklung. | P2 Teil 1 |

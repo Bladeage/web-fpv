@@ -248,6 +248,10 @@ export function drawHud() {
     c.font = fsb;
     if (game.banner.sub) txt(game.banner.sub, W/2, H*0.38 + fs*1.6, 'center', '#ffffff');
   }
+  if (game.state === 'fly' && s.flippedT > 1) {   // umgedreht liegen geblieben (Turtle-Modus gibt es noch nicht)
+    txt('UMGEDREHT', W/2, H/2 - fs*2, 'center', RED);
+    txt(gp.connected ? 'Taste an der Funke oder R für Neustart' : touchUI ? 'Neustart-Knopf oben' : 'R für Neustart', W/2, H/2 - fs*0.6, 'center', '#ffffff');
+  }
   if (!game.armed && game.state === 'fly') txt('DISARMED', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.62, 'center', '#ffffff');
   else if (game.state === 'fly' && s.t < 6 && s.grounded && game.throttle < 0.2) {

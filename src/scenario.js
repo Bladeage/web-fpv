@@ -207,14 +207,15 @@ function checkLanding(a, b, h) {
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const onPad = s.p[1] - PHYS.radius < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
   if (onPad && !st.onPad && st.takeoff !== null) {
-    st.hard = vLen(st.vPrev) > diff().landV;
-    if (st.hard) say('Zu hart aufgesetzt', 1.5);
+    const hard = vLen(st.vPrev) > diff().landV;
+    st.hard = st.hard || hard;   // einmal zu hart bleibt zu hart, bis die Drohne wieder abhebt
+    if (hard) say('Zu hart aufgesetzt', 1.5);
   }
   if (onPad && !st.hard && st.takeoff !== null && vLen(s.v) < 0.3) {
     st.hold += h;
     if (st.hold >= LAND_HOLD) finish(s.t - st.takeoff);
   } else st.hold = 0;
-  if (!onPad) st.hard = false;
+  if (s.p[1] - PHYS.radius > 0.2) st.hard = false;   // nach hartem Aufsetzen erst wieder abheben (Abpraller zählen nicht)
   st.onPad = onPad; st.vPrev = s.v.slice();
 }
 
