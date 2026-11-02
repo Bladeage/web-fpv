@@ -7,8 +7,8 @@ import { toggleCam } from './render.js';
 import { audioInit } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
-import { DRONES, applyDrone, presetMass } from './drone.js';
-import { PHYS, DMG } from './physics.js';
+import { DRONES, applyDrone, presetMass, presetTwr } from './drone.js';
+import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, osdOn } from './osd.js';
 
 export const $ = id => document.getElementById(id);
@@ -24,7 +24,7 @@ function addChoice(box, label, info, onClick) {
   b.addEventListener('click', onClick); box.appendChild(b);
   return b;
 }
-const droneVal = k => cfg.drone[k] ?? (DRONES[cfg.drone.preset] || DRONES['5'])[k];
+const droneVal = k => cfg.drone[k] ?? (k === 'twr' ? presetTwr(DRONES[cfg.drone.preset] || DRONES['5']) : (DRONES[cfg.drone.preset] || DRONES['5'])[k]);
 
 export function setMode(m) {
   cfg.mode = m; saveCfg();
@@ -45,7 +45,7 @@ export function syncMenu() {
   const pm = presetMass(DRONES[cfg.drone.preset] || DRONES['5']), mass = cfg.drone.mass ?? pm;
   $('mass').value = Math.round(mass*1000); $('massV').textContent = Math.round(mass*1000) + ' g';
   applyDrone(cfg.drone);   // nur zur Anzeige der Trägheit; beim Start wird ohnehin neu angewendet
-  $('droneInfo').textContent = 'Trägheit Nicken/Gieren/Rollen: ' + PHYS.I.map(x => (x*1e4).toFixed(1)).join(' / ') + ' kg·cm²';
+  $('droneInfo').textContent = 'Schub zu Gewicht ' + PHYS.twr.toFixed(1) + ', Schweben bei ' + Math.round(hoverThrottle()*100) + ' % Gas. Trägheit Nicken/Gieren/Rollen: ' + PHYS.I.map(x => (x*1e4).toFixed(1)).join(' / ') + ' kg·cm²';
   $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh';
   press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
   $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';

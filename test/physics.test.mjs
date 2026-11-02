@@ -3,7 +3,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, gates, GATE_IN } from '../src/world.js';
-import { PHYS, BAT, STEP, step, respawn } from '../src/physics.js';
+import { PHYS, BAT, STEP, step, respawn, hoverThrottle, motorSteady } from '../src/physics.js';
 
 buildWorld();
 
@@ -15,19 +15,9 @@ function run(seconds) {
 // Drohne in der Luft absetzen, Motoren schon auf Drehzahl.
 function airborne(p, thr) {
   const s = game.sim;
-  s.p = p.slice(); s.grounded = false; s.thr = thr; s.mot = [thr, thr, thr, thr]; game.throttle = thr;
+  const w = motorSteady(thr, BAT.cells*4.15);   // Motoren schon auf Drehzahl
+  s.p = p.slice(); s.grounded = false; s.om = [w, w, w, w]; game.throttle = thr;
 }
-// Gas, bei dem der Schub die Schwerkraft gerade ausgleicht (voller Akku, gerade Lage).
-function hoverThrottle() {
-  let thr = 0.25;
-  for (let i = 0; i < 30; i++) {
-    const amp = 1 + 95*Math.pow(thr, 1.6);
-    const vpack = BAT.cells*4.2 - amp*(BAT.ri + BAT.r2);   // eingeschwungener Spannungseinbruch
-    thr = 1/(PHYS.twr*Math.min(Math.max((vpack/BAT.vnom)**2, 0.3), 2.5));
-  }
-  return thr;
-}
-
 beforeEach(() => {
   cfg.mode = 'angle'; cfg.rate = 450;
   respawn();
@@ -38,7 +28,6 @@ test('Schwebegas: nach 3 s ist die Steiggeschwindigkeit nahe 0', () => {
   const thr = hoverThrottle();
   assert.ok(thr > 0.15 && thr < 0.35, 'Schwebegas ' + thr);
   airborne([0, 5, 0], thr);
-  game.sim.vrc = (1 + BAT.amax*Math.pow(thr, 1.6))*BAT.r2;   // Akku schon eingeschwungen
   run(3);
   assert.equal(game.state, 'fly');
   assert.ok(Math.abs(game.sim.v[1]) < 0.1, 'vy = ' + game.sim.v[1]);
@@ -89,9 +78,8 @@ test('Akku verbraucht Strom', () => {
   airborne([0, 5, 0], 0.5);
   run(3);
   const s = game.sim;
-  const amp = 1 + 95*Math.pow(0.5, 1.6);   // Strommodell bei halbem Gas
-  assert.ok(Math.abs(s.amp - amp) < 1e-9, 'Strom ' + s.amp);
-  assert.ok(Math.abs(s.mah - amp*3/3.6) < 0.5, 'mAh ' + s.mah);
+  assert.ok(s.amp > 20 && s.amp < 120, 'Strom bei halbem Gas ' + s.amp);
+  assert.ok(s.mah > 20 && s.mah < 100, 'mAh ' + s.mah);
   assert.ok(s.cellRest < 4.2, 'Ruhespannung sinkt');
   assert.ok(s.vpack < BAT.cells*s.cellRest, 'Spannung bricht unter Last ein');
 });
@@ -121,7 +109,6 @@ test('LiPo: 6S gibt mehr Schub als 4S, sonst gleich', () => {
 test('Physik 2.0: Schweben ist 10 s stabil, ohne Aufschwingen', () => {
   const thr = hoverThrottle();
   airborne([0, 20, 0], thr);
-  game.sim.vrc = (1 + BAT.amax*Math.pow(thr, 1.6))*BAT.r2;
   let maxRate = 0;
   for (let i = 0; i < 240*10; i++) { step(STEP); if (i > 240) maxRate = Math.max(maxRate, Math.hypot(...game.sim.w)); }
   const up = game.sim.q;
@@ -173,7 +160,6 @@ test('Physik 2.0: Vollgas und voller Rollbefehl, mindestens ein Motor unter 100 
 test('Schaden: beschädigter Rotor wird ausgeglichen, solange Reserve da ist', () => {
   const thr = hoverThrottle();
   airborne([0, 20, 0], thr);
-  game.sim.vrc = (1 + BAT.amax*Math.pow(thr, 1.6))*BAT.r2;
   game.sim.hp[0] = 0.6;
   // Pilot gleicht die Höhe mit dem Gas aus (wie in echt; die Flugsteuerung regelt nur die Lage)
   for (let i = 0; i < 240*5 && game.state === 'fly'; i++) {

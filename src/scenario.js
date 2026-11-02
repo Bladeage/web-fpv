@@ -117,7 +117,7 @@ function checkLanding(a, b, h) {
   const s = game.sim;
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
-  const onPad = s.grounded && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
+  const onPad = s.p[1] - PHYS.radius < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
   if (onPad && !st.onPad && st.takeoff !== null) {
     st.hard = vLen(st.vPrev) > diff().landV;
     if (st.hard) say('Zu hart aufgesetzt', 1.5);

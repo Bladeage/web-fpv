@@ -1,8 +1,8 @@
 // Drohnen-Vorlagen: 5 Zoll entspricht Stufe 1, andere Vorlagen ändern Schub und Akku.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PHYS, BAT } from '../src/physics.js';
-import { DRONES, applyDrone } from '../src/drone.js';
+import { PHYS, BAT, hoverThrottle } from '../src/physics.js';
+import { DRONES, applyDrone, presetTwr } from '../src/drone.js';
 
 const legacy = { PHYS: { ...PHYS }, BAT: { ...BAT } };
 
@@ -14,20 +14,19 @@ test('5-Zoll-Vorlage lässt die Werte aus Stufe 1 unverändert', () => {
 
 test('Vorlagen und eigene Werte wirken auf Physik und Akku', () => {
   applyDrone({ preset: '7' });
-  assert.equal(BAT.cells, 6); assert.equal(BAT.cap, 3000); assert.equal(PHYS.twr, DRONES['7'].twr);
-  assert.ok(Math.abs(BAT.vnom - 23.7) < 1e-9);
+  assert.equal(BAT.cells, 6); assert.equal(BAT.cap, 3000);
+  assert.ok(Math.abs(PHYS.twr - presetTwr(DRONES['7'])) < 3, 'Schub zu Gewicht nahe Prüfstandswert: ' + PHYS.twr);
   applyDrone({ preset: '3', twr: 5, cap: 1000, cells: 6 });
-  assert.equal(PHYS.twr, 5); assert.equal(BAT.cap, 1000); assert.equal(BAT.cells, 6);
-  assert.equal(PHYS.drag2, DRONES['3'].drag2);
+  assert.ok(Math.abs(PHYS.twr - 5) < 0.1, 'eigener Schub ' + PHYS.twr);   // angenähert, siehe applyDrone
+  assert.equal(BAT.cap, 1000); assert.equal(BAT.cells, 6);
+  assert.equal(PHYS.cdaT, DRONES['3'].cdaT);
   applyDrone({ preset: '5' });
 });
 
 test('Schwebegas aller Vorlagen liegt zwischen 10 % und 50 %', () => {
   for (const id of Object.keys(DRONES)) {
     applyDrone({ preset: id });
-    const amp = 1 + BAT.amax*Math.pow(0.3, 1.6);   // Strom bei etwa Schwebegas
-    const vf = Math.min(Math.max(((BAT.cells*4.2 - amp*(BAT.ri + BAT.r2))/BAT.vnom)**2, 0.3), 2.5);
-    const hover = 1/(PHYS.twr*vf);
+    const hover = hoverThrottle();
     assert.ok(hover > 0.1 && hover < 0.5, id + ': ' + hover);
   }
   applyDrone({ preset: '5' });

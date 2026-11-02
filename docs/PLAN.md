@@ -234,7 +234,7 @@ Wunsch des Nutzers vom 30.10.2026.
 - Test: Hindernisse (Lage und Größe) gleich wie in der Referenz aus E0.
 - Bildrate wie bei G1 gemessen.
 
-## P1: Motor und Aerodynamik (groß)
+## P1: Motor und Aerodynamik (erledigt)
 
 - Motor mit KV, Innenwiderstand, Leerlaufstrom; Drehzahl aus Spannung und Last; Schub und Moment ~ Drehzahl².
 - Kalibrierung auf veröffentlichte Prüfstandsdaten (z. B. 2207-Motor mit 5-Zoll-Propeller), Quellen im Code.

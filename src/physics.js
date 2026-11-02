@@ -9,10 +9,7 @@ import { fmtTime } from './format.js';
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
   g: 9.81,
-  twr: 4.2,        // Schub-zu-Gewicht bei Vollgas
-  spool: 0.035,    // Motor-Reaktionszeit in s
-  drag1: 0.12,     // linearer Luftwiderstand (1/s)
-  drag2: 0.035,    // quadratischer Luftwiderstand (1/m)
+  spool: 0.035,    // Hochlaufzeit des Motors um den Schwebepunkt in s (bestimmt die Drehträgheit J)
   radius: 0.15,    // Kollisionsradius in m
   crashV: 5.5,     // Aufprallgeschwindigkeit für Absturz in m/s
   rateTau: 0.04,   // nur Stufe 1: Reaktionszeit der Drehrate in s (seit Physik 2.0 ungenutzt)
@@ -24,11 +21,20 @@ export const PHYS = {
   mMotor: 0.035,                          // Motor mit Propeller in kg
   body: [0.25, 0.06, 0.04, 0.12],         // Rahmen und Elektronik: Masse kg, Breite x, Höhe y, Länge z in m
   bat: [0.19, 0.035, 0.035, 0.075, 0.035],// Akku: Masse kg, Maße x y z in m, Höhe über Mitte in m
-  kYaw: 0.012,                            // Gegenmoment der Propeller pro Newton Schub in m
+  // Motor und Propeller (P1). Kalibriert auf einen Prüfstandswert: 2207.5-Motor 2550 KV mit 5-Zoll-Propeller an 4S,
+  // 1691 g Schub bei 53,9 A und 26645 U/min, ca. 16 V (VCI Spark, rcdrone.top). i0 und Steigung sind Schätzungen.
+  motor: { kv: 2550, T_g: 1691, rpm: 26645, amps: 53.9, volts: 16.0, i0: 1.2, propD: 5.1, pitch: 4.3 },
+  idle: 0.05,                             // Motor-Leerlauf im Flug (Anteil), wie Betaflight-Idle
+  cdaF: 0.010, cdaT: 0.035,               // Luftwiderstand mal Fläche von vorn und von oben in m² (Schätzung)
+  kRD: 0.3,                               // Rotorwiderstand: Bremsung je m/s quer zum Rotor bei Schwebedrehzahl, in 1/s (Schätzung, Größenordnung nach RotorPy/Faessler)
+  rho: 1.2,                               // Luftdichte kg/m³
+  kYaw: 0.012,                            // Gegenmoment pro Newton Schub in m (aus dem Motor berechnet)
   rotDamp: 0.002,                         // Luftdämpfung der Drehung in N m s
   kp: [22, 14, 22], ki: [20, 15, 20], iMax: 3,   // Rate-PID je Achse (Nicken, Gieren, Rollen); Ausgang als Winkelbeschleunigung
   size: 1,                                // Modellgröße relativ zu 5 Zoll (Darstellung, Kamera)
-  mass: 0, I: [0, 0, 0], Itune: [0, 0, 0] // aus der Geometrie berechnet (computeInertia)
+  mass: 0, I: [0, 0, 0], Itune: [0, 0, 0],// aus der Geometrie berechnet (computeInertia)
+  twr: 0, thrScale: 1,                    // Schub zu Gewicht bei vollem Akku (berechnet); Faktor für eigenen Schub
+  m: {}                                   // Motorkonstanten (computeMotor)
 };
 // Motoren: x-Seite, z-Seite, Drehrichtung (diagonal gleich, wie Quad-X). Gleiche Reihenfolge wie im Modell.
 export const MOTORS = [[1, -1, -1], [-1, -1, 1], [1, 1, 1], [-1, 1, -1]];
@@ -42,16 +48,45 @@ export function computeInertia() {
   const B = box(mb, bx, by, bz), A = box(ma, ax, ay, az), mm = 4*P.mMotor*a*a;
   P.I = [mm + B[0] + A[0] + ma*ah*ah, 2*mm + B[1] + A[1], mm + B[2] + A[2] + ma*ah*ah];
   P.Itune = P.I.slice();
+  computeMotor();
   return P.I;
 }
-computeInertia();
+
+// Motorkonstanten aus dem Prüfstandswert. Ke = Kt = 60/(2π KV). Schub = kT ω², Propellermoment = kQ ω².
+// Rm (Motor, Regler, Kabel) so, dass Spannung, Strom und Drehzahl zum Prüfstandswert passen.
+export function computeMotor() {
+  const P = PHYS, s = P.motor, m = P.m;
+  m.ke = 60/(2*Math.PI*s.kv);
+  const w = s.rpm*2*Math.PI/60, T = s.T_g/1000*P.g;
+  m.kT = T/(w*w)*P.thrScale;
+  m.kQ = m.ke*(s.amps - s.i0)/(w*w)*P.thrScale;
+  m.rm = (s.volts - m.ke*w)/s.amps;
+  m.i0 = s.i0;
+  m.R = s.propD*0.0254/2; m.A = Math.PI*m.R*m.R; m.pitch = s.pitch*0.0254;
+  m.wHover = Math.sqrt(P.mass*P.g/4/m.kT);
+  m.J = P.spool*(m.ke*m.ke/m.rm + 2*m.kQ*m.wHover);   // Drehträgheit Motor+Propeller aus der Hochlaufzeit
+  P.kYaw = m.kQ/m.kT;
+  P.twr = 4*m.kT*Math.pow(motorSteady(1, BAT.cells*4.2), 2)/(P.mass*P.g);
+}
+// Drehzahl im Gleichgewicht bei Steuerwert u und Akkuspannung V: Motormoment = Propellermoment
+export function motorSteady(u, V) {
+  const m = PHYS.m, b = m.ke*m.ke/m.rm, c = m.ke*u*V/m.rm - m.ke*m.i0;
+  return c <= 0 ? 0 : (-b + Math.sqrt(b*b + 4*m.kQ*c))/(2*m.kQ);
+}
+// Steuerwert, bei dem 4 Motoren das Gewicht tragen (voller Akku, mit Spannungseinbruch). Für Tests und Anzeige.
+export function hoverThrottle() {
+  const m = PHYS.m, w = m.wHover;
+  const I = m.kQ*w*w/m.ke + m.i0;
+  let V = BAT.cells*4.2;
+  for (let i = 0; i < 20; i++) { const u = (m.ke*w + I*m.rm)/V; V = BAT.cells*4.2 - (1 + 4*u*I)*(BAT.ri + BAT.r2); }
+  return (m.ke*w + I*m.rm)/V;
+}
 export const STEP = 1/240;   // feste Physik-Schrittweite
-// Akku (Schätzwerte): Zellen, Kapazität in mAh, Innenwiderstand in Ohm,
-// Strom bei Vollgas über Grundlast in A (amax), Spannung für vollen Schub in V (vnom = Zellen * 3,95).
-// drone.js überschreibt die Werte je Vorlage; hier die 5-Zoll-Vorlage aus Stufe 1.
-export const BAT = { cells: 4, cap: 1500, ri: 0.025, amax: 95, vnom: 15.8, r2: 0.025*0.8, tau: 4 };
+// Akku (Schätzwerte): Zellen, Kapazität in mAh, Innenwiderstand in Ohm. Der Strom kommt aus dem Motormodell.
+// drone.js überschreibt die Werte je Vorlage; hier die 5-Zoll-Vorlage.
+export const BAT = { cells: 4, cap: 1500, ri: 0.016, r2: 0.006, tau: 4 };
+computeInertia();   // nach BAT, weil computeMotor die Akkuspannung braucht
 // r2, tau: RC-Glied für Spannungseinbruch und Erholung (Schätzung: Erholung in einigen Sekunden).
-// vnom: Spannung, für die Motoren und Propeller ausgelegt sind. Schub ~ (Spannung/vnom)^2.
 
 // Ruhespannung einer LiPo-Zelle über dem Ladestand (Schätzwerte aus typischen Entladekurven):
 // steil oben und unten, flach in der Mitte.
@@ -76,7 +111,8 @@ export function respawn() {
     p: [0, PHYS.radius + 0.04, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
-    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
+    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,
+    om: [0, 0, 0, 0], rpm: [0, 0, 0, 0]   // Motordrehzahl in rad/s und U/min   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
   };
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
@@ -114,16 +150,27 @@ export function step(h) {
     tz = -clamp(PHYS.angleK*(inp.roll*maxA - rollA), -8, 8);
     ty = -inp.yaw * PHYS.yawRateAngle * DEG;
   }
-  // 2. Akku: Strom aus der mittleren Motorleistung, Verbrauch, Spannung unter Last
-  s.thr = (s.mot[0] + s.mot[1] + s.mot[2] + s.mot[3])/4;
-  s.amp = 1.0 + BAT.amax*Math.pow(s.thr, 1.6);
-  s.mah += s.amp*h/3.6;
-  s.cellRest = cellOcv(1 - s.mah/BAT.cap);
-  s.vrc += (s.amp*BAT.r2 - s.vrc)*Math.min(1, h/BAT.tau);
-  s.vpack = Math.max(0, BAT.cells*s.cellRest - s.amp*BAT.ri - s.vrc);
-  if (s.thr > 0.05) s.vmin = Math.min(s.vmin, s.vpack);
-  if (s.thr > 0.05) s.flyT += h;
-  const Tm = PHYS.twr*PHYS.mass*PHYS.g/4*clamp((s.vpack/BAT.vnom)**2, 0.3, 2.5);   // Maximalschub je Motor in N
+  const mc = PHYS.m, V = s.vpack, up = qRot(s.q, [0,1,0]);
+  const wFull = motorSteady(1, V) || 1;
+  // 2. Aerodynamik am Rotor (gilt für alle vier gleich, außer Propwash-Rauschen)
+  const vAx = vDot(s.v, up);                                  // Anströmung entlang der Rotorachse (+ = Steigflug)
+  const vPerp = vSub(s.v, vScale(up, vAx)), vHor = vLen(vPerp);
+  const zr = Math.max(s.p[1] - PHYS.radius + 0.04*PHYS.size, mc.R*0.5);   // Rotorhöhe über Grund (Propeller ca. 4 cm über den Kufen)
+  const ge = up[1] > 0.5 ? Math.min(1.4, 1/(1 - (mc.R/(4*zr))**2)) : 1;   // Bodeneffekt (Cheeseman-Bennett)
+  const fac = [0, 0, 0, 0];
+  for (let i = 0; i < 4; i++) {
+    const vp = Math.max(1, s.om[i]/(2*Math.PI)*mc.pitch);    // Steiggeschwindigkeit des Propellers
+    let f = clamp(1 - vAx/vp, 0, 1.15);                       // Steigflug kostet Schub, Sinkflug bringt etwas
+    const T0 = mc.kT*s.om[i]*s.om[i];
+    const vh = Math.sqrt(Math.max(T0, 0.01)/(2*PHYS.rho*mc.A));   // induzierte Geschwindigkeit im Schweben
+    const d = -vAx/vh;                                        // Sinken in den eigenen Abwind (Wirbelring, Propwash)
+    if (d > 0.25 && d < 1.8) {
+      const k = Math.sin(Math.PI*(d - 0.25)/1.55)*clamp(1 - vHor/(1.5*vh), 0, 1);
+      const n = Math.sin(s.t*53 + i*1.7) + Math.sin(s.t*79 + i*2.9);   // unruhiger Schub je Rotor
+      f *= 1 - k*(0.18 + 0.12*n);
+    }
+    fac[i] = f*ge;
+  }
 
   // 3. Rate-PID und Mischer (Quad-X). Am Boden mit wenig Gas: Motoren aus, Regler ruht.
   const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
@@ -133,26 +180,56 @@ export function step(h) {
     if (armed) s.wi[i] = clamp(s.wi[i] + err[i]*h, -PHYS.iMax, PHYS.iMax); else s.wi[i] = 0;
     tau[i] = PHYS.Itune[i]*(PHYS.kp[i]*err[i] + PHYS.ki[i]*s.wi[i]);   // gewünschtes Moment in N m
   }
+  // Schub reagiert nicht linear auf den Steuerwert (T ~ ω²). Steigung dT/du am aktuellen Arbeitspunkt:
+  const wAvg = Math.max(0.5*mc.wHover, (s.om[0] + s.om[1] + s.om[2] + s.om[3])/4);
+  const slope = 2*mc.kT*wAvg*(mc.ke*V/mc.rm)/(mc.ke*mc.ke/mc.rm + 2*mc.kQ*wAvg);   // N je Einheit Steuerwert
   let lo = 1e9, hi = -1e9;
-  const diff = MOTORS.map(([mx, mz, dir]) => ((-mz*a)*tau[0] + (mx*a)*tau[2])/(4*a*a*Tm) + dir*tau[1]/(4*PHYS.kYaw*Tm));
+  const diff = MOTORS.map(([mx, mz, dir]) => ((-mz*a)*tau[0] + (mx*a)*tau[2])/(4*a*a*slope) + dir*tau[1]/(4*PHYS.kYaw*slope));
   for (const d of diff) { lo = Math.min(lo, d); hi = Math.max(hi, d); }
   const k = hi - lo > 1 ? 1/(hi - lo) : 1;   // zu viel verlangt: Lageregelung anteilig kürzen
-  let u = diff.map(d => game.throttle + d*k);
+  let u = diff.map(d => Math.max(PHYS.idle, game.throttle) + d*k);
   const top = Math.max(...u), bot = Math.min(...u);
   if (top > 1) u = u.map(x => x - (top - 1));   // Sättigung oben: alle runter, Lageregelung bleibt (wie Airmode)
   else if (bot < 0) u = u.map(x => x - bot);    // Sättigung unten: alle hoch
+  // 4. Motoren: J dω/dt = Kt (I - I0) - kQ ω², I = (u V - Ke ω)/Rm. Akkustrom = 1 A Grundlast + Σ u I (Regler als Spannungswandler).
+  // Akkuspannung V = E - Ri·Iakku hängt selbst vom Strom ab: direkt gelöst (linear in V), sonst schaukelt es bei hohen Strömen.
+  for (let i = 0; i < 4; i++) s.cmd[i] = armed ? clamp(u[i], 0, 1) : 0;
+  const E = BAT.cells*cellOcv(1 - s.mah/BAT.cap) - s.vrc;
+  let su2 = 0, sue = 0;
+  for (let i = 0; i < 4; i++) { su2 += s.cmd[i]*s.cmd[i]; sue += s.cmd[i]*mc.ke*s.om[i]; }
+  const Vb = Math.max(0, (E - BAT.ri*(1 - sue/mc.rm))/(1 + BAT.ri*su2/mc.rm));
+  let ibat = 1.0;   // Grundlast Elektronik, Kamera, Sender in A (Schätzung)
+  const domega = [0, 0, 0, 0];
   for (let i = 0; i < 4; i++) {
-    s.cmd[i] = armed ? clamp(u[i], 0, 1) : 0;
-    s.mot[i] += (s.cmd[i] - s.mot[i])*Math.min(1, h/PHYS.spool);
+    const I = (s.cmd[i]*Vb - mc.ke*s.om[i])/mc.rm;
+    const q = mc.ke*(I - mc.i0*Math.sign(s.om[i])) - mc.kQ*s.om[i]*s.om[i];
+    domega[i] = q/mc.J;
+    s.om[i] = Math.max(0, s.om[i] + domega[i]*h);
+    ibat += s.cmd[i]*I;
+    s.mot[i] = s.om[i]/wFull;
   }
+  ibat = Math.max(0, ibat);
+  s.thr = (s.mot[0] + s.mot[1] + s.mot[2] + s.mot[3])/4;
+  s.rpm = s.om.map(w => w*60/(2*Math.PI));
+  // Akku: Verbrauch, Spannung unter Last
+  s.amp = ibat;
+  s.mah += s.amp*h/3.6;
+  s.cellRest = cellOcv(1 - s.mah/BAT.cap);
+  s.vrc += (s.amp*BAT.r2 - s.vrc)*Math.min(1, h/BAT.tau);
+  s.vpack = Vb;
+  if (s.thr > 0.05) s.vmin = Math.min(s.vmin, s.vpack);
+  if (s.thr > 0.05) s.flyT += h;
 
-  // 4. Momente und Drehung: I dw/dt = M - w x (I w) - Dämpfung
-  const T = s.mot.map((m, i) => m*Tm*s.hp[i]);
+  // 5. Momente und Drehung: I dw/dt = M - w x (I w) - Dämpfung
+  const T = s.om.map((w, i) => mc.kT*w*w*fac[i]*s.hp[i]);
   let M = [0, 0, 0];
-  MOTORS.forEach(([mx, mz, dir], i) => { M[0] += -mz*a*T[i]; M[2] += mx*a*T[i]; M[1] += dir*PHYS.kYaw*T[i]; });
+  MOTORS.forEach(([mx, mz, dir], i) => {
+    M[0] += -mz*a*T[i]; M[2] += mx*a*T[i];
+    M[1] += dir*(mc.kQ*s.om[i]*s.om[i] + mc.J*domega[i]);   // Propellermoment plus Reaktion beim Beschleunigen
+  });
   // Unwucht beschädigter Propeller: Zittern um Nick- und Rollachse
   let vib = 0;
-  for (let i = 0; i < 4; i++) vib += (1 - s.hp[i])*s.mot[i]*Tm;
+  for (let i = 0; i < 4; i++) vib += (1 - s.hp[i])*mc.kT*s.om[i]*s.om[i];
   s.vib = vib/(PHYS.mass*PHYS.g);
   M[0] += vib*a*0.15*Math.sin(s.t*157); M[2] += vib*a*0.15*Math.cos(s.t*173);
   const I = PHYS.I, w = s.w, Iw = [I[0]*w[0], I[1]*w[1], I[2]*w[2]], gyro = vCross(w, Iw);
@@ -160,11 +237,15 @@ export function step(h) {
   if (!armed) { w[0] = w[1] = w[2] = 0; }
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
-  // 5. Schub, Schwerkraft, Luftwiderstand
-  const up = qRot(s.q, [0,1,0]);
+  // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
+  const upN = qRot(s.q, [0,1,0]);
   const aT = (T[0] + T[1] + T[2] + T[3])/PHYS.mass;
-  const sp = vLen(s.v), dr = PHYS.drag1 + PHYS.drag2*sp;
-  const acc = [up[0]*aT - s.v[0]*dr, up[1]*aT - PHYS.g - s.v[1]*dr, up[2]*aT - s.v[2]*dr];
+  const rd = PHYS.kRD*(s.om[0] + s.om[1] + s.om[2] + s.om[3])/(4*mc.wHover);
+  const sp = vLen(s.v), cAx = sp > 1e-6 ? Math.abs(vAx)/sp : 0;
+  const bd = 0.5*PHYS.rho*(PHYS.cdaF*(1 - cAx) + PHYS.cdaT*cAx)*sp/PHYS.mass;
+  const acc = [0, 0, 0];
+  for (let i = 0; i < 3; i++) acc[i] = upN[i]*aT - vPerp[i]*rd - s.v[i]*bd;
+  acc[1] -= PHYS.g;
   s.v = vAdd(s.v, vScale(acc, h));
   const prev = s.p;
   s.p = vAdd(s.p, vScale(s.v, h));
