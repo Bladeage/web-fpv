@@ -20,6 +20,7 @@ const press = (sel, test) => document.querySelectorAll(sel).forEach(b => b.setAt
 function addChoice(box, label, info, onClick) {
   const b = document.createElement('button'), t = document.createElement('b'), s = document.createElement('span');
   t.textContent = label; s.textContent = info; b.append(t, s);
+  if (!info) s.remove();
   b.addEventListener('click', onClick); box.appendChild(b);
   return b;
 }
@@ -33,7 +34,8 @@ export function syncMenu() {
   setMode(cfg.mode);
   const sc = SCENARIOS.find(x => x.id === cfg.scen);
   press('#scenList button', b => b.dataset.id === cfg.scen);
-  $('courseInfo').textContent = sc.name + ': ' + sc.info;
+  $('courseInfo').textContent = sc.info;
+  $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info;
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt';
@@ -65,6 +67,7 @@ export function syncMenu() {
 }
 export function show(name) {
   screen = name;
+  if (name === 'drone') showFine(false);
   document.querySelectorAll('#menu section').forEach(s => { s.hidden = s.dataset.screen !== name; });
   syncMenu();
   menu.scrollTop = 0;
@@ -85,11 +88,10 @@ function start() {
   respawn(); resume();
 }
 
-for (const x of SCENARIOS) addChoice($('scenList'), x.name, x.info, () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+for (const x of SCENARIOS) addChoice($('scenList'), x.name, '', () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
 for (const [id, d] of Object.entries(DIFF)) addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }).dataset.id = id;
-const DMG_INFO = { off: 'Nur Absturz, wie früher', mild: 'Leichte Treffer beschädigen Rotoren', real: 'Mehr Schaden, früher Absturz' };
-for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, DMG_INFO[id], () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
-for (const [id, d] of Object.entries(DRONES)) addChoice($('droneSeg'), d.name, d.info, () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); }).dataset.id = id;
+for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
+for (const [id, d] of Object.entries(DRONES)) addChoice($('droneSeg'), d.name, '', () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); }).dataset.id = id;
 document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('click', () => { cfg.drone.cells = +b.dataset.cells; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
@@ -164,6 +166,20 @@ export function updGpUI() {
 buildGpRows();
 document.querySelectorAll('#menu [data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)));
 $('go').addEventListener('click', () => show('mode'));
+// Drohne: Feinwerte als eigene Ansicht statt der Vorlagen
+function showFine(on) {
+  document.querySelector('section[data-screen=drone] .basic').hidden = on;
+  document.querySelector('section[data-screen=drone] .fine').hidden = !on;
+  $('bFine').textContent = on ? '‹ Zurück zu Vorlage und Flugmodus' : 'Feinwerte ändern ›';
+}
+$('bFine').addEventListener('click', () => showFine(document.querySelector('section[data-screen=drone] .fine').hidden));
+// Reiter in den Einstellungen
+function showTab(id) {
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
+  document.querySelectorAll('.tabpane').forEach(p => { p.hidden = p.dataset.pane !== id; });
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+showTab('general');
 $('bResume').addEventListener('click', resume);
 $('bStart').addEventListener('click', start);
 $('bBack').addEventListener('click', back);

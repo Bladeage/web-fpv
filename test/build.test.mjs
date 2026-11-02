@@ -24,7 +24,7 @@ test('Build erzeugt fpvsim.html und fpvsim.aspx', (t) => {
   // ASPX: reines ASCII, kein "<%", CRLF
   assert.ok(aspx.every(b => b < 128), 'nur ASCII');
   assert.ok(!aspx.toString('ascii').includes('<%'));
-  assert.match(aspx.toString('ascii'), /Motorger&#xE4;usch/);
+  assert.match(aspx.toString('ascii'), /N&#xF6;tige Treffer/);
   assert.match(aspx.toString('ascii'), /'Zeit l\\u00E4uft'/);
 });
 
@@ -46,5 +46,7 @@ test('Konverter liefert dasselbe wie tools/to_aspx.py', (t) => {
   const html = build(join(dir, 'dist')).html;
   writeFileSync(join(dir, 'in.html'), html, 'utf8');
   execFileSync(py, [new URL('../tools/to_aspx.py', import.meta.url).pathname, join(dir, 'in.html'), join(dir, 'out.aspx')]);
-  assert.ok(readFileSync(join(dir, 'out.aspx')).equals(Buffer.from(toAspx(html), 'ascii')));
+  // Python ersetzt Umlaute im <style> als HTML-Entity (in CSS falsch); der Node-Port nutzt CSS-Escapes. Style-Block ausnehmen.
+  const noStyle = t => t.replace(/<style>[\s\S]*?<\/style>/, '<style></style>');
+  assert.equal(noStyle(readFileSync(join(dir, 'out.aspx'), 'ascii')), noStyle(toAspx(html)));
 });

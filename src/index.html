@@ -29,113 +29,119 @@
     </section>
 
     <section data-screen="mode" hidden>
-      <p class="stepno">Schritt 1 von 3</p>
+      <p class="stepno">Schritt 1 von 2</p>
       <h1>Modus</h1>
-      <div class="list" id="scenList"></div>
-      <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="course">Weiter</button></div>
-    </section>
-
-    <section data-screen="course" hidden>
-      <p class="stepno">Schritt 2 von 3</p>
-      <h1>Parcours</h1>
+      <div class="list grid2" id="scenList"></div>
       <p class="hint" id="courseInfo"></p>
       <div id="courseOpts">
-        <h2>Schwierigkeit</h2>
-        <div class="seg seg3" id="diffSeg"></div>
+        <div class="seg seg3 small" id="diffSeg"></div>
         <div id="huntOpts">
           <label class="row" for="huntX"><span>Nötige Treffer</span><output id="huntXV"></output></label>
           <input type="range" id="huntX" min="1" max="6" step="1">
         </div>
       </div>
-      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
+      <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
     </section>
 
     <section data-screen="drone" hidden>
-      <p class="stepno">Schritt 3 von 3</p>
+      <p class="stepno">Schritt 2 von 2</p>
       <h1>Drohne</h1>
-      <div class="seg" id="droneSeg"></div>
-      <p class="hint" id="droneInfo"></p>
-      <label class="row" for="twr"><span>Schub zu Gewicht</span><output id="twrV"></output></label>
-      <input type="range" id="twr" min="2" max="6" step="0.1">
-      <label class="row" for="mass"><span>Gewicht</span><output id="massV"></output></label>
-      <input type="range" id="mass" min="20" max="1500" step="5">
-      <label class="row" for="cap"><span>Akku-Kapazität</span><output id="capV"></output></label>
-      <input type="range" id="cap" min="200" max="5000" step="50">
-      <h2>Akku-Zellen</h2>
-      <div class="seg seg3" id="cellSeg"><button data-cells="1"><b>1S</b><span>3,7 V</span></button><button data-cells="4"><b>4S</b><span>14,8 V</span></button><button data-cells="6"><b>6S</b><span>22,2 V</span></button></div>
-      <label class="row" for="batWarn"><span>Warnung ab (pro Zelle)</span><output id="batWarnV"></output></label>
-      <input type="range" id="batWarn" min="3.3" max="3.8" step="0.05">
-      <label class="row" for="batMin"><span>Minimum (pro Zelle)</span><output id="batMinV"></output></label>
-      <input type="range" id="batMin" min="3.0" max="3.5" step="0.05">
-      <h2>Flugmodus</h2>
-      <div class="seg" id="modeSeg">
-        <button data-mode="angle"><b>Angle</b><span>Richtet sich selbst gerade aus. Gut zum Einstieg.</span></button>
-        <button data-mode="acro"><b>Acro</b><span>Knüppel steuert die Drehrate. So fliegen FPV-Piloten.</span></button>
+      <div class="basic">
+        <div class="list grid2" id="droneSeg"></div>
+        <p class="hint" id="droneHint"></p>
+        <div class="seg small" id="modeSeg">
+          <button data-mode="angle"><b>Angle</b></button>
+          <button data-mode="acro"><b>Acro</b></button>
+        </div>
+        <p class="hint">Angle richtet sich selbst gerade aus. Acro: Knüppel steuert die Drehrate.</p>
       </div>
-      <label class="row" for="rate"><span>Max. Drehrate im Acro-Modus</span><output id="rateV"></output></label>
-      <input type="range" id="rate" min="200" max="900" step="10">
-      <p class="hint">Alle Werte sind Schätzungen. Mehr Gewicht macht die Drohne träger; der Regler wird darauf abgestimmt.</p>
-      <div class="nav"><button class="secondary" data-go="course">Zurück</button><button class="primary" id="bStart">Start</button></div>
+      <button class="linkbtn" id="bFine">Feinwerte ändern ›</button>
+      <div class="fine" hidden><div class="sliders">
+        <div>
+        <label class="row" for="twr"><span>Schub zu Gewicht</span><output id="twrV"></output></label>
+        <input type="range" id="twr" min="2" max="6" step="0.1">
+        </div>
+        <div>
+        <label class="row" for="mass"><span>Gewicht</span><output id="massV"></output></label>
+        <input type="range" id="mass" min="20" max="1500" step="5">
+        </div>
+        <div>
+        <label class="row" for="cap"><span>Akku-Kapazität</span><output id="capV"></output></label>
+        <input type="range" id="cap" min="200" max="5000" step="50">
+        </div>
+        <div><span class="row">Akku-Zellen</span><div class="seg seg3 small" id="cellSeg"><button data-cells="1"><b>1S</b></button><button data-cells="4"><b>4S</b></button><button data-cells="6"><b>6S</b></button></div></div>
+        <div>
+        <label class="row" for="batWarn"><span>Warnung ab (pro Zelle)</span><output id="batWarnV"></output></label>
+        <input type="range" id="batWarn" min="3.3" max="3.8" step="0.05">
+        </div>
+        <div>
+        <label class="row" for="batMin"><span>Minimum (pro Zelle)</span><output id="batMinV"></output></label>
+        <input type="range" id="batMin" min="3.0" max="3.5" step="0.05">
+        </div>
+        <div>
+        <label class="row" for="rate"><span>Max. Drehrate (Acro)</span><output id="rateV"></output></label>
+        <input type="range" id="rate" min="200" max="900" step="10">
+        </div>
+        </div>
+        <p class="hint" id="droneInfo"></p>
+        <p class="hint">Alle Werte sind Schätzungen. Mehr Gewicht macht die Drohne träger.</p>
+      </div>
+      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" id="bStart">Start</button></div>
     </section>
 
     <section data-screen="settings" hidden>
       <h1>Einstellungen</h1>
-      <label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
-      <input type="range" id="tilt" min="0" max="50" step="1">
-
-      <label class="check"><input type="checkbox" id="sound"> Motorgeräusch</label>
-      <label class="check"><input type="checkbox" id="propsView"> Propeller im Kamerabild</label>
-
-      <h2>Schadmodell</h2>
-      <div class="seg seg3" id="dmgSeg"></div>
-
-      <h2>Grafik</h2>
-      <div class="seg" id="gfxSeg">
-        <button data-gfx="nice"><b>Schön</b><span>Licht, Schatten am Boden, Dunst</span></button>
-        <button data-gfx="simple"><b>Einfach</b><span>Schneller auf schwachen PCs</span></button>
+      <div class="tabs" role="tablist">
+        <button data-tab="general">Allgemein</button><button data-tab="radio">Funke</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
       </div>
-
-      <h2>Bildmodus</h2>
-      <div class="seg seg3" id="videoSeg">
-        <button data-video="analog"><b>Analog</b><span>Rauschen, Streifen bei schwachem Empfang</span></button>
-        <button data-video="digital"><b>Digital</b><span>Klötzchen und Standbild bei schwachem Empfang</span></button>
-        <button data-video="clean"><b>Ohne</b><span>Sauberes Bild</span></button>
+      <div class="tabpane" data-pane="general">
+        <label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
+        <input type="range" id="tilt" min="0" max="50" step="1">
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="sound"> Ton</label>
+          <label class="check"><input type="checkbox" id="propsView"> Propeller im Bild</label>
+        </div>
+        <h2>Bild</h2>
+        <div class="seg seg3 small" id="videoSeg">
+          <button data-video="analog"><b>Analog</b></button>
+          <button data-video="digital"><b>Digital</b></button>
+          <button data-video="clean"><b>Ohne</b></button>
+        </div>
+        <h2>Grafik</h2>
+        <div class="seg small" id="gfxSeg">
+          <button data-gfx="nice"><b>Schön</b></button>
+          <button data-gfx="simple"><b>Einfach</b></button>
+        </div>
+        <h2>Schaden</h2>
+        <div class="seg seg3 small" id="dmgSeg"></div>
       </div>
-
-      <details>
-        <summary>OSD-Anzeigen</summary>
+      <div class="tabpane" data-pane="radio" hidden>
+        <p class="gpstat" id="gpStat"></p>
+        <select id="gpPreset" aria-label="Belegung">
+          <option value="auto">Belegung: automatisch</option>
+          <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
+          <option value="gamepad">Gamepad (Xbox-Layout)</option>
+          <option value="custom">Eigene Zuordnung</option>
+        </select>
+        <div id="gpRows"></div>
+        <p class="hint">Funke per USB anstecken, „USB Joystick (HID)“ wählen, Knüppel bewegen. Falsch herum? Haken bei „umkehren“.</p>
+      </div>
+      <div class="tabpane" data-pane="osd" hidden>
         <div class="osdgrid" id="osdList"></div>
-      </details>
-
-      <h2>Funke oder Gamepad</h2>
-      <p class="gpstat" id="gpStat"></p>
-      <label class="row" for="gpPreset" style="margin-top:4px"><span>Belegung</span></label>
-      <select id="gpPreset">
-        <option value="auto">Automatisch</option>
-        <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
-        <option value="gamepad">Gamepad (Xbox-Layout)</option>
-        <option value="custom">Eigene Zuordnung</option>
-      </select>
-      <div id="gpRows"></div>
-      <p class="hint">RadioMaster: Funke per USB anstecken und am Funkgerät „USB Joystick (HID)“ wählen. Dann einen Knüppel bewegen. Wirkt ein Knüppel falsch herum, Haken bei „umkehren“ setzen.</p>
-
-      <details>
-        <summary>Steuerung</summary>
-        <p>Belegung wie bei einer Funke im Mode 2.</p>
+      </div>
+      <div class="tabpane" data-pane="help" hidden>
         <div class="keys">
-          <kbd>W / S</kbd><span>Gas mehr / weniger. Der Wert bleibt stehen.</span>
+          <kbd>W / S</kbd><span>Gas mehr / weniger</span>
           <kbd>A / D</kbd><span>Gieren links / rechts</span>
-          <kbd>↑ / ↓</kbd><span>Nicken: Nase runter / Nase hoch</span>
+          <kbd>↑ / ↓</kbd><span>Nase runter / hoch</span>
           <kbd>← / →</kbd><span>Rollen links / rechts</span>
           <kbd>R</kbd><span>Neustart</span>
-          <kbd>V</kbd><span>Kamera: Drohne / Verfolger</span>
-          <kbd>M</kbd><span>Flugmodus wechseln</span>
-          <kbd>P / Esc</kbd><span>Einstellungen öffnen und schließen</span>
+          <kbd>V</kbd><span>Kamera wechseln</span>
+          <kbd>M</kbd><span>Angle / Acro</span>
+          <kbd>Esc / P</kbd><span>Einstellungen</span>
         </div>
-        <p><b>Touch:</b> Linker Daumen hoch und runter ist Gas, seitlich ist Gieren. Rechter Daumen steuert Nicken und Rollen. Beim Loslassen bleibt das Gas stehen. Alles andere geht auf Mitte.</p>
-        <p><b>Ziel:</b> Hängt vom Modus ab. Das nächste Ziel leuchtet grün, der grüne Marker zeigt die Richtung.</p>
-        <p><b>Tipp:</b> Schweben braucht beim 5-Zoll etwa ein Viertel Gas. R setzt Drohne und Akku zurück.</p>
-      </details>
+        <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
+      </div>
       <div class="nav"><button class="secondary" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Zurück</button></div>
     </section>
   </div>
