@@ -18,6 +18,23 @@ Offene Details mit Vorschlag (gelten, bis der Nutzer anders entscheidet):
 | Wertung | 1 Punkt pro Treffer. Wertung ist die Zeit bis zur erfüllten Aufgabe. Bestzeit je Szenario. |
 | Eigener Absturz im Szenario | Versuch endet. Neustart setzt alles zurück. |
 
+## Entscheidungen Physik und Realitätsnähe (02.11.2026)
+
+Vom Nutzer in drei Runden entschieden:
+
+| Frage | Entscheidung |
+|---|---|
+| Grundrichtung | Echtes Betaflight als WebAssembly steuert die Drohne. Der eigene Regler bleibt als Rückfall („Einfach“). |
+| Lizenz | GPLv3 für das ganze Projekt ist in Ordnung (LICENSE kommt mit P4). |
+| Betaflight-Quelle | Selbst bauen: fester Betaflight-Stand, mit Emscripten in der CI kompiliert. |
+| Einbettung | WASM als Base64 in die eine Datei (html und aspx bleiben je eine ASCII-Datei). |
+| Motormodell | Drehzahl-Modell (KV, Spannung, Strom, Schub und Moment ~ Drehzahl²). |
+| Aerodynamik | Schub sinkt mit Anströmung (inkl. Propwash), Rotorwiderstand, Widerstand nach Lage, Bodeneffekt. |
+| Sensoren und Umwelt | Kreiselrauschen mit Motorvibration, Bild- und Funkverzögerung, Wind und Böen, Turtle-Modus. |
+| Kollision | Abprallen mit Drehimpuls statt nur Gleiten. |
+| Reihenfolge | Erst Motor und Aerodynamik, dann Betaflight. |
+| Prüfung | Kalibrierung auf Datenblätter und Prüfstandsdaten; der Nutzer fliegt mit Funke und gibt Rückmeldung. |
+
 ## Abhängigkeiten
 
 ```
@@ -216,3 +233,34 @@ Wunsch des Nutzers vom 30.10.2026.
 - Sichtprüfung: Vorher-Nachher-Bilder.
 - Test: Hindernisse (Lage und Größe) gleich wie in der Referenz aus E0.
 - Bildrate wie bei G1 gemessen.
+
+## P1: Motor und Aerodynamik (groß)
+
+- Motor mit KV, Innenwiderstand, Leerlaufstrom; Drehzahl aus Spannung und Last; Schub und Moment ~ Drehzahl².
+- Kalibrierung auf veröffentlichte Prüfstandsdaten (z. B. 2207-Motor mit 5-Zoll-Propeller), Quellen im Code.
+- Schub abhängig von der Anströmung durch den Rotor; Sinkflug in den eigenen Abwind wird unruhig (Propwash, vereinfacht).
+- Rotorwiderstand je Rotor (~ Geschwindigkeit × Drehzahl, nach RotorPy), Rumpfwiderstand je nach Lage, Bodeneffekt.
+
+**Abnahme:** Tests für Schub über Drehzahl gegen die Tabelle, Schubverlust im Steigflug, Bodeneffekt, Bremsweg; Nutzer fliegt.
+
+## P2: Kollision und Turtle-Modus (mittel)
+
+- Abprallen mit Drehimpuls aus Stoßpunkt und Normale; Schaden wie E4.
+- Turtle-Modus: umgedrehte Drohne am Boden mit Motoren wieder umdrehen (Schalter oder Taste).
+
+## P3: Sensoren und Umwelt (mittel)
+
+- Kreisel mit Rauschen und Motorvibration (für die echten Betaflight-Filter in P4).
+- Bildverzögerung (analog ca. 20 ms, digital 25 bis 40 ms) und Funkverzögerung nach Paketrate (Schätzungen).
+- Wind und Böen, stärker in der Höhe, im Menü einstellbar.
+
+## P4: Betaflight als WebAssembly (groß)
+
+- Fester Betaflight-Stand (4.5.x), Emscripten-Build in der CI, Anbindung: Kreisel/Beschleunigung rein, Motorbefehle raus.
+- Base64-Einbettung in fpvsim.html und fpvsim.aspx; Größe messen und im Bericht nennen.
+- LICENSE (GPLv3) ins Repo. Eigener Regler bleibt als Rückfall, Auswahl im Menü.
+- Turtle-Modus dann über Betaflight selbst.
+
+## R1: Grafik, später
+
+Auflösung je nach Leistung mit FXAA, Instancing, Detailstufen, detailliertere Modelle, Sonnenschatten.
