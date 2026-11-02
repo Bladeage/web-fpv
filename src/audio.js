@@ -16,6 +16,12 @@ export function audioInit() {
     osc1.start(); osc2.start();
   } catch (e) { ac = null; }
 }
+// Sofort stumm und Audio anhalten (Menü, App im Hintergrund). audioInit() setzt es fort.
+// Nötig, weil audioUpd im Hintergrund nicht mehr läuft (keine Bildschleife) und der Ton sonst weiterklingt.
+export function audioPause() {
+  if (!ac) return;
+  try { gain.gain.cancelScheduledValues(ac.currentTime); gain.gain.setValueAtTime(0, ac.currentTime); if (ac.state === 'running') ac.suspend(); } catch (e) {}
+}
 export function audioUpd() {
   if (!ac) return;
   const sim = game.sim;

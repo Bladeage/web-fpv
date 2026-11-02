@@ -4,7 +4,7 @@ import { cfg, game, keys, ptr, saveCfg } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
-import { audioInit } from './audio.js';
+import { audioInit, audioPause } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, presetMass } from './drone.js';
@@ -128,6 +128,7 @@ export function show(name) {
 export function openMenu(name = 'settings') {
   if (menu.hidden) from = null; else if (name === 'settings' && screen !== 'settings') from = screen;
   game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; show(name);
+  audioPause();
 }
 export function resume() { audioInit(); game.paused = false; game.started = true; menu.hidden = true; game.last = performance.now(); }
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
@@ -314,4 +315,8 @@ $('bBack').addEventListener('click', back);
 $('bMenu').addEventListener('click', toggleMenu);
 $('bReset').addEventListener('click', () => { respawn(); if (game.paused) resume(); });
 $('bCam').addEventListener('click', toggleCam);
-document.addEventListener('visibilitychange', () => { if (document.hidden && !game.paused) openMenu('settings'); });
+// App im Hintergrund oder Bildschirm gesperrt: Einstellungen zeigen, Simulation pausieren, Ton aus
+function toBackground() { if (!game.paused) openMenu('settings'); audioPause(); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) toBackground(); });
+addEventListener('pagehide', toBackground);
+addEventListener('freeze', toBackground);
