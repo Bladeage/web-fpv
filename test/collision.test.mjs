@@ -51,3 +51,30 @@ test('Harter Treffer (10 m/s) bleibt ein Absturz', () => {
   run(0.4);
   assert.equal(game.state, 'crashed');
 });
+
+test('Durch Hindernisse fliegen: Wand hält nicht auf, Boden bleibt fest', () => {
+  cfg.ghost = true;
+  const d = wall.h[0] + 0.6;
+  place([wall.c[0] + xAxis[0]*d, 3, wall.c[2] + xAxis[2]*d], [-xAxis[0]*6, 0, -xAxis[2]*6]);
+  run(0.6);
+  const along = (game.sim.p[0] - wall.c[0])*xAxis[0] + (game.sim.p[2] - wall.c[2])*xAxis[2];
+  assert.ok(along < wall.h[0], 'in der Wand: ' + along);
+  respawn(); place([0, 0.4, 10], [0, -3, 0], [0, 0, 0, 1], 0); run(1);
+  assert.ok(game.sim.p[1] >= PHYS.radius - 0.01, 'Boden trägt');
+  cfg.ghost = false;
+});
+
+test('Zurückspulen: 5 s zurück, auch nach einem Absturz', async () => {
+  const { rewind, history } = await import('../src/physics.js');
+  cfg.dmg = 'mild';
+  place([0, 20, 0], [0, 0, 0]);
+  run(6);
+  const p1 = game.sim.p.slice();
+  place([0, 20, 0], [0, -20, 0], [0, 0, 0, 1], 0); run(3);
+  assert.equal(game.state, 'crashed');
+  assert.ok(history.length > 40);
+  assert.ok(rewind(5));
+  assert.equal(game.state, 'fly');
+  assert.ok(Math.abs(game.sim.p[1] - p1[1]) < 3, 'Höhe wie vor dem Sturz: ' + game.sim.p[1]);
+  cfg.dmg = 'off';
+});

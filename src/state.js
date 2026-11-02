@@ -9,7 +9,8 @@ export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv'
   diff: 'mid', drone: { preset: '5' }, video: null, osd: {}, huntX: 5, gfx: 'nice',
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: false,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
-  gpSw: {}, gpCal: {} };   // Schalter-Belegung der Funke, Kalibrierung je Achse [min, max]   // Blickfeld horizontal in Grad; Scharfschalten per Taste nötig
+  gpSw: {}, gpCal: {},
+  ghost: false, trail: false };   // Lernhilfen: durch Hindernisse fliegen, Flugspur   // Schalter-Belegung der Funke, Kalibrierung je Achse [min, max]   // Blickfeld horizontal in Grad; Scharfschalten per Taste nötig
 try { Object.assign(cfg, JSON.parse(localStorage.getItem(STORE_CFG) || '{}')); } catch (e) {}
 // Bildmodus: 'analog' | 'digital' | 'clean'. Ältere Einstellungen kannten nur cfg.analog.
 if (!cfg.video) cfg.video = cfg.analog === false ? 'clean' : 'analog';

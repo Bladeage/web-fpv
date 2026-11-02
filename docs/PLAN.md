@@ -282,7 +282,7 @@ Wunsch des Nutzers vom 30.10.2026.
 - Verfolgung: einem Fahrzeug oder einer Drohne folgen, Abstand im Zielband halten; Wertung = Zeit im Band.
 - Ringe und Slalom: zufällige Anordnung bei jedem Start; Prüfung: freie Durchflüge, Abstände, Höhen, keine Hindernisse im Weg.
 
-## L1: Spielstil-Karten und Lernhilfen (mittel)
+## L1: Spielstil-Karten und Lernhilfen (erledigt)
 
 Entscheidung des Nutzers vom 02.11.2026.
 

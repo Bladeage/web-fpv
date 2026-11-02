@@ -47,14 +47,15 @@
       <p class="stepno">Schritt 2 von 2</p>
       <h1>Drohne</h1>
       <div class="basic">
+        <div class="seg seg4 small" id="styleSeg"></div>
+        <p class="hint" id="styleHint"></p>
         <div class="list grid2" id="droneSeg"></div>
         <p class="hint" id="droneHint"></p>
-        <p class="hint">Propellerfarbe: blau = langsame Rotoren, rot = schnelle Rotoren.</p>
         <div class="seg small" id="modeSeg">
-          <button data-mode="angle"><b>Angle</b></button>
-          <button data-mode="acro"><b>Acro</b></button>
+          <button data-mode="angle" title="Richtet sich selbst gerade aus"><b>Angle</b></button>
+          <button data-mode="acro" title="Knüppel steuert die Drehrate"><b>Acro</b></button>
         </div>
-        <p class="hint">Angle richtet sich selbst gerade aus. Acro: Knüppel steuert die Drehrate.</p>
+
       </div>
       <button class="linkbtn" id="bFine">Feinwerte ändern ›</button>
       <div class="fine" hidden><div class="sliders">
@@ -108,6 +109,8 @@
           <label class="check"><input type="checkbox" id="needArm"> Scharfschalten nötig</label>
           <label class="check"><input type="checkbox" id="autoRes"> Auflösung automatisch</label>
           <label class="check"><input type="checkbox" id="infBat"> Akku unendlich</label>
+          <label class="check"><input type="checkbox" id="ghost"> Durch Hindernisse</label>
+          <label class="check"><input type="checkbox" id="trail"> Flugspur</label>
         </div>
         <h2>Bild</h2>
         <div class="seg seg3 small" id="videoSeg">
@@ -155,6 +158,7 @@
           <kbd>Leertaste</kbd><span>Scharf schalten / aus (nur mit Gas unten)</span>
           <kbd>Bild ↑ / ↓</kbd><span>Kamerawinkel</span>
           <kbd>+ / −</kbd><span>Blickfeld</span>
+          <kbd>Z</kbd><span>5 s zurückspulen</span>
           <kbd>Esc / P</kbd><span>Einstellungen</span>
         </div>
         <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>

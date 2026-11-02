@@ -5,7 +5,7 @@ import { COURSE, MeshBuilder, colliders, gates, buildWorld, buildDrone, buildBla
 import { scen, buildScenario, scenHighlight, followLead } from './scenario.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
-import { MOTORS, PHYS } from './physics.js';
+import { MOTORS, PHYS, history } from './physics.js';
 
 /* ---------- WebGL ---------- */
 export const glc = document.getElementById('gl');
@@ -149,7 +149,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
-let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null;
+let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -431,6 +431,19 @@ export function render(dt) {
     }
     gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND);
     gl.uniform1f(P.u.uAlpha, 1); gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Flugspur (Lernhilfe): Linie durch die Schnappschüsse der letzten Sekunden
+  if (cfg.trail && history.length > 1) {
+    if (!trail) { trail = { vao: gl.createVertexArray(), buf: gl.createBuffer() }; gl.bindVertexArray(trail.vao); gl.bindBuffer(gl.ARRAY_BUFFER, trail.buf);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+      gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24); }
+    const pts = history.slice(-60).map(h => h.p).concat([sim.p]), d = new Float32Array(pts.length*10);
+    pts.forEach((p, i) => d.set([p[0], p[1], p[2], 0, 1, 0, 0.2, 0.9, 1, 1], i*10));
+    gl.bindVertexArray(trail.vao); gl.bindBuffer(gl.ARRAY_BUFFER, trail.buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
+    gl.uniformMatrix4fv(P.u.uModel, false, mIdent()); gl.uniform4f(P.u.uOver, 0.2, 0.9, 1, 1);
+    gl.drawArrays(gl.LINE_STRIP, 0, pts.length);
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Verfolgung: das orange Auto
   if (scen.id === 'follow') {

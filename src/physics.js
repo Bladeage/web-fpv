@@ -122,6 +122,7 @@ function resetDrone() {
 }
 export function respawn() {
   game.sim = newSim();
+  history.length = 0;
   resetDrone();
   game.armed = !cfg.needArm;
   game.pendingRespawn = false;
@@ -133,6 +134,7 @@ export function respawnDrone() {
   const o = game.sim, s = newSim();
   for (const k of ['t', 'next', 'lapStart', 'lastLap', 'mah', 'vrc', 'vmin', 'flyT', 'cellRest', 'vpack']) s[k] = o[k];
   game.sim = s;
+  history.length = 0;
   resetDrone();
 }
 
@@ -301,11 +303,33 @@ export function step(h) {
   // Umgedreht liegen geblieben (ohne Turtle-Modus): Hinweis im OSD, R startet neu
   s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < -0.2 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;
   // 7. Hindernisse
-  for (const c of colliders) if (collide(c, h)) return;
-  if (task.collide && task.collide(h)) return;
+  if (!cfg.ghost) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest
+    for (const c of colliders) if (collide(c, h)) return;
+    if (task.collide && task.collide(h)) return;
+  }
   // 8. Aufgabe des Szenarios (Tore, Ringe ...)
   if (!task.early) task.check(prev, s.p, h);
   s.t += h;
+  // Verlauf für Zurückspulen und Flugspur: alle 0,1 s ein Schnappschuss, höchstens 8 s
+  s.histT = (s.histT || 0) + h;
+  if (s.histT >= 0.1) { s.histT = 0; history.push(snapshot(s)); if (history.length > 80) history.shift(); }
+}
+
+export const history = [];
+const snapshot = s => ({ p: s.p.slice(), v: s.v.slice(), q: s.q.slice(), w: s.w.slice(), om: s.om.slice(), mot: s.mot.slice(), wi: s.wi.slice(), hp: s.hp.slice(), t: s.t });
+// Zurückspulen (Lernhilfe): Drohne an den Zustand von vor sec Sekunden setzen, auch nach einem Absturz.
+// Zeit, Akku und Fortschritt im Szenario laufen weiter.
+export function rewind(sec = 5) {
+  if (!history.length) return false;
+  const target = game.sim.t - sec;
+  let k = history.findIndex(x => x.t >= target);
+  if (k < 0) k = 0;
+  const h = history[k], s = game.sim;
+  for (const key of ['p', 'v', 'q', 'w', 'om', 'mot', 'wi', 'hp']) s[key] = h[key].slice();
+  s.grounded = false; history.length = k + 1;
+  game.state = 'fly';
+  say('Zurückgespult', 1);
+  return true;
 }
 
 // Schadmodell (E4). crashK: Faktor auf die Absturzgeschwindigkeit; k: Schaden je (m/s)^2 Aufprall.

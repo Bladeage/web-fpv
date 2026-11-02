@@ -2,7 +2,7 @@
    Ein verbundenes Gamepad überschreibt beides (siehe updTouch). */
 import { clamp } from './math.js';
 import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg } from './state.js';
-import { respawn, toggleArm } from './physics.js';
+import { respawn, toggleArm, rewind } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
@@ -19,6 +19,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyV') toggleCam();
   if (e.code === 'KeyM') { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); }
   if (e.code === 'Space') toggleArm();
+  if (e.code === 'KeyZ') rewind(5);
   // Kamerawinkel mit Bild auf/ab, Blickfeld mit + und - (e.key, damit es auf jeder Tastaturbelegung passt)
   if (e.code === 'PageUp' || e.code === 'PageDown') {
     cfg.tilt = clamp(cfg.tilt + (e.code === 'PageUp' ? 5 : -5), 0, 60); saveCfg(); say('Kamerawinkel ' + cfg.tilt + '°', 1);

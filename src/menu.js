@@ -52,18 +52,33 @@ function batteryIcon(cap, cells) {
 }
 function setCapIcon() { const b = $('capIco'); b.textContent = ''; b.appendChild(batteryIcon(droneVal('cap'), droneVal('cells'))); }
 
+// Spielstil-Karten: setzen mehrere Einstellungen auf einmal. Weicht eine ab, gilt „Eigene“.
+const STYLES = {
+  learn:  { name: 'Lernen',      info: 'Angle, kein Schaden, Akku unendlich, Flugspur.', set: { mode: 'angle', dmg: 'off', infBat: true, trail: true, ghost: false, needArm: false } },
+  normal: { name: 'Normal',      info: 'Angle, kein Schaden, Akku normal.', set: { mode: 'angle', dmg: 'off', infBat: false, trail: false, ghost: false, needArm: false } },
+  real:   { name: 'Realistisch', info: 'Acro, Schaden realistisch, Akku normal, Scharfschalten nötig.', set: { mode: 'acro', dmg: 'real', infBat: false, trail: false, ghost: false, needArm: true } },
+  god:    { name: 'Gott-Modus',  info: 'Durch Hindernisse fliegen, kein Schaden, Akku unendlich, Flugspur.', set: { mode: 'angle', dmg: 'off', infBat: true, trail: true, ghost: true, needArm: false } }
+};
+const currentStyle = () => Object.keys(STYLES).find(k => Object.entries(STYLES[k].set).every(([key, v]) => cfg[key] === v)) || null;
+
 const droneVal = k => cfg.drone[k] ?? (DRONES[cfg.drone.preset] || DRONES['5'])[k];
 
 export function setMode(m) {
   cfg.mode = m; saveCfg();
   press('#modeSeg button', b => b.dataset.mode === m);
+  syncStyle();
+}
+function syncStyle() {
+  const st = currentStyle();
+  press('#styleSeg button', b => b.dataset.id === st);
+  $('styleHint').textContent = st ? 'Spielstil ' + STYLES[st].name + ': ' + STYLES[st].info : 'Spielstil: eigene Einstellungen.';
 }
 export function syncMenu() {
   setMode(cfg.mode);
   const sc = SCENARIOS.find(x => x.id === cfg.scen);
   press('#scenList button', b => b.dataset.id === cfg.scen);
   $('courseInfo').textContent = sc.info;
-  $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info;
+  $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2';
@@ -84,6 +99,8 @@ export function syncMenu() {
   $('needArm').checked = cfg.needArm;
   $('autoRes').checked = cfg.autoRes;
   $('infBat').checked = cfg.infBat;
+  $('ghost').checked = cfg.ghost; $('trail').checked = cfg.trail;
+  syncStyle();
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
@@ -140,6 +157,9 @@ $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('
 $('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });
 $('fov').addEventListener('input', e => { cfg.fov = +e.target.value; $('fovV').textContent = cfg.fov + '°'; saveCfg(); });
 $('infBat').addEventListener('change', e => { cfg.infBat = e.target.checked; saveCfg(); });
+$('ghost').addEventListener('change', e => { cfg.ghost = e.target.checked; saveCfg(); });
+$('trail').addEventListener('change', e => { cfg.trail = e.target.checked; saveCfg(); });
+for (const [id, st] of Object.entries(STYLES)) addChoice($('styleSeg'), st.name, '', () => { Object.assign(cfg, st.set); saveCfg(); syncMenu(); }).dataset.id = id;
 $('autoRes').addEventListener('change', e => { cfg.autoRes = e.target.checked; saveCfg(); });
 $('needArm').addEventListener('change', e => { cfg.needArm = e.target.checked; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
