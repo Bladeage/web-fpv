@@ -66,8 +66,10 @@ export function syncMenu() {
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info;
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
-  $('huntOpts').hidden = cfg.scen !== 'hunt';
-  $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von 6';
+  $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2';
+  const total = cfg.scen === 'hunt2' ? 7 : 6;
+  $('huntX').max = total; cfg.huntX = Math.min(cfg.huntX, total);
+  $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von ' + total;
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
   const pm = presetMass(DRONES[cfg.drone.preset] || DRONES['5']), mass = cfg.drone.mass ?? pm;
   $('mass').value = Math.round(mass*1000); $('massV').textContent = Math.round(mass*1000) + ' g';
@@ -129,7 +131,7 @@ document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('cl
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
 $('mass').addEventListener('input', e => { cfg.drone.mass = +e.target.value/1000; saveCfg(); syncMenu(); });
 $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; setCapIcon(); saveCfg(); });
-$('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von 6'; saveCfg(); });
+$('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von ' + e.target.max; saveCfg(); });
 $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
 $('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });

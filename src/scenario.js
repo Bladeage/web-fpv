@@ -7,13 +7,15 @@ import { COURSE, gates, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
+import { vehicles, initVehicles, stepVehicles, VEH_HALF } from './vehicles.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
   { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, auf verschiedenen Höhen und geneigt.' },
   { id: 'slalom',  name: 'Slalom',             info: '5 Stangen. Blaue Fahne: rechts vorbei. Rote Fahne: links vorbei.' },
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
-  { id: 'hunt',    name: 'Jagd',               info: '6 Ziel-Drohnen: dumm, zufällig, ausweichend. Triff die geforderte Anzahl.' },
+  { id: 'hunt',    name: 'Jagd Luft',          info: '6 Ziel-Drohnen: dumm, zufällig, ausweichend. Triff die geforderte Anzahl.' },
+  { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
@@ -56,7 +58,7 @@ const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
 const st = { hits: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
-function reset() { st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+function reset() { st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -131,11 +133,12 @@ function checkLanding(a, b, h) {
 }
 
 // Jagd: Ziele bewegen sich im Physikschritt; Zeit läuft ab dem Abheben, Ziel nach cfg.huntX Treffern
-export const huntNeed = () => Math.min(cfg.huntX || 5, targets.length || 6);
+export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : (targets.length || 6);
+export const huntNeed = () => Math.min(cfg.huntX || 5, huntTotal());
 function checkHunt(a, b, h) {
   const s = game.sim;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
-  const n = stepTargets(h, a, b, b);
+  const n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius) : stepTargets(h, a, b, b);
   if (!n || st.done) return;
   st.hits += n; fx.beep(1100, 0.12);
   say('Treffer ' + st.hits + '/' + huntNeed(), 1.2);
@@ -149,6 +152,7 @@ const TASKS = {
   slalom:  { check: checkPole, collide: collidePoles },
   landing: { check: checkLanding, collide: null },
   hunt:    { check: checkHunt, collide: null },
+  hunt2:   { check: checkHunt, collide: null },
   free:    { check() {}, collide: null }
 };
 task.reset = reset;
@@ -167,7 +171,7 @@ export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
   if (scen.id === 'free') return 'FREIFLUG';
-  if (scen.id === 'hunt') return st.done ? 'ZIEL' : `TREFFER ${st.hits}/${huntNeed()}`;
+  if (scen.id === 'hunt' || scen.id === 'hunt2') return st.done ? 'ZIEL' : `TREFFER ${st.hits}/${huntNeed()}`;
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;
@@ -178,6 +182,11 @@ export function scenTarget() {
   const s = game.sim;
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
   if (st.done || scen.id === 'free') return null;
+  if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
+    let best = null, bd = 1e9;
+    for (const v of vehicles) if (v.state !== 'hit') { const d = Math.hypot(v.x - s.p[0], v.z - s.p[2]); if (d < bd) { bd = d; best = [v.x, VEH_HALF[1]*2, v.z]; } }
+    return best;
+  }
   if (scen.id === 'hunt') {   // nächstes noch fliegendes Ziel
     let best = null, bd = 1e9;
     for (const t of targets) if (t.state === 'fly') { const d = vLen(vSub(t.p, s.p)); if (d < bd) { bd = d; best = t.p; } }

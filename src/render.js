@@ -4,6 +4,7 @@ import { cfg, game, saveCfg, say } from './state.js';
 import { COURSE, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight } from './scenario.js';
 import { targets } from './targets.js';
+import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS } from './physics.js';
 
 /* ---------- WebGL ---------- */
@@ -120,7 +121,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
-let scenMesh = null, scenParts = [], scenVer = -1;
+let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -160,6 +161,7 @@ export function initGL() {
   staticCount = w.staticCount;
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
+  vehMesh = upload(buildVehicle());
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -291,6 +293,18 @@ export function render(dt) {
       gl.uniform4f(P.u.uOver, c[0], c[1], c[2], t.state === 'fly' ? 0.65 : 0.25);
       gl.uniformMatrix4fv(P.u.uModel, false, m);
       gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
+    }
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Fahrzeuge (Jagd Boden): Farbe nach Tempo, getroffene dunkel und schief
+  if (scen.id === 'hunt2') {
+    gl.bindVertexArray(vehMesh.vao);
+    for (const v of vehicles) {
+      const q = qMul(qAxis([0,1,0], v.yaw), qAxis([0,0,1], v.tilt));
+      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, [v.x, v.tilt*0.6, v.z]));
+      const c = v.state === 'hit' ? [0.08, 0.08, 0.08] : VEH_COLORS[v.kind];
+      gl.uniform4f(P.u.uOver, c[0], c[1], c[2], v.state === 'hit' ? 0.75 : 0.55);
+      gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
