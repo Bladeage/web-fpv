@@ -7,8 +7,12 @@ import { rng } from './world.js';
 export const HUNT = { center: [30, 12, -10], radius: 70, hitR: 0.4 };   // Gebiet, Trefferabstand (Ziel 0,25 m + Spieler 0,15 m)
 export const targets = [];
 // Verhalten und Grundtempo in m/s je Ziel (Schätzung für ein faires Spiel)
+// Jedes bewegte Ziel hat einen eigenen Bereich (Kreis mit REGION m um seinen Startpunkt) und nutzt keine Strecke doppelt.
+// Die 6 Bereiche liegen auf einem Kreis mit 35 m Radius, 35 m voneinander entfernt. Schwebende Ziele liegen außerhalb.
 const SETUP = [['dumb', 'circle', 7], ['dumb', 'eight', 9], ['dumb', 'line', 11], ['random', null, 8], ['random', null, 12], ['evade', null, 10]];
-export const BEHAVIOR_NAME = { dumb: 'dumm', random: 'zufällig', evade: 'ausweichend' };
+const STATIC = [[0, 0, 9], [60, 0.5, 13], [60, 3.6, 16]];   // schwebende Ziele: [Abstand zur Mitte, Winkel, Höhe]
+export const REGION = 16;
+export const BEHAVIOR_NAME = { dumb: 'dumm', random: 'zufällig', evade: 'ausweichend', static: 'schwebend' };
 let R = rng(7);
 
 function routePos(t, time) {
@@ -18,9 +22,9 @@ function routePos(t, time) {
   const s = Math.asin(Math.sin(ph))/(Math.PI/2);   // Hin und Her
   return [c[0] + s*t.size, c[1], c[2]];
 }
-function newWaypoint() {
-  const a = R()*Math.PI*2, d = Math.sqrt(R())*HUNT.radius*0.9;
-  return [HUNT.center[0] + Math.cos(a)*d, 9 + R()*7, HUNT.center[2] + Math.sin(a)*d];
+function newWaypoint(t) {   // neuer Wegpunkt im eigenen Bereich
+  const a = R()*Math.PI*2, d = Math.sqrt(R())*REGION*0.85;
+  return [t.c[0] + Math.cos(a)*d, 9 + R()*7, t.c[2] + Math.sin(a)*d];
 }
 
 // speedScale: Schwierigkeit (leicht langsamer, schwer schneller)
@@ -29,11 +33,15 @@ export function initTargets(speedScale = 1) {
   SETUP.forEach(([beh, route, speed], i) => {
     const a = i/SETUP.length*Math.PI*2;
     const c = [HUNT.center[0] + Math.cos(a)*35, 9 + (i % 3)*3, HUNT.center[2] + Math.sin(a)*35];
-    const t = { beh, route, speed: speed*speedScale, c, size: 14 + i*2, phase: R()*6, p: c.slice(), v: [0, 0, 0],
+    const t = { beh, route, speed: speed*speedScale, c, size: 12 + i, phase: R()*6, p: c.slice(), v: [0, 0, 0],
                 state: 'fly', spin: 0, ang: 0, wp: null, time: 0 };
     if (beh === 'dumb') t.p = routePos(t, 0);
     targets.push(t);
   });
+  for (const [d, a, y] of STATIC) {
+    const c = [HUNT.center[0] + Math.cos(a)*d, y, HUNT.center[2] + Math.sin(a)*d];
+    targets.push({ beh: 'static', route: null, speed: 0, c, size: 0, phase: 0, p: c.slice(), v: [0, 0, 0], state: 'fly', spin: 0, ang: 0, wp: null, time: 0 });
+  }
 }
 export const aliveCount = () => targets.filter(t => t.state === 'fly').length;
 
@@ -51,15 +59,17 @@ export function stepTargets(h, a, b, player) {
     const p0 = t.p.slice();
     if (t.state === 'fly') {
       t.time += h;
-      if (t.beh === 'dumb') {
+      if (t.beh === 'static') {
+        t.v = [0, 0, 0];   // schwebt auf der Stelle
+      } else if (t.beh === 'dumb') {
         t.p = routePos(t, t.time); t.v = vScale(vSub(t.p, p0), 1/h);
       } else {
-        if (!t.wp || vLen(vSub(t.wp, t.p)) < 3) t.wp = newWaypoint();
+        if (!t.wp || vLen(vSub(t.wp, t.p)) < 3) t.wp = newWaypoint(t);
         let want = vScale(vSub(t.wp, t.p), 1);
         const away = vSub(t.p, player);
         if (t.beh === 'evade' && vLen(away) < 25) want = vAdd(vScale(away, 3), [0, (R() - 0.5)*20, 0]);   // fliehen, etwas Höhe wechseln
-        const off = vSub(t.p, HUNT.center); off[1] = 0;
-        if (vLen(off) > HUNT.radius) want = vScale(off, -1);   // zurück ins Gebiet
+        const off = vSub(t.p, t.c); off[1] = 0;
+        if (vLen(off) > REGION*0.9) want = vAdd(want, vScale(off, -2));   // zurück in den eigenen Bereich
         const wl = vLen(want) || 1, dv = vSub(vScale(want, t.speed/wl), t.v), dl = vLen(dv), amax = 12*h;
         t.v = vAdd(t.v, dl > amax ? vScale(dv, amax/dl) : dv);
         t.p = vAdd(t.p, vScale(t.v, h));

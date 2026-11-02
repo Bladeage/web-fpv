@@ -5,42 +5,62 @@ import { vNorm } from './math.js';
 import { COURSE, MeshBuilder } from './world.js';
 
 export const VEH_HALF = [1.0, 0.75, 2.1];   // halbe Breite, Höhe, Länge in m (Auto ca. 2 x 1,5 x 4,2 m)
-const ROUTE_OFF = -4;                        // seitlicher Versatz der Fahrspur zur Kurslinie in m
-
-// Fahrspur: Kurs als geschlossener Linienzug, an jeder Ecke entlang der gemittelten Normalen versetzt
-export const ROUTE = COURSE.map((c, i) => {
-  const n = COURSE.length, p = COURSE[(i + n - 1) % n], q = COURSE[(i + 1) % n];
-  const d1 = vNorm([c[0] - p[0], 0, c[1] - p[1]]), d2 = vNorm([q[0] - c[0], 0, q[1] - c[1]]);
-  const nx = -(d1[2] + d2[2]), nz = d1[0] + d2[0], l = Math.hypot(nx, nz) || 1;
-  return [c[0] + nx/l*ROUTE_OFF, c[1] + nz/l*ROUTE_OFF];
-});
-const SEG = ROUTE.map((a, i) => { const b = ROUTE[(i + 1) % ROUTE.length]; return Math.hypot(b[0] - a[0], b[1] - a[1]); });
-export const ROUTE_LEN = SEG.reduce((x, y) => x + y, 0);
-// Punkt und Fahrtrichtung bei Strecke s (m) entlang der Fahrspur
-export function routeAt(s) {
-  s = ((s % ROUTE_LEN) + ROUTE_LEN) % ROUTE_LEN;
-  for (let i = 0; i < ROUTE.length; i++) {
-    if (s <= SEG[i]) {
-      const a = ROUTE[i], b = ROUTE[(i + 1) % ROUTE.length], t = s/SEG[i];
-      return { x: a[0] + (b[0] - a[0])*t, z: a[1] + (b[1] - a[1])*t, yaw: Math.atan2(-(b[0] - a[0]), -(b[1] - a[1])) };
+// Fahrspuren: Linienzüge entlang des Kurses, seitlich versetzt (gemittelte Normale an den Ecken).
+// Jedes fahrende Fahrzeug hat seine eigene Spur; keine Strecke wird doppelt genutzt.
+function offsetPath(idx, off) {
+  const n = COURSE.length;
+  return idx.map(i => {
+    const c = COURSE[i % n], p = COURSE[(i + n - 1) % n], q = COURSE[(i + 1) % n];
+    const d1 = vNorm([c[0] - p[0], 0, c[1] - p[1]]), d2 = vNorm([q[0] - c[0], 0, q[1] - c[1]]);
+    const nx = -(d1[2] + d2[2]), nz = d1[0] + d2[0], l = Math.hypot(nx, nz) || 1;
+    return [c[0] + nx/l*off, c[1] + nz/l*off];
+  });
+}
+function makeRoute(pts, loop) {
+  const segs = [];
+  const n = loop ? pts.length : pts.length - 1;
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; segs.push(Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  return { pts, loop, segs, len: segs.reduce((x, y) => x + y, 0) };
+}
+// Gerades Stück eines Kursabschnitts i (Anteil t0 bis t1), seitlich versetzt. Ohne Ecken, damit es an Toren vorbeigeht.
+function segPath(i, t0, t1, off) {
+  const a = COURSE[i], b = COURSE[(i + 1) % COURSE.length], d = vNorm([b[0] - a[0], 0, b[1] - a[1]]);
+  const at = t => [a[0] + (b[0] - a[0])*t - d[2]*off, a[1] + (b[1] - a[1])*t + d[0]*off];
+  return [at(t0), at(t1)];
+}
+export const ROUTES = [
+  makeRoute(offsetPath([0, 1, 2, 3, 4, 5, 6, 7], -4), true),   // ganze Runde, innen
+  makeRoute(segPath(2, 0.12, 0.88, 3), false),                  // Tor 3 bis Tor 4, außen, hin und her (keine Pfeiler dort)
+  makeRoute(segPath(5, 0.12, 0.88, 3), false),                  // Tor 6 bis Tor 7, außen, hin und her
+  makeRoute([[7, -4], [7, -19]], false)                          // neben der Startgeraden, hin und her
+];
+// Punkt und Fahrtrichtung bei Strecke s (m) auf Spur r. Offene Spuren: hin und her.
+export function routeAt(r, s) {
+  let back = false;
+  if (r.loop) s = ((s % r.len) + r.len) % r.len;
+  else { s = ((s % (2*r.len)) + 2*r.len) % (2*r.len); if (s > r.len) { s = 2*r.len - s; back = true; } }
+  for (let i = 0; i < r.segs.length; i++) {
+    if (s <= r.segs[i] || i === r.segs.length - 1) {
+      const a = r.pts[i], b = r.pts[(i + 1) % r.pts.length], t = Math.min(1, s/r.segs[i]);
+      const yaw = Math.atan2(-(b[0] - a[0]), -(b[1] - a[1])) + (back ? Math.PI : 0);
+      return { x: a[0] + (b[0] - a[0])*t, z: a[1] + (b[1] - a[1])*t, yaw };
     }
-    s -= SEG[i];
+    s -= r.segs[i];
   }
-  return { x: ROUTE[0][0], z: ROUTE[0][1], yaw: 0 };
 }
 
-// [Art, Tempo m/s, Startpunkt auf der Spur (Anteil) oder fester Platz [x, z, yaw], Richtung]. Tempo sind Schätzwerte.
+// [Art, Tempo m/s, fester Platz [x, z, yaw] oder Spur-Nummer, Richtung]. Tempo sind Schätzwerte.
 const VEH_SETUP = [
-  ['parked', 0, [8, 6, 0.6]], ['parked', 0, [-6, -8, -1.1]], ['parked', 0, [68, -42, 2.2]],
-  ['slow', 5, 0.1, 1], ['slow', 6, 0.55, -1], ['fast', 14, 0.3, 1], ['fast', 16, 0.8, -1]
+  ['parked', 0, [8, 6, 0.6]], ['parked', 0, [-6, -8, -1.1]], ['parked', 0, [40, -30, 0.4]],
+  ['slow', 5, 3, 1], ['slow', 6, 1, 1], ['fast', 14, 0, 1], ['fast', 16, 2, -1]
 ];
 export const vehicles = [];
 export function initVehicles(speedScale = 1) {
   vehicles.length = 0;
   for (const [kind, speed, at, dir] of VEH_SETUP) {
-    const v = { kind, speed: speed*speedScale, dir: dir || 1, s: 0, x: 0, z: 0, yaw: 0, state: 'drive', tilt: 0 };
+    const v = { kind, speed: speed*speedScale, dir: dir || 1, s: 0, x: 0, z: 0, yaw: 0, state: 'drive', tilt: 0, route: null };
     if (kind === 'parked') { [v.x, v.z, v.yaw] = at; v.state = 'park'; }
-    else { v.s = at*ROUTE_LEN; const r = routeAt(v.s); v.x = r.x; v.z = r.z; v.yaw = r.yaw + (v.dir < 0 ? Math.PI : 0); }
+    else { v.route = ROUTES[at]; const r = routeAt(v.route, 0); v.x = r.x; v.z = r.z; v.yaw = r.yaw + (v.dir < 0 ? Math.PI : 0); }
     vehicles.push(v);
   }
 }
@@ -68,7 +88,7 @@ export function stepVehicles(h, a, b, r = 0.15) {
   for (const v of vehicles) {
     if (v.state === 'drive') {
       v.s += v.speed*v.dir*h;
-      const p = routeAt(v.s);
+      const p = routeAt(v.route, v.s);
       v.x = p.x; v.z = p.z; v.yaw = p.yaw + (v.dir < 0 ? Math.PI : 0);
     }
     if (v.state !== 'hit' && hitsVehicle(v, a, b, r)) { v.state = 'hit'; v.tilt = 0.25; hits++; }

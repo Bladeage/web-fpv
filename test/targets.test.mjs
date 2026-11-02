@@ -5,7 +5,7 @@ import { cfg, game, inp } from '../src/state.js';
 import { buildWorld } from '../src/world.js';
 import { STEP, step, respawn } from '../src/physics.js';
 import { setScenario, scenDone, scenLabel } from '../src/scenario.js';
-import { targets, initTargets, stepTargets, sweptDist, HUNT } from '../src/targets.js';
+import { targets, initTargets, stepTargets, sweptDist, HUNT, REGION } from '../src/targets.js';
 
 buildWorld();
 const H = 1/240;
@@ -67,5 +67,26 @@ test('Zufällige Drohnen bleiben im Gebiet', () => {
   for (let i = 0; i < 240*60; i++) stepTargets(H, far, far, far);
   for (const t of targets.filter(t => t.beh !== 'dumb')) {
     assert.ok(Math.hypot(t.p[0] - HUNT.center[0], t.p[2] - HUNT.center[2]) < HUNT.radius + 15);
+  }
+});
+
+test('Schwebende Ziele stehen still, bewegte bleiben in ihrem eigenen Bereich', () => {
+  initTargets();
+  const st = targets.filter(t => t.beh === 'static');
+  assert.equal(st.length, 3);
+  const start = st.map(t => t.p.slice());
+  const far = [999, 999, 999];
+  const moving = targets.filter(t => t.beh !== 'static');
+  let worst = 0;
+  for (let i = 0; i < 240*60; i++) {
+    stepTargets(H, far, far, far);
+    for (const t of moving) worst = Math.max(worst, Math.hypot(t.p[0] - t.c[0], t.p[2] - t.c[2]));
+  }
+  st.forEach((t, i) => assert.deepEqual(t.p, start[i]));
+  assert.ok(worst < REGION + 1, 'größte Entfernung vom eigenen Bereich: ' + worst);
+  // Bereiche überlappen nicht: Mittelpunkte weiter auseinander als zwei Bereichsradien
+  for (let i = 0; i < moving.length; i++) for (let j = i + 1; j < moving.length; j++) {
+    const d = Math.hypot(moving[i].c[0] - moving[j].c[0], moving[i].c[2] - moving[j].c[2]);
+    assert.ok(d > 2*(REGION + 1) - 0.5, `Bereiche ${i} und ${j}: ${d.toFixed(1)} m`);
   }
 });

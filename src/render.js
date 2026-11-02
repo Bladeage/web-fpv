@@ -282,7 +282,7 @@ export function render(dt) {
   // Ziel-Drohnen (Jagd): Farbe nach Verhalten, Neigung in Flugrichtung, beim Absturz drehend
   if (scen.id === 'hunt') {
     gl.bindVertexArray(droneMesh.vao);
-    const COL = { dumb: [1.0, 0.85, 0.1], random: [0.2, 0.6, 1.0], evade: [1.0, 0.2, 0.25] };
+    const COL = { dumb: [1.0, 0.85, 0.1], random: [0.2, 0.6, 1.0], evade: [1.0, 0.2, 0.25], static: [0.95, 0.95, 0.95] };
     for (const t of targets) {
       const sp = Math.hypot(t.v[0], t.v[2]), yaw = Math.atan2(-t.v[0], -t.v[2]);
       let q = qMul(qAxis([0,1,0], sp > 0.1 ? yaw : 0), qAxis([1,0,0], -Math.min(0.5, sp*0.03)));

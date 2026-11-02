@@ -14,7 +14,7 @@ export const SCENARIOS = [
   { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, auf verschiedenen Höhen und geneigt.' },
   { id: 'slalom',  name: 'Slalom',             info: '5 Stangen. Blaue Fahne: rechts vorbei. Rote Fahne: links vorbei.' },
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
-  { id: 'hunt',    name: 'Jagd Luft',          info: '6 Ziel-Drohnen: dumm, zufällig, ausweichend. Triff die geforderte Anzahl.' },
+  { id: 'hunt',    name: 'Jagd Luft',          info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.' },
   { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe.' }
 ];
@@ -133,7 +133,7 @@ function checkLanding(a, b, h) {
 }
 
 // Jagd: Ziele bewegen sich im Physikschritt; Zeit läuft ab dem Abheben, Ziel nach cfg.huntX Treffern
-export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : (targets.length || 6);
+export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : (targets.length || 9);
 export const huntNeed = () => Math.min(cfg.huntX || 5, huntTotal());
 function checkHunt(a, b, h) {
   const s = game.sim;

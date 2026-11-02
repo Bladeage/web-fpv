@@ -67,7 +67,7 @@ export function syncMenu() {
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2';
-  const total = cfg.scen === 'hunt2' ? 7 : 6;
+  const total = cfg.scen === 'hunt2' ? 7 : 9;
   $('huntX').max = total; cfg.huntX = Math.min(cfg.huntX, total);
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von ' + total;
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);

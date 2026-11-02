@@ -5,7 +5,7 @@ import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, colliders } from '../src/world.js';
 import { STEP, step, respawn } from '../src/physics.js';
 import { setScenario, scenDone, scenLabel } from '../src/scenario.js';
-import { vehicles, initVehicles, stepVehicles, routeAt, ROUTE_LEN, VEH_HALF } from '../src/vehicles.js';
+import { vehicles, initVehicles, stepVehicles, routeAt, ROUTES, VEH_HALF } from '../src/vehicles.js';
 
 buildWorld();
 const H = 1/240, far = [999, 999, 999];
@@ -30,9 +30,16 @@ function blocked(x, z, yaw) {
 }
 
 test('Fahrspur und Parkplätze sind frei von Bäumen, Pfeilern und Toren', () => {
-  for (let s = 0; s < ROUTE_LEN; s += 0.5) { const p = routeAt(s); assert.ok(!blocked(p.x, p.z, p.yaw), `Spur bei ${s.toFixed(1)} m: ${p.x.toFixed(1)}, ${p.z.toFixed(1)}`); }
+  ROUTES.forEach((r, k) => {
+    for (let s = 0; s < r.len; s += 0.5) { const p = routeAt(r, s); assert.ok(!blocked(p.x, p.z, p.yaw), `Spur ${k} bei ${s.toFixed(1)} m: ${p.x.toFixed(1)}, ${p.z.toFixed(1)}`); }
+  });
   initVehicles();
-  for (const v of vehicles.filter(v => v.kind === 'parked')) assert.ok(!blocked(v.x, v.z, v.yaw), `Parkplatz ${v.x}, ${v.z}`);
+  for (const v of vehicles.filter(v => v.kind === 'parked')) {
+    assert.ok(!blocked(v.x, v.z, v.yaw), `Parkplatz ${v.x}, ${v.z}`);
+    let d = 1e9;
+    for (const r of ROUTES) for (let s = 0; s < r.len; s += 0.5) { const q = routeAt(r, s); d = Math.min(d, Math.hypot(q.x - v.x, q.z - v.z)); }
+    assert.ok(d > 5, `Parkplatz ${v.x}, ${v.z} nur ${d.toFixed(1)} m neben einer Spur`);
+  }
 });
 
 test('Stehende bleiben stehen, fahrende fahren mit ihrem Tempo', () => {
@@ -58,4 +65,16 @@ test('Treffer zählt einmal, nach x Treffern ist die Aufgabe erfüllt', () => {
   }
   assert.ok(scenDone());
   cfg.huntX = 5; setScenario('gates');
+});
+
+test('Keine Strecke doppelt: jedes fahrende Fahrzeug hat eine eigene Spur, Spuren mindestens 3 m auseinander', () => {
+  initVehicles();
+  const moving = vehicles.filter(v => v.route);
+  assert.equal(new Set(moving.map(v => v.route)).size, moving.length);
+  const pts = ROUTES.map(r => { const a = []; for (let s = 0; s < r.len; s += 1) a.push(routeAt(r, s)); return a; });
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+    let dmin = 1e9;
+    for (const p of pts[i]) for (const q of pts[j]) dmin = Math.min(dmin, Math.hypot(p.x - q.x, p.z - q.z));
+    assert.ok(dmin > 3, `Spur ${i} und ${j}: ${dmin.toFixed(1)} m`);
+  }
 });
