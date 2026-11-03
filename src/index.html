@@ -130,6 +130,15 @@
         <div class="seg seg3 small" id="dmgSeg"></div>
       </div>
       <div class="tabpane" data-pane="radio" hidden>
+        <div class="seg small" id="ctlSeg">
+          <button data-ctl="pad"><b>Funke / Gamepad</b></button>
+          <button data-ctl="keys"><b>Tastatur</b></button>
+        </div>
+        <div id="ctlKeys" hidden>
+          <div class="keygrid" id="keyRows"></div>
+          <p class="hint" id="keyHint">Taste antippen, dann neue Taste drücken. Esc bricht ab. Liegt die Taste schon auf einer Funktion, tauschen beide. Fest: Esc / P Menü, + / − Blickfeld.</p>
+        </div>
+        <div id="ctlPad">
         <p class="gpstat" id="gpStat"></p>
         <select id="gpPreset" aria-label="Belegung">
           <option value="auto">Belegung: automatisch</option>
@@ -140,6 +149,7 @@
         <div id="gpRows"></div>
         <div class="nav"><button class="secondary" id="bCal">Kalibrieren</button><button class="secondary" id="bCalReset">Kalibrierung löschen</button></div>
         <p class="hint" id="gpHint">Funke oder Gamepad per USB oder Bluetooth verbinden, Knüppel bewegen. A0 bis A7 sind die Achsen. „Lernen“: Knüppel nach oben bzw. rechts bewegen, die Achse wird erkannt.</p>
+        </div>
       </div>
       <div class="tabpane" data-pane="switch" hidden>
         <div id="swRows"></div>
@@ -149,20 +159,7 @@
         <div class="osdgrid" id="osdList"></div>
       </div>
       <div class="tabpane" data-pane="help" hidden>
-        <div class="keys">
-          <kbd>W / S</kbd><span>Gas mehr / weniger</span>
-          <kbd>A / D</kbd><span>Gieren links / rechts</span>
-          <kbd>↑ / ↓</kbd><span>Nase runter / hoch</span>
-          <kbd>← / →</kbd><span>Rollen links / rechts</span>
-          <kbd>R</kbd><span>Neustart</span>
-          <kbd>V</kbd><span>Kamera wechseln</span>
-          <kbd>M</kbd><span>Angle / Acro</span>
-          <kbd>Leertaste</kbd><span>Scharf schalten / aus (nur mit Gas unten)</span>
-          <kbd>Bild ↑ / ↓</kbd><span>Kamerawinkel</span>
-          <kbd>+ / −</kbd><span>Blickfeld</span>
-          <kbd>Z</kbd><span>5 s zurückspulen</span>
-          <kbd>Esc / P</kbd><span>Einstellungen</span>
-        </div>
+        <div class="keys" id="helpKeys"></div>
         <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
       </div>
       <div class="nav"><button class="secondary" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Zurück</button></div>

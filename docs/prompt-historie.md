@@ -53,3 +53,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 45 | 02.11.2026 | P3 im Detail erklären, in einfachem technischem Englisch. | Erklärung P3 (Englisch) |
 | 46 | 03.11.2026 | (Foto) Bug: „Turtle-Modus: Stick zum Umdrehen“ erscheint dutzendfach übereinander. | Turtle startet nur mit Gas unten, gleiche Meldungen stapeln sich nicht |
 | 47 | 03.11.2026 | Menüpunkt „Funke“ in „Steuerung“ umbenennen. Dort soll einheitlich die Steuerung angepasst werden, egal ob Funke, Gamepad oder Tastatur. | Reiter „Steuerung“ |
+| 48 | 03.11.2026 | Freie Tastenbelegung im Reiter „Steuerung“ bauen (Option 1). SITL ist das nächste große Thema. | Tastenbelegung; Plan: SITL (P4) als nächste große Etappe |

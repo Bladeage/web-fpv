@@ -69,6 +69,11 @@ summary{cursor:pointer;font-weight:600;font-size:15px}
 select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--panel-text);width:100%}
 .gpstat{font-size:14px;color:var(--muted);margin:0 0 8px;word-break:break-word}
 .gpstat small{display:block;font:12px ui-monospace,Menlo,Consolas,monospace;margin-top:3px}
+.keygrid{display:grid;grid-template-columns:1fr auto;gap:5px 10px;align-items:center;margin-top:10px;font-size:14px}
+@media (min-width:560px){ .keygrid{grid-template-columns:1fr auto 1fr auto} }
+.keybtn{min-width:5.6em;border:0;border-radius:8px;padding:4px 8px;background:var(--chip);color:var(--panel-text);font:600 13px ui-monospace,Menlo,Consolas,monospace;cursor:pointer}
+.keyreset{grid-column:span 2;padding:5px 8px}
+.keybtn.on{background:var(--chip-on);color:var(--chip-on-text)}
 .gprow{display:grid;grid-template-columns:4.6em 6.5em auto 1fr;gap:8px;align-items:center;margin-top:8px;font-size:14px}
 .gprow select{padding:4px 6px}
 .gprow label{display:flex;align-items:center;gap:4px;white-space:nowrap}
@@ -139,6 +144,9 @@ details{margin-top:10px}
   .check{margin-top:4px;font-size:14px}
   .checks .check{margin-top:4px}
   .seg.small button{padding:6px 8px}
+  #ctlSeg button{padding:3px 8px}
+  #ctlSeg button b{font-size:14px}
+  .gpstat{margin:6px 0 0}
   .tabs{margin:8px 0 2px}
   .tabs button{padding:6px 4px}
   .nav{margin-top:10px}

@@ -1,30 +1,33 @@
 /* Eingabe: Tastatur (Mode 2) und Touch mit zwei Sticks.
    Ein verbundenes Gamepad überschreibt beides (siehe updTouch). */
 import { clamp } from './math.js';
-import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg } from './state.js';
+import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg, keyOf, keyFns, keyLearn } from './state.js';
 import { respawn, toggleArm, rewind } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
 
 /* ---------- Eingabe: Tastatur ---------- */
-const GAME_KEYS = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD','PageUp','PageDown'];
 addEventListener('keydown', e => {
+  if (keyLearn.fn) return;   // Menü lernt gerade eine Taste (menu.js)
   if (e.code === 'Escape' || e.code === 'KeyP') { toggleMenu(); e.preventDefault(); return; }
   if (game.paused) return;
-  if (GAME_KEYS.includes(e.code)) e.preventDefault();
+  const fns = keyFns(e.code);
+  if (fns.length || e.code === 'Space' || e.code.startsWith('Arrow') || e.code.startsWith('Page')) e.preventDefault();   // Seite nicht scrollen
   if (e.repeat) return;
   keys.add(e.code);
-  if (e.code === 'KeyR') respawn();
-  if (e.code === 'KeyV') toggleCam();
-  if (e.code === 'KeyM') { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); }
-  if (e.code === 'Space') toggleArm();
-  if (e.code === 'KeyZ') rewind(5);
-  // Kamerawinkel mit Bild auf/ab, Blickfeld mit + und - (e.key, damit es auf jeder Tastaturbelegung passt)
-  if (e.code === 'PageUp' || e.code === 'PageDown') {
-    cfg.tilt = clamp(cfg.tilt + (e.code === 'PageUp' ? 5 : -5), 0, 60); saveCfg(); say('Kamerawinkel ' + cfg.tilt + '°', 1);
+  for (const fn of fns) {
+    if (fn === 'reset') respawn();
+    if (fn === 'cam') toggleCam();
+    if (fn === 'mode') { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); }
+    if (fn === 'arm') toggleArm();
+    if (fn === 'rewind') rewind(5);
+    if (fn === 'tiltUp' || fn === 'tiltDown') {
+      cfg.tilt = clamp(cfg.tilt + (fn === 'tiltUp' ? 5 : -5), 0, 60); saveCfg(); say('Kamerawinkel ' + cfg.tilt + '°', 1);
+    }
   }
-  if (e.key === '+' || e.key === '-') {
+  // Blickfeld mit + und - (e.key, damit es auf jeder Tastaturbelegung passt), fest belegt
+  if (!fns.length && (e.key === '+' || e.key === '-')) {
     cfg.fov = clamp((cfg.fov || 110) + (e.key === '+' ? 5 : -5), 70, 150); saveCfg(); say('Blickfeld ' + cfg.fov + '°', 1);
   }
 });
@@ -32,12 +35,12 @@ addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 export function updKeyboard(dt) {
-  const ax = (p, n) => (keys.has(p) ? 1 : 0) - (keys.has(n) ? 1 : 0);
+  const ax = (p, n) => (keys.has(keyOf(p)) ? 1 : 0) - (keys.has(keyOf(n)) ? 1 : 0);   // Funktionen, Tasten aus der Belegung
   const ramp = (cur, t) => { const m = dt*(t === 0 ? 6 : 3.5); return cur + clamp(t - cur, -m, m); };
-  kb.pitch = ramp(kb.pitch, ax('ArrowUp', 'ArrowDown'));
-  kb.roll  = ramp(kb.roll,  ax('ArrowRight', 'ArrowLeft'));
-  kb.yaw   = ramp(kb.yaw,   ax('KeyD', 'KeyA'));
-  const th = ax('KeyW', 'KeyS');
+  kb.pitch = ramp(kb.pitch, ax('pitchF', 'pitchB'));
+  kb.roll  = ramp(kb.roll,  ax('rollR', 'rollL'));
+  kb.yaw   = ramp(kb.yaw,   ax('yawR', 'yawL'));
+  const th = ax('thrUp', 'thrDown');
   if (th) game.throttle = clamp(game.throttle + th*dt*0.7, 0, 1);
 }
 

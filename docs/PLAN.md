@@ -299,3 +299,10 @@ Entscheidung des Nutzers vom 02.11.2026.
 ## Demo-Vorgaben und Ton (erledigt 02.11.2026)
 - Erster Start: Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur), Bild ohne Rauschen, Lautstärke 70 %. Gespeicherte Einstellungen bleiben.
 - Ton neu (audio.js): je Motor Propeller-Brummen (Drehzahl × 3 Blätter) und Motorpfeifen (Drehzahl × 7 Polpaare, Schätzung), Rauschen für Propeller, Fahrtwind und Propwash, Aufprall und Absturz, weiche Signaltöne, Lautstärke-Regler. Nur WebAudio.
+
+## Steuerung und Tasten (erledigt 03.11.2026)
+- Reiter „Steuerung“ (vorher „Funke“): oben Umschaltung „Funke / Gamepad“ und „Tastatur“.
+- Freie Tastenbelegung für 15 Funktionen (cfg.keys, nur Abweichungen), Lernen per Antippen, belegte Tasten tauschen, Esc und P reserviert, + und − (Blickfeld) fest. Hilfe zeigt die aktuelle Belegung.
+
+## Nächste große Etappe (Nutzer, 03.11.2026)
+- SITL: echtes Betaflight als WebAssembly (P4). P3 (Wind, Verzögerung, Kreisel) danach oder nach Bedarf.

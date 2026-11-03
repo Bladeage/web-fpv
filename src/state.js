@@ -10,10 +10,50 @@ export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv'
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
-  ghost: false, trail: true, vol: 0.7 };
+  ghost: false, trail: true, vol: 0.7, keys: {} };
 // Vorgaben für den ersten Start (Demo): Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur),
 // Bild ohne Rauschen. gpSw/gpCal: Schalter-Belegung und Kalibrierung der Funke. vol: Lautstärke 0..1.
+// keys: eigene Tastenbelegung (nur Abweichungen von KEY_FN).
 export const CFG_DEFAULT = JSON.parse(JSON.stringify(cfg));
+/* ---------- Tastenbelegung ---------- */
+// [Funktion, Name im Menü, Vorgabe als KeyboardEvent.code]. Esc und P (Menü) sowie + und − (Blickfeld) bleiben fest.
+export const KEY_FN = [
+  ['thrUp', 'Gas mehr', 'KeyW'], ['thrDown', 'Gas weniger', 'KeyS'],
+  ['yawL', 'Gieren links', 'KeyA'], ['yawR', 'Gieren rechts', 'KeyD'],
+  ['pitchF', 'Nase runter', 'ArrowUp'], ['pitchB', 'Nase hoch', 'ArrowDown'],
+  ['rollL', 'Rollen links', 'ArrowLeft'], ['rollR', 'Rollen rechts', 'ArrowRight'],
+  ['arm', 'Scharf / aus', 'Space'], ['mode', 'Angle / Acro', 'KeyM'],
+  ['reset', 'Neustart', 'KeyR'], ['cam', 'Kamera', 'KeyV'], ['rewind', 'Zurückspulen', 'KeyZ'],
+  ['tiltUp', 'Kamera höher', 'PageUp'], ['tiltDown', 'Kamera tiefer', 'PageDown']
+];
+export const KEY_RESERVED = ['Escape', 'KeyP'];
+export const keyLearn = { fn: null };   // Menü wartet auf eine Taste für diese Funktion
+const KEY_DEFAULT = Object.fromEntries(KEY_FN.map(([fn, , code]) => [fn, code]));
+export const keyOf = fn => (cfg.keys && cfg.keys[fn]) || KEY_DEFAULT[fn];
+// Alle Funktionen, die auf einer Taste liegen
+export const keyFns = code => KEY_FN.filter(([fn]) => keyOf(fn) === code).map(([fn]) => fn);
+// Taste für eine Funktion setzen. Lag die Taste schon auf einer anderen Funktion, tauschen beide.
+export function setKey(fn, code) {
+  if (KEY_RESERVED.includes(code)) return false;
+  const old = keyOf(fn), k = { ...(cfg.keys || {}) };
+  for (const other of keyFns(code)) if (other !== fn) k[other] = old;
+  k[fn] = code;
+  for (const [f, , def] of KEY_FN) if (k[f] === def) delete k[f];   // nur Abweichungen speichern
+  cfg.keys = k;
+  return true;
+}
+// Anzeigename einer Taste
+export function keyName(code) {
+  const named = { Space: 'Leertaste', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', PageUp: 'Bild ↑', PageDown: 'Bild ↓',
+    ShiftLeft: 'Shift L', ShiftRight: 'Shift R', ControlLeft: 'Strg L', ControlRight: 'Strg R', AltLeft: 'Alt', AltRight: 'AltGr',
+    Enter: 'Enter', Backspace: '⌫', Tab: 'Tab', Home: 'Pos1', End: 'Ende', Insert: 'Einfg', Delete: 'Entf' };
+  if (named[code]) return named[code];
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit\d$/.test(code)) return code.slice(5);
+  if (/^Numpad/.test(code)) return 'Num ' + code.slice(6);
+  return code;
+}
+
 let storedCfg = {};
 try { storedCfg = JSON.parse(localStorage.getItem(STORE_CFG) || '{}') || {}; } catch (e) {}
 Object.assign(cfg, storedCfg);

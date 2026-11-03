@@ -1,6 +1,6 @@
 /* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
-import { cfg, game, keys, ptr, saveCfg } from './state.js';
+import { cfg, game, keys, ptr, saveCfg, KEY_FN, keyOf, keyName, setKey, keyLearn } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
@@ -131,7 +131,7 @@ export function openMenu(name = 'settings') {
   game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; show(name);
   audioPause();
 }
-export function resume() { audioInit(); game.paused = false; game.started = true; menu.hidden = true; game.last = performance.now(); }
+export function resume() { keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; game.last = performance.now(); }
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
@@ -308,9 +308,53 @@ $('bFine').addEventListener('click', () => showFine(document.querySelector('sect
 function showTab(id) {
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
   document.querySelectorAll('.tabpane').forEach(p => { p.hidden = p.dataset.pane !== id; });
+  keyLearn.fn = null;
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 showTab('general');
+// Reiter Steuerung: Funke / Gamepad oder Tastatur
+function showCtl(id) {
+  press('#ctlSeg button', b => b.dataset.ctl === id);
+  $('ctlPad').hidden = id !== 'pad'; $('ctlKeys').hidden = id !== 'keys';
+  keyLearn.fn = null; buildKeyRows();
+}
+document.querySelectorAll('#ctlSeg button').forEach(b => b.addEventListener('click', () => showCtl(b.dataset.ctl)));
+// Tastenbelegung: Taste antippen, dann neue Taste drücken
+function buildKeyRows() {
+  const box = $('keyRows'); box.textContent = '';
+  for (const [fn, label] of KEY_FN) {
+    const lab = document.createElement('span'); lab.textContent = label;
+    const b = document.createElement('button'); b.className = 'keybtn'; b.type = 'button';
+    b.textContent = keyLearn.fn === fn ? 'Taste …' : keyName(keyOf(fn));
+    b.classList.toggle('on', keyLearn.fn === fn);
+    b.addEventListener('click', () => { keyLearn.fn = keyLearn.fn === fn ? null : fn; buildKeyRows(); });
+    box.append(lab, b);
+  }
+  const r = document.createElement('button'); r.className = 'secondary keyreset'; r.type = 'button'; r.textContent = 'Standard-Tasten';
+  r.addEventListener('click', () => { cfg.keys = {}; keyLearn.fn = null; saveCfg(); buildKeyRows(); });
+  box.appendChild(r);   // im freien Feld neben der letzten Taste
+  buildHelpKeys();
+}
+// Beim Lernen: Taste abfangen, bevor das Spiel sie sieht (Erfassungsphase)
+addEventListener('keydown', e => {
+  if (!keyLearn.fn) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (e.code === 'Escape') keyLearn.fn = null;
+  else if (setKey(keyLearn.fn, e.code)) { keyLearn.fn = null; saveCfg(); }
+  else $('keyHint').textContent = 'Esc und P sind für das Menü reserviert. Bitte eine andere Taste drücken.';
+  buildKeyRows();
+}, true);
+// Hilfe: aktuelle Belegung
+function buildHelpKeys() {
+  const rows = [['thrUp', 'thrDown', 'Gas mehr / weniger'], ['yawL', 'yawR', 'Gieren links / rechts'], ['pitchF', 'pitchB', 'Nase runter / hoch'],
+    ['rollL', 'rollR', 'Rollen links / rechts'], ['reset', null, 'Neustart'], ['cam', null, 'Kamera wechseln'], ['mode', null, 'Angle / Acro'],
+    ['arm', null, 'Scharf schalten / aus (nur mit Gas unten)'], ['tiltUp', 'tiltDown', 'Kamerawinkel höher / tiefer'], ['rewind', null, '5 s zurückspulen']];
+  const box = $('helpKeys'); box.textContent = '';
+  const add = (k, t) => { const a = document.createElement('kbd'); a.textContent = k; const b = document.createElement('span'); b.textContent = t; box.append(a, b); };
+  for (const [a, b, t] of rows) add(keyName(keyOf(a)) + (b ? ' / ' + keyName(keyOf(b)) : ''), t);
+  add('+ / −', 'Blickfeld'); add('Esc / P', 'Einstellungen');
+}
+showCtl('pad');
 $('bResume').addEventListener('click', resume);
 $('bStart').addEventListener('click', start);
 $('bBack').addEventListener('click', back);
