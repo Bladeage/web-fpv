@@ -10,7 +10,7 @@ export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv'
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
-  ghost: false, trail: true, vol: 0.7, keys: {} };
+  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own' };   // fc: Regler 'own' (eigener) oder 'bf' (Betaflight)
 // Vorgaben für den ersten Start (Demo): Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur),
 // Bild ohne Rauschen. gpSw/gpCal: Schalter-Belegung und Kalibrierung der Funke. vol: Lautstärke 0..1.
 // keys: eigene Tastenbelegung (nur Abweichungen von KEY_FN).

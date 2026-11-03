@@ -56,3 +56,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 48 | 03.11.2026 | Freie Tastenbelegung im Reiter „Steuerung“ bauen (Option 1). SITL ist das nächste große Thema. | Tastenbelegung; Plan: SITL (P4) als nächste große Etappe |
 | 49 | 03.11.2026 | Mit Option 1 weiter: Machbarkeit SITL prüfen. | `docs/sitl-machbarkeit.md`; Emscripten-Installation von der Umgebung blockiert |
 | 50 | 03.11.2026 | Den Weg wählen, bei dem die GitHub-Seite weiter funktioniert. | Weg 2 (clang ohne Emscripten), fertige WebAssembly-Datei im Repository; Betaflight läuft in Node |
+| 51 | 03.11.2026 | Betaflight mit dem Vorschlag einbauen und ausprobieren. Falls es scheitert, zurück auf den Stand davor. | P4 Teil 2: Betaflight als wählbarer Regler im Simulator |

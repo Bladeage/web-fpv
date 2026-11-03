@@ -73,7 +73,9 @@ export function collectModules(entry = 'main.js') {
 
 export function bundle() {
   const order = collectModules();
-  const js = "'use strict';\n" + order.map(m => `/* ----- src/${m.file} ----- */\n${m.body}\n`).join('\n');
+  let js = "'use strict';\n" + order.map(m => `/* ----- src/${m.file} ----- */\n${m.body}\n`).join('\n');
+  // Betaflight (sitl/betaflight.wasm, GPLv3) als Base64 an Stelle des Platzhalters in src/bf.js
+  if (js.includes("'%%BF_WASM%%'")) js = js.replace("'%%BF_WASM%%'", () => "'" + readFileSync(join(ROOT, 'sitl/betaflight.wasm')).toString('base64') + "'");
   new vm.Script(js, { filename: 'fpvsim-bundle.js' });   // nur parsen: Syntaxfehler, doppelte let/const
   return { js, files: order.map(m => m.file) };
 }

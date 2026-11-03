@@ -34,6 +34,8 @@
 #include "pg/rx.h"
 #include "pg/motor.h"
 #include "rx/rx.h"
+#include "sensors/gyro.h"
+#include "flight/imu.h"
 
 #define EXPORT(name) __attribute__((export_name(#name)))
 
@@ -146,6 +148,9 @@ EXPORT(bf_init) void bf_init(void) {
   systemInit();
   initPhase1();
   motorConfigMutable()->dev.motorProtocol = MOTOR_PROTOCOL_PWM;   // wie SITL: PWM, keine DShot-Hardware
+  systemConfigMutable()->powerOnArmingGraceTime = 0;              // keine Startpause, Neustart im Spiel sofort flugbereit
+  gyroConfigMutable()->gyroCalibrationDuration = 10;               // Kreisel-Abgleich 0,1 s statt 1,25 s (Simulation rauscht nicht)
+  imuConfigMutable()->small_angle = 180;                           // scharf schalten in jeder Lage (wie der eigene Regler)
   initPhase2();
   initPhase3();
   modeActivationCondition_t *arm = modeActivationConditionsMutable(0);

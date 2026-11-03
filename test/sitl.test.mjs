@@ -3,6 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cfg, game, inp } from '../src/state.js';
+import { buildWorld } from '../src/world.js';
+import { STEP, step, respawn } from '../src/physics.js';
+import { bf, bfLoad } from '../src/bf.js';
+import { qRot } from '../src/math.js';
 
 const mod = new WebAssembly.Module(readFileSync(new URL('../sitl/betaflight.wasm', import.meta.url)));
 function start() {
@@ -42,4 +47,50 @@ test('Rechenzeit: 1 s Simulation unter 100 ms', () => {
   const x = start();
   const t0 = performance.now(); x.bf_step(1e6);
   assert.ok(performance.now() - t0 < 100, (performance.now() - t0).toFixed(1) + ' ms');
+});
+
+// Geschlossener Kreis: unsere Physik mit Betaflight als Regler (src/bf.js)
+
+function flyBf(mode) {
+  buildWorld();
+  bfLoad(readFileSync(new URL('../sitl/betaflight.wasm', import.meta.url)));
+  cfg.fc = 'bf'; cfg.mode = mode; cfg.dmg = 'off'; respawn(); inp.roll = inp.pitch = inp.yaw = 0; game.throttle = 0;
+}
+const att = () => { const s = game.sim, f = qRot(s.q, [0, 0, -1]), r = qRot(s.q, [1, 0, 0]), u = qRot(s.q, [0, 1, 0]);
+  return { pitch: Math.atan2(-f[1], u[1])*180/Math.PI, roll: Math.atan2(-r[1], u[1])*180/Math.PI, head: Math.atan2(-f[0], -f[2])*180/Math.PI }; };
+const runFor = sec => { for (let i = 0; i < sec/STEP && game.state === 'fly'; i++) step(STEP); };
+
+test('Betaflight im Simulator: startet, steigt gerade, Achsen in die richtige Richtung (Angle)', (t) => {
+  t.after(() => { cfg.fc = 'own'; });
+  flyBf('angle');
+  assert.equal(bf.ready, true, bf.err);
+  runFor(0.3);
+  assert.equal(bf.x.bf_flag(0), 1, 'scharf');
+  game.throttle = 0.5; runFor(1);
+  assert.ok(game.sim.p[1] > 2, 'steigt: ' + game.sim.p[1].toFixed(1) + ' m');
+  assert.ok(Math.abs(att().roll) < 2 && Math.abs(att().pitch) < 2, 'gerade ' + JSON.stringify(att()));
+  game.throttle = 0.35;
+  inp.roll = 0.3; runFor(0.5); assert.ok(att().roll > 4, 'Rollen rechts neigt rechts: ' + att().roll.toFixed(1)); inp.roll = 0; runFor(1.5);
+  assert.ok(Math.abs(att().roll) < 2, 'Angle richtet sich wieder auf: ' + att().roll.toFixed(1));
+  inp.pitch = 0.3; runFor(0.5); assert.ok(att().pitch > 4, 'Nicken vor senkt die Nase: ' + att().pitch.toFixed(1)); inp.pitch = 0; runFor(1.5);
+  inp.yaw = 0.5; runFor(0.5); assert.ok(att().head < -20, 'Gieren rechts dreht rechts: ' + att().head.toFixed(1)); inp.yaw = 0;
+  assert.equal(game.state, 'fly');
+});
+
+test('Betaflight im Simulator: Acro hält die Lage nach dem Loslassen', (t) => {
+  t.after(() => { cfg.fc = 'own'; });
+  flyBf('acro');
+  runFor(0.3); game.throttle = 0.5; runFor(1); game.throttle = 0.35;
+  inp.roll = 0.3; runFor(0.4); inp.roll = 0;
+  const r0 = att().roll; runFor(0.5);
+  assert.ok(r0 > 15 && Math.abs(att().roll - r0) < 5, 'Lage bleibt: ' + r0.toFixed(1) + ' -> ' + att().roll.toFixed(1));
+});
+
+test('Betaflight nicht verfügbar: eigener Regler fliegt weiter', (t) => {
+  t.after(() => { cfg.fc = 'own'; bfLoad(readFileSync(new URL('../sitl/betaflight.wasm', import.meta.url))); });
+  buildWorld();
+  bf.mod = null; bf.err = 'Test: nicht geladen';
+  cfg.fc = 'bf'; cfg.mode = 'angle'; respawn(); game.throttle = 0.6; runFor(1);
+  assert.equal(bf.ready, false);
+  assert.ok(game.sim.p[1] > 1, 'fliegt mit eigenem Regler: ' + game.sim.p[1].toFixed(1) + ' m');
 });

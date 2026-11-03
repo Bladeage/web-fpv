@@ -5,6 +5,7 @@ import { DEG, clamp, vAdd, vSub, vScale, vDot, vLen, vNorm, vCross, qMul, qNorm,
 import { cfg, game, kb, inp, say, saveBest } from './state.js';
 import { colliders, gates, GATE_IN } from './world.js';
 import { fmtTime } from './format.js';
+import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -123,6 +124,7 @@ function resetDrone() {
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
   game.camPos = [0, 1.0, 2.6]; game.camHeading = [0, 0, -1];
+  if (cfg.fc === 'bf' && !bfStart()) bfFallbackNote();   // Betaflight frisch starten, sonst eigener Regler
 }
 export function respawn() {
   game.sim = newSim();
@@ -238,6 +240,11 @@ export function step(h) {
   // 4. Motoren: J dω/dt = Kt (I - I0) - kQ ω², I = (u V - Ke ω)/Rm. Akkustrom = 1 A Grundlast + Σ u I (Regler als Spannungswandler).
   // Akkuspannung V = E - Ri·Iakku hängt selbst vom Strom ab: direkt gelöst (linear in V), sonst schaukelt es bei hohen Strömen.
   for (let i = 0; i < 4; i++) s.cmd[i] = armed ? clamp(u[i], 0, 1) : game.armed ? PHYS.idle : 0;   // scharf am Boden: Leerlauf
+  // Regler Betaflight (P4): echtes Betaflight rechnet Regelung und Mischer, unsere Physik den Rest
+  if (cfg.fc === 'bf' && bf.ready) {
+    const m = bfStep(s, h, game.armed, cfg.mode !== 'acro', game.throttle, inp.roll, inp.pitch, inp.yaw);
+    for (let i = 0; i < 4; i++) s.cmd[i] = game.armed ? clamp(m[i], 0, 1) : 0;
+  }
   // Turtle-Modus (Betaflight "Flip over after crash"), schaltet sich von selbst ein:
   // Liegt die Drohne scharf geschaltet still auf dem Kopf oder auf der Seite, drehen die Motoren rückwärts. Kein Gas nötig.
   // Nicken oder Rollen kippt sie über die Kante in Stick-Richtung (vorwärts = über die Nase, rechts = über

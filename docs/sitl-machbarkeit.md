@@ -40,7 +40,11 @@ In beiden Fällen nötig: eigene Plattform-Datei (Schritt-Funktion statt Echtzei
 - Betaflight Quad-X Motorreihenfolge: 1 hinten rechts, 2 vorne rechts, 3 hinten links, 4 vorne links. Kreisel: x Rollen, y Nicken, z Gieren.
 - Die GitHub-Seite ist nicht betroffen: `npm run build` bettet die Datei noch nicht ein.
 
-## Nächste Etappe (Vorschlag)
+## Zweite Etappe (erledigt 03.11.2026)
+
+Eingebaut wie unten vorgeschlagen, siehe `docs/PLAN.md` (P4 Teil 2) und `test/sitl.test.mjs`.
+
+### Damaliger Vorschlag
 
 - In den Simulator einbinden: `betaflight.wasm` als Base64 in die HTML-Datei, Regler wählbar (eigener Regler bleibt Vorgabe und Rückfall).
 - Achsen und Motorreihenfolge auf unsere Physik abbilden, Lage aus der Physik als Beschleunigung einspeisen.

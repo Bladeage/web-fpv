@@ -74,6 +74,7 @@ function syncStyle() {
   $('styleHint').textContent = st ? 'Spielstil ' + STYLES[st].name + ': ' + STYLES[st].info : 'Spielstil: eigene Einstellungen.';
 }
 export function syncMenu() {
+  press('#fcSeg button', b => b.dataset.fc === (cfg.fc || 'own'));
   setMode(cfg.mode);
   const sc = SCENARIOS.find(x => x.id === cfg.scen);
   press('#scenList button', b => b.dataset.id === cfg.scen);
@@ -151,6 +152,11 @@ for (const [id, d] of Object.entries(DRONES)) {
 document.querySelectorAll('#cellSeg button').forEach(b => b.prepend(batteryIcon(600 + +b.dataset.cells*400, +b.dataset.cells)));
 document.querySelectorAll('#cellSeg button').forEach(b => b.addEventListener('click', () => { cfg.drone.cells = +b.dataset.cells; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+// Regler: eigener oder Betaflight (P4). Wechsel startet die Drohne neu, damit Betaflight sauber anläuft.
+document.querySelectorAll('#fcSeg button').forEach(b => b.addEventListener('click', () => {
+  cfg.fc = b.dataset.fc; saveCfg(); press('#fcSeg button', x => x.dataset.fc === cfg.fc);
+  if (game.started) respawn();
+}));
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
 $('mass').addEventListener('input', e => { cfg.drone.mass = +e.target.value/1000; saveCfg(); syncMenu(); });
 $('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; setCapIcon(); saveCfg(); });
