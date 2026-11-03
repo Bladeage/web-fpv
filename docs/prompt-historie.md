@@ -55,3 +55,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 47 | 03.11.2026 | Menüpunkt „Funke“ in „Steuerung“ umbenennen. Dort soll einheitlich die Steuerung angepasst werden, egal ob Funke, Gamepad oder Tastatur. | Reiter „Steuerung“ |
 | 48 | 03.11.2026 | Freie Tastenbelegung im Reiter „Steuerung“ bauen (Option 1). SITL ist das nächste große Thema. | Tastenbelegung; Plan: SITL (P4) als nächste große Etappe |
 | 49 | 03.11.2026 | Mit Option 1 weiter: Machbarkeit SITL prüfen. | `docs/sitl-machbarkeit.md`; Emscripten-Installation von der Umgebung blockiert |
+| 50 | 03.11.2026 | Den Weg wählen, bei dem die GitHub-Seite weiter funktioniert. | Weg 2 (clang ohne Emscripten), fertige WebAssembly-Datei im Repository; Betaflight läuft in Node |

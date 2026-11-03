@@ -306,3 +306,4 @@ Entscheidung des Nutzers vom 02.11.2026.
 
 ## Nächste große Etappe (Nutzer, 03.11.2026)
 - SITL: echtes Betaflight als WebAssembly (P4). P3 (Wind, Verzögerung, Kreisel) danach oder nach Bedarf.
+- P4 Teil 1 (erledigt 03.11.2026): Betaflight als WebAssembly ohne Emscripten gebaut (`sitl/`), läuft in Node. Ausnahme von „keine externen Quellen“: Betaflight (GPLv3), vom Nutzer so entschieden. Die fertige Datei liegt im Repository, damit die CI ohne C-Compiler baut und die GitHub-Seite weiter funktioniert. Details: `docs/sitl-machbarkeit.md`.

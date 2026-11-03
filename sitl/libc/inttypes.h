@@ -1,0 +1,17 @@
+#pragma once
+#include <stdint.h>
+#define PRIu8 "u"
+#define PRIu16 "u"
+#define PRIu32 "u"
+#define PRId32 "d"
+#define PRIi32 "i"
+#define PRIx32 "x"
+#define PRIX32 "X"
+#define PRIu64 "llu"
+#define PRId64 "lld"
+#define PRIx8 "x"
+#define PRIx16 "x"
+#define PRIX8 "X"
+#define PRIX16 "X"
+#define PRId8 "d"
+#define PRId16 "d"

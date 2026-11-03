@@ -30,3 +30,18 @@ In beiden Fällen nötig: eigene Plattform-Datei (Schritt-Funktion statt Echtzei
 - Ob die Initialisierung (`init()`) ohne echte Hardware sauber durchläuft.
 - Dateigröße. Schätzung 300 bis 800 KB WebAssembly, als Base64 etwa ein Drittel mehr. Annahme: nur Flugsteuerung, ohne OSD, Blackbox und CLI.
 - Rechenzeit pro Schritt im Browser. Annahme: deutlich unter 0,1 ms, weil die Regelschleife auf 72-MHz-Prozessoren in Echtzeit läuft.
+
+## Ergebnis der ersten Etappe (03.11.2026, Weg 2 ohne Emscripten)
+
+- Gebaut mit dem vorhandenen clang 18: `sitl/betaflight.wasm`, 459 KB, 348 Quelldateien. Bauweg und Änderungen in `sitl/`.
+- 95 Hardware-Funktionen (SPI, Flash, DShot, Funkchips) sind Importe und geben 0 zurück. Beim Start werden davon nur 10 aufgerufen, keine stört.
+- Geprüft in Node (`test/sitl.test.mjs`): Start in unter 5 ms, Register mit allen Einstellungen, nach der Startpause scharf über AUX1, Leerlauf 5,5 %, Gas gleichmäßig auf alle Motoren, Gegensteuern auf Kreisel-Drehung mit den richtigen Motorpaaren.
+- Rechenzeit: 1 s Simulation braucht etwa 5 ms (Node, dieser Rechner).
+- Betaflight Quad-X Motorreihenfolge: 1 hinten rechts, 2 vorne rechts, 3 hinten links, 4 vorne links. Kreisel: x Rollen, y Nicken, z Gieren.
+- Die GitHub-Seite ist nicht betroffen: `npm run build` bettet die Datei noch nicht ein.
+
+## Nächste Etappe (Vorschlag)
+
+- In den Simulator einbinden: `betaflight.wasm` als Base64 in die HTML-Datei, Regler wählbar (eigener Regler bleibt Vorgabe und Rückfall).
+- Achsen und Motorreihenfolge auf unsere Physik abbilden, Lage aus der Physik als Beschleunigung einspeisen.
+- Prüfen: Schweben, Angle- und Acro-Modus, Scharf-Schalter der Funke auf AUX1.
