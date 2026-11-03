@@ -1,5 +1,5 @@
 /* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
-   Einstellungen (Kamera, Ton, Funke) sind über Esc oder ☰ von überall erreichbar. */
+   Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
 import { cfg, game, keys, ptr, saveCfg } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
@@ -178,7 +178,7 @@ for (const [id, name] of OSD_ITEMS) {
 }
 $('propsView').addEventListener('change', e => { cfg.propsView = e.target.checked; saveCfg(); });
 
-// Funke-Zuordnung im Menü: Knüppel-Achsen (Reiter Funke) und Schalter-Funktionen (Reiter Schalter)
+// Zuordnung im Menü: Knüppel-Achsen (Reiter Steuerung) und Schalter-Funktionen (Reiter Schalter)
 // Lernen: nach Klick wird die Achse mit der größten Bewegung (oder die gedrückte Taste) übernommen.
 const learn = { fn: null, sw: false, base: null, btn: null };
 function learnBtn(fn, sw) {

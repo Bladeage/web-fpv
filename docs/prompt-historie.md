@@ -52,3 +52,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 44 | 02.11.2026 | (Screenshot Handy, 7 Zoll, Acro) Nach der Landung und nach dem Turtle-Modus wackelt die Drohne am Boden und dreht sich im Kreis, bis sie stabil steht. | Bodenkontakt: nahe Füße zählen mit, kein Einfrieren; Regler am Boden erst nach Loslassen |
 | 45 | 02.11.2026 | P3 im Detail erklären, in einfachem technischem Englisch. | Erklärung P3 (Englisch) |
 | 46 | 03.11.2026 | (Foto) Bug: „Turtle-Modus: Stick zum Umdrehen“ erscheint dutzendfach übereinander. | Turtle startet nur mit Gas unten, gleiche Meldungen stapeln sich nicht |
+| 47 | 03.11.2026 | Menüpunkt „Funke“ in „Steuerung“ umbenennen. Dort soll einheitlich die Steuerung angepasst werden, egal ob Funke, Gamepad oder Tastatur. | Reiter „Steuerung“ |
