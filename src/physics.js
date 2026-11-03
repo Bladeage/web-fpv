@@ -244,8 +244,9 @@ export function step(h) {
   // den rechten Arm, bezogen auf die Drohne). Steht sie wieder auf den Füßen, gibst du Gas oder ist sie
   // länger als 1 s in der Luft, geht es normal weiter. Kippt sie auf die Seite, greift er dort erneut.
   // Wenig Stick dreht langsam, voller Stick schnell.
-  if (!s.turtle && game.armed && s.flippedT > 0.3) { s.turtle = true; s.turtleAir = 0; say('Turtle-Modus: Stick zum Umdrehen', 2); }
-  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) { s.turtle = false; s.afterTurtle = true; }
+  // Start nur mit Gas unten (gleiche Grenze wie beim Beenden), sonst schaltet er jeden Schritt an und aus.
+  if (!s.turtle && game.armed && s.flippedT > 0.3 && game.throttle <= 0.15) { s.turtle = true; s.turtleAir = 0; say('Turtle-Modus: Stick zum Umdrehen', 2); }
+  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) { s.turtle = false; s.afterTurtle = true; s.flippedT = 0; }
   let turtleM = null;
   if (s.turtle) {
     s.turtleAir = s.onGround ? 0 : s.turtleAir + h;

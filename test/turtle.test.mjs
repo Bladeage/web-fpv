@@ -1,7 +1,7 @@
 // Turtle-Modus: auf dem Kopf liegend schaltet er sich von selbst ein, der Stick dreht die Drohne zurück.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { cfg, game, inp } from '../src/state.js';
+import { cfg, game, inp, messages } from '../src/state.js';
 import { buildWorld } from '../src/world.js';
 import { STEP, step, respawn } from '../src/physics.js';
 import { applyDrone } from '../src/drone.js';
@@ -45,4 +45,18 @@ test('Ohne Stick bleibt die Drohne liegen; disarmed kein Turtle-Modus', () => {
   assert.ok(upY() < -0.5);
   game.armed = false; run(0.2);
   assert.equal(game.sim.turtle, false);
+});
+
+test('Mit Gas auf dem Kopf: kein Turtle-Modus, keine Meldungsflut; Gas runter startet ihn einmal', () => {
+  applyDrone({ preset: '5' }); respawn();
+  flip(); run(1);
+  messages.length = 0;
+  game.throttle = 0.34; inp.roll = 0;
+  let toggles = 0, was = game.sim.turtle;
+  run(1, () => { if (game.sim.turtle !== was) { toggles++; was = game.sim.turtle; } return false; });
+  assert.ok(toggles <= 1, 'schaltet ' + toggles + '-mal um');
+  assert.ok(messages.length <= 1, messages.length + ' Meldungen');
+  game.throttle = 0; run(1);
+  assert.equal(game.sim.turtle, true, 'mit Gas unten wieder an');
+  assert.ok(messages.filter(m => m.text.startsWith('Turtle')).length <= 1, 'Meldung nur einmal');
 });

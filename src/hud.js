@@ -262,9 +262,10 @@ export function drawHud() {
   if (game.state === 'fly' && s.turtle) {   // Turtle-Modus: schaltet sich auf dem Kopf von selbst ein
     txt('TURTLE', W/2, H/2 - fs*2, 'center', '#ffd27a');
     txt(touchUI ? 'Rechten Daumen in Kipprichtung schieben' : 'Nicken oder Rollen zum Umdrehen', W/2, H/2 - fs*0.6, 'center', '#ffffff');
-  } else if (game.state === 'fly' && s.flippedT > 1) {   // umgedreht, aber nicht scharf: kein Turtle-Modus
+  } else if (game.state === 'fly' && s.flippedT > 1) {   // umgedreht ohne Turtle-Modus: nicht scharf oder Gas oben
     txt('UMGEDREHT', W/2, H/2 - fs*2, 'center', RED);
-    txt(gp.connected ? 'Scharf schalten für Turtle, Taste oder R für Neustart' : touchUI ? 'Neustart-Knopf oben' : 'Leertaste für Turtle, R für Neustart', W/2, H/2 - fs*0.6, 'center', '#ffffff');
+    const tip = game.armed ? 'Gas runter für Turtle-Modus' : gp.connected ? 'Scharf schalten für Turtle, Taste oder R für Neustart' : touchUI ? 'Neustart-Knopf oben' : 'Leertaste für Turtle, R für Neustart';
+    txt(tip, W/2, H/2 - fs*0.6, 'center', '#ffffff');
   }
   if (!game.armed && game.state === 'fly') txt('DISARMED', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.62, 'center', '#ffffff');

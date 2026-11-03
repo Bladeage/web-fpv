@@ -57,4 +57,8 @@ export const ptr = new Map();
 export const messages = [];
 // Großer Text in der Bildmitte, z. B. „ZIEL GETROFFEN“
 export function banner(text, sub = '', dur = 2.5) { game.banner = { text, sub, until: performance.now() + dur*1000 }; }
-export function say(text, dur = 1.6) { messages.push({ text, until: performance.now() + dur*1000 }); }
+// Gleiche Meldung, die noch zu sehen ist, wird nur verlängert (sonst stapeln sich Wiederholungen).
+export function say(text, dur = 1.6) {
+  const until = performance.now() + dur*1000, m = messages.find(x => x.text === text && x.until > performance.now());
+  if (m) m.until = Math.max(m.until, until); else messages.push({ text, until });
+}
