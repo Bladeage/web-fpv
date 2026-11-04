@@ -59,3 +59,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 51 | 03.11.2026 | Betaflight mit dem Vorschlag einbauen und ausprobieren. Falls es scheitert, zurück auf den Stand davor. | P4 Teil 2: Betaflight als wählbarer Regler im Simulator |
 | 52 | 04.11.2026 | (18 Beispielbilder aus anderen Simulatoren) Beispiele für OSD und weitere Ziele in der Luft. | Fragerunde |
 | 53 | 04.11.2026 | Antworten: OSD mit Kompassband, Sucher-Rahmen, Brillenrand und Rec.; drei OSD-Stile; Bildmodi Wärmebild und Nachtsicht; Luftziele Starrflügler, Hubschrauber-Drohne, großer Multikopter. | Plan O2, V1, J1 |
+| 54 | 04.11.2026 | Einfache Modi noch einfacher: Ziele tragen Luftballons, die getroffen werden müssen. Luftziele ziehen sie hinter sich her, Bodenziele tragen sie über sich (wie der Ballon-Kampf in Mario Kart). Das neue „Mittel“ ist das alte „Leicht“. | Plan J0 |

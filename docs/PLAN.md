@@ -328,4 +328,14 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Großer Multikopter: langsamer Sechs-Rotor, große Trefferfläche, schwebt an Wegpunkten.
 - Jedes Ziel mit eigenem Modell, eigener Strecke (keine doppelt genutzt) und eigener Punktzahl.
 
-Vorschlag Reihenfolge: O2, V1, J1. Wärmebild (V1) wirkt am besten mit den neuen Luftzielen (J1), beide zusammen machen die Jagd deutlich reicher.
+### J0: Ballon-Modus und neue Schwierigkeitsstufen (Nutzer, 04.11.2026)
+- Neue Stufe „Leicht“: Die Ziele tragen Luftballons, getroffen werden muss der Ballon (wie der Ballon-Kampf in Rennspielen).
+  - Luftziele ziehen ihren Ballon an einer Leine hinter sich her.
+  - Bodenziele (Fahrzeuge) tragen ihren Ballon an einer Leine über sich.
+  - Ballon groß und bunt (Annahme: Radius etwa 0,6 m), platzt beim Treffer mit Knall und Fetzen, das Ziel zählt als getroffen.
+  - Vorschlag: ein Ballon pro Ziel. Mehrere Ballons (wie im Vorbild drei) wären später möglich.
+  - Ziele langsamer, Ringe größer, Slalom breiter, Landung weicher als bisher „Leicht“.
+- Stufen verschieben sich: neues „Mittel“ = altes „Leicht“, neues „Schwer“ = altes „Mittel“, neue Stufe „Profi“ = altes „Schwer“ (Vorschlag, damit nichts verloren geht).
+- Vorgabe für die Demo bleibt „Mittel“ (also das alte „Leicht“).
+
+Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi sofort zugänglicher. Wärmebild (V1) wirkt am besten mit den neuen Luftzielen (J1).
