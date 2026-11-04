@@ -108,7 +108,7 @@ export function cellOcv(soc) {
 export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {}, pop() {} };   // Ton und Vibration, setzt main.js
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
-export const task = { check: checkGate, collide: null, reset() {}, early: false };   // early: vor Boden und Hindernissen prüfen
+export const task = { check: checkGate, collide: null, reset() {}, early: false, gateExtra: 0 };   // gateExtra: Tor zählt so viele m neben der Öffnung (Stufe)   // early: vor Boden und Hindernissen prüfen
 
 function newSim() {
   return {
@@ -509,7 +509,8 @@ export function checkGate(a, b) {
   const p = [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t, a[2] + (b[2]-a[2])*t];
   const lat = (p[0]-g.c[0])*g.r[0] + (p[2]-g.c[2])*g.r[2];
   const ver = p[1] - g.c[1];
-  if (Math.abs(lat) < GATE_IN && Math.abs(ver) < GATE_IN) passGate();
+  const w = GATE_IN + (task.gateExtra || 0);
+  if (Math.abs(lat) < w && Math.abs(ver) < w) passGate();
 }
 
 export function passGate() {

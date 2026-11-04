@@ -6,7 +6,7 @@ import { gp } from './gamepad.js';
 import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff } from './scenario.js';
 import { signal } from './signal.js';
 
 
@@ -266,6 +266,14 @@ export function drawHud() {
     txt('UMGEDREHT', W/2, H/2 - fs*2, 'center', RED);
     const tip = game.armed ? 'Gas runter für Turtle-Modus' : gp.connected ? 'Scharf schalten für Turtle, Taste oder R für Neustart' : touchUI ? 'Neustart-Knopf oben' : 'Leertaste für Turtle, R für Neustart';
     txt(tip, W/2, H/2 - fs*0.6, 'center', '#ffffff');
+  }
+  // Sinkraten-Anzeige (Leicht, Landung und Lieferung): grün sicher, gelb knapp, rot zu schnell
+  if ((scen.id === 'landing' || scen.id === 'deliver') && diff().sinkHud && game.state === 'fly') {
+    const alt = s.p[1] - PHYS.foot, sink = Math.max(0, -s.v[1]), lim = scen.id === 'landing' ? diff().landV : 2.5;
+    if (alt < 15 && !s.grounded) {
+      const col = sink < lim*0.6 ? '#7dff9a' : sink < lim ? '#ffd27a' : RED;
+      txt('\u2193 ' + sink.toFixed(1) + ' M/S   ALT ' + alt.toFixed(1) + ' M', W/2, H/2 + fs*3.2, 'center', col);
+    }
   }
   if (!game.armed && game.state === 'fly') txt('DISARMED', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.62, 'center', '#ffffff');

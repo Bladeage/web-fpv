@@ -31,11 +31,22 @@ export const RING_TUBE = 0.1;   // Rohrradius in m
 // Leicht: Jagd mit Ballons (balloons), sonst vorerst wie Normal; weitere Erleichterungen folgen in Runden (J0).
 // Normal: das frühere „Leicht“. Schwer: das frühere „Mittel“.
 export const DIFF = {
-  easy: { name: 'Leicht', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, balloons: true, info: 'Jagd: Ballons treffen statt Ziele' },
-  mid:  { name: 'Normal', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, info: 'Ohne Hilfen' },
-  hard: { name: 'Schwer', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0, info: 'Kleinere Ringe, engerer Slalom, schnellere Ziele' }
+  // Leicht (Runde 1, Schätzungen): größere Ringe, breiterer Slalom, Tor zählt bis 0,8 m neben der Öffnung, Landeplatz und Lieferzonen
+  // doppelt so groß, Landehilfe unter 3 m, Abwurf im Überflug, Sinkraten-Anzeige, Verfolgung 30 % langsamer mit mehr Abstand
+  easy: { name: 'Leicht', ringR: 3.0, slalomW: 10, landV: 4.0, padHalf: 3.0, huntSpeed: 0.7, balloons: true, gateExtra: 0.8, dropScale: 2,
+          landAid: true, flyDrop: true, sinkHud: true, followSpeed: 0.5, followMax: 18, info: 'Ballons in der Jagd, größere Ringe und Plätze, Landehilfe' },
+  mid:  { name: 'Normal', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, followSpeed: 0.7, info: 'Ohne Hilfen' },
+  hard: { name: 'Schwer', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0, followSpeed: 1.0, info: 'Kleinere Ringe, engerer Slalom, schnellere Ziele' }
 };
 export const diff = () => DIFF[cfg.diff] || DIFF.mid;
+export const dropR = () => DROP_R*(diff().dropScale || 1);   // Radius der Lieferzonen nach Stufe
+// Landehilfe (Leicht): unter 5 m Höhe höchstens 1,2 m/s plus 0,5 m/s je Meter Höhe sinken (am Boden 1,2 m/s)
+function landAid(s, h) {
+  const alt = s.p[1] - PHYS.foot, vmax = 1.2 + 0.5*Math.max(0, alt);
+  if (!diff().landAid || alt > 5 || s.v[1] > -vmax) return;
+  // Schwerkraft dieses Schritts ausgleichen und dann zügig auf die erlaubte Sinkrate bremsen (nicht darüber hinaus)
+  s.v[1] = Math.min(-vmax, s.v[1] + 9.81*h + (-vmax - s.v[1])*Math.min(1, 10*h));
+}
 /* ---------- Zufällige Anordnung mit Prüfung (Ringe, Slalom) ---------- */
 // Abstand eines Punktes zu einem Hindernis-Quader (0 = innen)
 function boxDist(p, c) {
@@ -122,7 +133,7 @@ function newLayout() {
 
 // Paketlieferung: Abholplatz neben der Startgeraden, Lieferplattformen auf Kursabschnitten ohne Pfeiler (Reihenfolge zufällig).
 export const PICKUP = [-5, 0, -12];
-const DROPS = [2, 3, 5, 7].map(i => { const a = COURSE[i], b = COURSE[(i + 1) % COURSE.length]; return [(a[0] + b[0])/2, 0, (a[1] + b[1])/2]; });
+export const DROPS = [2, 3, 5, 7].map(i => { const a = COURSE[i], b = COURSE[(i + 1) % COURSE.length]; return [(a[0] + b[0])/2, 0, (a[1] + b[1])/2]; });
 export const DELIVER_N = 3, DROP_R = 1.5;   // Lieferungen, Plattform-Radius in m
 const DROP_HOLD = 0.8;                      // so lange tief und langsam über dem Platz schweben, in s
 export const dropOrder = [];
@@ -138,6 +149,7 @@ const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 /* ---------- Ablauf ---------- */
 const st = { hits: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
 function reset() {
+  task.gateExtra = diff().gateExtra || 0;   // Tor-Toleranz nach Stufe
   if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout();
   st.carry = false; st.deliv = 0; st.inBand = 0; game.payload = 0;
   if (scen.id === 'deliver') {   // zufällige Reihenfolge von 3 der 4 Plattformen
@@ -205,6 +217,7 @@ function collidePoles(h) {
 
 function checkLanding(a, b, h) {
   const s = game.sim;
+  landAid(s, h);
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const onPad = s.p[1] - PHYS.foot < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
@@ -244,9 +257,12 @@ function checkDeliver(a, b, h) {
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const tgt = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP;
-  const near = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < DROP_R && s.p[1] - PHYS.foot < 1.2 && vLen(s.v) < 2.5;
+  landAid(s, h);
+  const over = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < dropR(), alt = s.p[1] - PHYS.foot;
+  const near = over && alt < 1.2 && vLen(s.v) < 2.5;
+  const drop = st.carry && diff().flyDrop && over && alt < 12;   // Leicht: Abwurf im Überflug
   st.hold = near ? st.hold + h : 0;
-  if (st.hold < DROP_HOLD) return;
+  if (st.hold < DROP_HOLD && !drop) return;
   st.hold = 0;
   if (!st.carry) {
     st.carry = true; game.payload = 0.25*PHYS.mass;   // Paket: ein Viertel der Drohnenmasse (Schätzung)
@@ -254,7 +270,7 @@ function checkDeliver(a, b, h) {
   } else {
     st.carry = false; game.payload = 0; st.deliv++; fx.beep(1180, 0.15);
     if (st.deliv >= DELIVER_N) finish(s.t - st.takeoff);
-    else banner('GELIEFERT', st.deliv + ' / ' + DELIVER_N, 2);
+    else banner(drop ? 'PAKET ABGEWORFEN' : 'GELIEFERT', st.deliv + ' / ' + DELIVER_N, 2);
   }
 }
 // Verfolgung: Auto fährt los, sobald die Drohne abhebt; Zeit im Abstandsband zählt
@@ -264,12 +280,12 @@ function checkFollow(a, b, h) {
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   if (st.takeoff !== null) {
     lead.t += h;
-    lead.s += (9 + 4*Math.sin(lead.t*0.25))*diff().huntSpeed*h;
+    lead.s += (9 + 4*Math.sin(lead.t*0.25))*(diff().followSpeed ?? diff().huntSpeed)*h;
     const r = routeAt(ROUTES[0], lead.s); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw;
   }
   lead.dist = Math.hypot(s.p[0] - lead.x, s.p[2] - lead.z);
   const alt = s.p[1] - PHYS.foot;
-  lead.ok = st.takeoff !== null && lead.dist >= FOLLOW.dMin && lead.dist <= FOLLOW.dMax && alt >= FOLLOW.hMin && alt <= FOLLOW.hMax;
+  lead.ok = st.takeoff !== null && lead.dist >= FOLLOW.dMin && lead.dist <= (diff().followMax || FOLLOW.dMax) && alt >= FOLLOW.hMin && alt <= FOLLOW.hMax;
   if (lead.ok) st.inBand += h;
   if (st.inBand >= FOLLOW.need) finish(s.t - st.takeoff);
 }
@@ -370,8 +386,8 @@ export function buildScenario() {
   });
   if (scen.id === 'deliver') {   // Teil 0: Abholplatz (orange, mit Paketstapel), Teile 1..3: Lieferplattformen in Reihenfolge (blau)
     const plate = (c, col) => {
-      mb.box([c[0], 0.003, c[2]], [DROP_R, 0.003, DROP_R], 0, col);   // flache Platten: Drohne steht physikalisch auf y = 0
-      mb.box([c[0], 0.007, c[2]], [DROP_R*0.8, 0.001, DROP_R*0.8], 0, [0.92, 0.92, 0.92]);
+      mb.box([c[0], 0.003, c[2]], [dropR(), 0.003, dropR()], 0, col);   // flache Platten: Drohne steht physikalisch auf y = 0
+      mb.box([c[0], 0.007, c[2]], [dropR()*0.8, 0.001, dropR()*0.8], 0, [0.92, 0.92, 0.92]);
     };
     part(() => { plate(PICKUP, [1.0, 0.5, 0.1]); for (let k = 0; k < 3; k++) mb.box([PICKUP[0] + (k - 1)*0.5, 0.106, PICKUP[2]], [0.18, 0.1, 0.18], k*0.4, [0.62, 0.45, 0.28]); });
     for (const i of dropOrder) part(() => plate(DROPS[i], [0.15, 0.4, 0.95]));
