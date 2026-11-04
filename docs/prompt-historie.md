@@ -68,3 +68,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 60 | 04.11.2026 | Testecken auf der Karte, auf jeder Karte sichtbar: Kinderspielplatz (für Whoops), Baustelle, offenes Haus, Ruine/Gemäuer, weitere Ideen. Sinnvoll anordnen, keine Mission stören. Eine kleine Stadt. | Fragerunde |
 | 61 | 04.11.2026 | Antworten: zusätzlich Parkhaus; Freiflug startet in der Stadt. | Kleine Stadt mit 5 Testecken |
 | 62 | 04.11.2026 | Die neuen Strukturen liegen zu nah beieinander; auf der Karte auseinander platzieren. | Testecken über die Karte verteilt |
+| 63 | 04.11.2026 | Drohnen und Autos sollen sich in einem größeren Radius bewegen, verteilt bis zu den Strukturen und um sie herum. Luftfahrzeuge mit noch größerem Bewegungsradius. | Ziele über die Karte verteilt |

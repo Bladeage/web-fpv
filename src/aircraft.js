@@ -7,7 +7,7 @@
    - Großer Sechs-Rotor: höchstens 5 m/s, beschleunigt mit 1,5 m/s², schwebt 4 s an jedem Wegpunkt, dreht kaum.
    Alle Strecken über 16 m Höhe (höchstes Hindernis 15,1 m), keine Strecke doppelt. */
 import { clamp, vAdd, vSub, vScale, vLen, qMul, qAxis } from './math.js';
-import { sweptDist, HUNT } from './targets.js';
+import { sweptDist } from './targets.js';
 import { newBalloon, stepBalloon, popBalloon } from './balloon.js';
 import { MeshBuilder } from './world.js';
 
@@ -18,18 +18,18 @@ export const AIR_KIND = {
   heli:  { name: 'Hubschrauber', hitR: 1.0, points: 2, vmax: 10, amax: 3, yawRate: 70, hold: 2, heat: 0.95 },
   hexa:  { name: 'Sechs-Rotor', hitR: 1.3, points: 1, vmax: 5, amax: 1.5, yawRate: 20, hold: 4, heat: 0.85 }
 };
-const C = HUNT.center;
+// Großer Bewegungsradius über die ganze Karte (Nutzerwunsch 04.11.2026), bis zu den Testecken und darum herum.
 // Starrflügler: Bahn aus Kreisen (Mitte x, z, Radius, Drehsinn), Höhe, Tempo. Achte = zwei Kreise, die sich berühren.
 const PLANES = [
-  { loops: [[C[0] - 32, C[2], 32, 1], [C[0] + 32, C[2], 32, -1]], alt: 26, speed: 14 },   // Achte, Radius 32 m
-  { loops: [[C[0], C[2] + 10, 45, -1]], alt: 33, speed: 15 }                               // großer Kreis, 45 m
+  { loops: [[-40, 20, 60, 1], [80, 20, 60, -1]], alt: 26, speed: 14 },   // große Achte über die Mitte, je 60 m Radius
+  { loops: [[40, -20, 120, -1]], alt: 33, speed: 15 }                     // Kreis mit 120 m Radius, nah an Haus, Baustelle und Parkhaus vorbei
 ];
-// Hubschrauber und Sechs-Rotor: Wegpunkte [x, Höhe, z], jede Strecke nur einmal
+// Hubschrauber und Sechs-Rotor: Wegpunkte [x, Höhe, z], jede Strecke nur einmal, alle über 16 m (Kran 14,6 m)
 const ROTORS = [
-  ['heli', [[C[0] - 50, 18, C[2] - 40], [C[0] + 10, 22, C[2] - 55], [C[0] + 55, 19, C[2] - 20], [C[0] + 5, 24, C[2] - 10]]],
-  ['heli', [[C[0] - 45, 21, C[2] + 45], [C[0] - 5, 17, C[2] + 60], [C[0] + 40, 23, C[2] + 40]]],
-  ['hexa', [[C[0] - 20, 17, C[2] + 20], [C[0] + 15, 19, C[2] + 25], [C[0] + 10, 16.5, C[2] - 5]]],
-  ['hexa', [[C[0] + 45, 18, C[2] + 5], [C[0] + 60, 21, C[2] - 40], [C[0] + 30, 17, C[2] - 30]]]
+  ['heli', [[-92, 20, -74], [12, 22, -150], [190, 21, -130], [70, 24, -40]]],    // Haus, Baustelle, Parkhaus, Mitte
+  ['heli', [[-110, 19, 75], [55, 21, 190], [140, 23, 80], [10, 18, 40]]],        // Spielplatz, Ruine, Osten, Mitte
+  ['hexa', [[40, 17.5, 175], [75, 19, 180], [60, 18, 205]]],                     // langsam über der Ruine
+  ['hexa', [[-5, 18, -150], [30, 20, -170], [-10, 17.5, -185]]]                  // langsam über der Baustelle
 ];
 export const aircraft = [];
 

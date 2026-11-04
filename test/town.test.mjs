@@ -13,11 +13,13 @@ import { town, TOWN } from '../src/town.js';
 buildWorld();
 after(() => { applyDrone({ preset: '5' }); setScenario('gates'); });
 const reach = c => Math.hypot(c.h[0], c.h[2]);
+// Abstand eines Punkts (x, z) zum Grundriss eines gedrehten Quaders
+const flatDist = (x, z, c) => { const dx = x - c.c[0], dz = z - c.c[2], lx = dx*c.cs - dz*c.sn, lz = dx*c.sn + dz*c.cs; return Math.hypot(Math.max(0, Math.abs(lx) - c.h[0]), Math.max(0, Math.abs(lz) - c.h[2])); };
 // Ausdehnung des gedrehten Quaders in x und z
 const ext = c => [Math.abs(c.h[0]*c.cs) + Math.abs(c.h[2]*c.sn), Math.abs(c.h[0]*c.sn) + Math.abs(c.h[2]*c.cs)];
 const segDist = (p, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx*dx + dz*dz, t = Math.max(0, Math.min(1, ((p[0] - a[0])*dx + (p[1] - a[1])*dz)/l2)); return Math.hypot(p[0] - a[0] - dx*t, p[1] - a[1] - dz*t); };
 
-test('Testecken liegen in ihren Bereichen, weit auseinander, unter 16 m, fern aller Missionen', () => {
+test('Testecken liegen in ihren Bereichen, weit auseinander, unter 16 m, fern von Kurs und Plattformen', () => {
   assert.ok(town.length > 80, town.length + ' Bauteile');
   const areas = Object.values(TOWN.areas);
   for (let i = 0; i < areas.length; i++) for (let j = i + 1; j < areas.length; j++)
@@ -27,9 +29,9 @@ test('Testecken liegen in ihren Bereichen, weit auseinander, unter 16 m, fern al
     assert.ok(areas.some(([x, z, h]) => Math.abs(p[0] - x) + ex <= h + 0.1 && Math.abs(p[1] - z) + ez <= h + 0.1), 'in einem Bereich: ' + p);
     assert.ok(c.c[1] + c.h[1] < 16, 'unter den Flugzeugen: ' + (c.c[1] + c.h[1]).toFixed(1));
     for (let i = 0; i < COURSE.length; i++) assert.ok(segDist(p, COURSE[i], COURSE[(i + 1) % COURSE.length]) - r > 12, 'Abstand zum Kurs');
-    for (const R of ROUTES) for (let s = 0; s < 1500; s += 4) { const q = routeAt(R, s); assert.ok(Math.hypot(q.x - p[0], q.z - p[1]) - r > 6, 'Abstand zur Fahrzeugstrecke'); }
+    // Fahrzeugstrecken: Seit dem 04.11.2026 führen Ringstraßen absichtlich um die Ecken; Fahrzeuge dürfen nur nichts berühren (vehicles.test).
+    for (const R of ROUTES) for (let s = 0; s < 1500; s += 4) { const q = routeAt(R, s); assert.ok(flatDist(q.x, q.z, c) > 2.5 || c.c[1] - c.h[1] > 1.6, 'Fahrzeugstrecke berührt ein Bauteil'); }
     for (const q of [PAD.c, PICKUP, ...DROPS]) assert.ok(Math.hypot(q[0] - p[0], q[2] - p[1]) - r > 10, 'Abstand zu Plattformen');
-    assert.ok(Math.hypot(HUNT.center[0] - p[0], HUNT.center[2] - p[1]) - r > 70, 'Abstand zum Jagd-Gebiet');
   }
 });
 

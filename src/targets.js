@@ -2,17 +2,41 @@
    Bewegung kinematisch (nicht voll simuliert). Verhalten: dumm (feste Route), zufällig, ausweichend.
    Zufall mit festem Startwert, damit Tests und Bestzeiten vergleichbar bleiben. */
 import { clamp, vAdd, vSub, vScale, vDot, vLen } from './math.js';
-import { rng } from './world.js';
+import { rng, colliders } from './world.js';
+import { town } from './town.js';
 import { newBalloon, stepBalloon, popBalloon } from './balloon.js';
 
-export const HUNT = { center: [30, 12, -10], radius: 70, hitR: 0.4 };   // Gebiet, Trefferabstand (Ziel 0,25 m + Spieler 0,15 m)
+export const HUNT = { center: [30, 12, -10], radius: 220, hitR: 0.4 };   // Mitte der Karte, Gebiet bis zu den Testecken, Trefferabstand (Ziel 0,25 m + Spieler 0,15 m)
 export const targets = [];
-// Verhalten und Grundtempo in m/s je Ziel (Schätzung für ein faires Spiel)
-// Jedes bewegte Ziel hat einen eigenen Bereich (Kreis mit REGION m um seinen Startpunkt) und nutzt keine Strecke doppelt.
-// Die 6 Bereiche liegen auf einem Kreis mit 35 m Radius, 35 m voneinander entfernt. Schwebende Ziele liegen außerhalb.
-const SETUP = [['dumb', 'circle', 7], ['dumb', 'eight', 9], ['dumb', 'line', 11], ['random', null, 8], ['random', null, 12], ['evade', null, 10]];
-const STATIC = [[0, 0, 9], [60, 0.5, 13], [60, 3.6, 16]];   // schwebende Ziele: [Abstand zur Mitte, Winkel, Höhe]
-export const REGION = 16;
+// Über die ganze Karte verteilt, bis zu den Testecken und um sie herum (Nutzerwunsch 04.11.2026). Jedes bewegte Ziel hat einen
+// eigenen Bereich (Kreis mit REGION m um seine Mitte), die Bereiche überschneiden sich nicht, keine Strecke wird doppelt genutzt.
+// [Verhalten, Strecke, Tempo m/s (Schätzung für ein faires Spiel), Mitte [x, Höhe, z], Größe der Strecke m]
+const SETUP = [
+  ['dumb', 'circle', 7, [190, 13, -130], 22],    // Kreis um das Parkhaus
+  ['dumb', 'eight', 9, [55, 12, 190], 18],       // Acht über der Ruine (Turmrest 8 m)
+  ['dumb', 'line', 11, [12, 10, -132], 20],      // hin und her nördlich vor der Baustelle
+  ['random', null, 8, [-92, 12, -74], 0],        // um das offene Haus
+  ['random', null, 12, [-110, 12, 75], 0],       // über dem Spielplatz
+  ['evade', null, 10, [40, 12, 30], 0]           // in der Mitte, weicht aus
+];
+// Schwebende Ziele neben Baustelle, Ruine und Parkhaus: [x, Höhe, z]
+const STATIC = [[30, 12, -150], [70, 10, 175], [176, 12, -116]];
+export const REGION = 22;
+// Kleinster Abstand eines Punkts zu allen Hindernissen (Karte und Testecken)
+export function obstDist(p) {
+  let d = 1e9;
+  for (const list of [colliders, town]) for (const c of list) {
+    const dx = p[0] - c.c[0], dz = p[2] - c.c[2], lx = dx*c.cs - dz*c.sn, lz = dx*c.sn + dz*c.cs;
+    d = Math.min(d, Math.hypot(Math.max(0, Math.abs(lx) - c.h[0]), Math.max(0, Math.abs(p[1] - c.c[1]) - c.h[1]), Math.max(0, Math.abs(lz) - c.h[2])));
+  }
+  return d;
+}
+// Ist die gerade Strecke a->b mindestens m Meter von allen Hindernissen entfernt? (Probe alle 2 m)
+function flightClear(a, b, m) {
+  const n = Math.max(1, Math.ceil(vLen(vSub(b, a))/2));
+  for (let i = 0; i <= n; i++) if (obstDist(vAdd(a, vScale(vSub(b, a), i/n))) < m) return false;
+  return true;
+}
 export const BEHAVIOR_NAME = { dumb: 'dumm', random: 'zufällig', evade: 'ausweichend', static: 'schwebend' };
 let R = rng(7);
 
@@ -23,24 +47,28 @@ function routePos(t, time) {
   const s = Math.asin(Math.sin(ph))/(Math.PI/2);   // Hin und Her
   return [c[0] + s*t.size, c[1], c[2]];
 }
-function newWaypoint(t) {   // neuer Wegpunkt im eigenen Bereich
-  const a = R()*Math.PI*2, d = Math.sqrt(R())*REGION*0.85;
-  return [t.c[0] + Math.cos(a)*d, 9 + R()*7, t.c[2] + Math.sin(a)*d];
+function newWaypoint(t) {   // neuer Wegpunkt im eigenen Bereich, nur wenn der Weg dorthin frei ist (sonst bis zu 12 Versuche)
+  let w = null;
+  for (let k = 0; k < 12; k++) {
+    const a = R()*Math.PI*2, d = Math.sqrt(R())*REGION*0.85;
+    w = [t.c[0] + Math.cos(a)*d, 9 + R()*7, t.c[2] + Math.sin(a)*d];
+    if (flightClear(t.p, w, 2.5)) return w;
+  }
+  return t.c.slice();   // Notfall: zurück zur Mitte des Bereichs
 }
 
 // speedScale: Schwierigkeit (leicht langsamer, schwer schneller)
 export function initTargets(speedScale = 1) {
   R = rng(7); targets.length = 0;
-  SETUP.forEach(([beh, route, speed], i) => {
-    const a = i/SETUP.length*Math.PI*2;
-    const c = [HUNT.center[0] + Math.cos(a)*35, 9 + (i % 3)*3, HUNT.center[2] + Math.sin(a)*35];
-    const t = { beh, route, speed: speed*speedScale, c, size: 12 + i, phase: R()*6, p: c.slice(), v: [0, 0, 0],
+  SETUP.forEach(([beh, route, speed, c0, size]) => {
+    const c = c0.slice();
+    const t = { beh, route, speed: speed*speedScale, c, size: size || 12, phase: R()*6, p: c.slice(), v: [0, 0, 0],
                 state: 'fly', spin: 0, ang: 0, wp: null, time: 0 };
     if (beh === 'dumb') t.p = routePos(t, 0);
     targets.push(t);
   });
-  for (const [d, a, y] of STATIC) {
-    const c = [HUNT.center[0] + Math.cos(a)*d, y, HUNT.center[2] + Math.sin(a)*d];
+  for (const c0 of STATIC) {
+    const c = c0.slice();
     targets.push({ beh: 'static', route: null, speed: 0, c, size: 0, phase: 0, p: c.slice(), v: [0, 0, 0], state: 'fly', spin: 0, ang: 0, wp: null, time: 0 });
   }
   targets.forEach((t, i) => { t.bal = newBalloon(t.p, i); });   // Ballon für Stufe „Leicht“

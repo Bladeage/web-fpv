@@ -356,3 +356,9 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Inhalt wie zuvor: Spielplatz mit Übungsfenstern für Whoops, Baustelle mit Rohbau, Gerüst und Kran 14 m, offenes Haus mit 2 Geschossen,
   Parkhaus mit 3 offenen Decks, Ruine mit Turmrest. Eigene Hindernisliste `town` in `src/town.js`, `colliders` bleibt wie in legacy/.
 - Freiflug startet wieder in der Mitte (TOWN.start), alle Ecken liegen rundherum. Alles unter 16 m. Tests: `test/town.test.mjs`.
+
+## Ziele über die Karte verteilt (erledigt 04.11.2026)
+- Jagd Luft: 6 bewegte Ziele mit eigenem Bereich (22 m) an den Testecken und in der Mitte (Kreis um das Parkhaus, Acht über der Ruine, Linie vor der Baustelle, zufällig um Haus und Spielplatz, ausweichend in der Mitte), 3 schwebende neben Baustelle, Ruine, Parkhaus. Neue Wegpunkte nur bei freiem Weg (2,5 m Abstand).
+- Jagd Boden: Ringstraßen um Ruine, Spielplatz, Parkhaus und Baustelle (Ecken abgeschrägt, mindestens 6 m Abstand zu Hindernissen); fahrend auf drei Ringen und der Kursrunde, geparkt im Parkhaus, auf der Baustelle und vor dem Haus.
+- Jagd Flugzeuge: größerer Radius. Achte aus zwei 60-m-Kreisen, Kreis mit 120 m; Hubschrauber patrouillieren von Ecke zu Ecke, Sechs-Rotoren über Ruine und Baustelle (über dem Kran).
+- Tests: `test/spread.test.mjs` (keine Berührung von Hindernissen, Verteilung, Radius).

@@ -4,6 +4,7 @@
 import { vNorm } from './math.js';
 import { COURSE, MeshBuilder } from './world.js';
 import { newBalloon, stepBalloon, popBalloon } from './balloon.js';
+import { TOWN } from './town.js';
 
 export const VEH_HALF = [1.0, 0.75, 2.1];   // halbe Breite, Höhe, Länge in m (Auto ca. 2 x 1,5 x 4,2 m)
 // Fahrspuren: Linienzüge entlang des Kurses, seitlich versetzt (gemittelte Normale an den Ecken).
@@ -29,11 +30,20 @@ function segPath(i, t0, t1, off) {
   const at = t => [a[0] + (b[0] - a[0])*t - d[2]*off, a[1] + (b[1] - a[1])*t + d[0]*off];
   return [at(t0), at(t1)];
 }
+// Ringstraße um eine Testecke: Quadrat mit halber Kante a um die Mitte, Ecken abgeschrägt (4 m), gegen den Uhrzeigersinn
+function ringPath(area, extra) {
+  const [x, z, h] = area, a = h + extra, k = 4;
+  return [[x - a + k, z - a], [x + a - k, z - a], [x + a, z - a + k], [x + a, z + a - k], [x + a - k, z + a], [x - a + k, z + a], [x - a, z + a - k], [x - a, z - a + k]];
+}
 export const ROUTES = [
   makeRoute(offsetPath([0, 1, 2, 3, 4, 5, 6, 7], -4), true),   // ganze Runde, innen
   makeRoute(segPath(2, 0.12, 0.88, 3), false),                  // Tor 3 bis Tor 4, außen, hin und her (keine Pfeiler dort)
   makeRoute(segPath(5, 0.12, 0.88, 3), false),                  // Tor 6 bis Tor 7, außen, hin und her
-  makeRoute([[7, -4], [7, -19]], false)                          // neben der Startgeraden, hin und her
+  makeRoute([[7, -4], [7, -19]], false),                         // neben der Startgeraden, hin und her
+  makeRoute(ringPath(TOWN.areas.ruine, 6), true),                // Ring um die Ruine (Süd)
+  makeRoute(ringPath(TOWN.areas.spiel, 6), true),                // Ring um den Spielplatz (Südwest)
+  makeRoute(ringPath(TOWN.areas.park, 6), true),                 // Ring um das Parkhaus (Ost)
+  makeRoute(ringPath(TOWN.areas.bau, 6), true)                   // Ring um die Baustelle (Nord)
 ];
 // Punkt und Fahrtrichtung bei Strecke s (m) auf Spur r. Offene Spuren: hin und her.
 export function routeAt(r, s) {
@@ -51,9 +61,11 @@ export function routeAt(r, s) {
 }
 
 // [Art, Tempo m/s, fester Platz [x, z, yaw] oder Spur-Nummer, Richtung]. Tempo sind Schätzwerte.
+// Über die Karte verteilt: geparkt im Parkhaus (Erdgeschoss), auf der Baustelle und vor dem offenen Haus; fahrend auf den Ringen
+// um Ruine, Spielplatz und Parkhaus sowie auf der großen Kursrunde. Keine Spur doppelt (Spur 7 um die Baustelle bleibt frei).
 const VEH_SETUP = [
-  ['parked', 0, [8, 6, 0.6]], ['parked', 0, [-6, -8, -1.1]], ['parked', 0, [40, -30, 0.4]],
-  ['slow', 5, 3, 1], ['slow', 6, 1, 1], ['fast', 14, 0, 1], ['fast', 16, 2, -1]
+  ['parked', 0, [184, -130, 0]], ['parked', 0, [6, -162, 1.57]], ['parked', 0, [-86, -64, 1.57]],
+  ['slow', 5, 4, 1], ['slow', 6, 5, 1], ['fast', 14, 6, 1], ['fast', 16, 0, -1]
 ];
 export const vehicles = [];
 export function initVehicles(speedScale = 1) {

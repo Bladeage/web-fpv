@@ -26,13 +26,14 @@ test('Starrflügler: nie schweben, Tempo fast gleich, Schräglage höchstens 35�
 test('Hubschrauber und Sechs-Rotor: Höchsttempo, Beschleunigung, Drehrate, Schweben am Wegpunkt', () => {
   initAircraft(1);
   const stat = {};
-  for (const k of ['heli', 'hexa']) stat[k] = { v: 0, a: 0, yaw: 0, hover: 0, hoverMax: 0 };
+  for (const k of ['heli', 'hexa']) stat[k] = { v: 0, a: 0, yaw: 0, hoverMax: 0 };
+  const hover = aircraft.map(() => 0);   // Schwebezeit je Luftfahrzeug (nicht je Art: sonst setzt das andere den Zähler zurück)
   fly(120, prev => aircraft.forEach((t, i) => {
     if (t.kind === 'plane') return;
     const s = stat[t.kind], v = Math.hypot(...t.v), a = Math.hypot(...t.v.map((x, j) => x - prev[i].v[j]))/H;
     s.v = Math.max(s.v, v); s.a = Math.max(s.a, a);
     let dy = Math.abs(((t.yaw - prev[i].yaw + Math.PI*3) % (Math.PI*2)) - Math.PI)/H; s.yaw = Math.max(s.yaw, deg(dy));
-    if (v < 0.3) { s.hover += H; s.hoverMax = Math.max(s.hoverMax, s.hover); } else s.hover = 0;
+    if (v < 0.3) { hover[i] += H; s.hoverMax = Math.max(s.hoverMax, hover[i]); } else hover[i] = 0;
   }));
   for (const k of ['heli', 'hexa']) {
     const K = AIR_KIND[k], s = stat[k];
