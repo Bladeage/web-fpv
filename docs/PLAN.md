@@ -308,3 +308,24 @@ Entscheidung des Nutzers vom 02.11.2026.
 - SITL: echtes Betaflight als WebAssembly (P4). P3 (Wind, Verzögerung, Kreisel) danach oder nach Bedarf.
 - P4 Teil 1 (erledigt 03.11.2026): Betaflight als WebAssembly ohne Emscripten gebaut (`sitl/`), läuft in Node. Ausnahme von „keine externen Quellen“: Betaflight (GPLv3), vom Nutzer so entschieden. Die fertige Datei liegt im Repository, damit die CI ohne C-Compiler baut und die GitHub-Seite weiter funktioniert. Details: `docs/sitl-machbarkeit.md`.
 - P4 Teil 2 (erledigt 03.11.2026): Betaflight im Simulator. `sitl/betaflight.wasm` kommt beim Build als Base64 in die HTML-Datei (Platzhalter in `src/bf.js`, HTML etwa 815 KB). Wahl unter Drohne → Feinwerte: „Eigener Regler“ (Vorgabe) oder „Betaflight“. Achsen: unser Körper (x rechts, y oben, z hinten) zu Betaflight (x vorne, y links, z oben); Beschleunigungssensor aus der Geschwindigkeitsänderung; Funk AETR, AUX1 scharf, AUX2 Angle. Startpause aus, Kreisel-Abgleich 0,1 s, 1,5 s Vorlauf bei jedem Neustart. Fällt Betaflight aus, fliegt der eigene Regler. Betaflight nutzt seine eigenen Standard-Raten.
+
+## Nächste Etappen aus den Beispielbildern (Nutzer, 04.11.2026)
+
+### O2: OSD erweitern
+- Kompassband oben (N, O, S, W mit Gradstrichen, dreht mit der Blickrichtung).
+- Sucher-Rahmen: eckige Klammern um die Bildmitte, großes Fadenkreuz.
+- Brillenrand: runder dunkler Rand wie in einer Videobrille, roter Rec.-Punkt.
+- Jedes Element einzeln im OSD-Reiter abschaltbar.
+- Drei OSD-Stile als Vorlage: Betaflight analog (wie heute), Digital-Brille (klare Schrift, große Werte rechts), Racer minimal (Modus, Gas, Höhe, Zeit).
+
+### V1: Bildmodi
+- Wärmebild: Graustufen, Fahrzeuge und Ziel-Drohnen hell. Einfacher Shader, Stufe „Einfach“ bleibt schnell.
+- Nachtsicht: grün, verrauscht, Szene dunkler.
+
+### J1: Neue Luftziele für die Jagd
+- Starrflügler: kleine Flugzeug-Drohnen, Kreise und Achten in 30 bis 80 m Höhe, schnell.
+- Hubschrauber-Drohne: ein Hauptrotor mit Heckrotor, fliegt Patrouille.
+- Großer Multikopter: langsamer Sechs-Rotor, große Trefferfläche, schwebt an Wegpunkten.
+- Jedes Ziel mit eigenem Modell, eigener Strecke (keine doppelt genutzt) und eigener Punktzahl.
+
+Vorschlag Reihenfolge: O2, V1, J1. Wärmebild (V1) wirkt am besten mit den neuen Luftzielen (J1), beide zusammen machen die Jagd deutlich reicher.

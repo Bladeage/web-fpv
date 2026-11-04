@@ -57,3 +57,5 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 49 | 03.11.2026 | Mit Option 1 weiter: Machbarkeit SITL prüfen. | `docs/sitl-machbarkeit.md`; Emscripten-Installation von der Umgebung blockiert |
 | 50 | 03.11.2026 | Den Weg wählen, bei dem die GitHub-Seite weiter funktioniert. | Weg 2 (clang ohne Emscripten), fertige WebAssembly-Datei im Repository; Betaflight läuft in Node |
 | 51 | 03.11.2026 | Betaflight mit dem Vorschlag einbauen und ausprobieren. Falls es scheitert, zurück auf den Stand davor. | P4 Teil 2: Betaflight als wählbarer Regler im Simulator |
+| 52 | 04.11.2026 | (18 Beispielbilder aus anderen Simulatoren) Beispiele für OSD und weitere Ziele in der Luft. | Fragerunde |
+| 53 | 04.11.2026 | Antworten: OSD mit Kompassband, Sucher-Rahmen, Brillenrand und Rec.; drei OSD-Stile; Bildmodi Wärmebild und Nachtsicht; Luftziele Starrflügler, Hubschrauber-Drohne, großer Multikopter. | Plan O2, V1, J1 |
