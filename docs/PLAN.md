@@ -333,6 +333,7 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Drei Stufen: Leicht (mit Erleichterungen), Normal (ohne Hilfen, = altes „Leicht“), Schwer (strengere Bedingungen, = altes „Mittel“). Das alte „Schwer“ entfällt.
 - Leicht, erledigt: In der Jagd (Luft und Boden) trägt jedes Ziel einen Ballon an einer Leine (`src/balloon.js`). Nur der Ballon zählt, er platzt mit Knall, das Ziel stürzt ab bzw. bleibt stehen, die eigene Drohne fliegt weiter. Ballon Radius 0,6 m, Leine 3 m (Schätzungen).
 - Leicht, Runde 1 (erledigt): Ringe 3 m statt 2,2 m, Slalom 10 m, Tor zählt bis 0,8 m neben der Öffnung (Rahmen unverändert); Landeplatz und Lieferzonen doppelt so groß; Landehilfe unter 5 m (höchstens 1,2 m/s plus 0,5 m/s je Meter Höhe sinken); Abwurf im Überflug unter 12 m; Sinkraten-Anzeige in Landung und Lieferung; Verfolgung 30 % langsamer, Abstand bis 18 m. Allgemeine Hilfen (Höhe halten, Leitlinie, Zeitlupe, weiche Hindernisse) vom Nutzer nicht gewählt.
+- Leicht, Runde 2 (erledigt, Vorschlag von Claude, Nutzer sieht das Ergebnis an): Ringe nur 3 bis 8 m hoch; Leuchtspur hinter dem Auto in der Verfolgung; Ballon-Treffer 0,3 m großzügiger; Ziele in der Jagd langsamer (0,55 statt 0,7).
 - Leicht, offen: weitere Runden nach Bedarf.
 - Vorgabe für die Demo: Normal.
 

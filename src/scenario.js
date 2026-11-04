@@ -33,8 +33,9 @@ export const RING_TUBE = 0.1;   // Rohrradius in m
 export const DIFF = {
   // Leicht (Runde 1, Schätzungen): größere Ringe, breiterer Slalom, Tor zählt bis 0,8 m neben der Öffnung, Landeplatz und Lieferzonen
   // doppelt so groß, Landehilfe unter 3 m, Abwurf im Überflug, Sinkraten-Anzeige, Verfolgung 30 % langsamer mit mehr Abstand
-  easy: { name: 'Leicht', ringR: 3.0, slalomW: 10, landV: 4.0, padHalf: 3.0, huntSpeed: 0.7, balloons: true, gateExtra: 0.8, dropScale: 2,
-          landAid: true, flyDrop: true, sinkHud: true, followSpeed: 0.5, followMax: 18, info: 'Ballons in der Jagd, größere Ringe und Plätze, Landehilfe' },
+  // Runde 2: Ringe nur 3 bis 8 m hoch, Leuchtspur hinter dem Auto, Ziele langsamer (Ballon-Treffer großzügiger, siehe balloon.js)
+  easy: { name: 'Leicht', ringR: 3.0, slalomW: 10, landV: 4.0, padHalf: 3.0, huntSpeed: 0.55, balloons: true, gateExtra: 0.8, dropScale: 2,
+          landAid: true, flyDrop: true, sinkHud: true, followSpeed: 0.5, followMax: 18, ringSpan: 5, leadTrail: true, info: 'Ballons in der Jagd, größere Ringe und Plätze, Landehilfe' },
   mid:  { name: 'Normal', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, followSpeed: 0.7, info: 'Ohne Hilfen' },
   hard: { name: 'Schwer', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0, followSpeed: 1.0, info: 'Kleinere Ringe, engerer Slalom, schnellere Ziele' }
 };
@@ -81,7 +82,7 @@ function makeRings(R) {
     const cs = COURSE.map((a, i) => {
       const b = COURSE[(i + 1) % COURSE.length], t = 0.3 + 0.4*R(), lat = (R() - 0.5)*12;
       const d = vNorm([b[0] - a[0], 0, b[1] - a[1]]);
-      return [a[0] + (b[0] - a[0])*t - d[2]*lat, 3 + R()*12, a[1] + (b[1] - a[1])*t + d[0]*lat];
+      return [a[0] + (b[0] - a[0])*t - d[2]*lat, 3 + R()*(diff().ringSpan ?? 12), a[1] + (b[1] - a[1])*t + d[0]*lat];   // Höhe 3 m bis 3 m + ringSpan
     });
     const list = framesFromCenters(cs);
     if (ringLayoutOk(list)) return list;
@@ -139,7 +140,7 @@ const DROP_HOLD = 0.8;                      // so lange tief und langsam über d
 export const dropOrder = [];
 // Verfolgung: Auto auf der inneren Runde, Tempo wechselt (Schätzung 5 bis 13 m/s, Schwierigkeit skaliert)
 export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
-const lead = { s: 0, t: 0, x: 0, z: 0, yaw: 0, ok: false, dist: 0 };
+const lead = { s: 0, t: 0, x: 0, z: 0, yaw: 0, ok: false, dist: 0, trail: [], trailT: 0 };
 export const followLead = () => lead;
 
 // Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden.
@@ -157,7 +158,7 @@ function reset() {
     dropOrder.length = 0; dropOrder.push(...idx.slice(0, DELIVER_N));
     scen.version++;
   }
-  if (scen.id === 'follow') { lead.s = 0; lead.t = 0; const r = routeAt(ROUTES[0], 0); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw; }
+  if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; const r = routeAt(ROUTES[0], 0); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw; }
   st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
@@ -282,6 +283,9 @@ function checkFollow(a, b, h) {
     lead.t += h;
     lead.s += (9 + 4*Math.sin(lead.t*0.25))*(diff().followSpeed ?? diff().huntSpeed)*h;
     const r = routeAt(ROUTES[0], lead.s); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw;
+    if (diff().leadTrail && (!lead.trail.length || lead.t - lead.trailT > 0.2)) {   // Leuchtspur: alle 0,2 s ein Punkt, höchstens 8 s
+      lead.trail.push([lead.x, 0.4, lead.z]); lead.trailT = lead.t; if (lead.trail.length > 40) lead.trail.shift();
+    }
   }
   lead.dist = Math.hypot(s.p[0] - lead.x, s.p[2] - lead.z);
   const alt = s.p[1] - PHYS.foot;

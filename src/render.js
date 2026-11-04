@@ -532,9 +532,20 @@ export function render(dt) {
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
-  // Verfolgung: das orange Auto
+  // Verfolgung: das orange Auto, in Leicht mit Leuchtspur
   if (scen.id === 'follow') {
     const L = followLead();
+    if (diff().leadTrail && L.trail.length > 1) {
+      if (!tether) { tether = { vao: gl.createVertexArray(), buf: gl.createBuffer() }; gl.bindVertexArray(tether.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tether.buf);
+        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24); }
+      const pts = L.trail.concat([[L.x, 0.4, L.z]]), d = new Float32Array(pts.length*10);
+      pts.forEach((p, i) => d.set([p[0], p[1], p[2], 0, 1, 0, 1, 0.6, 0.1, 1], i*10));
+      gl.bindVertexArray(tether.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tether.buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
+      gl.uniformMatrix4fv(P.u.uModel, false, mIdent()); gl.uniform4f(P.u.uOver, 1, 0.6, 0.1, 1);
+      gl.drawArrays(gl.LINE_STRIP, 0, pts.length);
+    }
     gl.bindVertexArray(vehMesh.vao);
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], L.yaw), [L.x, 0, L.z]));
     gl.uniform4f(P.u.uOver, 1.0, 0.5, 0.05, L.ok ? 0.75 : 0.55); gl.uniform1f(P.u.uHeat, 0.85);

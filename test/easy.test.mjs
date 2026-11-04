@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { cfg, game } from '../src/state.js';
 import { buildWorld, gates } from '../src/world.js';
 import { STEP, step, respawn, task, hoverThrottle, PHYS } from '../src/physics.js';
-import { setScenario, diff, dropR, DROP_R, deliverState, dropOrder, DROPS, PICKUP, followLead } from '../src/scenario.js';
+import { setScenario, diff, dropR, DROP_R, deliverState, dropOrder, DROPS, PICKUP, followLead, rings, setLayoutSeed } from '../src/scenario.js';
 
 buildWorld();
 const run = sec => { for (let i = 0; i < sec/STEP && game.state === 'fly'; i++) step(STEP); };
@@ -51,4 +51,14 @@ test('Verfolgung in Leicht: Auto langsamer, mehr Abstand erlaubt', () => {
   }
   assert.ok(dist.easy < dist.mid*0.8, 'Strecke in 5 s: leicht ' + dist.easy.toFixed(1) + ' m, normal ' + dist.mid.toFixed(1) + ' m');
   cfg.diff = 'easy'; assert.ok(diff().followMax > 12);
+});
+
+test('Runde 2: Ringe in Leicht höchstens 8 m hoch; Leuchtspur hinter dem Auto nur in Leicht', () => {
+  cfg.diff = 'easy';
+  for (let seed = 1; seed <= 10; seed++) { setLayoutSeed(seed); setScenario('rings'); respawn(); for (const g of rings) assert.ok(g.c[1] <= 8.01, 'Ring ' + g.c[1].toFixed(1) + ' m'); }
+  for (const [d, want] of [['easy', true], ['mid', false]]) {
+    cfg.diff = d; setScenario('follow'); respawn();
+    const s = game.sim; s.p = [0, 3, 0]; s.grounded = false; game.throttle = hoverThrottle(); run(3);
+    assert.equal(followLead().trail.length > 5, want, d + ': ' + followLead().trail.length + ' Spurpunkte');
+  }
 });
