@@ -28,10 +28,12 @@ export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem W
 const RING_H = [4, 7, 11, 6, 13, 9, 5, 8];
 export const RING_TUBE = 0.1;   // Rohrradius in m
 // Schwierigkeit (cfg.diff): Ringradius bis Rohrmitte, Slalom-Fenster, Landung (Grenzgeschwindigkeit, halbe Plattformbreite) in m und m/s, Tempo der Ziel-Drohnen (Faktor)
+// Leicht: Jagd mit Ballons (balloons), sonst vorerst wie Normal; weitere Erleichterungen folgen in Runden (J0).
+// Normal: das frühere „Leicht“. Schwer: das frühere „Mittel“.
 export const DIFF = {
-  easy: { name: 'Leicht', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7 },
-  mid:  { name: 'Mittel', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0 },
-  hard: { name: 'Schwer', ringR: 1.1, slalomW: 4, landV: 1.2, padHalf: 0.6, huntSpeed: 1.4 }
+  easy: { name: 'Leicht', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, balloons: true, info: 'Jagd: Ballons treffen statt Ziele' },
+  mid:  { name: 'Normal', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, info: 'Ohne Hilfen' },
+  hard: { name: 'Schwer', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0, info: 'Kleinere Ringe, engerer Slalom, schnellere Ziele' }
 };
 export const diff = () => DIFF[cfg.diff] || DIFF.mid;
 /* ---------- Zufällige Anordnung mit Prüfung (Ringe, Slalom) ---------- */
@@ -225,12 +227,14 @@ export const huntNeed = () => Math.min(cfg.huntX || 5, huntTotal());
 function checkHunt(a, b, h) {
   const s = game.sim;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
-  const n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius) : stepTargets(h, a, b, b);
+  const bal = !!diff().balloons;
+  const n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius, bal) : stepTargets(h, a, b, b, bal);
   if (!n || st.done) return;
-  st.hits += n; fx.beep(1100, 0.12);
+  st.hits += n;
+  if (bal) fx.pop(); else fx.beep(1100, 0.12);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
-  else banner('ZIEL GETROFFEN', st.hits + ' / ' + huntNeed());
-  game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug
+  else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed());
+  if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
 export const huntHits = () => st.hits;
 
@@ -300,7 +304,7 @@ export function scenLabel() {
   if (scen.id === 'free') return 'FREIFLUG';
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
-  if (scen.id === 'hunt' || scen.id === 'hunt2') return st.done ? 'ZIEL' : `TREFFER ${st.hits}/${huntNeed()}`;
+  if (scen.id === 'hunt' || scen.id === 'hunt2') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}`;
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;

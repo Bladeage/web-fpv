@@ -143,7 +143,7 @@ function start() {
 }
 
 for (const x of SCENARIOS) addChoice($('scenList'), x.name, '', () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
-for (const [id, d] of Object.entries(DIFF)) addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }).dataset.id = id;
+for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DRONES)) {
   const b = addChoice($('droneSeg'), d.name, '', () => { cfg.drone = { preset: id }; saveCfg(); syncMenu(); });

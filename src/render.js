@@ -2,7 +2,9 @@
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say } from './state.js';
 import { COURSE, MeshBuilder, colliders, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
-import { scen, buildScenario, scenHighlight, followLead } from './scenario.js';
+import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
+import { BALLOON, BALLOON_COLORS } from './balloon.js';
+import { VEH_HALF } from './vehicles.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -149,7 +151,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
-let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null;
+let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -250,6 +252,16 @@ function bakeGround() {
   if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
   gl.enable(gl.DEPTH_TEST);
 }
+// Ballon: runde Kugel (Radius 1) aus Breiten- und Längenkreisen, weiß; die Farbe kommt beim Zeichnen dazu
+function buildBalloonMesh() {
+  const mb = new MeshBuilder(), N = 8, M = 12, P = (i, j) => { const th = Math.PI*i/N, ph = 2*Math.PI*j/M; return [Math.sin(th)*Math.cos(ph), Math.cos(th), Math.sin(th)*Math.sin(ph)]; };
+  for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+    const a = P(i, j), b = P(i + 1, j), c = P(i + 1, j + 1), d = P(i, j + 1), w = [1, 1, 1];
+    if (i > 0) mb.tri(a, c, b, w);
+    if (i < N - 1) mb.tri(a, d, c, w);
+  }
+  return new Float32Array(mb.d);
+}
 export function initGL() {
   P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun']);
@@ -259,6 +271,7 @@ export function initGL() {
   droneMesh = upload(buildDrone());
   vehMesh = upload(buildVehicle());
   { const mb = new MeshBuilder(); mb.box([0, 0, 0], [0.07, 0.05, 0.07], 0, [0.62, 0.45, 0.28]); pkgMesh = upload(new Float32Array(mb.d)); }   // Paket
+  balloonMesh = upload(buildBalloonMesh());
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -465,6 +478,34 @@ export function render(dt) {
     gl.bindVertexArray(trail.vao); gl.bindBuffer(gl.ARRAY_BUFFER, trail.buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
     gl.uniformMatrix4fv(P.u.uModel, false, mIdent()); gl.uniform4f(P.u.uOver, 0.2, 0.9, 1, 1);
     gl.drawArrays(gl.LINE_STRIP, 0, pts.length);
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Ballons (Stufe „Leicht“): Kugel in der Ballonfarbe, Leine als Linie zum Ziel
+  if ((scen.id === 'hunt' || scen.id === 'hunt2') && diff().balloons) {
+    const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : vehicles.map(v => [v.bal, [v.x, VEH_HALF[1]*2, v.z]]);
+    gl.bindVertexArray(balloonMesh.vao);
+    const lines = [];
+    for (const [b, anchor] of list) {
+      if (!b || b.popped) continue;
+      const c = BALLOON_COLORS[b.col], m = mFromQT([0, 0, 0, 1], b.p);
+      for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) m[i] *= BALLOON.r;
+      m[5] *= 1.15;   // etwas höher als breit
+      gl.uniformMatrix4fv(P.u.uModel, false, m);
+      gl.uniform4f(P.u.uOver, c[0], c[1], c[2], 0.85);
+      gl.drawArrays(gl.TRIANGLES, 0, balloonMesh.count);
+      lines.push(anchor, vSub(b.p, [0, BALLOON.r*1.1, 0]));
+    }
+    if (lines.length) {
+      if (!tether) { tether = { vao: gl.createVertexArray(), buf: gl.createBuffer() }; gl.bindVertexArray(tether.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tether.buf);
+        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24); }
+      const d = new Float32Array(lines.length*10);
+      lines.forEach((p, i) => d.set([p[0], p[1], p[2], 0, 1, 0, 0.95, 0.95, 0.95, 1], i*10));
+      gl.bindVertexArray(tether.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tether.buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
+      gl.uniformMatrix4fv(P.u.uModel, false, mIdent()); gl.uniform4f(P.u.uOver, 0.95, 0.95, 0.95, 1);
+      gl.drawArrays(gl.LINES, 0, lines.length);
+    }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Verfolgung: das orange Auto

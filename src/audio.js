@@ -124,6 +124,14 @@ export function crashSound() {
   burst('lowpass', 1500, 0.45, 0.5, t);
   burst('bandpass', 3500, 0.2, 0.25, t + 0.03);
 }
+// Ballon platzt: kurzer heller Knall, dann ein leises Flattern
+export function popSound() {
+  if (!ac || !vol()) return;
+  const t = ac.currentTime;
+  burst('highpass', 1800, 0.5, 0.05, t);
+  burst('bandpass', 700, 0.15, 0.2, t + 0.03);
+  beep(1320, 0.08);
+}
 // Signalton als weiche Glocke (Grundton und Oktave). type bleibt für ältere Aufrufe, wird nicht mehr gebraucht.
 export function beep(f, d = 0.1) {
   if (!ac || !vol()) return;

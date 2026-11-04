@@ -105,7 +105,7 @@ export function cellOcv(soc) {
 }
 
 // Rückmeldungen nach außen. In Node bleiben sie leer.
-export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {} };   // Ton und Vibration, setzt main.js
+export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {}, pop() {} };   // Ton und Vibration, setzt main.js
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
 export const task = { check: checkGate, collide: null, reset() {}, early: false };   // early: vor Boden und Hindernissen prüfen

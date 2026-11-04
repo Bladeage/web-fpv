@@ -328,14 +328,10 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Großer Multikopter: langsamer Sechs-Rotor, große Trefferfläche, schwebt an Wegpunkten.
 - Jedes Ziel mit eigenem Modell, eigener Strecke (keine doppelt genutzt) und eigener Punktzahl.
 
-### J0: Ballon-Modus und neue Schwierigkeitsstufen (Nutzer, 04.11.2026)
-- Neue Stufe „Leicht“: Die Ziele tragen Luftballons, getroffen werden muss der Ballon (wie der Ballon-Kampf in Rennspielen).
-  - Luftziele ziehen ihren Ballon an einer Leine hinter sich her.
-  - Bodenziele (Fahrzeuge) tragen ihren Ballon an einer Leine über sich.
-  - Ballon groß und bunt (Annahme: Radius etwa 0,6 m), platzt beim Treffer mit Knall und Fetzen, das Ziel zählt als getroffen.
-  - Vorschlag: ein Ballon pro Ziel. Mehrere Ballons (wie im Vorbild drei) wären später möglich.
-  - Ziele langsamer, Ringe größer, Slalom breiter, Landung weicher als bisher „Leicht“.
-- Stufen verschieben sich: neues „Mittel“ = altes „Leicht“, neues „Schwer“ = altes „Mittel“, neue Stufe „Profi“ = altes „Schwer“ (Vorschlag, damit nichts verloren geht).
-- Vorgabe für die Demo bleibt „Mittel“ (also das alte „Leicht“).
+### J0: Ballon-Modus und drei Schwierigkeitsstufen (Nutzer, 04.11.2026; Teil 1 erledigt)
+- Drei Stufen: Leicht (mit Erleichterungen), Normal (ohne Hilfen, = altes „Leicht“), Schwer (strengere Bedingungen, = altes „Mittel“). Das alte „Schwer“ entfällt.
+- Leicht, erledigt: In der Jagd (Luft und Boden) trägt jedes Ziel einen Ballon an einer Leine (`src/balloon.js`). Nur der Ballon zählt, er platzt mit Knall, das Ziel stürzt ab bzw. bleibt stehen, die eigene Drohne fliegt weiter. Ballon Radius 0,6 m, Leine 3 m (Schätzungen).
+- Leicht, offen: Erleichterungen für die übrigen Parcours, in mehreren Runden mit dem Nutzer.
+- Vorgabe für die Demo: Normal.
 
 Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi sofort zugänglicher. Wärmebild (V1) wirkt am besten mit den neuen Luftzielen (J1).

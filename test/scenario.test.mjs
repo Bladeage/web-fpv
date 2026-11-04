@@ -137,14 +137,15 @@ test('Freiflug: keine Aufgabe, Tore zählen nicht', () => {
   assert.equal(scenLabel(), 'FREIFLUG');
 });
 
-test('Schwierigkeit: leichter Ring ist größer, schwere Landung strenger', () => {
+test('Schwierigkeit: Normal hat größere Ringe als Schwer, Landung strenger; Leicht mindestens wie Normal, mit Ballons', () => {
   cfg.diff = 'easy'; const easy = diff();
   cfg.diff = 'hard'; const hard = diff();
   cfg.diff = 'mid';
-  assert.ok(easy.ringR > diff().ringR && diff().ringR > hard.ringR);
-  assert.ok(easy.landV > hard.landV);
-  // Durchflug 1,9 m neben der Ringmitte: leicht zählt, mittel trifft den Ring
-  for (const [d, ok] of [['easy', true], ['mid', false]]) {
+  assert.ok(easy.ringR >= diff().ringR && diff().ringR > hard.ringR);
+  assert.ok(diff().landV > hard.landV);
+  assert.equal(easy.balloons, true); assert.ok(!diff().balloons && !hard.balloons);
+  // Durchflug 1,9 m neben der Ringmitte: Normal zählt, Schwer trifft den Ring
+  for (const [d, ok] of [['mid', true], ['hard', false]]) {
     cfg.diff = d; setScenario('rings'); respawn();
     const g = rings[0];
     const [p, v] = along(g.c, g.n, 1.5, 4, vScaleLocal(g.e1, 1.9));

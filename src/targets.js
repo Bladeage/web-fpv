@@ -3,6 +3,7 @@
    Zufall mit festem Startwert, damit Tests und Bestzeiten vergleichbar bleiben. */
 import { clamp, vAdd, vSub, vScale, vDot, vLen } from './math.js';
 import { rng } from './world.js';
+import { newBalloon, stepBalloon, popBalloon } from './balloon.js';
 
 export const HUNT = { center: [30, 12, -10], radius: 70, hitR: 0.4 };   // Gebiet, Trefferabstand (Ziel 0,25 m + Spieler 0,15 m)
 export const targets = [];
@@ -42,6 +43,7 @@ export function initTargets(speedScale = 1) {
     const c = [HUNT.center[0] + Math.cos(a)*d, y, HUNT.center[2] + Math.sin(a)*d];
     targets.push({ beh: 'static', route: null, speed: 0, c, size: 0, phase: 0, p: c.slice(), v: [0, 0, 0], state: 'fly', spin: 0, ang: 0, wp: null, time: 0 });
   }
+  targets.forEach((t, i) => { t.bal = newBalloon(t.p, i); });   // Ballon für Stufe „Leicht“
 }
 export const aliveCount = () => targets.filter(t => t.state === 'fly').length;
 
@@ -53,7 +55,8 @@ export function sweptDist(a0, a1, b0, b1) {
 }
 
 // Ein Schritt: Ziele bewegen, Treffer durch den Spieler (Weg a->b) prüfen. Ergebnis: Anzahl neuer Treffer.
-export function stepTargets(h, a, b, player) {
+// balloons: Stufe „Leicht“, Treffer nur über den Ballon (die Ziel-Drohne selbst zählt dann nicht).
+export function stepTargets(h, a, b, player, balloons = false) {
   let hits = 0;
   for (const t of targets) {
     const p0 = t.p.slice();
@@ -75,7 +78,8 @@ export function stepTargets(h, a, b, player) {
         t.p = vAdd(t.p, vScale(t.v, h));
         t.p[1] = clamp(t.p[1], 6, 18);
       }
-      if (sweptDist(a, b, p0, t.p) < HUNT.hitR) {
+      if (t.bal) stepBalloon(t.bal, t.p, h);   // Ballon an der Leine hinter der Ziel-Drohne
+      if (balloons ? popBalloon(t.bal, a, b, 0.15) : sweptDist(a, b, p0, t.p) < HUNT.hitR) {
         t.state = 'fall'; t.spin = 8 + R()*8; hits++;
         t.v = vAdd(vScale(t.v, 0.3), vScale(vSub(b, a), 0.4/h));   // Stoß in Flugrichtung des Spielers
       }

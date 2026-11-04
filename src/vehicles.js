@@ -3,6 +3,7 @@
    seitlich versetzt, damit sie nicht durch die Tore fahren. Treffer: die Drohne berührt das Fahrzeug. */
 import { vNorm } from './math.js';
 import { COURSE, MeshBuilder } from './world.js';
+import { newBalloon, stepBalloon, popBalloon } from './balloon.js';
 
 export const VEH_HALF = [1.0, 0.75, 2.1];   // halbe Breite, Höhe, Länge in m (Auto ca. 2 x 1,5 x 4,2 m)
 // Fahrspuren: Linienzüge entlang des Kurses, seitlich versetzt (gemittelte Normale an den Ecken).
@@ -61,6 +62,7 @@ export function initVehicles(speedScale = 1) {
     const v = { kind, speed: speed*speedScale, dir: dir || 1, s: 0, x: 0, z: 0, yaw: 0, state: 'drive', tilt: 0, route: null };
     if (kind === 'parked') { [v.x, v.z, v.yaw] = at; v.state = 'park'; }
     else { v.route = ROUTES[at]; const r = routeAt(v.route, 0); v.x = r.x; v.z = r.z; v.yaw = r.yaw + (v.dir < 0 ? Math.PI : 0); }
+    v.bal = newBalloon([v.x, VEH_HALF[1]*2, v.z], vehicles.length);   // Ballon für Stufe „Leicht“, über dem Dach
     vehicles.push(v);
   }
 }
@@ -83,7 +85,8 @@ function hitsVehicle(v, a, b, r) {
 }
 
 // Ein Schritt: Fahrzeuge bewegen, Treffer durch die Drohne (Weg a->b, Radius r) prüfen. Ergebnis: neue Treffer.
-export function stepVehicles(h, a, b, r = 0.15) {
+// balloons: Stufe „Leicht“, Treffer nur über den Ballon über dem Fahrzeug.
+export function stepVehicles(h, a, b, r = 0.15, balloons = false) {
   let hits = 0;
   for (const v of vehicles) {
     if (v.state === 'drive') {
@@ -91,7 +94,8 @@ export function stepVehicles(h, a, b, r = 0.15) {
       const p = routeAt(v.route, v.s);
       v.x = p.x; v.z = p.z; v.yaw = p.yaw + (v.dir < 0 ? Math.PI : 0);
     }
-    if (v.state !== 'hit' && hitsVehicle(v, a, b, r)) { v.state = 'hit'; v.tilt = 0.25; hits++; }
+    if (v.bal) stepBalloon(v.bal, [v.x, VEH_HALF[1]*2, v.z], h);
+    if (v.state !== 'hit' && (balloons ? popBalloon(v.bal, a, b, r) : hitsVehicle(v, a, b, r))) { v.state = 'hit'; v.tilt = 0.25; hits++; }
   }
   return hits;
 }
