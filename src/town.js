@@ -1,19 +1,19 @@
-/* Kleine Stadt mit Testecken (Nutzerwunsch 04.11.2026). Ohne DOM, in Node testbar.
-   Lage westlich des Startplatzes (x -134 bis -50, z -102 bis -47): dort liegt keine Mission (kein Kurs, keine Fahrzeugstrecke,
-   keine Plattform, kein Jagd-Gebiet). Zwei Reihen mit je drei Feldern:
-     Nord: Spielplatz (für Whoops) | Startplatz (Freiflug) | Baustelle
-     Süd:  offenes Haus            | Parkhaus               | Ruine
+/* Testecken auf der Karte (Nutzerwunsch 04.11.2026). Ohne DOM, in Node testbar.
+   Fünf Ecken, über die Karte verteilt, jeweils auf freier Fläche fern aller Missionen (kein Kurs, keine Fahrzeugstrecke,
+   keine Plattform, kein Jagd-Gebiet, kein bestehendes Hindernis):
+     Offenes Haus West (-92/-74), Spielplatz Südwest (-110/75), Baustelle Nord (12/-165), Parkhaus Ost (190/-130), Ruine Süd (55/190).
    Die Hindernisse stehen in `town` (eigene Liste, die Liste `colliders` bleibt gleich wie in legacy/).
    Maße sind Schätzungen nach üblichen Bauten, auf die kleine Karte angepasst. */
 import { MeshBuilder } from './world.js';
 
-export const TOWN = { start: [-92, -84], box: [-134, -50, -102, -47] };   // Startplatz im Freiflug; Bereich x0, x1, z0, z1
+// Ecken: Mitte x, z und halbe Kantenlänge des Bereichs in m. start: Startplatz im Freiflug (Mitte der Karte, alle Ecken rundherum)
+export const TOWN = { start: [0, 0], areas: { haus: [-92, -74, 8], spiel: [-110, 75, 11], bau: [12, -165, 12], park: [190, -130, 10.5], ruine: [55, 190, 12] } };
 export const town = [];          // Hindernisse (Quader wie colliders: c, h, cs, sn)
 const townParts = [];                // Bauteile fürs Modell: [c, h, yaw, col]
 
 const T_CONCRETE = [0.62, 0.62, 0.6], T_DARKC = [0.42, 0.42, 0.42], T_BRICK = [0.62, 0.36, 0.28], T_OLD = [0.55, 0.5, 0.42], T_WOOD = [0.55, 0.38, 0.22],
   T_METAL = [0.55, 0.57, 0.6], T_YELLOW = [0.95, 0.78, 0.15], T_RED = [0.85, 0.2, 0.15], T_WHITE = [0.92, 0.92, 0.9], T_BLUE = [0.2, 0.45, 0.85],
-  T_GREEN = [0.25, 0.65, 0.3], T_SAND = [0.85, 0.76, 0.5], T_ASPHALT = [0.24, 0.25, 0.27], T_ORANGE = [1.0, 0.45, 0.1];
+  T_GREEN = [0.25, 0.65, 0.3], T_SAND = [0.85, 0.76, 0.5], T_ORANGE = [1.0, 0.45, 0.1];
 
 // Quader (Mitte c, halbe Maße h, Drehung yaw um die Hochachse). solid = Hindernis für die Physik.
 function tBox(c, h, col, yaw = 0, solid = true) {
@@ -39,17 +39,9 @@ function tHoop(x, y, z, w, col, yaw = 0) {
   tBox(P(-w/2 - t, 0), [t, w/2, t], col, yaw); tBox(P(w/2 + t, 0), [t, w/2, t], col, yaw);
 }
 
-// ---------- Straße und Startplatz (Mitte Nord) ----------
-tBox([-92, 0.004, -74.5], [42, 0.004, 3.2], T_ASPHALT, 0, false);                      // Straße zwischen den Reihen
-for (let x = -130; x <= -54; x += 6) tBox([x, 0.009, -74.5], [1.4, 0.001, 0.08], T_WHITE, 0, false);   // Mittellinie
-tBox([-92, 0.003, -88], [10, 0.003, 10], [0.5, 0.52, 0.55], 0, false);               // Platz
-tBox([TOWN.start[0], 0.006, TOWN.start[1]], [1.2, 0.003, 1.2], [0.22, 0.27, 0.34], 0, false);   // Startfläche
-for (const [x, z] of [[-99, -80], [-85, -80], [-99, -96], [-85, -96]]) { tPost(x, z, 4.5, 0.06, T_METAL); tBox([x, 4.5, z + 0.5], [0.12, 0.06, 0.5], T_METAL); }   // Laternen
-tBox([-92, 0.45, -95], [1.6, 0.06, 0.3], T_WOOD); tPost(-93.4, -95, 0.4, 0.05, T_METAL); tPost(-90.6, -95, 0.4, 0.05, T_METAL);   // Bank
-
-// ---------- Spielplatz (Nordwest, Mitte -120 / -88): kleine Lücken für Whoops ----------
+// ---------- Spielplatz (Südwest): kleine Lücken für Whoops ----------
 {
-  const X = -120, Z = -88;
+  const [X, Z] = TOWN.areas.spiel;
   tBox([X, 0.004, Z], [10, 0.004, 10], [0.55, 0.72, 0.4], 0, false);                 // Rasen
   for (const [x0, z0, x1, z1] of [[-10, -10, 10, -10], [10, -10, 10, 10], [10, 10, 2, 10], [-2, 10, -10, 10], [-10, 10, -10, -10]])
     tWall(X + x0, Z + z0, X + x1, Z + z1, 0.6, 0.06, T_WOOD);                          // niedriger Zaun mit Eingang
@@ -72,9 +64,9 @@ tBox([-92, 0.45, -95], [1.6, 0.06, 0.3], T_WOOD); tPost(-93.4, -95, 0.4, 0.05, T
   [[-1, 0.8, 1.0], [1, 1.2, 0.8], [3, 0.7, 0.7], [5, 1.5, 0.6]].forEach(([dx, y, w], i) => tHoop(X + dx - 2, y, Z, w, [T_RED, T_YELLOW, T_BLUE, T_GREEN][i]));
 }
 
-// ---------- Baustelle (Nordost, Mitte -64 / -88) ----------
+// ---------- Baustelle (Nord) ----------
 {
-  const X = -64, Z = -88;
+  const [X, Z] = TOWN.areas.bau;
   tBox([X, 0.004, Z], [11, 0.004, 11], [0.55, 0.47, 0.36], 0, false);                // Erde
   for (const [x0, z0, x1, z1] of [[-11, -11, 11, -11], [11, -11, 11, 11], [11, 11, 3, 11], [-3, 11, -11, 11], [-11, 11, -11, -11]])
     tWall(X + x0, Z + z0, X + x1, Z + z1, 2, 0.05, [0.75, 0.78, 0.8], [], 0);      // Bauzaun 2 m mit Einfahrt
@@ -95,9 +87,9 @@ tBox([-92, 0.45, -95], [1.6, 0.06, 0.3], T_WOOD); tPost(-93.4, -95, 0.4, 0.05, T
   tBox([X + 1, 0.6, Z + 5], [2, 0.6, 1.6], T_SAND);
 }
 
-// ---------- Offenes Haus (Südwest, Mitte -120 / -61): 2 Geschosse, Türen und Fenster zum Durchfliegen ----------
+// ---------- Offenes Haus (West): 2 Geschosse, Türen und Fenster zum Durchfliegen ----------
 {
-  const X = -120, Z = -61, hw = 5, hd = 4, H = 3, d = 0.25;
+  const [X, Z] = TOWN.areas.haus, hw = 5, hd = 4, H = 3, d = 0.25;
   for (const lvl of [0, 1]) {
     const y0 = lvl*H, door = lvl ? [] : [[5, 1.6, 0, 2.3]];
     tWall(X - hw, Z - hd, X + hw, Z - hd, H, d, T_WHITE, [[2.5, 1.2, 1, 2.2], [7.5, 1.2, 1, 2.2], ...(lvl ? [[5, 1.2, 1, 2.2]] : [])], y0);   // Nordseite
@@ -111,9 +103,9 @@ tBox([-92, 0.45, -95], [1.6, 0.06, 0.3], T_WOOD); tPost(-93.4, -95, 0.4, 0.05, T
   tBox([X + 3.5, 2*H + 0.6, Z - hd], [1.5, 0.6, 0.1], T_BRICK);                       // Giebelrest
 }
 
-// ---------- Parkhaus (Süd Mitte, Mitte -92 / -61): 3 offene Decks, Stützen, Brüstungen mit Lücken ----------
+// ---------- Parkhaus (Ost): 3 offene Decks, Stützen, Brüstungen mit Lücken ----------
 {
-  const X = -92, Z = -61, hw = 9, hd = 9, deck = 3.2;
+  const [X, Z] = TOWN.areas.park, hw = 9, hd = 9, deck = 3.2;
   for (const dx of [-9, -3, 3, 9]) for (const dz of [-9, -3, 3, 9]) tPost(X + dx, Z + dz, 3*deck, 0.22, T_CONCRETE);
   for (const lvl of [1, 2, 3]) {
     const y = lvl*deck;
@@ -126,9 +118,9 @@ tBox([-92, 0.45, -95], [1.6, 0.06, 0.3], T_WOOD); tPost(-93.4, -95, 0.4, 0.05, T
   tBox([X - 9.5, 8.2, Z], [0.02, 0.5, 0.15], T_WHITE); tBox([X - 9.5, 8.5, Z + 0.25], [0.02, 0.2, 0.15], T_WHITE);
 }
 
-// ---------- Ruine (Südost, Mitte -64 / -61): Gemäuer mit Lücken, Bogen, Säulen, Turmrest ----------
+// ---------- Ruine (Süd): Gemäuer mit Lücken, Bogen, Säulen, Turmrest ----------
 {
-  const X = -64, Z = -61;
+  const [X, Z] = TOWN.areas.ruine;
   tBox([X, 0.004, Z], [11, 0.004, 11], [0.5, 0.55, 0.38], 0, false);                 // verwilderter Boden
   // Außenmauer in unterschiedlicher Höhe (abgebrochen), mit Fensterlöchern
   const jag = (x0, z0, x1, z1, hs, holes = []) => { const n = hs.length; for (let i = 0; i < n; i++) { const a = i/n, b = (i + 1)/n;

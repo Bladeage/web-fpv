@@ -349,8 +349,10 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
   Sechs-Rotor 2x (höchstens 5 m/s und 1,5 m/s², 4 s Halt, große Trefferzone, 1 Punkt). Alle über 16 m (höchstes Hindernis 15,1 m).
   Leicht: Ballons. Wärmebild: Motoren hell. Tests in `test/aircraft.test.mjs` messen Tempo, Schräglage, Kurvenradius, Beschleunigung, Drehrate, Schweben und Höhe nach.
 
-## Kleine Stadt mit Testecken (erledigt 04.11.2026)
-- Lage westlich des Starts, x -134 bis -50, z -102 bis -47 (dort keine Mission). Eigene Hindernisliste `town` in `src/town.js`, `colliders` bleibt wie in legacy/.
-- Nord: Spielplatz (Schaukel, Rutsche, Klettergerüst mit 1-m-Lücken, Wippe, Sandkasten, 4 Übungsfenster 0,6 bis 1 m für Whoops) | Startplatz mit Laternen | Baustelle (Bauzaun, Rohbau mit 2 Decken, Gerüst, Kran 14 m, Container, Rohre, Pylonen).
-- Süd: offenes Haus (2 Geschosse, Türen und Fenster zum Durchfliegen, Treppenloch, halbes Dach) | Parkhaus (3 offene Decks, Brüstungen mit Lücken, Rampe) | Ruine (abgebrochene Mauern, Torbogen, Säulen, Turmrest 8 m mit Öffnungen).
-- Freiflug startet in der Stadt (`game.home`), der Pilot steht dort (Funksignal). Alles unter 16 m. Tests: `test/town.test.mjs`.
+## Testecken auf der Karte (erledigt 04.11.2026, danach auf Wunsch verteilt)
+- Erst als kleine Stadt westlich des Starts gebaut, dann auf Wunsch des Nutzers über die Karte verteilt (zu nah beieinander).
+- Orte (Mitte x/z, alle auf freier Fläche, mindestens 100 m auseinander, über 80 m von Kurs, Strecken und Plattformen, außerhalb des Jagd-Gebiets):
+  Offenes Haus West (-92/-74), Spielplatz Südwest (-110/75), Baustelle Nord (12/-165), Parkhaus Ost (190/-130), Ruine Süd (55/190).
+- Inhalt wie zuvor: Spielplatz mit Übungsfenstern für Whoops, Baustelle mit Rohbau, Gerüst und Kran 14 m, offenes Haus mit 2 Geschossen,
+  Parkhaus mit 3 offenen Decks, Ruine mit Turmrest. Eigene Hindernisliste `town` in `src/town.js`, `colliders` bleibt wie in legacy/.
+- Freiflug startet wieder in der Mitte (TOWN.start), alle Ecken liegen rundherum. Alles unter 16 m. Tests: `test/town.test.mjs`.

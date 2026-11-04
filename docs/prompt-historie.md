@@ -67,3 +67,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 59 | 04.11.2026 | Weiter mit J1 als neuer Modus. Die neuen Drohnenarten sollen nach ihren realen Eigenschaften fliegen, angepasst auf die kleine Karte. | J1: Modus „Jagd Flugzeuge“ |
 | 60 | 04.11.2026 | Testecken auf der Karte, auf jeder Karte sichtbar: Kinderspielplatz (für Whoops), Baustelle, offenes Haus, Ruine/Gemäuer, weitere Ideen. Sinnvoll anordnen, keine Mission stören. Eine kleine Stadt. | Fragerunde |
 | 61 | 04.11.2026 | Antworten: zusätzlich Parkhaus; Freiflug startet in der Stadt. | Kleine Stadt mit 5 Testecken |
+| 62 | 04.11.2026 | Die neuen Strukturen liegen zu nah beieinander; auf der Karte auseinander platzieren. | Testecken über die Karte verteilt |
