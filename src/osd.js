@@ -10,9 +10,17 @@ export const OSD_ITEMS = [
   ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['vmin', 'Tiefste Spannung', true], ['eff', 'mAh pro Minute', false],
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
   ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
-  ['motors', 'Motorschaden', true], ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true]
+  ['motors', 'Motorschaden', true], ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true],
+  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Werte', false], ['goggle', 'Brillenrand', false], ['rec', 'Rec.-Punkt', false]
 ];
 const DEFAULT = Object.fromEntries(OSD_ITEMS.map(([id, , on]) => [id, on]));
+// OSD-Stile: setzen alle Häkchen auf einmal (cfg.osd) und die Schrift (cfg.osdStyle). Danach einzeln änderbar.
+const only = ids => Object.fromEntries(OSD_ITEMS.map(([id]) => [id, ids.includes(id)]));
+export const OSD_STYLES = {
+  bf:      { name: 'Betaflight', osd: {} },
+  digital: { name: 'Digital-Brille', osd: { compass: true, big: true, goggle: true, rec: true, amp: false, mah: false, vmin: false, cell: false, speed: false, alt: false, home: false, crashes: false } },
+  racer:   { name: 'Racer', osd: only(['mode', 'thr', 'alt', 'timer', 'cross', 'warn', 'marker', 'task']) }
+};
 // o: cfg.osd mit den Abweichungen von der Vorgabe
 export const osdOn = (o, id) => (o && id in o) ? !!o[id] : !!DEFAULT[id];
 

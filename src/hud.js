@@ -173,7 +173,8 @@ export function drawHud() {
   // Analog: Zeichensatz wie MAX7456 (fett, dicker schwarzer Rand, leicht weich).
   // Digital und ohne Effekte: feiner und scharf, mehr Zeilen auf dem Bild.
   const fs = Math.round(clamp(Math.min(W, H)/(analog ? 30 : 34), 12, 18));
-  const FONT = 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
+  // Stil Digital-Brille: klare Schrift ohne feste Breite, sonst Betaflight-Zeichensatz
+  const FONT = cfg.osdStyle === 'digital' ? 'system-ui,"Segoe UI",Roboto,Arial,sans-serif' : 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
   const weight = analog ? 700 : 600, edge = analog ? 3 : 2.2;
   c.font = `${weight} ${fs}px ${FONT}`;
   c.lineJoin = 'round'; c.textBaseline = 'alphabetic';
@@ -201,6 +202,7 @@ export function drawHud() {
   };
   const lines = osdLines(cfg.osd, d);
 
+  if (fpv && on('goggle')) drawGoggle(c, W, H);   // zuerst, damit die Werte darüber lesbar bleiben
   // Analog: bei schlechtem Empfang springt das OSD seitlich (Synchronisation).
   // Kein Weichzeichnen (filter blur): kostete pro Textzeile viel Zeit, im Test 148 statt 9 ms pro Bild.
   c.save();
@@ -222,6 +224,10 @@ export function drawHud() {
     c.lineWidth = edge; c.strokeStyle = 'rgba(0,0,0,.7)'; c.stroke(); c.fillStyle = '#fff'; c.fill();
     c.restore();
   }
+  if (on('compass')) drawCompass(c, W, inset.t + 74 + fs, f, fs, txt);   // unter den runden Knöpfen oben
+  if (on('finder')) drawFinder(c, W, H);
+  if (on('big')) drawBig(c, Rx, H*0.3, fs, FONT, weight, txt, [['ALT', 'M', Math.max(0, s.p[1] - PHYS.foot).toFixed(0)], ['SPD', 'KM/H', Math.round(vLen(s.v)*3.6)]]);
+  if (on('rec') && blink) { const ry = bot - lh*lines.bl.length - fs*0.6; c.fillStyle = '#ff3b30'; c.beginPath(); c.arc(L + fs*0.45, ry - fs*0.35, fs*0.4, 0, 7); c.fill(); txt('REC', L + fs*1.2, ry, 'left', '#ff3b30'); }
   if (on('sticks') && !touchUI) drawStickBoxes(c, W/2, bot - lh*lines.bc.length - fs*0.2, fs*2.6, analog ? 2 : 1.5);
 
   // Mitte: Fadenkreuz und künstlicher Horizont
@@ -289,6 +295,57 @@ export function drawHud() {
     txt(s.crashMsg, W/2, H/2 + fs*0.8, 'center');
     txt(gp.connected ? 'Taste an der Funke oder R für Neustart' : touchUI ? 'Tippen für Neustart' : 'R für Neustart', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
   }
+}
+
+// Brillenrand: dunkler Rand mit ovalem Ausschnitt wie in einer Videobrille
+function drawGoggle(c, W, H) {
+  c.save();
+  c.beginPath(); c.rect(0, 0, W, H);
+  c.ellipse(W/2, H/2, W*0.56, H*0.62, 0, 0, Math.PI*2);
+  c.fillStyle = 'rgba(8,8,10,.92)'; c.fill('evenodd');
+  c.restore();
+}
+// Kompassband: N, O, S, W und Striche alle 10°, Mitte = Flugrichtung. Norden ist die Startrichtung der Drohne (-z).
+function drawCompass(c, W, y, f, fs, txt) {
+  const head = (Math.atan2(f[0], -f[2])/DEG + 360) % 360, half = 60, w = Math.min(W*0.4, 420), px = w/(2*half);
+  c.save();
+  c.lineWidth = 2; c.strokeStyle = 'rgba(255,255,255,.9)';
+  for (let a = Math.ceil((head - half)/10)*10; a <= head + half; a += 10) {
+    const x = W/2 + (a - head)*px, n = ((a % 360) + 360) % 360, big = n % 30 === 0;
+    c.beginPath(); c.moveTo(x, y - (big ? fs*0.9 : fs*0.5)); c.lineTo(x, y); c.stroke();
+    const lab = { 0: 'N', 90: 'O', 180: 'S', 270: 'W' }[n];
+    if (lab) txt(lab, x, y - fs*1.15, 'center', '#ffffff');
+  }
+  c.fillStyle = '#ffd27a'; c.beginPath(); c.moveTo(W/2, y + 3); c.lineTo(W/2 - 6, y + 12); c.lineTo(W/2 + 6, y + 12); c.closePath(); c.fill();
+  c.restore();
+}
+// Sucher-Rahmen: Ecken um die Bildmitte und ein großes Fadenkreuz mit Lücke
+function drawFinder(c, W, H) {
+  const hw = W*0.24, hh = H*0.27, k = Math.min(hw, hh)*0.28, cx = W/2, cy = H/2;
+  c.save(); c.lineCap = 'square';
+  for (const [w, col] of [[5, 'rgba(0,0,0,.55)'], [2.5, 'rgba(255,255,255,.95)']]) {
+    c.lineWidth = w; c.strokeStyle = col; c.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const x = cx + sx*hw, y = cy + sy*hh;
+      c.moveTo(x - sx*k, y); c.lineTo(x, y); c.lineTo(x, y - sy*k);
+    }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { c.moveTo(cx + dx*18, cy + dy*18); c.lineTo(cx + dx*44, cy + dy*44); }
+    c.stroke();
+  }
+  c.restore();
+}
+// Große Werte rechts (Digital-Brille): kleine Beschriftung, große Zahl
+function drawBig(c, x, y, fs, FONT, weight, txt, rows) {
+  const font = c.font;
+  rows.forEach(([lab, unit, val], i) => {
+    const yy = y + i*fs*2.6;
+    c.font = `${weight} ${Math.round(fs*0.8)}px ${FONT}`;
+    txt(lab, x - fs*3.2, yy - fs*0.55, 'right', '#ffffff');
+    txt(unit, x - fs*3.2, yy + fs*0.35, 'right', '#cfd6da');
+    c.font = `${weight} ${Math.round(fs*1.9)}px ${FONT}`;
+    txt(String(val), x, yy + fs*0.35, 'right', '#ffffff');
+  });
+  c.font = font;
 }
 
 function drawGateMarker(c, W, H, fs) {

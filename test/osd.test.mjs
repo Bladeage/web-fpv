@@ -38,3 +38,12 @@ test('Bildrate ist aus, zeigt eingeschaltet Auflösung und Sparmodus', () => {
   const l = osdLines({ fps: true }, { ...d, fps: 24.4, res: 0.5, lite: true }).tr.find(x => x.id === 'fps');
   assert.equal(l.t, '24 FPS 50% L');
 });
+
+test('OSD-Stile: Racer zeigt nur wenige Werte, Digital-Brille hat Kompass und Brillenrand', async () => {
+  const { OSD_STYLES } = await import('../src/osd.js');
+  const racer = OSD_STYLES.racer.osd, dig = OSD_STYLES.digital.osd;
+  assert.equal(osdOn(racer, 'thr'), true); assert.equal(osdOn(racer, 'volt'), false); assert.equal(osdOn(racer, 'compass'), false);
+  assert.equal(osdOn(dig, 'compass'), true); assert.equal(osdOn(dig, 'goggle'), true); assert.equal(osdOn(dig, 'mah'), false);
+  assert.equal(osdOn(OSD_STYLES.bf.osd, 'compass'), false, 'Betaflight wie bisher');
+  for (const id of ['compass', 'finder', 'big', 'goggle', 'rec']) assert.ok(OSD_ITEMS.some(([x]) => x === id), id + ' im Menü');
+});

@@ -311,7 +311,7 @@ Entscheidung des Nutzers vom 02.11.2026.
 
 ## Nächste Etappen aus den Beispielbildern (Nutzer, 04.11.2026)
 
-### O2: OSD erweitern
+### O2: OSD erweitern (erledigt 04.11.2026)
 - Kompassband oben (N, O, S, W mit Gradstrichen, dreht mit der Blickrichtung).
 - Sucher-Rahmen: eckige Klammern um die Bildmitte, großes Fadenkreuz.
 - Brillenrand: runder dunkler Rand wie in einer Videobrille, roter Rec.-Punkt.

@@ -9,7 +9,7 @@ import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, presetMass } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
-import { OSD_ITEMS, osdOn } from './osd.js';
+import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -110,6 +110,7 @@ export function syncMenu() {
   press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
+  press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));
   $('propsView').checked = cfg.propsView;
   $('gpPreset').value = cfg.gpPreset;
   syncGpRows();
@@ -176,6 +177,11 @@ $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV'
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });
 document.querySelectorAll('#gfxSeg button').forEach(b => b.addEventListener('click', () => { cfg.gfx = b.dataset.gfx; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#videoSeg button').forEach(b => b.addEventListener('click', () => { cfg.video = b.dataset.video; saveCfg(); syncMenu(); }));
+// OSD-Stile: ein Klick setzt alle Häkchen und die Schrift
+for (const [id, st] of Object.entries(OSD_STYLES)) {
+  const b = addChoice($('osdStyleSeg'), st.name, '', () => { cfg.osdStyle = id; cfg.osd = { ...st.osd }; saveCfg(); syncMenu(); });
+  b.dataset.style = id;
+}
 for (const [id, name] of OSD_ITEMS) {
   const lab = document.createElement('label'), cb = document.createElement('input');
   lab.className = 'check'; cb.type = 'checkbox'; cb.dataset.osd = id;
