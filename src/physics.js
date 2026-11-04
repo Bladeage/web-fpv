@@ -6,6 +6,7 @@ import { cfg, game, kb, inp, say, saveBest } from './state.js';
 import { colliders, gates, GATE_IN } from './world.js';
 import { fmtTime } from './format.js';
 import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
+import { town } from './town.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -112,7 +113,7 @@ export const task = { check: checkGate, collide: null, reset() {}, early: false,
 
 function newSim() {
   return {
-    p: [0, PHYS.foot + 0.005, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
+    p: [game.home[0], PHYS.foot + 0.005, game.home[1]], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
     mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
@@ -123,7 +124,7 @@ function newSim() {
 function resetDrone() {
   game.throttle = 0; kb.pitch = kb.roll = kb.yaw = 0;
   game.state = 'fly';
-  game.camPos = [0, 1.0, 2.6]; game.camHeading = [0, 0, -1];
+  game.camPos = [game.home[0], 1.0, game.home[1] + 2.6]; game.camHeading = [0, 0, -1];
   if (cfg.fc === 'bf' && !bfStart()) bfFallbackNote();   // Betaflight frisch starten, sonst eigener Regler
 }
 export function respawn() {
@@ -355,6 +356,7 @@ export function step(h) {
   // 7. Hindernisse
   if (!cfg.ghost) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest
     for (const c of colliders) if (collide(c, h)) return;
+    for (const c of town) if (collide(c, h)) return;   // kleine Stadt mit Testecken
     if (task.collide && task.collide(h)) return;
   }
   // 8. Aufgabe des Szenarios (Tore, Ringe ...)

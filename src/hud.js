@@ -197,7 +197,7 @@ export function drawHud() {
     cur: s.lapStart !== null ? s.t - s.lapStart : null, last: s.lastLap, best: game.best,
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
     vpack: s.vpack, vmin: s.vmin, hp: s.hp, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
-    kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.foot), homeD: Math.hypot(s.p[0], s.p[2]),
+    kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.foot), homeD: Math.hypot(s.p[0] - game.home[0], s.p[2] - game.home[1]),
     fps: frameStat.fps, res: cfg.autoRes ? frameStat.scale : 1, lite: frameStat.lite, thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
   };
   const lines = osdLines(cfg.osd, d);
@@ -218,7 +218,7 @@ export function drawHud() {
   lines.bc.forEach((l, i, a) => txt(l.t, W/2, bot - lh*(a.length - 1 - i), 'center', l.col));
   if (on('home')) {
     const homeTxt = lines.br[lines.br.length - 1].t;
-    const rel = Math.atan2(-s.p[0], s.p[2]) - Math.atan2(f[0], -f[2]);
+    const rel = Math.atan2(game.home[0] - s.p[0], s.p[2] - game.home[1]) - Math.atan2(f[0], -f[2]);
     const ax = Rx - c.measureText(homeTxt).width - fs*0.8, ay = bot - fs*0.35;
     c.save(); c.translate(ax, ay); c.rotate(rel);
     c.beginPath(); c.moveTo(0, -fs*0.55); c.lineTo(fs*0.4, fs*0.45); c.lineTo(0, fs*0.2); c.lineTo(-fs*0.4, fs*0.45); c.closePath();

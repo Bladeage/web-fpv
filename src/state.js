@@ -63,6 +63,7 @@ if (!storedCfg.video && 'analog' in storedCfg) cfg.video = storedCfg.analog === 
 /* ---------- Spielzustand ---------- */
 export const game = {
   sim: null,
+  home: [0, 0],          // Startpunkt x, z (Freiflug: in der kleinen Stadt)
   state: 'fly',          // 'fly' | 'crashed'
   paused: true, started: false,
   crashes: 0,

@@ -348,3 +348,9 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
   Hubschrauber 2x (höchstens 10 m/s und 3 m/s², neigt sich beim Beschleunigen, dreht höchstens 70°/s in Flugrichtung, 2 s Halt, 2 Punkte);
   Sechs-Rotor 2x (höchstens 5 m/s und 1,5 m/s², 4 s Halt, große Trefferzone, 1 Punkt). Alle über 16 m (höchstes Hindernis 15,1 m).
   Leicht: Ballons. Wärmebild: Motoren hell. Tests in `test/aircraft.test.mjs` messen Tempo, Schräglage, Kurvenradius, Beschleunigung, Drehrate, Schweben und Höhe nach.
+
+## Kleine Stadt mit Testecken (erledigt 04.11.2026)
+- Lage westlich des Starts, x -134 bis -50, z -102 bis -47 (dort keine Mission). Eigene Hindernisliste `town` in `src/town.js`, `colliders` bleibt wie in legacy/.
+- Nord: Spielplatz (Schaukel, Rutsche, Klettergerüst mit 1-m-Lücken, Wippe, Sandkasten, 4 Übungsfenster 0,6 bis 1 m für Whoops) | Startplatz mit Laternen | Baustelle (Bauzaun, Rohbau mit 2 Decken, Gerüst, Kran 14 m, Container, Rohre, Pylonen).
+- Süd: offenes Haus (2 Geschosse, Türen und Fenster zum Durchfliegen, Treppenloch, halbes Dach) | Parkhaus (3 offene Decks, Brüstungen mit Lücken, Rampe) | Ruine (abgebrochene Mauern, Torbogen, Säulen, Turmrest 8 m mit Öffnungen).
+- Freiflug startet in der Stadt (`game.home`), der Pilot steht dort (Funksignal). Alles unter 16 m. Tests: `test/town.test.mjs`.

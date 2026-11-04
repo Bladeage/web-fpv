@@ -9,6 +9,8 @@ import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
 import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.js';
+import { TOWN } from './town.js';
+import { PILOT } from './signal.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
@@ -20,7 +22,7 @@ export const SCENARIOS = [
   { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Folge dem orangen Auto: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
-  { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe.' }
+  { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Start in der kleinen Stadt: Spielplatz, Baustelle, offenes Haus, Parkhaus, Ruine.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
 
@@ -317,6 +319,8 @@ task.reset = reset;
 export function setScenario(id) {
   if (!TASKS[id]) id = 'gates';
   scen.id = id; scen.version++;
+  game.home = id === 'free' ? TOWN.start.slice() : [0, 0];   // Freiflug startet in der kleinen Stadt, der Pilot steht dort
+  PILOT[0] = game.home[0]; PILOT[2] = game.home[1];
   cfg.scen = id;
   task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();

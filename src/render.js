@@ -6,6 +6,7 @@ import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
 import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
+import { town, buildTownMesh } from './town.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -163,7 +164,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
-let airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -213,7 +214,7 @@ function hull(pts) {
 // Umriss als Dreiecksfächer in Textur-Koordinaten (-1..1) der Bodentextur.
 function shadowTris() {
   const out = [], toNdc = (x, z) => [(x - GROUND.origin[0])/GROUND.size*2 - 1, (z - GROUND.origin[1])/GROUND.size*2 - 1];
-  for (const c of colliders) {
+  for (const c of colliders.concat(town)) {
     const pts = [], crown = c.c[1] - c.h[1] > 1 && Math.abs(c.h[0] - c.h[2]) < 0.01 && c.h[0] > 0.8;
     const P = (lx, ly, lz) => [c.c[0] + lx*c.cs + lz*c.sn, c.c[1] + ly, c.c[2] - lx*c.sn + lz*c.cs];
     if (crown) for (let k = 0; k < 12; k++) { const a = k/12*Math.PI*2; for (const ly of [-0.7, 0, 0.7]) pts.push(P(Math.cos(a)*c.h[0]*1.1*(1 - Math.abs(ly)*0.4), ly*c.h[1], Math.sin(a)*c.h[2]*1.1*(1 - Math.abs(ly)*0.4))); }
@@ -285,6 +286,7 @@ export function initGL() {
   { const mb = new MeshBuilder(); mb.box([0, 0, 0], [0.07, 0.05, 0.07], 0, [0.62, 0.45, 0.28]); pkgMesh = upload(new Float32Array(mb.d)); }   // Paket
   balloonMesh = upload(buildBalloonMesh());
   for (const k of ['plane', 'heli', 'hexa']) airMesh[k] = upload(buildAircraftMesh(k));
+  townMesh = upload(buildTownMesh());   // kleine Stadt mit Testecken
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -427,6 +429,8 @@ export function render(dt) {
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.bindVertexArray(worldMesh.vao);
   gl.drawArrays(gl.TRIANGLES, 0, staticCount);
+  gl.bindVertexArray(townMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, townMesh.count);
+  gl.bindVertexArray(worldMesh.vao);
   const pulse = 0.75 + 0.15*Math.sin(performance.now()/180);
   gates.forEach((g, i) => {
     if (i === sim.next && scen.id === 'gates') gl.uniform4f(P.u.uOver, 0.15, 1.0, 0.35, pulse);

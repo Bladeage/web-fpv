@@ -5,6 +5,7 @@
 import { clamp } from './math.js';
 import { game } from './state.js';
 import { colliders } from './world.js';
+import { town } from './town.js';
 
 export const PILOT = [0, 1.5, 0];
 export const signal = { video: 100, lq: 100, block: 0, t: 0 };
@@ -28,7 +29,7 @@ function segHitsBox(a, b, c) {
 // Dicke Hindernisse (Gebäude) dämpfen stark, Stämme und Stangen wenig, Baumkronen mittel.
 export function obstruction(p) {
   let sum = 0;
-  for (const c of colliders) if (segHitsBox(PILOT, p, c)) sum += clamp(Math.min(c.h[0], c.h[2])*12, 4, 35);
+  for (const list of [colliders, town]) for (const c of list) if (segHitsBox(PILOT, p, c)) sum += clamp(Math.min(c.h[0], c.h[2])*12, 4, 35);
   return sum;
 }
 // Signal ohne Schwanken: video und lq in Prozent, block = Dämpfung durch Hindernisse
