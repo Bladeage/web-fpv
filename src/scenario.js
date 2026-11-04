@@ -8,6 +8,7 @@ import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
+import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
@@ -15,6 +16,7 @@ export const SCENARIOS = [
   { id: 'slalom',  name: 'Slalom',             info: '5 Stangen, bei jedem Start neu. Blau: rechts vorbei, rot: links vorbei.' },
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
   { id: 'hunt',    name: 'Jagd Luft',          info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.' },
+  { id: 'hunt3',   name: 'Jagd Flugzeuge',     info: '6 Luftziele: Starrflügler (3 Punkte, fliegen schnell Kreise und Achten), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).' },
   { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Folge dem orangen Auto: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
@@ -148,7 +150,7 @@ export const PAD = { c: [72.5, 0, -45] };
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
-const st = { hits: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
+const st = { hits: 0, score: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
 function reset() {
   task.gateExtra = diff().gateExtra || 0;   // Tor-Toleranz nach Stufe
   if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout();
@@ -159,7 +161,7 @@ function reset() {
     scen.version++;
   }
   if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; const r = routeAt(ROUTES[0], 0); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw; }
-  st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+  st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -236,18 +238,20 @@ function checkLanding(a, b, h) {
 }
 
 // Jagd: Ziele bewegen sich im Physikschritt; Zeit läuft ab dem Abheben, Ziel nach cfg.huntX Treffern
-export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : (targets.length || 9);
+export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : scen.id === 'hunt3' ? (aircraft.length || 6) : (targets.length || 9);
 export const huntNeed = () => Math.min(cfg.huntX || 5, huntTotal());
 function checkHunt(a, b, h) {
   const s = game.sim;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const bal = !!diff().balloons;
-  const n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius, bal) : stepTargets(h, a, b, b, bal);
+  let n, pts = 0;
+  if (scen.id === 'hunt3') { const left = aircraftLeft(); pts = stepAircraft(h, a, b, bal); n = left - aircraftLeft(); st.score += pts; }   // Punkte je Art
+  else n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius, bal) : stepTargets(h, a, b, b, bal);
   if (!n || st.done) return;
   st.hits += n;
   if (bal) fx.pop(); else fx.beep(1100, 0.12);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
-  else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed());
+  else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed() + (pts ? '  +' + pts + ' Punkte' : ''));
   if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
 export const huntHits = () => st.hits;
@@ -302,6 +306,7 @@ const TASKS = {
   landing: { check: checkLanding, collide: null },
   hunt:    { check: checkHunt, collide: null, early: true },
   hunt2:   { check: checkHunt, collide: null, early: true },
+  hunt3:   { check: checkHunt, collide: null, early: true },
   deliver: { check: checkDeliver, collide: null },
   follow:  { check: checkFollow, collide: null },
   free:    { check() {}, collide: null }
@@ -324,7 +329,7 @@ export function scenLabel() {
   if (scen.id === 'free') return 'FREIFLUG';
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
-  if (scen.id === 'hunt' || scen.id === 'hunt2') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}`;
+  if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;
@@ -340,6 +345,11 @@ export function scenTarget() {
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
     let best = null, bd = 1e9;
     for (const v of vehicles) if (v.state !== 'hit') { const d = Math.hypot(v.x - s.p[0], v.z - s.p[2]); if (d < bd) { bd = d; best = [v.x, VEH_HALF[1]*2, v.z]; } }
+    return best;
+  }
+  if (scen.id === 'hunt3') {   // nächstes noch fliegendes Luftziel
+    let best = null, bd = 1e9;
+    for (const t of aircraft) if (t.state === 'fly') { const d = vLen(vSub(t.p, s.p)); if (d < bd) { bd = d; best = t.p; } }
     return best;
   }
   if (scen.id === 'hunt') {   // nächstes noch fliegendes Ziel

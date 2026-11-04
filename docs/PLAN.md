@@ -323,7 +323,7 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Nachtsicht: grün, verrauscht, Szene dunkler.
 - Umschalten reihum mit Taste N (frei belegbar), Funk-/Gamepad-Schalter „Wärme/Nacht“, Menü Allgemein. Wärme je Objekt über uHeat im Shader (Ziel-Drohnen 0,9, fahrende Autos 0,85, eigene Drohne 0,7, Ballons 0,35).
 
-### J1: Neue Luftziele für die Jagd
+### J1: Neue Luftziele für die Jagd (erledigt 04.11.2026 als eigener Modus „Jagd Flugzeuge“, hunt3)
 - Starrflügler: kleine Flugzeug-Drohnen, Kreise und Achten in 30 bis 80 m Höhe, schnell.
 - Hubschrauber-Drohne: ein Hauptrotor mit Heckrotor, fliegt Patrouille.
 - Großer Multikopter: langsamer Sechs-Rotor, große Trefferfläche, schwebt an Wegpunkten.
@@ -343,3 +343,8 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Vorher frei kombinierbar: 27 von 108 Grenzfällen unrealistisch (z. B. 5 Zoll mit 20 g: Schub zu Gewicht 364, Whoop mit 4S und 1,5 kg: Schweben bei 0,2 % Gas, teils negatives Schwebegas).
 - Jetzt (`droneSpec` in drone.js, Schätzungen): Zellen nur passend zur Vorlage (Whoop 1S, sonst 4S/6S), Kapazität halb bis doppelt, Akkugewicht wächst mit Kapazität mal Zellen, Gewicht 75 bis 160 % der Vorlage mit diesem Akku, Schub 50 bis 160 % der Vorlage, Schub zu Gewicht 2 bis 16. Bei anderer Zellenzahl passende KV (gleiche Volllast-Drehzahl).
 - Ergebnis über alle erlaubten Werte: Schweben 19 bis 74 %. Gespeicherte unsinnige Werte werden beim Laden begrenzt. Menü: Regler-Bereiche je Vorlage, unpassende Zellen gesperrt.
+- J1 umgesetzt (`src/aircraft.js`): 6 Ziele, Flugverhalten nach realen Eigenschaften, verkleinert (Schätzungen):
+  Starrflügler 2x (13 bis 15 m/s, nie schweben, Schräglage höchstens 35°, Kurvenradius über 25 m, Achte und Kreis in 22 bis 36 m, 3 Punkte);
+  Hubschrauber 2x (höchstens 10 m/s und 3 m/s², neigt sich beim Beschleunigen, dreht höchstens 70°/s in Flugrichtung, 2 s Halt, 2 Punkte);
+  Sechs-Rotor 2x (höchstens 5 m/s und 1,5 m/s², 4 s Halt, große Trefferzone, 1 Punkt). Alle über 16 m (höchstes Hindernis 15,1 m).
+  Leicht: Ballons. Wärmebild: Motoren hell. Tests in `test/aircraft.test.mjs` messen Tempo, Schräglage, Kurvenradius, Beschleunigung, Drehrate, Schweben und Höhe nach.

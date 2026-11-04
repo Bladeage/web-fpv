@@ -5,6 +5,7 @@ import { COURSE, MeshBuilder, colliders, gates, buildWorld, buildDrone, buildBla
 import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
+import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -162,7 +163,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
-let scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -283,6 +284,7 @@ export function initGL() {
   vehMesh = upload(buildVehicle());
   { const mb = new MeshBuilder(); mb.box([0, 0, 0], [0.07, 0.05, 0.07], 0, [0.62, 0.45, 0.28]); pkgMesh = upload(new Float32Array(mb.d)); }   // Paket
   balloonMesh = upload(buildBalloonMesh());
+  for (const k of ['plane', 'heli', 'hexa']) airMesh[k] = upload(buildAircraftMesh(k));
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -465,6 +467,18 @@ export function render(dt) {
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
+  // Luftziele (Jagd Flugzeuge): eigenes Modell je Art, Lage aus dem Flugmodell; abgestürzte dunkel
+  if (scen.id === 'hunt3') {
+    for (const t of aircraft) {
+      const mesh = airMesh[t.kind];
+      gl.bindVertexArray(mesh.vao);
+      gl.uniform1f(P.u.uHeat, t.state === 'fly' ? AIR_KIND[t.kind].heat : 0.4);
+      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(t.q, t.p));
+      gl.uniform4f(P.u.uOver, 0.05, 0.05, 0.05, t.state === 'fly' ? 0 : 0.6);
+      gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+    }
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
   gl.uniform1f(P.u.uHeat, 0);
   // Weiche Schatten unter bewegten Objekten (Mittel und Schön), entlang der Sonne versetzt, schwächer mit der Höhe
   if (cfg.gfx !== 'simple') {
@@ -472,6 +486,7 @@ export function render(dt) {
     const add = (p, rx, rz, yaw) => { if (p[1] < 40) blobs.push([p[0] - SUN[0]/SUN[1]*p[1], p[2] - SUN[2]/SUN[1]*p[1], rx*(1 + p[1]*0.03), rz*(1 + p[1]*0.03), yaw, 0.5*Math.max(0, 1 - p[1]/30)]); };
     if (cfg.cam !== 'fpv' || sim.p[1] < 20) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0);
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
+    if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
     if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, 0, v.z], 1.15, 2.3, v.yaw);
     if (scen.id === 'follow') { const L = followLead(); add([L.x, 0, L.z], 1.15, 2.3, L.yaw); }
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -504,8 +519,8 @@ export function render(dt) {
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Ballons (Stufe „Leicht“): Kugel in der Ballonfarbe, Leine als Linie zum Ziel
-  if ((scen.id === 'hunt' || scen.id === 'hunt2') && diff().balloons) {
-    const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : vehicles.map(v => [v.bal, [v.x, VEH_HALF[1]*2, v.z]]);
+  if ((scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') && diff().balloons) {
+    const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : scen.id === 'hunt3' ? aircraft.map(t => [t.bal, vSub(t.p, [0, 0.4, 0])]) : vehicles.map(v => [v.bal, [v.x, VEH_HALF[1]*2, v.z]]);
     gl.uniform1f(P.u.uHeat, 0.35);
     gl.bindVertexArray(balloonMesh.vao);
     const lines = [];

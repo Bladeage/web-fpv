@@ -81,8 +81,8 @@ export function syncMenu() {
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
-  $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2';
-  const total = cfg.scen === 'hunt2' ? 7 : 9;
+  $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
+  const total = cfg.scen === 'hunt2' ? 7 : cfg.scen === 'hunt3' ? 6 : 9;
   $('huntX').max = total; cfg.huntX = Math.min(cfg.huntX, total);
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von ' + total;
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);

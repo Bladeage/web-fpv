@@ -64,3 +64,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 56 | 04.11.2026 | Antworten Runde 1 für „Leicht“: keine allgemeine Hilfe; größere Ringe und Tore; Landehilfe, größere Plätze, Abwurf im Überflug, Sinkraten-Anzeige; Verfolgung mit langsamerem Auto und mehr Abstand. | J0 Teil 2 |
 | 57 | 04.11.2026 | Weiter mit O2. V1 (Bildmodi) mit Hotkey umschaltbar, gern Taste N, auf Funke und Gamepad belegbar. Runde 2 für „Leicht“ ebenfalls schon umsetzen; das Endergebnis wird danach angesehen. | O2, V1, Leicht Runde 2 |
 | 58 | 04.11.2026 | Fehler: Ein Kollege hat die Feinwerte so eingestellt, dass die Drohne mit 0,1 % Schub abhob. Feinwerte und Kombinationen durchgehen. | Feinwerte je Vorlage begrenzt, Akkugewicht nach Kapazität |
+| 59 | 04.11.2026 | Weiter mit J1 als neuer Modus. Die neuen Drohnenarten sollen nach ihren realen Eigenschaften fliegen, angepasst auf die kleine Karte. | J1: Modus „Jagd Flugzeuge“ |
