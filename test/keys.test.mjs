@@ -26,3 +26,9 @@ test('Anzeigenamen', () => {
   assert.equal(keyName('KeyQ'), 'Q'); assert.equal(keyName('Digit7'), '7'); assert.equal(keyName('Space'), 'Leertaste');
   assert.equal(keyName('ArrowLeft'), '←'); assert.equal(keyName('Numpad8'), 'Num 8');
 });
+
+test('Bildmodus (Wärme/Nacht) liegt auf N und ist frei belegbar', async () => {
+  assert.equal(keyOf('vision'), 'KeyN');
+  const { GP_SW } = await import('../src/gamepad.js');
+  assert.ok(GP_SW.some(([fn]) => fn === 'vision'), 'auch auf Funke/Gamepad belegbar');
+});

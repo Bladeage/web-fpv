@@ -107,6 +107,7 @@ export function syncMenu() {
   $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
   $('sound').checked = cfg.sound;
   press('#videoSeg button', b => b.dataset.video === cfg.video);
+  press('#visionSeg button', b => b.dataset.vision === (cfg.vision || 'normal'));
   press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
@@ -177,6 +178,7 @@ $('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV'
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });
 document.querySelectorAll('#gfxSeg button').forEach(b => b.addEventListener('click', () => { cfg.gfx = b.dataset.gfx; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#videoSeg button').forEach(b => b.addEventListener('click', () => { cfg.video = b.dataset.video; saveCfg(); syncMenu(); }));
+document.querySelectorAll('#visionSeg button').forEach(b => b.addEventListener('click', () => { cfg.vision = b.dataset.vision; saveCfg(); syncMenu(); }));
 // OSD-Stile: ein Klick setzt alle Häkchen und die Schrift
 for (const [id, st] of Object.entries(OSD_STYLES)) {
   const b = addChoice($('osdStyleSeg'), st.name, '', () => { cfg.osdStyle = id; cfg.osd = { ...st.osd }; saveCfg(); syncMenu(); });
@@ -360,7 +362,7 @@ addEventListener('keydown', e => {
 function buildHelpKeys() {
   const rows = [['thrUp', 'thrDown', 'Gas mehr / weniger'], ['yawL', 'yawR', 'Gieren links / rechts'], ['pitchF', 'pitchB', 'Nase runter / hoch'],
     ['rollL', 'rollR', 'Rollen links / rechts'], ['reset', null, 'Neustart'], ['cam', null, 'Kamera wechseln'], ['mode', null, 'Angle / Acro'],
-    ['arm', null, 'Scharf schalten / aus (nur mit Gas unten)'], ['tiltUp', 'tiltDown', 'Kamerawinkel höher / tiefer'], ['rewind', null, '5 s zurückspulen']];
+    ['arm', null, 'Scharf schalten / aus (nur mit Gas unten)'], ['tiltUp', 'tiltDown', 'Kamerawinkel höher / tiefer'], ['rewind', null, '5 s zurückspulen'], ['vision', null, 'Bild: normal, Wärmebild, Nachtsicht']];
   const box = $('helpKeys'); box.textContent = '';
   const add = (k, t) => { const a = document.createElement('kbd'); a.textContent = k; const b = document.createElement('span'); b.textContent = t; box.append(a, b); };
   for (const [a, b, t] of rows) add(keyName(keyOf(a)) + (b ? ' / ' + keyName(keyOf(b)) : ''), t);

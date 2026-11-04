@@ -10,7 +10,7 @@ export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv'
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
-  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own' };   // fc: Regler 'own' (eigener) oder 'bf' (Betaflight)
+  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal' };   // vision: Bildmodus normal, thermal (Wärmebild), night (Nachtsicht)   // fc: Regler 'own' (eigener) oder 'bf' (Betaflight)
 // Vorgaben für den ersten Start (Demo): Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur),
 // Bild ohne Rauschen. gpSw/gpCal: Schalter-Belegung und Kalibrierung der Funke. vol: Lautstärke 0..1.
 // keys: eigene Tastenbelegung (nur Abweichungen von KEY_FN).
@@ -23,7 +23,7 @@ export const KEY_FN = [
   ['pitchF', 'Nase runter', 'ArrowUp'], ['pitchB', 'Nase hoch', 'ArrowDown'],
   ['rollL', 'Rollen links', 'ArrowLeft'], ['rollR', 'Rollen rechts', 'ArrowRight'],
   ['arm', 'Scharf / aus', 'Space'], ['mode', 'Angle / Acro', 'KeyM'],
-  ['reset', 'Neustart', 'KeyR'], ['cam', 'Kamera', 'KeyV'], ['rewind', 'Zurückspulen', 'KeyZ'],
+  ['reset', 'Neustart', 'KeyR'], ['cam', 'Kamera', 'KeyV'], ['rewind', 'Zurückspulen', 'KeyZ'], ['vision', 'Wärme/Nacht', 'KeyN'],
   ['tiltUp', 'Kamera höher', 'PageUp'], ['tiltDown', 'Kamera tiefer', 'PageDown']
 ];
 export const KEY_RESERVED = ['Escape', 'KeyP'];

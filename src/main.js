@@ -9,7 +9,7 @@ import { gates } from './world.js';
 import { STEP, fx, respawn, step, rewind } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
-import { gl, initGL, render, resize, toggleCam } from './render.js';
+import { gl, initGL, render, resize, toggleCam, cycleVision } from './render.js';
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
@@ -18,7 +18,7 @@ import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 
 fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
-gpAct.cam = toggleCam; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
+gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 setScenario(cfg.scen); game.scenRun = cfg.scen;
 applyDrone(cfg.drone);

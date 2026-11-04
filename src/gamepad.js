@@ -12,9 +12,9 @@ export const GP_PRESETS = {
 };
 // Schalter-Funktionen: frei belegbar mit einer Achse (Schalter an der Funke, an ab 0,3) oder einer Taste.
 // Quelle: '' aus, 'a4' Achse 4, 'b0' Taste 0. cfg.gpSw = { arm: { src, inv }, ... }
-export const GP_SW = [['arm', 'Arm-Schalter'], ['mode', 'Angle/Acro'], ['reset', 'Neustart'], ['cam', 'Kamera'], ['rewind', 'Rückspulen']];
+export const GP_SW = [['arm', 'Arm-Schalter'], ['mode', 'Angle/Acro'], ['reset', 'Neustart'], ['cam', 'Kamera'], ['rewind', 'Rückspulen'], ['vision', 'Wärme/Nacht']];
 // Aktionen, die das Browser-Modul (main.js) einsetzt: Kamera, Zurückspulen, Flugmodus
-export const gpAct = { cam() {}, rewind() {}, mode() {} };
+export const gpAct = { cam() {}, rewind() {}, mode() {}, vision() {} };
 export const gp = { connected: false, id: '', mapping: '', axes: [], buttons: [], throttle: 0, yaw: 0, pitch: 0, roll: 0, btn: false, sw: {}, swPrev: {} };
 export function gpMap() {
   if (cfg.gpPreset === 'custom' && cfg.gpMap) return cfg.gpMap;
@@ -69,6 +69,7 @@ export function updGamepad() {
     }
     if (fn === 'reset' && on && !was) respawn();
     if (fn === 'cam' && on && !was) gpAct.cam();
+    if (fn === 'vision' && on !== was && (on || !btn)) gpAct.vision();   // Taste: jeder Druck; Schalter: jedes Umlegen
     if (fn === 'rewind' && on && !was) gpAct.rewind();
     gp.swPrev[fn] = on;
   }

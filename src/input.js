@@ -4,7 +4,7 @@ import { clamp } from './math.js';
 import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg, keyOf, keyFns, keyLearn } from './state.js';
 import { respawn, toggleArm, rewind } from './physics.js';
 import { gp } from './gamepad.js';
-import { hud, vw, vh, toggleCam } from './render.js';
+import { hud, vw, vh, toggleCam, cycleVision } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
 
 /* ---------- Eingabe: Tastatur ---------- */
@@ -19,6 +19,7 @@ addEventListener('keydown', e => {
   for (const fn of fns) {
     if (fn === 'reset') respawn();
     if (fn === 'cam') toggleCam();
+    if (fn === 'vision') cycleVision();
     if (fn === 'mode') { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); }
     if (fn === 'arm') toggleArm();
     if (fn === 'rewind') rewind(5);

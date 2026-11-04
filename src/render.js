@@ -79,7 +79,15 @@ uniform vec4 uOver;
 uniform float uFogD, uAlpha, uGfx, uSize;
 uniform vec2 uOrigin;
 uniform sampler2D uGround;
+uniform float uVision, uHeat;
 out vec4 o;
+// Bildmodus (V1): 1 Wärmebild (Szene gedämpftes Grau, warme Objekte hell), 2 Nachtsicht (grün, dunkler)
+vec3 vis(vec3 col){
+  if (uVision < 0.5) return col;
+  float l = dot(col, vec3(0.299, 0.587, 0.114));
+  if (uVision < 1.5) return vec3(mix(0.12 + 0.30*l, 0.97, uHeat));
+  return vec3(0.25, 1.0, 0.35)*(0.05 + 0.6*l + 0.25*uHeat);
+}
 void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
@@ -102,7 +110,7 @@ void main(){
     vec3 col = c * (amb + dif*vec3(1.0,0.96,0.88)*0.72) + uOver.rgb*uOver.a*0.35;
     float d = length(vW - uCam);
     float f = 1.0 - exp(-pow(d*uFogD, 1.6));
-    o = vec4(mix(col, uFog, clamp(f, 0.0, 1.0)), uAlpha);
+    o = vec4(vis(mix(col, uFog, clamp(f, 0.0, 1.0))), uAlpha);
     return;
   }
   bool full = uGfx > 1.5;
@@ -127,7 +135,7 @@ void main(){
   float hz = full ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/350.0))*0.18 : 0.0;   // Dunst nah am Boden
   col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + hz, 0.0, 1.0));
   col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);   // ACES-Näherung
-  o = vec4(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2)), uAlpha);
+  o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), uAlpha);
 }`;
 const SKY_VS = `#version 300 es
 layout(location=0) in vec2 aP;
@@ -138,6 +146,7 @@ precision highp float;
 in vec2 vP;
 uniform mat4 uInv;
 uniform vec3 uCam, uFog, uZen, uSun;
+uniform float uVision;
 out vec4 o;
 void main(){
   vec4 w = uInv * vec4(vP, 1.0, 1.0);
@@ -146,6 +155,8 @@ void main(){
   vec3 c = mix(uFog, uZen, pow(t, 0.55));
   float s = max(dot(d, uSun), 0.0);
   c += vec3(1.0,0.92,0.75) * (pow(s, 900.0)*1.6 + pow(s, 14.0)*0.12);
+  if (uVision > 1.5) c = vec3(0.02, 0.07, 0.03) + vec3(0.03, 0.10, 0.04)*(1.0 - t);   // Nachtsicht: fast schwarz-grün
+  else if (uVision > 0.5) c = vec3(0.10 + 0.08*(1.0 - t));                            // Wärmebild: kalter Himmel dunkel
   o = vec4(c, 1.0);
 }`;
 
@@ -263,8 +274,8 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround']);
-  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat']);
+  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision']);
   const w = buildWorld();
   staticCount = w.staticCount;
   worldMesh = upload(w.data);
@@ -340,6 +351,12 @@ export function resize() {
 }
 addEventListener('resize', resize);
 
+// Bildmodus reihum: normal, Wärmebild, Nachtsicht (Taste N, Funk-Schalter, Menü)
+export const VISIONS = [['normal', 'Normal'], ['thermal', 'Wärmebild'], ['night', 'Nachtsicht']];
+export function cycleVision() {
+  const i = VISIONS.findIndex(([id]) => id === cfg.vision), next = VISIONS[(i + 1) % VISIONS.length];
+  cfg.vision = next[0]; saveCfg(); say('Bild: ' + next[1], 1.2);
+}
 export function toggleCam() { cfg.cam = cfg.cam === 'fpv' ? 'chase' : 'fpv'; saveCfg(); say(cfg.cam === 'fpv' ? 'Drohnenkamera' : 'Verfolgerkamera', 1); }
 
 export function render(dt) {
@@ -388,6 +405,8 @@ export function render(dt) {
   gl.uniformMatrix4fv(PS.u.uInv, false, mInv(vp));
   gl.uniform3fv(PS.u.uCam, eye); gl.uniform3fv(PS.u.uFog, FOG);
   gl.uniform3fv(PS.u.uZen, ZEN); gl.uniform3fv(PS.u.uSun, SUN);
+  const VIS = cfg.vision === 'thermal' ? 1 : cfg.vision === 'night' ? 2 : 0;   // Bildmodus (V1)
+  gl.uniform1f(PS.u.uVision, VIS);
   gl.bindVertexArray(skyVao);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
@@ -399,6 +418,7 @@ export function render(dt) {
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
   gl.uniform1f(P.u.uFogD, 1/260);
   gl.uniform1f(P.u.uGfx, cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2);
+  gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
   gl.uniform1f(P.u.uSize, GROUND.size); gl.uniform2f(P.u.uOrigin, GROUND.origin[0], GROUND.origin[1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, groundTex); gl.uniform1i(P.u.uGround, 0);
   gl.uniform1f(P.u.uAlpha, 1);
@@ -429,6 +449,7 @@ export function render(dt) {
   }
   // Ziel-Drohnen (Jagd): Farbe nach Verhalten, Neigung in Flugrichtung, beim Absturz drehend
   if (scen.id === 'hunt') {
+    gl.uniform1f(P.u.uHeat, 0.9);   // Ziel-Drohnen: warme Motoren und Akkus
     gl.bindVertexArray(droneMesh.vao);
     const COL = { dumb: [1.0, 0.85, 0.1], random: [0.2, 0.6, 1.0], evade: [1.0, 0.2, 0.25], static: [0.95, 0.95, 0.95] };
     for (const t of targets) {
@@ -444,6 +465,7 @@ export function render(dt) {
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
+  gl.uniform1f(P.u.uHeat, 0);
   // Weiche Schatten unter bewegten Objekten (Mittel und Schön), entlang der Sonne versetzt, schwächer mit der Höhe
   if (cfg.gfx !== 'simple') {
     const blobs = [];
@@ -467,6 +489,7 @@ export function render(dt) {
     gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND);
     gl.uniform1f(P.u.uAlpha, 1); gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
+  gl.uniform1f(P.u.uHeat, 0);
   // Flugspur (Lernhilfe): Linie durch die Schnappschüsse der letzten Sekunden
   if (cfg.trail && history.length > 1) {
     if (!trail) { trail = { vao: gl.createVertexArray(), buf: gl.createBuffer() }; gl.bindVertexArray(trail.vao); gl.bindBuffer(gl.ARRAY_BUFFER, trail.buf);
@@ -483,6 +506,7 @@ export function render(dt) {
   // Ballons (Stufe „Leicht“): Kugel in der Ballonfarbe, Leine als Linie zum Ziel
   if ((scen.id === 'hunt' || scen.id === 'hunt2') && diff().balloons) {
     const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : vehicles.map(v => [v.bal, [v.x, VEH_HALF[1]*2, v.z]]);
+    gl.uniform1f(P.u.uHeat, 0.35);
     gl.bindVertexArray(balloonMesh.vao);
     const lines = [];
     for (const [b, anchor] of list) {
@@ -513,10 +537,11 @@ export function render(dt) {
     const L = followLead();
     gl.bindVertexArray(vehMesh.vao);
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], L.yaw), [L.x, 0, L.z]));
-    gl.uniform4f(P.u.uOver, 1.0, 0.5, 0.05, L.ok ? 0.75 : 0.55);
+    gl.uniform4f(P.u.uOver, 1.0, 0.5, 0.05, L.ok ? 0.75 : 0.55); gl.uniform1f(P.u.uHeat, 0.85);
     gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
-    gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniform1f(P.u.uHeat, 0);
   }
+  gl.uniform1f(P.u.uHeat, 0);
   // Paket unter der Drohne (Paketlieferung)
   if (game.payload > 0) {
     gl.bindVertexArray(pkgMesh.vao);
@@ -528,6 +553,7 @@ export function render(dt) {
   if (scen.id === 'hunt2') {
     gl.bindVertexArray(vehMesh.vao);
     for (const v of vehicles) {
+      gl.uniform1f(P.u.uHeat, v.state === 'hit' ? 0.5 : v.kind === 'parked' ? 0.45 : 0.85);   // fahrend: warmer Motor
       const q = qMul(qAxis([0,1,0], v.yaw), qAxis([0,0,1], v.tilt));
       gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, [v.x, v.tilt*0.6, v.z]));
       const c = v.state === 'hit' ? [0.08, 0.08, 0.08] : VEH_COLORS[v.kind];
@@ -537,6 +563,7 @@ export function render(dt) {
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Drohne (Rumpf nur in der Verfolgerkamera, Propeller auch im Kamerabild)
+  gl.uniform1f(P.u.uHeat, 0.7);
   const md = mFromQT(sim.q, sim.p);
   for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) md[i] *= PHYS.size;   // Modell nach Drohnengröße
   if (cfg.cam !== 'fpv') {

@@ -318,9 +318,10 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Jedes Element einzeln im OSD-Reiter abschaltbar.
 - Drei OSD-Stile als Vorlage: Betaflight analog (wie heute), Digital-Brille (klare Schrift, große Werte rechts), Racer minimal (Modus, Gas, Höhe, Zeit).
 
-### V1: Bildmodi
+### V1: Bildmodi (erledigt 04.11.2026)
 - Wärmebild: Graustufen, Fahrzeuge und Ziel-Drohnen hell. Einfacher Shader, Stufe „Einfach“ bleibt schnell.
 - Nachtsicht: grün, verrauscht, Szene dunkler.
+- Umschalten reihum mit Taste N (frei belegbar), Funk-/Gamepad-Schalter „Wärme/Nacht“, Menü Allgemein. Wärme je Objekt über uHeat im Shader (Ziel-Drohnen 0,9, fahrende Autos 0,85, eigene Drohne 0,7, Ballons 0,35).
 
 ### J1: Neue Luftziele für die Jagd
 - Starrflügler: kleine Flugzeug-Drohnen, Kreise und Achten in 30 bis 80 m Höhe, schnell.

@@ -202,6 +202,7 @@ export function drawHud() {
   };
   const lines = osdLines(cfg.osd, d);
 
+  if (cfg.vision === 'night' || cfg.vision === 'thermal') drawVisionGrain(c, W, H, cfg.vision === 'night');   // Sensorrauschen
   if (fpv && on('goggle')) drawGoggle(c, W, H);   // zuerst, damit die Werte darüber lesbar bleiben
   // Analog: bei schlechtem Empfang springt das OSD seitlich (Synchronisation).
   // Kein Weichzeichnen (filter blur): kostete pro Textzeile viel Zeit, im Test 148 statt 9 ms pro Bild.
@@ -297,6 +298,16 @@ export function drawHud() {
   }
 }
 
+// Rauschen der Wärme- oder Nachtsichtkamera: feines Korn, Nachtsicht stärker und mit dunklem Rand
+function drawVisionGrain(c, W, H, night) {
+  if (!noisePats.length) makeNoise();
+  c.save();
+  const ox = Math.random()*128, oy = Math.random()*128;
+  c.globalAlpha = night ? 0.22 : 0.08;
+  c.translate(-ox, -oy); c.fillStyle = noisePats[(Math.random()*4) | 0]; c.fillRect(0, 0, W + 128, H + 128);
+  c.restore();
+  if (night) { c.save(); c.fillStyle = vignette(c, W, H); c.fillRect(0, 0, W, H); c.restore(); }
+}
 // Brillenrand: dunkler Rand mit ovalem Ausschnitt wie in einer Videobrille
 function drawGoggle(c, W, H) {
   c.save();
