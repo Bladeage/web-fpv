@@ -338,3 +338,8 @@ Entscheidung des Nutzers vom 02.11.2026.
 - Vorgabe für die Demo: Normal.
 
 Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi sofort zugänglicher. Wärmebild (V1) wirkt am besten mit den neuen Luftzielen (J1).
+
+## Feinwerte begrenzt (erledigt 04.11.2026, Fehler aus dem Test eines Kollegen)
+- Vorher frei kombinierbar: 27 von 108 Grenzfällen unrealistisch (z. B. 5 Zoll mit 20 g: Schub zu Gewicht 364, Whoop mit 4S und 1,5 kg: Schweben bei 0,2 % Gas, teils negatives Schwebegas).
+- Jetzt (`droneSpec` in drone.js, Schätzungen): Zellen nur passend zur Vorlage (Whoop 1S, sonst 4S/6S), Kapazität halb bis doppelt, Akkugewicht wächst mit Kapazität mal Zellen, Gewicht 75 bis 160 % der Vorlage mit diesem Akku, Schub 50 bis 160 % der Vorlage, Schub zu Gewicht 2 bis 16. Bei anderer Zellenzahl passende KV (gleiche Volllast-Drehzahl).
+- Ergebnis über alle erlaubten Werte: Schweben 19 bis 74 %. Gespeicherte unsinnige Werte werden beim Laden begrenzt. Menü: Regler-Bereiche je Vorlage, unpassende Zellen gesperrt.

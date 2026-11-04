@@ -7,7 +7,7 @@ import { toggleCam } from './render.js';
 import { audioInit, audioPause } from './audio.js';
 import { fmtTime } from './format.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
-import { DRONES, applyDrone, presetMass } from './drone.js';
+import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 
@@ -50,7 +50,7 @@ function batteryIcon(cap, cells) {
   for (let i = 0; i < n; i++) g += `<rect x="${3 + i*sw + 0.6}" y="3" width="${sw - 1.2}" height="${h-6}" rx="1" fill="#3cb371"/>`;
   return icon(w + 5, h, g);
 }
-function setCapIcon() { const b = $('capIco'); b.textContent = ''; b.appendChild(batteryIcon(droneVal('cap'), droneVal('cells'))); }
+function setCapIcon() { const sp = droneSpec(cfg.drone), b = $('capIco'); b.textContent = ''; b.appendChild(batteryIcon(sp.cap, sp.cells)); }
 
 // Spielstil-Karten: setzen mehrere Einstellungen auf einmal. Weicht eine ab, gilt „Eigene“.
 const STYLES = {
@@ -61,7 +61,6 @@ const STYLES = {
 };
 const currentStyle = () => Object.keys(STYLES).find(k => Object.entries(STYLES[k].set).every(([key, v]) => cfg[key] === v)) || null;
 
-const droneVal = k => cfg.drone[k] ?? (DRONES[cfg.drone.preset] || DRONES['5'])[k];
 
 export function setMode(m) {
   cfg.mode = m; saveCfg();
@@ -87,13 +86,18 @@ export function syncMenu() {
   $('huntX').max = total; cfg.huntX = Math.min(cfg.huntX, total);
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von ' + total;
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
-  const pm = presetMass(DRONES[cfg.drone.preset] || DRONES['5']), mass = cfg.drone.mass ?? pm;
-  $('mass').value = Math.round(mass*1000); $('massV').textContent = Math.round(mass*1000) + ' g';
+  // Grenzen der Feinwerte je Vorlage (drone.js): Regler-Bereiche, gesperrte Zellen, wirksame Werte anzeigen
+  const sp = droneSpec(cfg.drone);
+  $('mass').min = Math.round(sp.massMin*1000); $('mass').max = Math.round(sp.massMax*1000); $('mass').step = sp.massMax < 0.2 ? 1 : 5;
+  $('mass').value = Math.round(sp.mass*1000); $('massV').textContent = Math.round(sp.mass*1000) + ' g';
+  $('cap').min = Math.round(sp.capMin); $('cap').max = Math.round(sp.capMax); $('cap').step = sp.capMax < 1000 ? 10 : 50;
+  $('twr').min = DRONE_LIMITS.twrMin; $('twr').max = DRONE_LIMITS.twrMax;
+  document.querySelectorAll('#cellSeg button').forEach(b => { const ok = sp.p.cellsOk.includes(+b.dataset.cells); b.disabled = !ok; b.title = ok ? '' : 'Passt nicht zu dieser Vorlage'; });
   applyDrone(cfg.drone);   // nur zur Anzeige der Trägheit; beim Start wird ohnehin neu angewendet
   $('twr').value = PHYS.twr; $('twrV').textContent = PHYS.twr.toFixed(1);   // berechnet aus Motor und Gewicht
   $('droneInfo').textContent = 'Schub zu Gewicht ' + PHYS.twr.toFixed(1) + ', Schweben bei ' + Math.round(hoverThrottle()*100) + ' % Gas. Trägheit Nicken/Gieren/Rollen: ' + PHYS.I.map(x => (x*1e4).toFixed(1)).join(' / ') + ' kg·cm²';
-  $('cap').value = droneVal('cap'); $('capV').textContent = droneVal('cap') + ' mAh'; setCapIcon();
-  press('#cellSeg button', b => +b.dataset.cells === droneVal('cells'));
+  $('cap').value = sp.cap; $('capV').textContent = sp.cap + ' mAh'; setCapIcon();
+  press('#cellSeg button', b => +b.dataset.cells === sp.cells);
   $('batWarn').value = cfg.batWarn; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V';
   $('batMin').value = cfg.batMin; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V';
   $('fov').value = cfg.fov; $('fovV').textContent = cfg.fov + '°';
@@ -160,8 +164,9 @@ document.querySelectorAll('#fcSeg button').forEach(b => b.addEventListener('clic
   if (game.started) respawn();
 }));
 $('twr').addEventListener('input', e => { cfg.drone.twr = +e.target.value; $('twrV').textContent = cfg.drone.twr.toFixed(1); saveCfg(); });
+$('twr').addEventListener('change', () => syncMenu());   // nach dem Loslassen: wirksamen Wert zeigen (begrenzt)
 $('mass').addEventListener('input', e => { cfg.drone.mass = +e.target.value/1000; saveCfg(); syncMenu(); });
-$('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; $('capV').textContent = cfg.drone.cap + ' mAh'; setCapIcon(); saveCfg(); });
+$('cap').addEventListener('input', e => { cfg.drone.cap = +e.target.value; saveCfg(); syncMenu(); });   // Akku ändert auch das Gewicht
 $('huntX').addEventListener('input', e => { cfg.huntX = +e.target.value; $('huntXV').textContent = cfg.huntX + ' von ' + e.target.max; saveCfg(); });
 $('batWarn').addEventListener('input', e => { cfg.batWarn = +e.target.value; $('batWarnV').textContent = cfg.batWarn.toFixed(2) + ' V'; saveCfg(); });
 $('batMin').addEventListener('input', e => { cfg.batMin = +e.target.value; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V'; saveCfg(); });
