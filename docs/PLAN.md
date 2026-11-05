@@ -415,3 +415,10 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Betaflight: Stand das Gas beim Start oben, blieb Betaflight aus, auch nach „Gas runter“ (es verlangt dann ein Umlegen des Scharf-Schalters). Jetzt legt der Simulator den Schalter in diesem Fall 20 ms aus und wieder an. OSD-Hinweis „BETAFLIGHT AUS: GAS GANZ RUNTER“, solange es nicht scharf ist.
 - Rundgang durch alle Szenarien, beide Regler, Grafik Einfach und Schön, alle Bildmodi: keine Fehler in der Konsole.
 - Offen beim Nutzer: `main` als Standard-Branch setzen. Bis dahin baut die CI auf `main`, veröffentlicht aber nicht auf GitHub Pages (Seite zeigt den Stand vom alten Branch).
+
+## Zwei Effekte aus SimITL (erledigt 05.11.2026, Prompt 75)
+- Druckpunkt über dem Schwerpunkt (`PHYS.cpY`, 5 mm je Größe 1): Der Luftwiderstand des Rahmens greift oben an, im schnellen Vorwärtsflug hebt sich die Nase leicht. SimITL nutzt 2 cm; ab 1 cm hält unser eigener Regler die eingestellte Rate nicht mehr genau.
+- Verzögerung im Motorregler (`PHYS.escDelay`, 1 ms): Der Motor bekommt den Befehl etwas später, gemischt zwischen letztem und jetzigem Befehl (kürzer als ein Physikschritt). SimITL nutzt 2 ms; damit schaukelte sich unser eigener Regler beim Aufsetzen auf.
+- Test Wand-Abprall misst jetzt nach 0,25 s statt 0,4 s: Später kippt die Drohne über 90° und der eigene Schub zieht sie weg; das war kein Abprall mehr (auch ohne die neuen Effekte schon knapp an der Grenze).
+- Tests: `test/simitl.test.mjs`. Ruhiges Stehen am Boden und Gieren am Boden unverändert geprüft.
+- Möglicher nächster Schritt: eigenen Regler gegen Störungen stärker machen (I-Anteil, Vorsteuerung), dann könnten beide Werte näher an SimITL.

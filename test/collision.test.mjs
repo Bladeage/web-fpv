@@ -20,7 +20,8 @@ beforeEach(() => { cfg.mode = 'acro'; cfg.dmg = 'off'; respawn(); inp.pitch = in
 test('Gegen eine Wand mit 4 m/s: Drohne prallt ab, kein Absturz', () => {
   const d = wall.h[0] + 0.6;
   place([wall.c[0] + xAxis[0]*d, 3, wall.c[2] + xAxis[2]*d], [-xAxis[0]*4, 0, -xAxis[2]*4]);
-  run(0.4);
+  run(0.25);   // Abprall kurz nach dem Aufprall messen (Aufprall nach etwa 0,1 s). Später kippt die Drohne über 90°,
+               // dann zieht sie der eigene Schub von der Wand weg, das wäre kein Abprall mehr.
   assert.equal(game.state, 'fly');
   const away = game.sim.v[0]*xAxis[0] + game.sim.v[2]*xAxis[2];
   assert.ok(away > 0.3 && away < 2.5, 'prallt zurück mit ' + away + ' m/s');
