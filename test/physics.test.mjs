@@ -3,7 +3,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, gates, GATE_IN } from '../src/world.js';
-import { PHYS, BAT, STEP, step, respawn, hoverThrottle, motorSteady } from '../src/physics.js';
+import { PHYS, BAT, STEP, step, respawn, hoverThrottle, motorSteady, actualRate } from '../src/physics.js';
 
 buildWorld();
 
@@ -19,7 +19,7 @@ function airborne(p, thr) {
   s.p = p.slice(); s.grounded = false; s.om = [w, w, w, w]; game.throttle = thr;
 }
 beforeEach(() => {
-  cfg.mode = 'angle'; cfg.rate = 450;
+  cfg.mode = 'angle';
   respawn();
   inp.pitch = inp.roll = inp.yaw = 0;
 });
@@ -130,7 +130,7 @@ function rollResponse() {
   for (let i = 1; i < 240; i++) { step(STEP); if (Math.abs(game.sim.w[2]) >= 0.63*target) return i*STEP; }
   return 1;
 }
-function rateCurveTarget(x) { const e = 0.45, a = Math.abs(x); return cfg.rate*Math.PI/180*((1 - e)*a + e*a*a*a); }
+function rateCurveTarget(x) { return actualRate(x, cfg.rates.rp); }
 
 test('Physik 2.0: doppelte Trägheit antwortet langsamer auf einen Rate-Sprung', () => {
   const t1 = rollResponse();

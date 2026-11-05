@@ -36,6 +36,8 @@
 #include "rx/rx.h"
 #include "sensors/gyro.h"
 #include "flight/imu.h"
+#include "fc/controlrate_profile.h"
+#include "fc/rc.h"
 
 #define EXPORT(name) __attribute__((export_name(#name)))
 
@@ -182,6 +184,16 @@ EXPORT(bf_step) void bf_step(int us) {
 }
 // Motor i, 0..1
 EXPORT(bf_motor) float bf_motor(int i) { return i >= 0 && i < MAX_SUPPORTED_MOTORS ? motorsPwm[i]/1000.0f : 0; }
+// Raten (Betaflight „Actual“) für Achse 0 Rollen, 1 Nicken, 2 Gieren: Mitte und Maximum in °/s, Expo 0..100
+EXPORT(bf_set_rates) void bf_set_rates(int axis, int center, int max, int expo) {
+  if (axis < 0 || axis > 2) return;
+  controlRateConfig_t *c = controlRateProfilesMutable(systemConfig()->activeRateProfile);
+  c->rates_type = RATES_TYPE_ACTUAL;
+  c->rcRates[axis] = (uint8_t)constrain(center/10, 1, 255);
+  c->rates[axis] = (uint8_t)constrain(max/10, 1, 255);
+  c->rcExpo[axis] = (uint8_t)constrain(expo, 0, 100);
+  initRcProcessing();
+}
 // Zustand für Anzeige und Tests: 0 scharf, 1 Gründe gegen Scharfschalten (Bitfeld), 2 Angle aktiv
 EXPORT(bf_flag) int bf_flag(int n) {
   if (n == 9) return pgWasmCount;

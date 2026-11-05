@@ -6,6 +6,8 @@ import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
 import { audioInit, audioPause } from './audio.js';
 import { fmtTime } from './format.js';
+import { clamp } from './math.js';
+import { bfRates } from './bf.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
@@ -108,7 +110,7 @@ export function syncMenu() {
   $('ghost').checked = cfg.ghost; $('trail').checked = cfg.trail;
   syncStyle();
   $('tilt').value = cfg.tilt; $('tiltV').textContent = cfg.tilt + '°';
-  $('rate').value = cfg.rate; $('rateV').textContent = cfg.rate + ' °/s';
+  document.querySelectorAll('#rates input').forEach(el => { const [k, i] = el.dataset.r.split(','); el.value = cfg.rates[k][+i]; });
   $('sound').checked = cfg.sound;
   press('#videoSeg button', b => b.dataset.video === cfg.video);
   press('#visionSeg button', b => b.dataset.vision === (cfg.vision || 'normal'));
@@ -179,7 +181,14 @@ for (const [id, st] of Object.entries(STYLES)) addChoice($('styleSeg'), st.name,
 $('autoRes').addEventListener('change', e => { cfg.autoRes = e.target.checked; saveCfg(); });
 $('needArm').addEventListener('change', e => { cfg.needArm = e.target.checked; saveCfg(); });
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
-$('rate').addEventListener('input', e => { cfg.rate = +e.target.value; $('rateV').textContent = cfg.rate + ' °/s'; saveCfg(); });
+// Raten: Zahl begrenzen, speichern und an Betaflight geben. Maximum nie unter der Mitte.
+document.querySelectorAll('#rates input').forEach(el => el.addEventListener('change', () => {
+  const [k, i] = el.dataset.r.split(','), r = cfg.rates[k];
+  r[+i] = clamp(Math.round(+el.value || 0), +el.min, +el.max);
+  if (r[1] < r[0]) r[1] = r[0];
+  document.querySelectorAll('#rates input').forEach(x => { const [k2, j] = x.dataset.r.split(','); x.value = cfg.rates[k2][+j]; });
+  saveCfg(); bfRates();
+}));
 $('sound').addEventListener('change', e => { cfg.sound = e.target.checked; saveCfg(); });
 document.querySelectorAll('#gfxSeg button').forEach(b => b.addEventListener('click', () => { cfg.gfx = b.dataset.gfx; saveCfg(); syncMenu(); }));
 document.querySelectorAll('#videoSeg button').forEach(b => b.addEventListener('click', () => { cfg.video = b.dataset.video; saveCfg(); syncMenu(); }));

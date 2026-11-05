@@ -166,3 +166,7 @@ details{margin-top:10px}
   .stepno{display:none}
   .keys{margin:4px 0;gap:1px 10px;font-size:13px}
 }
+/* Raten-Tabelle (Betaflight „Actual“): Beschriftung links, drei Zahlenfelder */
+.rgrid{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:4px 8px;align-items:center;font-size:.85em;margin:4px 0 2px}
+.rgrid input{width:100%;min-width:0;box-sizing:border-box;padding:3px 6px;font:inherit;background:#fff;color:#1b2127;border:1px solid #b9c1ca;border-radius:6px}
+.rgrid input:focus{outline:2px solid #ff7a1a;outline-offset:0}

@@ -85,13 +85,14 @@
         <label class="row" for="batMin"><span>Minimum (pro Zelle)</span><output id="batMinV"></output></label>
         <input type="range" id="batMin" min="3.0" max="3.5" step="0.05">
         </div>
-        <div>
-        <label class="row" for="rate"><span>Max. Drehrate (Acro)</span><output id="rateV"></output></label>
-        <input type="range" id="rate" min="200" max="900" step="10">
         </div>
+        <div class="rgrid" id="rates" title="Wie Betaflight „Actual“: Mitte = Drehrate um die Mittelstellung, Max = bei vollem Ausschlag, Expo = weicher um die Mitte">
+          <span>Raten (Acro)</span><span>Mitte °/s</span><span>Max °/s</span><span>Expo %</span>
+          <span>Rollen/Nicken</span><input type="number" data-r="rp,0" min="10" max="1500" step="10"><input type="number" data-r="rp,1" min="10" max="2000" step="10"><input type="number" data-r="rp,2" min="0" max="100" step="5">
+          <span>Gieren</span><input type="number" data-r="yaw,0" min="10" max="1500" step="10"><input type="number" data-r="yaw,1" min="10" max="2000" step="10"><input type="number" data-r="yaw,2" min="0" max="100" step="5">
         </div>
         <p class="hint" id="droneInfo"></p>
-        <p class="hint">Alle Werte sind Schätzungen. Mehr Gewicht macht die Drohne träger. Betaflight nutzt seine eigenen Standard-Raten, die Drehrate gilt dann nicht.</p>
+        <p class="hint">Alle Werte sind Schätzungen. Mehr Gewicht macht die Drohne träger. Die Raten gelten für beide Regler, in Angle nur fürs Gieren.</p>
       </div>
       <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" id="bStart">Start</button></div>
     </section>

@@ -5,12 +5,15 @@
 /* ---------- Einstellungen ---------- */
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
-export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
+export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
   diff: 'mid', drone: { preset: '5' }, video: 'clean', osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
-  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal' };   // vision: Bildmodus normal, thermal (Wärmebild), night (Nachtsicht)   // fc: Regler 'own' (eigener) oder 'bf' (Betaflight)
+  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal',
+  // Raten wie Betaflight „Actual“: [Mitte °/s, Maximum °/s, Expo %], für Rollen/Nicken und Gieren. Gelten für beide Regler.
+  // Vorgabe nahe der früheren Kurve (max. 450 °/s), nicht die Betaflight-Vorgabe 70/670/0 (für Einsteiger zu steil).
+  rates: { rp: [250, 450, 45], yaw: [190, 290, 30] } };   // vision: Bildmodus normal, thermal (Wärmebild), night (Nachtsicht)   // fc: Regler 'own' (eigener) oder 'bf' (Betaflight)
 // Vorgaben für den ersten Start (Demo): Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur),
 // Bild ohne Rauschen. gpSw/gpCal: Schalter-Belegung und Kalibrierung der Funke. vol: Lautstärke 0..1.
 // keys: eigene Tastenbelegung (nur Abweichungen von KEY_FN).
@@ -56,6 +59,10 @@ export function keyName(code) {
 let storedCfg = {};
 try { storedCfg = JSON.parse(localStorage.getItem(STORE_CFG) || '{}') || {}; } catch (e) {}
 Object.assign(cfg, storedCfg);
+// Raten: Ältere Einstellungen kannten nur cfg.rate (max. Drehrate). Daraus Mitte, Maximum und Expo ableiten.
+if (!storedCfg.rates && storedCfg.rate) { const r = Math.min(900, Math.max(200, +storedCfg.rate || 450)), t = x => Math.round(x/10)*10;
+  cfg.rates = { rp: [t(r*0.55), t(r), 45], yaw: [t(r*0.42), t(r*0.65), 30] }; }
+delete cfg.rate;
 // Bildmodus: 'analog' | 'digital' | 'clean'. Ältere Einstellungen kannten nur cfg.analog.
 if (!storedCfg.video && 'analog' in storedCfg) cfg.video = storedCfg.analog === false ? 'clean' : 'analog';
 

@@ -2,7 +2,7 @@
    Ohne DOM, in Node testbar. Der Build ersetzt den Platzhalter in BF_WASM durch die Datei als Base64.
    Tests geben die Bytes direkt mit bfLoad(). Fehlt Betaflight oder lädt es nicht, fliegt der eigene Regler. */
 import { clamp, qRot } from './math.js';
-import { say } from './state.js';
+import { say, cfg } from './state.js';
 
 export const BF_WASM = '%%BF_WASM%%';
 export const bf = { mod: null, x: null, ready: false, err: '', vPrev: [0, 0, 0] };
@@ -34,8 +34,15 @@ export function bfStart() {
     x.bf_set_acc(0, 0, 9.81); x.bf_set_gyro(0, 0, 0);
     x.bf_step(1500000);
     bf.x = x; bf.ready = true; bf.vPrev = [0, 0, 0];
+    bfRates();
     return true;
   } catch (e) { bf.err = String(e); bf.x = null; return false; }
+}
+// Raten aus den Einstellungen an Betaflight geben (Achse 0 Rollen, 1 Nicken, 2 Gieren)
+export function bfRates() {
+  if (!bf.ready || !bf.x) return;
+  const r = cfg.rates;
+  [r.rp, r.rp, r.yaw].forEach((v, i) => bf.x.bf_set_rates(i, Math.round(v[0]), Math.round(v[1]), Math.round(v[2])));
 }
 // Ein Physikschritt mit Betaflight. s: Zustand der Drohne, h: Schrittweite in s.
 // Gibt die Motorbefehle 0..1 in unserer Reihenfolge zurück (MOTORS: vorne rechts, vorne links, hinten rechts, hinten links).

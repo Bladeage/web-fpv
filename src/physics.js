@@ -137,6 +137,7 @@ export function respawn() {
   game.pendingRespawn = false;
   game.payload = 0;
   task.reset();
+  cfg.vision = 'normal';   // Neustart (R, Neuer Flug): Bild wieder normal, nicht Wärmebild oder Nachtsicht (Nutzer)
   initBirds(Math.random, game.sim.p);   // Vögel bei jedem Start neu und zufällig verteilen
 }
 // Nur die Drohne neu an den Start setzen (Jagd nach Treffer). Szenario, Zeit, Akku und Scharf-Zustand bleiben.
@@ -171,9 +172,11 @@ export function crash(why) {
   fx.vibrate(120);
 }
 
-export function rateCurve(x, maxDeg, expo) {
-  const a = Math.abs(x);
-  return Math.sign(x) * maxDeg * DEG * ((1 - expo)*a + expo*a*a*a);
+// Raten wie Betaflight „Actual“ (fc/rc.c, applyActualRates): Stick x in -1..1, r = [Mitte °/s, Maximum °/s, Expo %].
+// Ergebnis in rad/s. Mitte: Steigung bei Stick in der Mitte. Maximum: bei vollem Ausschlag. Expo: weicher um die Mitte.
+export function actualRate(x, r) {
+  const a = Math.abs(x), e = r[2]/100, ex = a*(Math.pow(x, 5)*e + x*(1 - e));
+  return (x*r[0] + Math.max(0, r[1] - r[0])*ex)*DEG;
 }
 
 export function step(h) {
@@ -181,9 +184,9 @@ export function step(h) {
   // 1. Soll-Drehraten im Körper-Koordinatensystem (rad/s)
   let tx, ty, tz;
   if (cfg.mode === 'acro') {
-    tx = -rateCurve(inp.pitch, cfg.rate, 0.45);
-    tz = -rateCurve(inp.roll, cfg.rate, 0.45);
-    ty = -rateCurve(inp.yaw, cfg.rate*0.65, 0.3);
+    tx = -actualRate(inp.pitch, cfg.rates.rp);
+    tz = -actualRate(inp.roll, cfg.rates.rp);
+    ty = -actualRate(inp.yaw, cfg.rates.yaw);
   } else {
     const f = qRot(s.q, [0,0,-1]), r = qRot(s.q, [1,0,0]), u = qRot(s.q, [0,1,0]);
     const pitchA = Math.atan2(-f[1], u[1]);   // Nase runter = positiv

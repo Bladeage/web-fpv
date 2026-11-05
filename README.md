@@ -1,6 +1,10 @@
 # FPV-Simulator
 
-Browser-Simulator für FPV-Drohnen. Reines HTML, CSS, JavaScript, WebGL2. Keine Bibliotheken.
+## ▶ Jetzt fliegen: https://bladeage.github.io/web-fpv/
+
+Läuft direkt im Browser, ohne Installation. Empfohlen: Chrome oder Edge (PC), Chrome (Android). Funke per USB als Gamepad, sonst Tastatur oder Touch.
+
+Browser-Simulator für FPV-Drohnen. Reines HTML, CSS, JavaScript, WebGL2. Keine fremden Bibliotheken, einzige Ausnahme: Betaflight als Flugregler (GPLv3, siehe Lizenz).
 Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASCII).
 
 - Stand und Hintergrund: `docs/handover-2026-10-30.md`
@@ -57,7 +61,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `tools/record-legacy-trace.mjs` | Nimmt Referenzdaten aus `legacy/` auf. Braucht Playwright, nicht Teil von Build und Tests. |
 | `test/` | Tests mit `node:test` |
 
-`math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js`, `osd.js` und `signal.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js`, `osd.js`, `signal.js`, `targets.js`, `vehicles.js`, `bf.js`, `balloon.js`, `aircraft.js`, `town.js`, `eggs.js` und `birds.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
 ## Lizenz
 

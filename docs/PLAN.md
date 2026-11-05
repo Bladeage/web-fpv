@@ -398,3 +398,15 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 
 ## Lizenzdatei (erledigt 05.11.2026, Prompt 72)
 - `LICENSE` mit dem GPLv3-Text (aus dem Betaflight-Quellcode übernommen), Abschnitt „Lizenz“ im README. Nachgezogen aus P4.
+
+## Raten, Bildmodus-Reset, README (erledigt 05.11.2026, Prompt 73)
+- Raten wie Betaflight „Actual“ (Mitte, Maximum, Expo), getrennt für Rollen/Nicken und Gieren, im Drohnen-Menü unter „Feinwerte“. Gelten für beide Regler. Betaflight bekommt sie über `bf_set_rates` (neu in `sitl/platform.c`, WASM neu gebaut). Vorgabe 250/450/45 und 190/290/30, nahe der früheren Kurve; ältere Einstellung „Max. Drehrate“ wird umgerechnet.
+- Neustart (R, Neuer Flug, Programmstart) setzt Wärmebild und Nachtsicht auf normal.
+- README: Link zu GitHub Pages ganz oben, Lizenzabschnitt, Liste der DOM-freien Module aktualisiert.
+- Tests: `test/rates.test.mjs` (Formel, beide Regler drehen mit der eingestellten Rate, Bildmodus-Reset).
+
+## Vergleich mit SimITL (05.11.2026, nur Bericht)
+- SimITL (GPLv3, Physik in `src/sim/physics.cpp`): Euler mit 8 kHz, Motor mit Gegenspannung, 2 ms ESC-Verzögerung plus Filter, Motortemperatur, Schub abhängig von der Anströmung, Bodeneffekt, Propwash mit Rauschen, Akku-Spannungseinbruch als Faustformel, quadratischer Luftwiderstand je Achse, Druckpunkt 2 cm versetzt (Pendelmoment), Flattern ab 2 m/s, Kreisel-Rauschen nach Drehzahl. Keine Kollision (macht die Engine).
+- Bei uns schon vorhanden: Motor mit Gegenspannung und Hochlaufzeit, Schub nach Anströmung, Bodeneffekt, Wirbelring/Propwash, Akku mit Innenwiderstand (genauer als SimITL), Rotorwiderstand, Luftwiderstand nach Lage, Stöße mit Drehung.
+- Nur bei SimITL: ESC-Verzögerung, Motortemperatur, Druckpunkt-Versatz, Flattern, Kreisel-Rauschen (vom Nutzer vorerst nicht gewünscht), 8 kHz.
+- Empfehlung: nicht übernehmen. Höchstens klein und einzeln: Druckpunkt-Versatz (Drohne richtet sich im schnellen Flug leicht auf) und ESC-Verzögerung (2 ms).
