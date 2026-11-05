@@ -395,3 +395,6 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Ostereier: Meldung zweizeilig, „Osterei gefunden!“ und darunter „n von 13 gefunden“.
 - Ungenutzter Code entfernt: `bfArmed`, `huntHits`, `CFG_DEFAULT`, `BEHAVIOR_NAME`, `aliveCount`, `vehiclesLeft`.
 - Commits ohne Claude: Autor ist der Nutzer, Zeilen `Co-Authored-By` und `Claude-Session` entfernt. Neuer Branch `main`; der alte Branch `claude/…` wird gelöscht, sobald `main` Standard-Branch ist.
+
+## Lizenzdatei (erledigt 05.11.2026, Prompt 72)
+- `LICENSE` mit dem GPLv3-Text (aus dem Betaflight-Quellcode übernommen), Abschnitt „Lizenz“ im README. Nachgezogen aus P4.

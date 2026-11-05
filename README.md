@@ -58,3 +58,11 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `test/` | Tests mit `node:test` |
 
 `math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js`, `osd.js` und `signal.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+
+## Lizenz
+
+GNU General Public License Version 3 (GPLv3), Text in `LICENSE`.
+
+Grund: Der Simulator enthält Betaflight (https://github.com/betaflight/betaflight, GPLv3), als WebAssembly kompiliert und in `dist/fpvsim.html` eingebettet.
+Damit steht das Gesamtpaket unter GPLv3. Der zugehörige Quellcode ist dieses Repository: Betaflight-Stand, Änderungen und Bauweg in `sitl/` (siehe `sitl/README.md`).
+Wer die Datei weitergibt, muss den Quellcode mit anbieten (etwa als Link auf dieses Repository) und die Lizenz beibehalten.
