@@ -90,3 +90,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 82 | 05.11.2026 | Frage: Haben wir Wind eingebaut? | Nein, nur Fahrtwind als Ton. Wind und Böen stehen als P3 im Plan (vom Nutzer am 05.11. zurückgestellt) |
 | 83 | 05.11.2026 | (Screenshot Modus-Menü) Wind: nein. Alle Menüs größer, Texte zu nah beieinander, wirkt noch nicht professionell. Wind war nur gefragt, weil sich der Flug noch immer komisch anfühlt. | Menüs mit mehr Abstand, Größe passt sich dem Bildschirm an. Rückfrage zum Fluggefühl |
 | 84 | 05.11.2026 | (Während der Arbeit) Zählen wir Versionen pro Merge? Version im Hauptmenü hellgrau sehen. | Version 1.<Anzahl Commits> (Datum, Hash), beim Build eingesetzt, im Hauptmenü |
+| 85 | 05.11.2026 | (Während der Arbeit) Das komische Gefühl kam eventuell vom Edge, der eine zwischengespeicherte Version gespielt hat. | Hinweis: Version im Hauptmenü prüfen, Neu laden mit Strg+F5; GitHub Pages speichert bis 10 min zwischen |
