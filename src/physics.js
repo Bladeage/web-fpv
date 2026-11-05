@@ -2,11 +2,12 @@
    Ohne DOM und WebGL, in Node testbar. Ton und Vibration laufen über fx,
    main.js verbindet sie mit dem Browser. */
 import { DEG, clamp, vAdd, vSub, vScale, vDot, vLen, vNorm, vCross, qMul, qNorm, qRot, qFromRotVec } from './math.js';
-import { cfg, game, kb, inp, say, saveBest } from './state.js';
+import { cfg, game, kb, inp, say, saveBest, eggsFound, saveEggs } from './state.js';
 import { colliders, gates, GATE_IN } from './world.js';
 import { fmtTime } from './format.js';
 import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 import { town } from './town.js';
+import { EGGS, checkEggs } from './eggs.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -345,6 +346,14 @@ export function step(h) {
   s.v = vAdd(s.v, vScale(acc, h));
   const prev = s.p;
   s.p = vAdd(s.p, vScale(s.v, h));
+  // Ostereier: in jedem Modus gleich, Berühren genügt
+  const egg = checkEggs(prev, s.p, PHYS.radius*0.6, eggsFound);
+  if (egg >= 0) {
+    saveEggs();
+    const all = eggsFound.length >= EGGS.length;
+    say((all ? 'Alle Ostereier gefunden! ' : 'Osterei gefunden! ') + eggsFound.length + '/' + EGGS.length, all ? 4 : 2.5);
+    fx.beep(1568, 0.08); fx.beep(2093, 0.12);
+  }
 
   // Jagd: Treffer vor Boden und Hindernissen prüfen, damit ein steiler Anflug zählt und nicht als Absturz endet
   if (task.early) {

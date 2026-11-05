@@ -1,12 +1,13 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
-import { cfg, game, saveCfg, say } from './state.js';
+import { cfg, game, saveCfg, say, eggsFound } from './state.js';
 import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
 import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
 import { town, buildTownMesh } from './town.js';
+import { EGGS, buildEggMesh } from './eggs.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -210,7 +211,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -334,6 +335,7 @@ export function initGL() {
   balloonMesh = upload(buildBalloonMesh());
   for (const k of ['plane', 'heli', 'hexa']) airMesh[k] = upload(buildAircraftMesh(k));
   townMesh = upload(buildTownMesh());   // kleine Stadt mit Testecken
+  eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -482,6 +484,14 @@ export function render(dt) {
   gl.depthMask(false); gl.drawArrays(gl.TRIANGLES, 0, groundCount); gl.depthMask(true);
   gl.drawArrays(gl.TRIANGLES, groundCount, staticCount - groundCount);
   gl.bindVertexArray(townMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, townMesh.count);
+  // Ostereier, die noch nicht gefunden sind: drehen sich langsam
+  const eggYaw = performance.now()/1500;
+  EGGS.forEach(([p], i) => {
+    if (eggsFound.includes(i)) return;
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], eggYaw + i), p));
+    gl.bindVertexArray(eggMesh[i].vao); gl.drawArrays(gl.TRIANGLES, 0, eggMesh[i].count);
+  });
+  gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.bindVertexArray(worldMesh.vao);
   const pulse = 0.75 + 0.15*Math.sin(performance.now()/180);
   gates.forEach((g, i) => {

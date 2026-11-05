@@ -85,6 +85,11 @@ export function loadBest() {
 }
 loadBest();
 export function saveCfg() { try { localStorage.setItem(STORE_CFG, JSON.stringify(cfg)); } catch (e) {} }
+// Gefundene Ostereier (Indizes in EGGS), eigener Speicher: bleibt beim Zurücksetzen der Einstellungen erhalten
+export const STORE_EGGS = 'fpvsim1.eggs';
+export const eggsFound = [];
+try { for (const i of JSON.parse(localStorage.getItem(STORE_EGGS) || '[]')) if (Number.isInteger(i) && !eggsFound.includes(i)) eggsFound.push(i); } catch (e) {}
+export function saveEggs() { try { localStorage.setItem(STORE_EGGS, JSON.stringify(eggsFound)); } catch (e) {} }
 export function saveBest() { try { localStorage.setItem(bestKey(), String(game.best)); } catch (e) {} }
 
 /* ---------- Eingabewerte ---------- */

@@ -241,12 +241,6 @@ export function drawHud() {
     c.moveTo(W/2, H/2 - 4);  c.lineTo(W/2, H/2 - 9);
     c.stroke();
   }
-  // Gasbalken (ohne Touch)
-  if (!touchUI && on('thr')) {
-    const bh = H*0.28, bx = L, byTop = H/2 - bh/2;
-    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(bx, byTop, 10, bh);
-    c.fillStyle = '#fff'; c.fillRect(bx, byTop + bh*(1 - game.throttle), 10, bh*game.throttle);
-  }
   // Warnungen wie im Betaflight-OSD
   const warn = osdWarning(d);
   if (on('warn') && warn && blink && game.state === 'fly') txt(warn, W/2, H/2 - Math.min(H*0.16, 120), 'center', RED);

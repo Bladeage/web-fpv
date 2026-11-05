@@ -375,3 +375,13 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Lösung: Kontaktpunkt nach Eindringtiefe gewichtet (plus 0,2 mm Grundgewicht). Der tiefere Fuß trägt mehr, die Drohne richtet sich auf.
 - Test: `test/ground.test.mjs`, 12 s Stillstand mit und ohne Schieflage, scharf und aus. Schlägt mit dem alten Stand fehl.
 - Offen zur Auswahl: Ostereier, Vögel, Gas-Anzeigen getrennt schaltbar.
+
+## Ostereier und Gas-Balken (erledigt 05.11.2026, Prompt 67)
+- 13 Ostereier in `src/eggs.js`, in jedem Modus und jeder Stufe an derselben Stelle: Sandkasten, Rutsche, Haus (Obergeschoss, Dach), Baustelle (Gerüst, Container, Kranausleger), Parkhaus (mittleres Deck), Ruine (Turm innen, Torbogen), Hochhausdach, Säule und Baum nahe dem Start.
+- Berühren genügt. Meldung „Osterei gefunden! n/13“ mit Ton, gefundene Eier verschwinden. Gespeichert unter eigenem Schlüssel (`fpvsim1.eggs`), bleibt beim Zurücksetzen der Einstellungen erhalten.
+- Gas-Balken links entfernt (Nutzer). THR unten und Stick-Anzeige bleiben.
+- Tests: `test/eggs.test.mjs` (liegen auf einer Fläche, frei, Platz für die Drohne, Fund in mehreren Modi).
+
+## Nächste Etappe: Vögel (Nutzer, 05.11.2026)
+- Einzelne Vögel, keine Schwärme, keine Kollision mit der Drohne.
+- Fliegen zwischen Bäumen, landen auf Bäumen oder am Sandkasten, picken am Boden. Zufälliges Verhalten. Fliegen auf, wenn die Drohne näher als etwa 8 m kommt.
