@@ -450,3 +450,4 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Mehr Abstand und größere Flächen in allen Menüs. `fitPanel` (menu.js) vergrößert das Menü per CSS-zoom bis 1,35-fach, so weit Breite und Höhe erlauben; passt es nicht, verkleinert es in 3-%-Schritten (bis 0,72). Geprüft: 1280x720, 1366x650, 960x540, 390x844 ohne Scrollen.
 - Version: `Version 1.<Anzahl Commits> (Datum, Kurz-Hash)`, beim Build aus git eingesetzt (`%%VERSION%%` in state.js), hellgrau im Hauptmenü. Zählt mit jedem Commit auf `main` (es gibt keine Merges, gepusht wird direkt). CI holt dafür die ganze Historie (`fetch-depth: 0`).
 - Wind: vom Nutzer abgelehnt.
+- Erkenntnis (Prompt 86): Nach einem Push dauert die Veröffentlichung 1 bis 2 Minuten, GitHub Pages lässt Browser bis 10 Minuten zwischenspeichern. Beim Testen immer die Version im Hauptmenü prüfen. Das „komische“ Fluggefühl vor der Physik-Rücknahme kam vermutlich von einer alten, zwischengespeicherten Fassung.
