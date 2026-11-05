@@ -11,6 +11,7 @@ import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from 
 import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.js';
 import { TOWN } from './town.js';
 import { PILOT } from './signal.js';
+import { placePilot, PILOT_POS } from './pilot.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
@@ -319,7 +320,7 @@ export function setScenario(id) {
   if (!TASKS[id]) id = 'gates';
   scen.id = id; scen.version++;
   game.home = id === 'free' ? TOWN.start.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
-  PILOT[0] = game.home[0]; PILOT[2] = game.home[1];
+  const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   cfg.scen = id;
   task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();

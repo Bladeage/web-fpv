@@ -1,13 +1,18 @@
 /* Funkstrecke: Videosignal (5,8 GHz) und Steuerverbindung (LQ) getrennt. Ohne DOM, in Node testbar.
    Alle Dämpfungswerte sind Schätzungen für ein glaubwürdiges Spielgefühl, keine Messwerte.
-   Annahmen: Der Pilot steht am Start mit der Antenne in 1,5 m Höhe. Video verliert früher
-   und stärker als die Steuerverbindung (höhere Frequenz, weniger Sendeleistung). */
+   Annahmen: Das Signal geht von der Funke des Piloten aus (Figur hinter dem Startplatz, Antenne 1,35 m hoch).
+   Die Stärke fällt mit dem Abstand logarithmisch (Freiraumdämpfung: je doppelte Entfernung gleich viel weniger).
+   Video verliert früher und stärker als die Steuerverbindung (höhere Frequenz, weniger Sendeleistung).
+   Hindernisse zwischen Pilot und Drohne dämpfen (Gebäude stark, Bäume mittel, Stangen wenig).
+   Dicht am Boden in der Ferne verdeckt der Boden einen Teil der Strecke (Fresnel-Zone).
+   Wie das Bild darauf reagiert, hängt vom System ab (hud.js): analog wird nach und nach verrauscht,
+   digital bleibt lange sauber und bricht dann ein (Blöcke, Streifen, Ruckler, Standbild). */
 import { clamp } from './math.js';
 import { game } from './state.js';
 import { colliders } from './world.js';
 import { town } from './town.js';
 
-export const PILOT = [0, 1.5, 0];
+export const PILOT = [-1.6, 1.35, 3.6];   // wird je Szenario auf die Funke des Piloten gesetzt (pilot.js)
 export const signal = { video: 100, lq: 100, block: 0, t: 0 };
 
 // Schneidet die Strecke a->b den gedrehten Quader c? (Quader-Koordinaten, Slab-Test)
@@ -34,12 +39,13 @@ export function obstruction(p) {
 }
 // Signal ohne Schwanken: video und lq in Prozent, block = Dämpfung durch Hindernisse
 export function signalTarget(p) {
-  const d = Math.hypot(p[0] - PILOT[0], p[2] - PILOT[2]);
+  const d = Math.hypot(p[0] - PILOT[0], p[1] - PILOT[1], p[2] - PILOT[2]);   // Abstand im Raum, auch Höhe zählt
   const block = obstruction(p);
   const low = p[1] < 2 && d > 40 ? (2 - p[1])*5 : 0;   // dicht am Boden in der Ferne: Fresnel-Zone verdeckt
+  // Je doppelte Entfernung: Video -38 Punkte ab 90 m, Steuerung -25 Punkte ab 180 m (Schätzung, passend zur Kartengröße)
   return {
-    video: clamp(100 - Math.max(0, d - 80)*0.3 - block - low, 0, 100),
-    lq: clamp(100 - Math.max(0, d - 150)*0.15 - block*0.3, 0, 100),
+    video: clamp(100 - 38*Math.log2(Math.max(1, d/90)) - block - low, 0, 100),
+    lq: clamp(100 - 25*Math.log2(Math.max(1, d/180)) - block*0.3, 0, 100),
     block
   };
 }
@@ -47,7 +53,7 @@ export function signalTarget(p) {
 export function updSignal(dt) {
   const s = game.sim, tg = signalTarget(s.p);
   signal.t += dt;
-  const d = Math.hypot(s.p[0], s.p[2]);
+  const d = Math.hypot(s.p[0] - PILOT[0], s.p[2] - PILOT[2]);   // Schwanken wächst mit dem Abstand zum Piloten
   const fade = clamp(d/40, 0, 6)*(Math.sin(signal.t*0.9) + 0.7*Math.sin(signal.t*2.3 + 1));
   const k = Math.min(1, dt/0.25);
   signal.video += (clamp(tg.video + fade, 0, 100) - signal.video)*k;

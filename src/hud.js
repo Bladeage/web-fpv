@@ -90,16 +90,16 @@ function vignette(c, W, H) {
 // Digitalbild. q = Videosignal 0..100. Mit sinkendem Signal: weniger Bitrate (grobes, weiches Bild),
 // Klötzchen mit Farbfehlern, kurze Standbilder. Ohne Signal bleibt das letzte Bild stehen und wird dunkel.
 const frozen = { cv: null, until: 0, lost: 0 };
-let lowCv = null;
+// Digital (wie HD-Brillen): bleibt lange sauber und bricht dann ein. Keine Verpixelung, sondern Fehler wie bei
+// komprimiertem Video: 16-px-Blöcke mit altem Bildinhalt, einfarbige Blöcke (nur Grundfarbe übertragen), verschobene
+// Blöcke, Fehler laufen in einer Zeile nach rechts weiter, verschobene Streifen, kurze Ruckler und Standbilder.
+const DG = { prev: null, prevT: 0, dc: null };
 function drawDigital(c, W, H, q) {
-  const bad = clamp((60 - q)/50, 0, 1), now = performance.now(), k = glc.width/W;
+  const bad = clamp((45 - q)/40, 0, 1), now = performance.now(), k = glc.width/W;   // über 45 % sauber (Schätzung)
   setGlFilter('');
   if (bad <= 0) { frozen.lost = 0; return; }
-  const snap = () => {
-    frozen.cv = frozen.cv || document.createElement('canvas');
-    frozen.cv.width = glc.width; frozen.cv.height = glc.height;
-    frozen.cv.getContext('2d').drawImage(glc, 0, 0);
-  };
+  const copy = cv => { cv.width = glc.width; cv.height = glc.height; cv.getContext('2d').drawImage(glc, 0, 0); return cv; };
+  const snap = () => { frozen.cv = copy(frozen.cv || document.createElement('canvas')); };
   c.save();
   if (q < 4) {   // Signal weg: Standbild, wird nach und nach dunkel
     if (!frozen.lost) { frozen.lost = now; snap(); }
@@ -108,23 +108,36 @@ function drawDigital(c, W, H, q) {
     c.restore(); return;
   }
   frozen.lost = 0;
-  if (now > frozen.until && Math.random() < bad*bad*0.04) { snap(); frozen.until = now + 120 + Math.random()*600*bad; }
-  if (frameStat.lite) { c.restore(); return; }   // Sparmodus: keine Kopien des 3D-Bilds
-  if (now < frozen.until && frozen.cv) c.drawImage(frozen.cv, 0, 0, W, H);
-  else if (bad > 0.2) {   // niedrige Bitrate: Bild in grober Auflösung
-    const f = 1 + bad*6, w = Math.max(16, Math.round(W/f)), h = Math.max(9, Math.round(H/f));
-    lowCv = lowCv || document.createElement('canvas');
-    if (lowCv.width !== w || lowCv.height !== h) { lowCv.width = w; lowCv.height = h; }
-    lowCv.getContext('2d').drawImage(glc, 0, 0, w, h);
-    c.imageSmoothingEnabled = bad < 0.5;
-    c.drawImage(lowCv, 0, 0, W, H);
+  // Standbild (selten, länger) und Ruckler (häufiger, kurz: einzelne Bilder fallen aus)
+  if (now > frozen.until) {
+    if (Math.random() < bad*bad*0.03) { snap(); frozen.until = now + 150 + Math.random()*700*bad; }
+    else if (bad > 0.25 && Math.random() < bad*0.12) { snap(); frozen.until = now + 35 + Math.random()*70; }
   }
-  c.imageSmoothingEnabled = false;
-  for (let i = 0; i < Math.round(bad*18); i++) {
-    const bs = 16*(1 + Math.floor(Math.random()*4)), x = Math.random()*(W - bs), y = Math.random()*(H - bs), r = Math.random();
-    if (r < 0.4) c.drawImage(glc, x*k, y*k, 4*k, 4*k, x, y, bs, bs);   // grobe Klötzchen
-    else if (r < 0.8) c.drawImage(glc, x*k, y*k, bs*k, bs*k, x + (Math.random() - 0.5)*bs, y, bs, bs);   // verschobener Block
-    else { c.fillStyle = Math.random() < 0.5 ? 'rgba(40,255,90,.35)' : 'rgba(255,40,200,.3)'; c.fillRect(x, y, bs, bs); }   // Farbfehler
+  if (frameStat.lite) { c.restore(); return; }   // Sparmodus: keine Kopien des 3D-Bilds
+  if (now < frozen.until && frozen.cv) { c.drawImage(frozen.cv, 0, 0, W, H); c.restore(); return; }
+  // Älteres Bild für „hängende“ Blöcke, alle 300 ms erneuert
+  if (!DG.prev || now - DG.prevT > 300) { DG.prev = copy(DG.prev || document.createElement('canvas')); DG.prevT = now; }
+  DG.dc = DG.dc || Object.assign(document.createElement('canvas'), { width: 1, height: 1 });
+  const bs = 16, cols = Math.ceil(W/bs), rows = Math.ceil(H/bs);
+  const block = (type, x, y, w, h) => {
+    if (type === 0) c.drawImage(DG.prev, x*k, y*k, w*k, h*k, x, y, w, h);                           // alter Inhalt
+    else if (type === 1) { const d = DG.dc.getContext('2d'); d.drawImage(glc, x*k, y*k, w*k, h*k, 0, 0, 1, 1);
+      c.imageSmoothingEnabled = true; c.drawImage(DG.dc, 0, 0, 1, 1, x, y, w, h); }                  // nur Grundfarbe
+    else { const dx = (Math.random() < 0.5 ? -1 : 1)*bs*(1 + Math.floor(Math.random()*2));
+      c.drawImage(glc, clamp(x + dx, 0, W - w)*k, y*k, w*k, h*k, x, y, w, h); }                     // verschoben
+  };
+  // Fehler in Läufen: Start irgendwo in einer Zeile, dann 2 bis 12 Blöcke nach rechts gleicher Art
+  const runs = Math.round(bad*bad*14 + bad*2);
+  for (let r = 0; r < runs; r++) {
+    const row = Math.floor(Math.random()*rows), col = Math.floor(Math.random()*cols), len = 2 + Math.floor(Math.random()*10*bad);
+    const type = Math.random() < 0.45 ? 0 : Math.random() < 0.6 ? 1 : 2, tall = Math.random() < 0.3 ? 2 : 1;
+    for (let i = 0; i < len && col + i < cols; i++) block(type, (col + i)*bs, row*bs, bs, bs*tall);
+  }
+  // Streifen: ein Band über die ganze Breite, seitlich verschoben oder mit altem Inhalt, leicht grünstichig
+  if (Math.random() < bad*0.18) {
+    const y = Math.floor(Math.random()*rows)*bs, h = bs*(1 + Math.floor(Math.random()*3)), dx = (Math.random() - 0.5)*W*0.15*bad;
+    if (Math.random() < 0.5) c.drawImage(glc, 0, y*k, W*k, h*k, dx, y, W, h); else c.drawImage(DG.prev, 0, y*k, W*k, h*k, 0, y, W, h);
+    c.fillStyle = 'rgba(30,255,120,.07)'; c.fillRect(0, y, W, h);
   }
   c.restore();
 }

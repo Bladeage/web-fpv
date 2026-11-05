@@ -451,3 +451,12 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Version: `Version 1.<Anzahl Commits> (Datum, Kurz-Hash)`, beim Build aus git eingesetzt (`%%VERSION%%` in state.js), hellgrau im Hauptmenü. Zählt mit jedem Commit auf `main` (es gibt keine Merges, gepusht wird direkt). CI holt dafür die ganze Historie (`fetch-depth: 0`).
 - Wind: vom Nutzer abgelehnt.
 - Erkenntnis (Prompt 86): Nach einem Push dauert die Veröffentlichung 1 bis 2 Minuten, GitHub Pages lässt Browser bis 10 Minuten zwischenspeichern. Beim Testen immer die Version im Hauptmenü prüfen. Das „komische“ Fluggefühl vor der Physik-Rücknahme kam vermutlich von einer alten, zwischengespeicherten Fassung.
+
+## Gemerkt, nicht einbauen (Nutzer, 05.11.2026)
+- SimITL-Effekte (Druckpunkt-Versatz, ESC-Verzögerung): bleiben draußen. Wind: nein.
+
+## Pilot, Signal-Logik, Digital-Störungen (erledigt 05.11.2026, Prompt 87)
+- Pilot (`src/pilot.js`): Figur im Stil der Stadt (Hoodie, Jeans, kurze Haare, FPV-Brille auf der Stirn), 1,78 m, steht 1,6 m links und 3,6 m hinter dem Startpunkt. Funke flach in den Händen: Gehäuse, zwei Sticks, Bildschirm, Antenne. Körper dreht langsam zur Drohne (höchstens 1,2 rad/s, erst ab 20° Abweichung), Kopf folgt schneller (bis ±50°) und schaut nach oben. Keine Kollision. Im Wärmebild warm.
+- Signal: geht von der Funke des Piloten aus (1,35 m hoch). Abstand im Raum (Höhe zählt). Logarithmisch: je doppelte Entfernung Video -38 Punkte ab 90 m, Steuerung -25 Punkte ab 180 m (Schätzungen). Hindernisse und Bodennähe wie bisher. Schwanken wächst mit dem Abstand zum Piloten (vorher fälschlich zur Kartenmitte).
+- Digital: bleibt bis etwa 45 % sauber, darunter Einbruch. Keine Verpixelung mehr. Stattdessen 16-px-Blöcke mit altem Inhalt, einfarbige Blöcke, verschobene Blöcke, Fehler laufen in der Zeile nach rechts, verschobene Streifen, Ruckler (einzelne Bilder fallen aus) und Standbilder; unter 4 % Standbild, das dunkel wird. Analog unverändert (wird nach und nach verrauscht).
+- Tests: `test/pilot.test.mjs`.
