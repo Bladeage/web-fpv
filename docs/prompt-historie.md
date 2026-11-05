@@ -84,3 +84,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 76 | 05.11.2026 | Weiter mit verschiedenen Einstellungen prüfen, ob alles plausibel bleibt. | Prüfung aller Drohnen, Feinwert-Grenzen, beider Regler. Fehler gefunden und behoben: Kreisel sah Kippen am Boden nicht (Betaflight kippte nach der Landung bis 60° um) |
 | 77 | 05.11.2026 | (Während der Arbeit) Standard-Branch ist jetzt `main`. Auf GitHub noch etwas ändern? | Alter Branch: Löschen von hier blockiert, Anleitung für den Nutzer. Hinweise zu GitHub-Einstellungen |
 | 78 | 05.11.2026 | Alter Branch ist gelöscht. | Bestätigt. Befund: Pages-Schritt auf `main` scheitert ohne Protokoll (vermutlich Branch-Regel der Umgebung „github-pages“), Anleitung für den Nutzer |
+| 79 | 05.11.2026 | Regel geändert, bitte prüfen. | Neuer Lauf auf `main`, Veröffentlichung auf GitHub Pages geprüft |
