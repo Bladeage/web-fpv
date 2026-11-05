@@ -445,9 +445,16 @@ function support(rad, thick, n, u) {
 // tiefste Eindringtiefe, gemittelte Normale. Sonst gäbe jede Kugel einen eigenen vollen Stoß (zu starker Rückprall).
 function resolve(hits, limit, why) {
   if (!hits.length) return false;
-  let n = [0, 0, 0], r = [0, 0, 0], pen = 0, rot = -1;
-  for (const k of hits) { n = vAdd(n, k.n); r = vAdd(r, k.r); if (k.pen > pen) { pen = k.pen; rot = k.rot; } }
-  return impact(vNorm(n), pen, vScale(r, 1/hits.length), rot, limit, why);
+  // Kontaktpunkt nach Eindringtiefe gewichtet: Der tiefere Fuß trägt mehr. Steht die Drohne leicht schief, wirkt der
+  // Stoß auf der tieferen Seite und richtet sie auf. Mit dem einfachen Mittel wirkte er immer unter der Mitte,
+  // dann gab es kein Aufrichten und sie schaukelte am Boden ohne Ende. 0,2 mm Grundgewicht: fast berührende Teile zählen schwach mit.
+  let n = [0, 0, 0], r = [0, 0, 0], pen = 0, rot = -1, ws = 0;
+  for (const k of hits) {
+    const wk = k.pen + 0.0002;
+    n = vAdd(n, k.n); r = vAdd(r, vScale(k.r, wk)); ws += wk;
+    if (k.pen > pen) { pen = k.pen; rot = k.rot; }
+  }
+  return impact(vNorm(n), pen, vScale(r, 1/ws), rot, limit, why);
 }
 // Kugel (Mitte pc, Radius R) gegen gedrehten Quader c: Normale (vom Quader weg) und Eindringtiefe, oder null
 function sphereBox(pc, R, c) {

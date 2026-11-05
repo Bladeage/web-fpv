@@ -40,6 +40,20 @@ for (const fc of ['own', 'bf']) for (const preset of ['5', 'whoop', '7']) {
   });
 }
 
+for (const preset of ['5', '7']) for (const [arm, q0] of [[true, 0], [true, 0.002], [false, 0.002]]) {
+  test(`Boden: steht 12 s still, ohne Wippen (${preset}, ${arm ? 'scharf' : 'aus'}, Schieflage ${q0})`, () => {
+    // Prompt 66: Nach etwa 5 s fing die Drohne auf dem Startplatz von selbst an zu wippen (Kontaktpunkt immer in der Mitte)
+    cfg.fc = 'own'; cfg.mode = 'angle'; cfg.dmg = 'off';
+    applyDrone({ preset }); setScenario('gates'); respawn();
+    game.throttle = 0; inp.pitch = inp.roll = inp.yaw = 0;
+    game.sim.q = [0, 0, q0, Math.sqrt(1 - q0*q0)];
+    run(2, () => { game.armed = arm; });
+    let tilt = 0;
+    run(10, () => { game.armed = arm; tilt = Math.max(tilt, Math.acos(Math.min(1, qRot(game.sim.q, [0, 1, 0])[1]))*180/Math.PI); });
+    assert.ok(tilt < 0.1, 'bleibt gerade: höchstens ' + tilt.toFixed(3) + '°');
+  });
+}
+
 test('Strahl zur Sonne: Quader blockiert, daneben frei, gedrehter Quader', () => {
   const box = { c: [10, 5, 0], h: [1, 5, 1], cs: 1, sn: 0 };
   assert.equal(rayBlocked([0, 1, 0], [1, 0, 0], 100, [box]), true);

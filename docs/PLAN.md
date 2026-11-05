@@ -369,3 +369,9 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Himmel: Wolken aus Rauschen ab Grafik „Mittel“ (langsam ziehend, lassen die Sonne frei), Sonnenscheibe. „Einfach“ bleibt ohne Wolken.
 - Lens-Flare: ab „Mittel“, nur im normalen Bild, nur wenn die Sonne im Bild und nicht von Hindernissen verdeckt ist (Strahltest `rayBlocked`). Stärker nahe der Bildmitte, weich ein- und ausgeblendet. Additiv und schwach.
 - Tests: `test/ground.test.mjs` (beide Regler, drei Drohnen: kein Hüpfen, kaum Nachdrehen, Betaflight bleibt scharf, Abheben danach; Strahltest; Boden zuerst im Netz).
+
+## Wippen am Boden (erledigt 05.11.2026, Prompt 66)
+- Ursache: Mehrere Bodenkontakte gaben einen gemeinsamen Stoß im einfachen Mittel der Kontaktpunkte, also immer unter der Mitte. Eine kleine Schieflage wurde nicht aufgerichtet und schaukelte sich auf (bis gut 1°, dauerhaft, auch ohne Motoren).
+- Lösung: Kontaktpunkt nach Eindringtiefe gewichtet (plus 0,2 mm Grundgewicht). Der tiefere Fuß trägt mehr, die Drohne richtet sich auf.
+- Test: `test/ground.test.mjs`, 12 s Stillstand mit und ohne Schieflage, scharf und aus. Schlägt mit dem alten Stand fehl.
+- Offen zur Auswahl: Ostereier, Vögel, Gas-Anzeigen getrennt schaltbar.
