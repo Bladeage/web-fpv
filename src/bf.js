@@ -33,7 +33,7 @@ export function bfStart() {
     x.__wasm_call_ctors(); x.bf_init();
     x.bf_set_acc(0, 0, 9.81); x.bf_set_gyro(0, 0, 0);
     x.bf_step(1500000);
-    bf.x = x; bf.ready = true; bf.vPrev = [0, 0, 0];
+    bf.x = x; bf.ready = true; bf.vPrev = [0, 0, 0]; bf.cyc = 0;
     bfRates();
     return true;
   } catch (e) { bf.err = String(e); bf.x = null; return false; }
@@ -60,7 +60,12 @@ export function bfStep(s, h, armed, angle, thr, roll, pitch, yaw) {
   x.bf_set_rc(1, Math.round(1500 + 500*clamp(pitch, -1, 1)));
   x.bf_set_rc(2, Math.round(1000 + 1000*clamp(thr, 0, 1)));
   x.bf_set_rc(3, Math.round(1500 + 500*clamp(yaw, -1, 1)));
-  x.bf_set_rc(4, armed ? 2000 : 1000);
+  // Scharf-Schalter: Wollte Betaflight nicht scharf schalten (Gas stand oben), verlangt es danach ein Umlegen des Schalters
+  // (ARMING_DISABLED_ARM_SWITCH, Bit 29). Ist das der einzige Grund, legen wir den Schalter 20 ms aus und wieder an.
+  let aux = armed;
+  if (armed && !bf.cyc && !x.bf_flag(0) && x.bf_flag(1) === (1 << 29)) bf.cyc = 0.02;
+  if (bf.cyc > 0) { bf.cyc = Math.max(0, bf.cyc - h); aux = false; }
+  x.bf_set_rc(4, aux ? 2000 : 1000);
   x.bf_set_rc(5, angle ? 2000 : 1000);
   x.bf_step(Math.round(h*1e6));
   // Betaflight Quad-X: 1 hinten rechts, 2 vorne rechts, 3 hinten links, 4 vorne links

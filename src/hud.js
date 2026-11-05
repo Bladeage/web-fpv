@@ -1,6 +1,7 @@
 /* HUD im Betaflight-OSD-Stil: Werte, Warnungen, Horizont, Tormarker, Touch-Sticks, Analog-Look. */
 import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { cfg, game, tch, inp, ptr, messages } from './state.js';
+import { bf } from './bf.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
 import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
@@ -277,6 +278,8 @@ export function drawHud() {
     }
   }
   if (!game.armed && game.state === 'fly') txt('DISARMED', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
+  // Betaflight schaltet nur mit Gas unten scharf (Sicherheit). Stand das Gas beim Start oben, bleibt es aus: Hinweis wie im Betaflight-OSD.
+  else if (game.state === 'fly' && cfg.fc === 'bf' && bf.ready && bf.x && !bf.x.bf_flag(0) && blink) txt('BETAFLIGHT AUS: GAS GANZ RUNTER', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.62, 'center', '#ffffff');
   else if (game.state === 'fly' && s.t < 6 && s.grounded && game.throttle < 0.2) {
     const hint = gp.connected ? 'Gasknüppel hoch' : touchUI ? 'Linken Daumen nach oben schieben für Gas' : 'W drücken für Gas, S für weniger';

@@ -55,3 +55,16 @@ test('Neustart setzt Wärmebild und Nachtsicht auf normal', () => {
   cfg.fc = 'own';
   for (const v of ['thermal', 'night']) { cfg.vision = v; respawn(); assert.equal(cfg.vision, 'normal'); }
 });
+
+test('Betaflight: Gas oben beim Start, dann runter: schaltet ohne Neustart scharf', () => {
+  cfg.fc = 'bf'; cfg.mode = 'angle'; setScenario('free'); game.throttle = 0; respawn();
+  game.throttle = 0.5;
+  for (let i = 0; i < 0.3/STEP; i++) step(STEP);
+  assert.equal(bf.x.bf_flag(0), 0, 'mit Gas oben nicht scharf (wie Betaflight)');
+  game.throttle = 0;
+  for (let i = 0; i < 0.3/STEP; i++) step(STEP);
+  assert.equal(bf.x.bf_flag(0), 1, 'nach Gas runter scharf');
+  game.throttle = 0.6;
+  for (let i = 0; i < 1/STEP; i++) step(STEP);
+  assert.ok(game.sim.p[1] > 1, 'hebt ab: ' + game.sim.p[1].toFixed(2));
+});

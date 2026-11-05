@@ -410,3 +410,8 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Bei uns schon vorhanden: Motor mit Gegenspannung und Hochlaufzeit, Schub nach Anströmung, Bodeneffekt, Wirbelring/Propwash, Akku mit Innenwiderstand (genauer als SimITL), Rotorwiderstand, Luftwiderstand nach Lage, Stöße mit Drehung.
 - Nur bei SimITL: ESC-Verzögerung, Motortemperatur, Druckpunkt-Versatz, Flattern, Kreisel-Rauschen (vom Nutzer vorerst nicht gewünscht), 8 kHz.
 - Empfehlung: nicht übernehmen. Höchstens klein und einzeln: Druckpunkt-Versatz (Drohne richtet sich im schnellen Flug leicht auf) und ESC-Verzögerung (2 ms).
+
+## Feinschliff (05.11.2026, Prompt 74)
+- Betaflight: Stand das Gas beim Start oben, blieb Betaflight aus, auch nach „Gas runter“ (es verlangt dann ein Umlegen des Scharf-Schalters). Jetzt legt der Simulator den Schalter in diesem Fall 20 ms aus und wieder an. OSD-Hinweis „BETAFLIGHT AUS: GAS GANZ RUNTER“, solange es nicht scharf ist.
+- Rundgang durch alle Szenarien, beide Regler, Grafik Einfach und Schön, alle Bildmodi: keine Fehler in der Konsole.
+- Offen beim Nutzer: `main` als Standard-Branch setzen. Bis dahin baut die CI auf `main`, veröffentlicht aber nicht auf GitHub Pages (Seite zeigt den Stand vom alten Branch).
