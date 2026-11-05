@@ -16,6 +16,7 @@ import { drawHud } from './hud.js';
 import { setScenario } from './scenario.js';
 import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
+import { stepBirds } from './birds.js';
 
 fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
 gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
@@ -36,6 +37,7 @@ function frame(now) {
     updKeyboard(dt);
     updTouch();
     updSignal(dt);
+    stepBirds(dt, game.sim.p);
     if (game.state === 'fly') {
       acc += dt;
       while (acc >= STEP) {

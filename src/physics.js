@@ -8,6 +8,7 @@ import { fmtTime } from './format.js';
 import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
+import { initBirds } from './birds.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -136,6 +137,7 @@ export function respawn() {
   game.pendingRespawn = false;
   game.payload = 0;
   task.reset();
+  initBirds(Math.random, game.sim.p);   // Vögel bei jedem Start neu und zufällig verteilen
 }
 // Nur die Drohne neu an den Start setzen (Jagd nach Treffer). Szenario, Zeit, Akku und Scharf-Zustand bleiben.
 export function respawnDrone() {

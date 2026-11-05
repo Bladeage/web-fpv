@@ -8,6 +8,7 @@ import { VEH_HALF } from './vehicles.js';
 import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
 import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
+import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -211,7 +212,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -336,6 +337,7 @@ export function initGL() {
   for (const k of ['plane', 'heli', 'hexa']) airMesh[k] = upload(buildAircraftMesh(k));
   townMesh = upload(buildTownMesh());   // kleine Stadt mit Testecken
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
+  birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -491,6 +493,22 @@ export function render(dt) {
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], eggYaw + i), p));
     gl.bindVertexArray(eggMesh[i].vao); gl.drawArrays(gl.TRIANGLES, 0, eggMesh[i].count);
   });
+  // Vögel: Rumpf, im Flug dazu zwei schlagende Flügel (der linke ist der rechte, um 180° gedreht)
+  gl.uniform1f(P.u.uHeat, 0.8);   // warmblütig: hell im Wärmebild
+  for (const b of birds) {
+    const m = birdMesh[b.col], q = qMul(qAxis([0,1,0], b.yaw), qAxis([1,0,0], birdPitch(b)));
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, b.p));
+    gl.bindVertexArray(m.body.vao); gl.drawArrays(gl.TRIANGLES, 0, m.body.count);
+    const f = birdFlap(b);
+    if (f === null) continue;
+    const sh = vAdd(b.p, qRot(q, [0, 0.09, 0]));
+    gl.bindVertexArray(m.wing.vao);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qAxis([0,0,1], f)), vAdd(sh, qRot(q, [0.04, 0, 0]))));
+    gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qMul(qAxis([0,1,0], Math.PI), qAxis([0,0,1], f))), vAdd(sh, qRot(q, [-0.04, 0, 0]))));
+    gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
+  }
+  gl.uniform1f(P.u.uHeat, 0);
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.bindVertexArray(worldMesh.vao);
   const pulse = 0.75 + 0.15*Math.sin(performance.now()/180);

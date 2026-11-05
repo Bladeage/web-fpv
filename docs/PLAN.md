@@ -382,6 +382,11 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Gas-Balken links entfernt (Nutzer). THR unten und Stick-Anzeige bleiben.
 - Tests: `test/eggs.test.mjs` (liegen auf einer Fläche, frei, Platz für die Drohne, Fund in mehreren Modi).
 
-## Nächste Etappe: Vögel (Nutzer, 05.11.2026)
-- Einzelne Vögel, keine Schwärme, keine Kollision mit der Drohne.
-- Fliegen zwischen Bäumen, landen auf Bäumen oder am Sandkasten, picken am Boden. Zufälliges Verhalten. Fliegen auf, wenn die Drohne näher als etwa 8 m kommt.
+## Vögel (erledigt 05.11.2026, Prompt 68)
+- 7 einzelne Vögel (`src/birds.js`), drei Arten nach Farbe (Taube, Spatz, Amsel). Keine Schwärme: jeder Landeplatz trägt höchstens einen Vogel.
+- Bei jedem Start (`respawn`) neu und zufällig verteilt: sitzend auf Baumkronen und Dächern, pickend am Boden (Sandkasten, Spielplatz-Rasen, Innenhof der Ruine, freie Wiese) oder schon im Flug. Nicht am Startplatz.
+- Verhalten: Sitzen und Umschauen (8 bis 25 s), am Boden Picken in Serien und kleine Hüpfer (6 bis 20 s), dann Flug zu einem anderen Ort 30 bis 180 m entfernt. Lange Flüge über 17 m Höhe (über Häuser und Kran), Flügelschlag mit Gleitphasen.
+- Kommt die Drohne näher als 8 m, fliegen sie auf und suchen einen Ort mehr als 40 m von der Drohne entfernt.
+- Keine Kollision: Vögel sind nicht Teil der Physik. Im Wärmebild hell (warmblütig).
+- Werte als Schätzung nach einer Taube (8 m/s, 25 cm lang).
+- Tests: `test/birds.test.mjs` (Anzahl, eigene Orte, alle Zustände, je Start anders, 3 min auf der Karte, Flucht, Flug unverändert).
