@@ -362,3 +362,10 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Jagd Boden: Ringstraßen um Ruine, Spielplatz, Parkhaus und Baustelle (Ecken abgeschrägt, mindestens 6 m Abstand zu Hindernissen); fahrend auf drei Ringen und der Kursrunde, geparkt im Parkhaus, auf der Baustelle und vor dem Haus.
 - Jagd Flugzeuge: größerer Radius. Achte aus zwei 60-m-Kreisen, Kreis mit 120 m; Hubschrauber patrouillieren von Ecke zu Ecke, Sechs-Rotoren über Ruine und Baustelle (über dem Kran).
 - Tests: `test/spread.test.mjs` (keine Berührung von Hindernissen, Verteilung, Radius).
+
+## Flackern, Boden-Physik, Himmel (erledigt 05.11.2026, Prompt 65)
+- Flackern: Der Boden wird zuerst und ohne Tiefen-Eintrag gezeichnet. Alles andere steht auf oder über ihm. Flache Platten können deshalb nicht mehr mit dem Boden flackern, auch bei grober Tiefe am Gerät. Platten und Markierungen darauf trennt ein kleiner Tiefen-Vorsprung je mm Höhe (Vertex-Shader).
+- Boden-Physik: Auf den Füßen, Gas unten, Sticks mittig stoppt Reibung Gieren und Rutschen schneller (Abklingzeit 1/40 s, Schätzung). Betaflight: am Boden mit Gas unter 5 % höchstens etwa 1/3 des Gewichts als Schub; alle Motoren werden gleich gesenkt, Gieren dreht weiter. Der Betaflight-Schutz gegen Durchgehen beim Start (`runaway_takeoff_prevention`) ist in `sitl/platform.c` aus, sonst schaltet er sich bei dieser Grenze ab.
+- Himmel: Wolken aus Rauschen ab Grafik „Mittel“ (langsam ziehend, lassen die Sonne frei), Sonnenscheibe. „Einfach“ bleibt ohne Wolken.
+- Lens-Flare: ab „Mittel“, nur im normalen Bild, nur wenn die Sonne im Bild und nicht von Hindernissen verdeckt ist (Strahltest `rayBlocked`). Stärker nahe der Bildmitte, weich ein- und ausgeblendet. Additiv und schwach.
+- Tests: `test/ground.test.mjs` (beide Regler, drei Drohnen: kein Hüpfen, kaum Nachdrehen, Betaflight bleibt scharf, Abheben danach; Strahltest; Boden zuerst im Netz).

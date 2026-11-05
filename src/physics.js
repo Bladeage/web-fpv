@@ -244,7 +244,16 @@ export function step(h) {
   // Regler Betaflight (P4): echtes Betaflight rechnet Regelung und Mischer, unsere Physik den Rest
   if (cfg.fc === 'bf' && bf.ready) {
     const m = bfStep(s, h, game.armed, cfg.mode !== 'acro', game.throttle, inp.roll, inp.pitch, inp.yaw);
-    for (let i = 0; i < 4; i++) s.cmd[i] = game.armed ? clamp(m[i], 0, 1) : 0;
+    // Am Boden mit Gas unten (oder knapp darüber): Gesamtschub höchstens etwa 1/3 des Gewichts (Schätzung, damit sie
+    // sicher nicht abhebt). Dafür alle Motoren um denselben Wert senken: Der Unterschied zwischen den Motoren bleibt,
+    // Gieren dreht die Drohne also weiter. Alle Motoren einzeln zu kappen ginge nicht: Dann folgt die Drohne dem
+    // Stick nicht, und Betaflight schaltet sich ab (Schutz gegen Durchgehen beim Start). Schub ~ Steuerwert².
+    let cut = 0;
+    if ((s.grounded || s.onGround || s.p[1] < 0.25) && game.throttle < 0.05) {
+      const lim = 4*(0.6*hoverThrottle())**2, sq = c => m.reduce((t, x) => t + Math.max(0, x - c)**2, 0);
+      if (sq(0) > lim) { let lo = 0, hi = 1; for (let n = 0; n < 12; n++) { const c = (lo + hi)/2; if (sq(c) > lim) lo = c; else hi = c; } cut = hi; }
+    }
+    for (let i = 0; i < 4; i++) s.cmd[i] = game.armed ? clamp(m[i] - cut, 0, 1) : 0;
   }
   // Turtle-Modus (Betaflight "Flip over after crash"), schaltet sich von selbst ein:
   // Liegt die Drohne scharf geschaltet still auf dem Kopf oder auf der Seite, drehen die Motoren rückwärts. Kein Gas nötig.
@@ -316,7 +325,12 @@ export function step(h) {
   if (turtleM) for (let i = 0; i < 3; i++) M[i] += turtleM[i];
   for (let i = 0; i < 3; i++) w[i] += (M[i] - gyro[i] - PHYS.rotDamp*w[i])/I[i]*h;
   const calm = s.turtle ? !(turtleM && turtleM.some(x => x)) && (s.grounded || s.onGround) : rest;   // Turtle: nach dem Umdrehen, Stick noch gedrückt
-  if (calm) { const k = Math.max(0, 1 - 10*h); w[0] *= k; w[1] *= k; w[2] *= k; }   // Bodenkontakt schluckt Energie (Schätzung, Abklingzeit 0,1 s)
+  if (calm) {   // Bodenkontakt schluckt Energie (Schätzung, Abklingzeit 0,1 s)
+    const k = Math.max(0, 1 - 10*h); w[0] *= k; w[2] *= k;
+    // Auf den Füßen: Reibung stoppt Gieren und Rutschen schneller (Schätzung, Abklingzeit 1/40 s). Sonst dreht sie nach.
+    const kf = s.grounded ? Math.max(0, 1 - 40*h) : k; w[1] *= kf;
+    if (s.grounded) { s.v[0] *= kf; s.v[2] *= kf; }
+  }
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage

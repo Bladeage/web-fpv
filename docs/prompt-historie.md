@@ -70,3 +70,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 62 | 04.11.2026 | Die neuen Strukturen liegen zu nah beieinander; auf der Karte auseinander platzieren. | Testecken über die Karte verteilt |
 | 63 | 04.11.2026 | Drohnen und Autos sollen sich in einem größeren Radius bewegen, verteilt bis zu den Strukturen und um sie herum. Luftfahrzeuge mit noch größerem Bewegungsradius. | Ziele über die Karte verteilt |
 | 64 | 04.11.2026 | Rückmeldung: Ist gut so. | Keine Änderung |
+| 65 | 05.11.2026 | Flache Flächen (Startplatz, Spielplatz-Rasen und ähnliche) flackern mit dem Boden. Die Drohne springt oder dreht sich am Boden weiter, nach dem Start oder nach Gieren. Bitte Himmel, Sonne und dezenten Lens-Flare beim Blick in die Sonne, ohne im Flug zu stören. | Boden ohne Tiefe gezeichnet, Bodenreibung, Schubgrenze am Boden für Betaflight, Wolken, Sonnenscheibe, Lens-Flare |

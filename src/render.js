@@ -1,7 +1,7 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say } from './state.js';
-import { COURSE, MeshBuilder, colliders, gates, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
+import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
@@ -27,6 +27,10 @@ void main(){
   vec4 w = uModel * vec4(aPos, 1.0);
   vW = w.xyz; vNor = mat3(uModel) * aNor; vCol = aCol;
   gl_Position = uVP * w;
+  // Flache Platten knapp über dem Boden (Startplatz, Rasen, Landeplatz): je mm Höhe ein fester Tiefen-Vorsprung.
+  // Sonst flackern Markierungen mit ihrer Platte, weil die Tiefe in der Ferne grob aufgelöst ist (Z-Fighting).
+  float lay = (w.y > 0.0005 && w.y < 0.02) ? w.y*1000.0 : 0.0;
+  gl_Position.z -= lay*5e-7*gl_Position.w;
 }`;
 // Bodenmuster für „Schön“: Gras mit Struktur, Erdflecken, Wege entlang des Kurses. Wird einmal in eine Textur gerechnet (bakeGround).
 const NOISE = `
@@ -148,22 +152,64 @@ precision highp float;
 in vec2 vP;
 uniform mat4 uInv;
 uniform vec3 uCam, uFog, uZen, uSun;
-uniform float uVision;
+uniform float uVision, uGfx, uTime;
 out vec4 o;
+${NOISE}
+// Wolken: Rauschen in mehreren Größen (fbm), auf eine Ebene hoch über der Karte projiziert
+float fbm(vec2 p, int n){
+  float a = 0.5, r = 0.0;
+  for (int i = 0; i < 5; i++) { if (i >= n) break; r += a*vnoise(p); p = p*2.03 + vec2(1.7, 9.2); a *= 0.5; }
+  return r;
+}
 void main(){
   vec4 w = uInv * vec4(vP, 1.0, 1.0);
   vec3 d = normalize(w.xyz/w.w - uCam);
   float t = clamp(d.y, 0.0, 1.0);
   vec3 c = mix(uFog, uZen, pow(t, 0.55));
   float s = max(dot(d, uSun), 0.0);
-  c += vec3(1.0,0.92,0.75) * (pow(s, 900.0)*1.6 + pow(s, 14.0)*0.12);
+  // Sonne: Scheibe (etwa 1 Grad), heller Rand darum, weiter Schein
+  float disc = smoothstep(0.99982, 0.99990, s);
+  c += vec3(1.0,0.92,0.75) * (pow(s, 900.0)*1.2 + pow(s, 14.0)*0.12);
+  if (uGfx > 0.5 && d.y > 0.0) {   // Wolken nur ab „Mittel“, „Einfach“ bleibt unverändert schnell
+    vec2 p = d.xz/(d.y + 0.12)*1.6 + uTime*vec2(0.006, 0.0025);
+    float n = fbm(p, uGfx > 1.5 ? 5 : 3);
+    float cov = smoothstep(0.50, 0.74, n)*smoothstep(0.0, 0.22, d.y);
+    cov *= smoothstep(0.9993, 0.9965, s);   // Wolken lassen die Sonne frei (sonst blendet der Lens-Flare durch Wolken)
+    vec3 cc = mix(vec3(0.70, 0.75, 0.83), vec3(0.98, 0.98, 1.0), smoothstep(0.48, 0.85, n));
+    cc += vec3(0.20, 0.15, 0.08)*pow(s, 6.0);   // zur Sonne hin warm aufgehellt
+    c = mix(c, cc, cov*0.85);
+  }
+  c = mix(c, vec3(1.0, 0.98, 0.92)*1.6, disc);
   if (uVision > 1.5) c = vec3(0.02, 0.07, 0.03) + vec3(0.03, 0.10, 0.04)*(1.0 - t);   // Nachtsicht: fast schwarz-grün
   else if (uVision > 0.5) c = vec3(0.10 + 0.08*(1.0 - t));                            // Wärmebild: kalter Himmel dunkel
   o = vec4(c, 1.0);
 }`;
+// Lens-Flare: schwache farbige Spiegelungen auf der Linie Sonne -> Bildmitte, dazu ein feiner Lichtstreifen.
+// Wird nur gezeichnet, wenn die Sonne im Bild und nicht verdeckt ist. Additiv, bewusst schwach.
+const FLARE_FS = `#version 300 es
+precision highp float;
+in vec2 vP;
+uniform vec2 uSunP;
+uniform float uK, uAsp;
+out vec4 o;
+float blob(vec2 q, vec2 c, float r, float soft){ return 1.0 - smoothstep(r*(1.0 - soft), r, length(q - c)); }
+void main(){
+  vec2 a = vec2(uAsp, 1.0), q = vP*a, sp = uSunP*a, ax = -sp;
+  float ds = length(q - sp);
+  vec3 c = vec3(1.0, 0.85, 0.6)*exp(-ds*ds*9.0)*0.10;                               // Schein um die Sonne
+  c += vec3(1.0, 0.9, 0.75)*exp(-abs(q.y - sp.y)*90.0)*exp(-abs(q.x - sp.x)*1.6)*0.10;   // Streifen waagrecht
+  c += vec3(0.9, 0.6, 0.3)*blob(q, sp + ax*0.45, 0.05, 0.5)*0.10;
+  c += vec3(0.4, 0.9, 0.5)*blob(q, sp + ax*0.80, 0.11, 0.3)*0.05;
+  c += vec3(0.5, 0.6, 1.0)*blob(q, sp + ax*1.25, 0.06, 0.6)*0.08;
+  c += vec3(0.8, 0.5, 0.9)*blob(q, sp + ax*1.55, 0.18, 0.15)*0.035;
+  c += vec3(0.6, 0.8, 1.0)*blob(q, sp + ax*2.10, 0.09, 0.4)*0.06;
+  float rr = length(q - sp - ax*1.0);
+  c += vec3(0.7, 0.8, 1.0)*exp(-pow((rr - 0.42)*22.0, 2.0))*0.025;                   // schwacher Ring
+  o = vec4(c*uK, 1.0);
+}`;
 
 let bladeMesh = null, discMesh = null;
-let P = null, PS = null, worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0;
+let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
 let townMesh = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
@@ -277,9 +323,10 @@ function buildBalloonMesh() {
 }
 export function initGL() {
   P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat']);
-  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision']);
+  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
+  PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = buildWorld();
-  staticCount = w.staticCount;
+  staticCount = w.staticCount; groundCount = w.groundCount;
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
   vehMesh = upload(buildVehicle());
@@ -411,6 +458,8 @@ export function render(dt) {
   gl.uniform3fv(PS.u.uZen, ZEN); gl.uniform3fv(PS.u.uSun, SUN);
   const VIS = cfg.vision === 'thermal' ? 1 : cfg.vision === 'night' ? 2 : 0;   // Bildmodus (V1)
   gl.uniform1f(PS.u.uVision, VIS);
+  const GFX = cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2;
+  gl.uniform1f(PS.u.uGfx, GFX); gl.uniform1f(PS.u.uTime, performance.now()/1000);
   gl.bindVertexArray(skyVao);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
@@ -421,14 +470,17 @@ export function render(dt) {
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
   gl.uniform1f(P.u.uFogD, 1/260);
-  gl.uniform1f(P.u.uGfx, cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2);
+  gl.uniform1f(P.u.uGfx, GFX);
   gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
   gl.uniform1f(P.u.uSize, GROUND.size); gl.uniform2f(P.u.uOrigin, GROUND.origin[0], GROUND.origin[1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, groundTex); gl.uniform1i(P.u.uGround, 0);
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.bindVertexArray(worldMesh.vao);
-  gl.drawArrays(gl.TRIANGLES, 0, staticCount);
+  // Boden ohne Tiefen-Eintrag: Alles steht auf oder über ihm und wird danach gezeichnet. So können flache Platten
+  // (Startplatz, Rasen, Landeplatz) nie mit dem Boden flackern, auch wenn die Tiefe am Gerät grob aufgelöst ist.
+  gl.depthMask(false); gl.drawArrays(gl.TRIANGLES, 0, groundCount); gl.depthMask(true);
+  gl.drawArrays(gl.TRIANGLES, groundCount, staticCount - groundCount);
   gl.bindVertexArray(townMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, townMesh.count);
   gl.bindVertexArray(worldMesh.vao);
   const pulse = 0.75 + 0.15*Math.sin(performance.now()/180);
@@ -603,7 +655,30 @@ export function render(dt) {
     gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
   }
   if (cfg.cam !== 'fpv' || cfg.propsView) drawProps(md, dt);
+  drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
+}
+// Lens-Flare: nur ab „Mittel“, im normalen Bild, wenn die Sonne im Bild steht und kein Hindernis davor ist.
+// Je näher die Sonne an der Bildmitte, desto stärker. Weiches Ein- und Ausblenden (0,15 s), damit es nicht flackert.
+function drawFlare(vp, eye, asp, GFX, VIS, dt) {
+  const c = [0, 1, 2, 3].map(i => vp[i]*SUN[0] + vp[4 + i]*SUN[1] + vp[8 + i]*SUN[2]);   // Richtung (w = 0): Sonne unendlich weit
+  let want = 0;
+  if (GFX > 0 && VIS === 0 && c[3] > 0) {
+    const x = c[0]/c[3], y = c[1]/c[3], r = Math.hypot(x*asp, y);
+    if (Math.abs(x) < 1.1 && Math.abs(y) < 1.1 && !rayBlocked(eye, SUN, 400, colliders) && !rayBlocked(eye, SUN, 400, town))
+      want = clamp(1.25 - r*0.7, 0, 1);
+    flareP[0] = x; flareP[1] = y;
+  }
+  flareK += (want - flareK)*Math.min(1, dt/0.15);
+  if (flareK < 0.01) return;
+  gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+  gl.useProgram(PF.p);
+  gl.uniform2f(PF.u.uSunP, flareP[0], flareP[1]); gl.uniform1f(PF.u.uK, flareK); gl.uniform1f(PF.u.uAsp, asp);
+  gl.bindVertexArray(skyVao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
+  gl.useProgram(P.p);
 }
 
 const propAng = [0, 0.8, 1.6, 2.4];

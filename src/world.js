@@ -79,6 +79,22 @@ export function addSolid(mb, c, h, yaw, col) {
 }
 
 // Kurs: [x, z, Höhe der Tormitte]
+// Trifft der Strahl o + t·d (0 < t < maxT) einen der Quader (c, h, cs, sn wie colliders)? Für die Sonne hinter Hindernissen.
+export function rayBlocked(o, d, maxT, list) {
+  for (const b of list) {
+    const ox = o[0] - b.c[0], oz = o[2] - b.c[2];
+    const lo = [ox*b.cs - oz*b.sn, o[1] - b.c[1], ox*b.sn + oz*b.cs], ld = [d[0]*b.cs - d[2]*b.sn, d[1], d[0]*b.sn + d[2]*b.cs];
+    let t0 = 0, t1 = maxT;
+    for (let i = 0; i < 3 && t0 <= t1; i++) {
+      if (Math.abs(ld[i]) < 1e-9) { if (Math.abs(lo[i]) > b.h[i]) t0 = t1 + 1; continue; }
+      let a = (-b.h[i] - lo[i])/ld[i], e = (b.h[i] - lo[i])/ld[i];
+      if (a > e) { const x = a; a = e; e = x; }
+      t0 = Math.max(t0, a); t1 = Math.min(t1, e);
+    }
+    if (t0 <= t1) return true;
+  }
+  return false;
+}
 export const COURSE = [
   [0, -25, 2], [25, -55, 3], [60, -60, 5], [85, -30, 3],
   [70, 10, 8], [35, 30, 3], [0, 40, 2], [-30, 15, 4]
@@ -108,6 +124,7 @@ export function buildWorld() {
   // In Kacheln von 30 m: Ein einziges riesiges Viereck macht die Tiefe ungenau, flache Platten (Startplatz) verschwänden darin.
   for (let x = -L; x < L; x += 30) for (let z = -L; z < L; z += 30)
     mb.quad([x,0,z], [x,0,z+30], [x+30,0,z+30], [x+30,0,z], [0.35, 0.50, 0.27, 0]);
+  const groundCount = mb.count;   // Boden zuerst und ohne Tiefe zeichnen (render.js), dann flackern Platten darauf nicht
   // Startplatz
   mb.box([0, 0.003, 0], [1.2, 0.003, 1.2], 0, [0.22, 0.27, 0.34]);   // flach: die Drohne steht physikalisch auf y = 0
   mb.box([0, 0.007, -0.9], [0.5, 0.001, 0.05], 0, [0.95, 0.95, 0.95]);
@@ -185,7 +202,7 @@ export function buildWorld() {
       start, count: mb.count - start
     });
   }
-  return { data: new Float32Array(mb.d), staticCount };
+  return { data: new Float32Array(mb.d), staticCount, groundCount };
 }
 
 // Drohnenmodell (5 Zoll, Maßstab 1,3 wie Stufe 1): Rahmen aus Carbon, Arme, Motorglocken, Kamera, Akku mit Gurt, Antenne

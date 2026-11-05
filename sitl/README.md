@@ -24,7 +24,7 @@ Braucht clang mit Ziel `wasm32` und `wasm-ld` (getestet mit clang 18). Kein Emsc
 ## Inhalt
 
 - `build.mjs`: kopiert Betaflight, ändert das Einstellungs-Register (`pg.h`, `pg.c`) und das SITL-Target, übersetzt und verlinkt.
-- `platform.c`: ersetzt `src/platform/SIMULATOR/sitl.c`. Simulationszeit statt Echtzeit, keine Threads, kein Netzwerk, keine Dateien. Schnittstelle zu JavaScript: `bf_init`, `bf_step`, `bf_set_rc`, `bf_set_gyro`, `bf_set_acc`, `bf_motor`, `bf_flag`.
+- `platform.c`: ersetzt `src/platform/SIMULATOR/sitl.c`. Simulationszeit statt Echtzeit, keine Threads, kein Netzwerk, keine Dateien. Schnittstelle zu JavaScript: `bf_init`, `bf_step`, `bf_set_rc`, `bf_set_gyro`, `bf_set_acc`, `bf_motor`, `bf_flag`. In `bf_init` geänderte Vorgaben: PWM statt DShot, keine Startpause, kurzer Kreisel-Abgleich, Scharfschalten in jeder Lage, Schutz gegen Durchgehen beim Start aus (die Simulation begrenzt den Schub am Boden selbst).
 - `libc/`: eigene kleine C-Bibliothek. Mathe-Funktionen ohne WebAssembly-Befehl kommen aus JavaScript (Import-Modul `math`).
 - Hardware-Funktionen, die es im Browser nicht gibt, sind Importe aus dem Modul `env` und geben 0 zurück.
 

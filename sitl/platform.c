@@ -151,6 +151,7 @@ EXPORT(bf_init) void bf_init(void) {
   systemConfigMutable()->powerOnArmingGraceTime = 0;              // keine Startpause, Neustart im Spiel sofort flugbereit
   gyroConfigMutable()->gyroCalibrationDuration = 10;               // Kreisel-Abgleich 0,1 s statt 1,25 s (Simulation rauscht nicht)
   imuConfigMutable()->small_angle = 180;                           // scharf schalten in jeder Lage (wie der eigene Regler)
+  pidConfigMutable()->runaway_takeoff_prevention = false;          // Schutz gegen Durchgehen aus: Die Simulation begrenzt den Schub am Boden selbst
   initPhase2();
   initPhase3();
   modeActivationCondition_t *arm = modeActivationConditionsMutable(0);
