@@ -49,7 +49,10 @@ export function bfRates() {
 export function bfStep(s, h, armed, angle, thr, roll, pitch, yaw) {
   const x = bf.x;
   // Kreisel: unser Körper (x rechts, y oben, z hinten) -> Betaflight (x vorne, y links, z oben), in °/s
-  x.bf_set_gyro(-s.w[2]*R2D, -s.w[0]*R2D, s.w[1]*R2D);
+  // Kreisel: die Drehrate, mit der sich die Lage zuletzt wirklich gedreht hat (s.wq). s.w ist nach einem Bodenstoß fast 0,
+  // obwohl die Drohne kippt; dann sähe Betaflight das Kippen nicht und regelte gegen eine falsche Lage.
+  const gw = s.wq || s.w;
+  x.bf_set_gyro(-gw[2]*R2D, -gw[0]*R2D, gw[1]*R2D);
   // Beschleunigungssensor misst die spezifische Kraft: Beschleunigung minus Schwerkraft (ruhig: 1 g nach oben)
   const a = [(s.v[0] - bf.vPrev[0])/h, (s.v[1] - bf.vPrev[1])/h + 9.81, (s.v[2] - bf.vPrev[2])/h];
   bf.vPrev = s.v.slice();

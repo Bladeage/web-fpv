@@ -200,5 +200,7 @@ EXPORT(bf_flag) int bf_flag(int n) {
   if (n == 0) return ARMING_FLAG(ARMED) ? 1 : 0;
   if (n == 1) return (int)getArmingDisableFlags();
   if (n == 2) return FLIGHT_MODE(ANGLE_MODE) ? 1 : 0;
+  if (n == 3) return attitude.values.roll;    // geschätzte Lage in 0,1°
+  if (n == 4) return attitude.values.pitch;
   return 0;
 }

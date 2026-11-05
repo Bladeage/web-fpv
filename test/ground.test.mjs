@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { cfg, game, inp } from '../src/state.js';
 import { buildWorld, rayBlocked } from '../src/world.js';
-import { STEP, step, respawn } from '../src/physics.js';
+import { STEP, step, respawn, hoverThrottle } from '../src/physics.js';
 import { applyDrone } from '../src/drone.js';
 import { setScenario } from '../src/scenario.js';
 import { bf, bfLoad } from '../src/bf.js';
@@ -75,3 +75,19 @@ test('Boden kommt zuerst im Welt-Netz und liegt ganz auf y = 0', () => {
   for (let i = w.groundCount; i < w.groundCount + 36; i++) top = Math.max(top, w.data[i*10 + 1]);
   assert.ok(top > 0, 'danach der Startplatz über dem Boden');
 });
+
+for (const preset of ['3', '5', '7']) {
+  test(`Betaflight: sinkt mit wenig Gas auf den Boden und bleibt gerade (${preset})`, () => {
+    // Prompt 76: Der Kreisel bekam die Drehrate nach dem Bodenstoß (fast 0), die Drohne kippte unbemerkt bis 60° um.
+    cfg.fc = 'bf'; cfg.mode = 'angle'; cfg.dmg = 'off';
+    applyDrone({ preset }); setScenario('free'); game.throttle = 0; inp.pitch = inp.roll = inp.yaw = 0; respawn();
+    assert.equal(bf.ready, true, bf.err);
+    const hov = hoverThrottle(); game.sim.p = [0, 3, 0];
+    let tilt = 0;
+    run(0.3);
+    run(3, () => { game.throttle = 0.75*hov; });   // sinken und aufsetzen (kurzes Wackeln beim Aufsetzen ist normal)
+    run(2, () => { game.throttle = 0.75*hov; tilt = Math.max(tilt, Math.acos(Math.min(1, qRot(game.sim.q, [0, 1, 0])[1]))*180/Math.PI); });
+    assert.ok(game.sim.p[1] < 0.1, 'unten');
+    assert.ok(tilt < 4, 'steht danach gerade, höchstens ' + tilt.toFixed(1) + '° (vorher kippte sie bis 60°)');
+  });
+}

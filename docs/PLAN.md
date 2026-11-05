@@ -422,3 +422,12 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Test Wand-Abprall misst jetzt nach 0,25 s statt 0,4 s: Später kippt die Drohne über 90° und der eigene Schub zieht sie weg; das war kein Abprall mehr (auch ohne die neuen Effekte schon knapp an der Grenze).
 - Tests: `test/simitl.test.mjs`. Ruhiges Stehen am Boden und Gieren am Boden unverändert geprüft.
 - Möglicher nächster Schritt: eigenen Regler gegen Störungen stärker machen (I-Anteil, Vorsteuerung), dann könnten beide Werte näher an SimITL.
+
+## Plausibilitäts-Prüfung über viele Einstellungen (05.11.2026, Prompt 76)
+- Geprüft: alle Vorlagen (Whoop, 3", 5", 7"), andere Zellenzahl, schwer (Gewicht max., Schub zu Gewicht 2, Akku groß) und leicht (Gewicht min., Schub zu Gewicht 16, Akku klein), je mit eigenem Regler und Betaflight. Je: Ruhe am Boden, Start, Schweben, Vollgas vorwärts (Angle), Aufrichten, Acro-Rollrate, Landung, Akku unter Last.
+- Fehler gefunden und behoben: Der Kreisel bekam die Drehrate nach dem Bodenstoß. Kippte die Drohne am Boden (Motoren drehen sie, der Bodenstoß bremst die Rate danach wieder auf fast 0), sah der Regler das nicht. Betaflight kippte nach der Landung unbemerkt bis 60° um und richtete sich nach starkem Beschleunigen nur auf 6 bis 9° auf. Jetzt misst der Kreisel die Drehrate, mit der sich die Lage im Schritt wirklich gedreht hat (`s.wq`), für beide Regler.
+- Betaflight am Boden in Ruhe (Gas unten, Sticks mittig): Leerlauf wie beim eigenen Regler.
+- `bf_flag(3/4)`: geschätzte Lage von Betaflight (für Tests).
+- Plausibel, kein Fehler: Whoop und schwere 3" verlieren bei voller Neigung im Angle-Modus Höhe (kleine Propeller verlieren bei Vorwärtsfahrt viel Schub, wenig Schubreserve). Betaflights Lageschätzung hinkt bei starkem Beschleunigen einige Grad nach (wie echt). Zellspannung fällt bei 5 s Vollgas auf 2,7 bis 2,9 V (hoher Strom bei 5" und 7", Akku als unendlich abgeschaltet).
+- Offen, klein: Eigener Regler erreicht bei der Whoop etwa 86 % der eingestellten Rollrate.
+- Test: `test/ground.test.mjs` (Betaflight sinkt auf den Boden und bleibt gerade, 3", 5", 7").

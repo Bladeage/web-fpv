@@ -224,7 +224,8 @@ export function step(h) {
   }
 
   // 3. Rate-PID und Mischer (Quad-X). Am Boden mit wenig Gas: Motoren aus, Regler ruht.
-  const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
+  const gy = s.wq || s.w;   // Kreisel: wirkliche Drehrate im letzten Schritt (siehe s.wq)
+  const a = PHYS.arm/Math.SQRT2, err = [tx - gy[0], ty - gy[1], tz - gy[2]];
   // Liegt oder steht am Boden mit Gas unten und Sticks in der Mitte: Regler ruht, kämpft nicht gegen den Boden.
   // Mit Stick-Ausschlag regelt er auch am Boden (wie Betaflight mit Airmode): Gieren dreht die Drohne, Rollen kippt sie.
   // Ab 10 % Ausschlag, damit Rauschen von Touch-Sticks und Funken nicht stört. Nach dem Turtle-Modus erst,
@@ -265,6 +266,10 @@ export function step(h) {
       if (sq(0) > lim) { let lo = 0, hi = 1; for (let n = 0; n < 12; n++) { const c = (lo + hi)/2; if (sq(c) > lim) lo = c; else hi = c; } cut = hi; }
     }
     for (let i = 0; i < 4; i++) s.cmd[i] = game.armed ? clamp(m[i] - cut, 0, 1) : 0;
+    // Liegt sie ruhig am Boden (Gas unten, Sticks mittig): Leerlauf wie beim eigenen Regler. Sonst regelt Betaflight
+    // (Airmode) nach der Landung gegen den Boden, oft mit verschätzter Lage, und kippt die Drohne um. Echte Piloten
+    // schalten dafür nach der Landung unscharf.
+    if (rest && game.armed) for (let i = 0; i < 4; i++) s.cmd[i] = PHYS.idle;
   }
   // Turtle-Modus (Betaflight "Flip over after crash"), schaltet sich von selbst ein:
   // Liegt die Drohne scharf geschaltet still auf dem Kopf oder auf der Seite, drehen die Motoren rückwärts. Kein Gas nötig.
@@ -347,6 +352,7 @@ export function step(h) {
     if (s.grounded) { s.v[0] *= kf; s.v[2] *= kf; }
   }
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
+  s.wq = w.slice();   // Drehrate, mit der die Lage in diesem Schritt gedreht wurde: das misst der Kreisel (Bodenstöße danach bremsen s.w)
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
   const upN = qRot(s.q, [0,1,0]);
