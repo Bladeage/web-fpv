@@ -170,3 +170,27 @@ details{margin-top:10px}
 .rgrid{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:4px 8px;align-items:center;font-size:.85em;margin:4px 0 2px}
 .rgrid input{width:100%;min-width:0;box-sizing:border-box;padding:3px 6px;font:inherit;background:#fff;color:#1b2127;border:1px solid #b9c1ca;border-radius:6px}
 .rgrid input:focus{outline:2px solid #ff7a1a;outline-offset:0}
+/* Mehr Luft (Nutzer 05.11.2026): größere Abstände und Flächen. Die Gesamtgröße passt menu.js (fitPanel) an den Bildschirm an:
+   auf großen Bildschirmen größer, auf kleinen so, dass nichts scrollen muss. */
+.panel{max-width:520px;padding:26px 28px 22px;border-radius:20px}
+.panel h1{font-size:26px;margin-bottom:4px}
+.stepno{margin:0 0 4px}
+.panel h2{margin:18px 0 8px}
+.seg{gap:10px}
+.seg button{padding:12px 16px;border-radius:12px}
+.seg button b{font-size:16.5px}
+.seg button span{font-size:13.5px;line-height:1.45;margin-top:4px}
+.seg.small button{padding:10px 12px}
+.list button{padding:12px 14px}
+.row{margin:16px 0 6px}
+.hint{font-size:13.5px;line-height:1.5;margin:12px 0 0}
+.check{margin-top:12px}
+.checks{gap:6px 22px}
+.tabs{margin:14px 0 8px}
+.tabs button{padding:10px 4px}
+.nav{gap:12px;margin-top:24px}
+.nav button,.primary,.secondary{padding:14px}
+.linkbtn{padding:12px 0 2px}
+.rgrid{gap:8px 10px;margin:10px 0 4px}
+.rgrid input{padding:5px 8px}
+.ver{margin:10px 0 0;font-size:12px;color:var(--muted);opacity:.75;text-align:center;font-variant-numeric:tabular-nums}   /* Version im Hauptmenü, hellgrau */

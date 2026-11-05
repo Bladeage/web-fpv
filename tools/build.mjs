@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { execFileSync } from 'node:child_process';
 import { toAspx, checkAspx } from './aspx.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -71,11 +72,20 @@ export function collectModules(entry = 'main.js') {
   return order;
 }
 
+export function version() {
+  try {
+    const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return 'Version 1.' + git('rev-list', '--count', 'HEAD') + ' (' + git('log', '-1', '--format=%cd', '--date=format:%d.%m.%Y') + ', ' + git('rev-parse', '--short', 'HEAD') + ')';
+  } catch (e) { return 'Version dev'; }
+}
 export function bundle() {
   const order = collectModules();
   let js = "'use strict';\n" + order.map(m => `/* ----- src/${m.file} ----- */\n${m.body}\n`).join('\n');
   // Betaflight (sitl/betaflight.wasm, GPLv3) als Base64 an Stelle des Platzhalters in src/bf.js
   if (js.includes("'%%BF_WASM%%'")) js = js.replace("'%%BF_WASM%%'", () => "'" + readFileSync(join(ROOT, 'sitl/betaflight.wasm')).toString('base64') + "'");
+  // Version: 1.<Anzahl Commits>, dazu Datum und Kurz-Hash des gebauten Commits. Zählt mit jedem Commit auf main hoch.
+  // Ohne git (zum Beispiel ausgepacktes Archiv): „dev“. Die CI holt dafür die ganze Historie (fetch-depth: 0).
+  if (js.includes("'%%VERSION%%'")) js = js.replace("'%%VERSION%%'", () => JSON.stringify(version()));
   new vm.Script(js, { filename: 'fpvsim-bundle.js' });   // nur parsen: Syntaxfehler, doppelte let/const
   return { js, files: order.map(m => m.file) };
 }

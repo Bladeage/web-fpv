@@ -1,6 +1,6 @@
 /* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
-import { cfg, game, keys, ptr, saveCfg, KEY_FN, keyOf, keyName, setKey, keyLearn } from './state.js';
+import { cfg, game, keys, ptr, saveCfg, KEY_FN, keyOf, keyName, setKey, keyLearn, VERSION } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
@@ -126,6 +126,23 @@ export function syncMenu() {
   const cur = SCENARIOS.find(x => x.id === (game.started ? game.scenRun : cfg.scen)) || sc;
   $('bestTxt').textContent = game.best !== null ? 'Bestzeit ' + cur.name + ': ' + fmtTime(game.best) : '';
 }
+// Menügröße an den Bildschirm anpassen (CSS zoom, Chromium): erst in Grundgröße messen, dann so weit vergrößern,
+// wie Breite und Höhe erlauben (höchstens 1,35-fach, damit die Seiten ähnlich groß bleiben). Passt es nicht, etwas verkleinern (bis 0,8), sonst scrollt das Menü.
+export function fitPanel() {
+  const pn = document.querySelector('#menu .panel');
+  if (!pn || menu.hidden) return;
+  pn.style.zoom = '1'; pn.style.maxHeight = 'none';
+  const cs = getComputedStyle(menu);
+  const aw = menu.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const ah = menu.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  let z = Math.floor(clamp(Math.min(ah/pn.scrollHeight, aw/pn.offsetWidth, 1.35), 0.72, 1.35)*100)/100;
+  const set = () => { pn.style.zoom = String(z); pn.style.maxHeight = Math.floor(ah/z) + 'px'; };
+  set();
+  // Nachmessen: Mit anderer Größe brechen Zeilen anders um. In 3-%-Schritten verkleinern, bis nichts mehr scrollt.
+  for (let i = 0; i < 10 && z > 0.72 && pn.scrollHeight > pn.clientHeight + 1; i++) { z = Math.round((z - 0.03)*100)/100; set(); }
+}
+addEventListener('resize', () => fitPanel());
+$('verTxt').textContent = VERSION.startsWith('%%') ? 'Version dev' : VERSION;
 export function show(name) {
   screen = name;
   if (name === 'drone') showFine(false);
@@ -134,6 +151,7 @@ export function show(name) {
   menu.scrollTop = 0;
   const f = document.querySelector(`#menu section[data-screen="${name}"] .primary:not([hidden])`);
   if (f) f.focus({ preventScroll: true });
+  fitPanel();
 }
 export function openMenu(name = 'settings') {
   if (menu.hidden) from = null; else if (name === 'settings' && screen !== 'settings') from = screen;
@@ -330,6 +348,7 @@ function showFine(on) {
   document.querySelector('section[data-screen=drone] .basic').hidden = on;
   document.querySelector('section[data-screen=drone] .fine').hidden = !on;
   $('bFine').textContent = on ? '‹ Zurück zu Vorlage und Flugmodus' : 'Feinwerte ändern ›';
+  fitPanel();
 }
 $('bFine').addEventListener('click', () => showFine(document.querySelector('section[data-screen=drone] .fine').hidden));
 // Reiter in den Einstellungen
@@ -337,6 +356,7 @@ function showTab(id) {
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
   document.querySelectorAll('.tabpane').forEach(p => { p.hidden = p.dataset.pane !== id; });
   keyLearn.fn = null;
+  fitPanel();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 showTab('general');
@@ -345,6 +365,7 @@ function showCtl(id) {
   press('#ctlSeg button', b => b.dataset.ctl === id);
   $('ctlPad').hidden = id !== 'pad'; $('ctlKeys').hidden = id !== 'keys';
   keyLearn.fn = null; buildKeyRows();
+  fitPanel();
 }
 document.querySelectorAll('#ctlSeg button').forEach(b => b.addEventListener('click', () => showCtl(b.dataset.ctl)));
 // Tastenbelegung: Taste antippen, dann neue Taste drücken

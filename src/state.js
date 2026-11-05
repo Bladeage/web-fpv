@@ -3,6 +3,8 @@
    weil ein ES-Modul importierte Variablen nicht neu zuweisen darf. */
 
 /* ---------- Einstellungen ---------- */
+// Versionsangabe, beim Build eingesetzt (tools/build.mjs): „Version 1.<Commits> (Datum, Hash)“
+export const VERSION = '%%VERSION%%';
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
 export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
