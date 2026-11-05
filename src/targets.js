@@ -37,7 +37,6 @@ function flightClear(a, b, m) {
   for (let i = 0; i <= n; i++) if (obstDist(vAdd(a, vScale(vSub(b, a), i/n))) < m) return false;
   return true;
 }
-export const BEHAVIOR_NAME = { dumb: 'dumm', random: 'zufällig', evade: 'ausweichend', static: 'schwebend' };
 let R = rng(7);
 
 function routePos(t, time) {
@@ -73,7 +72,6 @@ export function initTargets(speedScale = 1) {
   }
   targets.forEach((t, i) => { t.bal = newBalloon(t.p, i); });   // Ballon für Stufe „Leicht“
 }
-export const aliveCount = () => targets.filter(t => t.state === 'fly').length;
 
 // Kleinster Abstand zweier Punkte, die sich im Schritt gleichförmig bewegen (a0->a1, b0->b1)
 export function sweptDist(a0, a1, b0, b1) {

@@ -111,7 +111,6 @@ export function stepVehicles(h, a, b, r = 0.15, balloons = false) {
   }
   return hits;
 }
-export const vehiclesLeft = () => vehicles.filter(v => v.state !== 'hit').length;
 
 // Modell eines Fahrzeugs (Mitte am Boden, Länge entlang Z). Helles Grau; die Farbe kommt beim Zeichnen dazu.
 export function buildVehicle() {

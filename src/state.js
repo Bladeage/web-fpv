@@ -14,7 +14,6 @@ export const cfg = { mode: 'angle', tilt: 20, rate: 450, sound: true, cam: 'fpv'
 // Vorgaben für den ersten Start (Demo): Torkurs, Spielstil „Lernen“ (Angle, kein Schaden, Akku unendlich, Flugspur),
 // Bild ohne Rauschen. gpSw/gpCal: Schalter-Belegung und Kalibrierung der Funke. vol: Lautstärke 0..1.
 // keys: eigene Tastenbelegung (nur Abweichungen von KEY_FN).
-export const CFG_DEFAULT = JSON.parse(JSON.stringify(cfg));
 /* ---------- Tastenbelegung ---------- */
 // [Funktion, Name im Menü, Vorgabe als KeyboardEvent.code]. Esc und P (Menü) sowie + und − (Blickfeld) bleiben fest.
 export const KEY_FN = [

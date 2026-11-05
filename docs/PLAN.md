@@ -390,3 +390,8 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Keine Kollision: Vögel sind nicht Teil der Physik. Im Wärmebild hell (warmblütig).
 - Werte als Schätzung nach einer Taube (8 m/s, 25 cm lang).
 - Tests: `test/birds.test.mjs` (Anzahl, eigene Orte, alle Zustände, je Start anders, 3 min auf der Karte, Flucht, Flug unverändert).
+
+## Housekeeping (05.11.2026, Prompt 69)
+- Ostereier: Meldung zweizeilig, „Osterei gefunden!“ und darunter „n von 13 gefunden“.
+- Ungenutzter Code entfernt: `bfArmed`, `huntHits`, `CFG_DEFAULT`, `BEHAVIOR_NAME`, `aliveCount`, `vehiclesLeft`.
+- Commits ohne Claude: Autor ist der Nutzer, Zeilen `Co-Authored-By` und `Claude-Session` entfernt. Neuer Branch `main`; der alte Branch `claude/…` wird gelöscht, sobald `main` Standard-Branch ist.

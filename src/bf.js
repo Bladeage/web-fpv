@@ -59,6 +59,5 @@ export function bfStep(s, h, armed, angle, thr, roll, pitch, yaw) {
   // Betaflight Quad-X: 1 hinten rechts, 2 vorne rechts, 3 hinten links, 4 vorne links
   return [x.bf_motor(1), x.bf_motor(3), x.bf_motor(0), x.bf_motor(2)];
 }
-export const bfArmed = () => !!(bf.ready && bf.x.bf_flag(0));
 // Meldung, falls Betaflight gewählt ist, aber nicht startet
 export function bfFallbackNote() { say('Betaflight nicht verfügbar, eigener Regler aktiv', 2.5); }

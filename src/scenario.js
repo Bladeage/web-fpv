@@ -6,7 +6,7 @@ import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
 import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
 import { fmtTime } from './format.js';
-import { targets, initTargets, stepTargets, aliveCount } from './targets.js';
+import { targets, initTargets, stepTargets } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
 import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.js';
 import { TOWN } from './town.js';
@@ -256,7 +256,6 @@ function checkHunt(a, b, h) {
   else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed() + (pts ? '  +' + pts + ' Punkte' : ''));
   if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
-export const huntHits = () => st.hits;
 
 // Paketlieferung: tief (unter 1,2 m) und langsam (unter 2,5 m/s) über dem Platz schweben
 function checkDeliver(a, b, h) {

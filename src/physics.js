@@ -353,7 +353,9 @@ export function step(h) {
   if (egg >= 0) {
     saveEggs();
     const all = eggsFound.length >= EGGS.length;
-    say((all ? 'Alle Ostereier gefunden! ' : 'Osterei gefunden! ') + eggsFound.length + '/' + EGGS.length, all ? 4 : 2.5);
+    // Zwei Zeilen: Meldung, darunter der Zähler
+    say(all ? 'Alle Ostereier gefunden!' : 'Osterei gefunden!', all ? 4 : 2.5);
+    say(eggsFound.length + ' von ' + EGGS.length + ' gefunden', all ? 4 : 2.5);
     fx.beep(1568, 0.08); fx.beep(2093, 0.12);
   }
 
