@@ -431,3 +431,11 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Plausibel, kein Fehler: Whoop und schwere 3" verlieren bei voller Neigung im Angle-Modus Höhe (kleine Propeller verlieren bei Vorwärtsfahrt viel Schub, wenig Schubreserve). Betaflights Lageschätzung hinkt bei starkem Beschleunigen einige Grad nach (wie echt). Zellspannung fällt bei 5 s Vollgas auf 2,7 bis 2,9 V (hoher Strom bei 5" und 7", Akku als unendlich abgeschaltet).
 - Offen, klein: Eigener Regler erreicht bei der Whoop etwa 86 % der eingestellten Rollrate.
 - Test: `test/ground.test.mjs` (Betaflight sinkt auf den Boden und bleibt gerade, 3", 5", 7").
+
+## Karte außerhalb des Orts (erledigt 05.11.2026, Prompt 80)
+- Ursache der Streifen: Das vorberechnete Bodenmuster („Schön“) deckt nur 400 x 400 m ab (x -170 bis 230, z -190 bis 210). Außerhalb wurde der Texturrand weitergezogen.
+- Jetzt rechnet der Shader den Boden außerhalb selbst (`groundProc`, gleiches Gras wie im Bodenmuster), mit 30 m weichem Übergang. Ab etwa 250 m von der Mitte Felder (Wiese, Weizen, Acker, dunkle Wiese, je 60 x 40 m, leicht gedreht) mit Saatreihen und Hecken.
+- „Mittel“ nutzt denselben gerechneten Boden (sparsamer, weniger Rauschen) statt Schachbrett. „Einfach“ unverändert.
+- Nebel bei Mittel und Schön dünner (1/380 statt 1/260), Bodendunst schwächer. Boden reicht jetzt bis 1500 m (Sichtweite), außen in 300-m-Kacheln.
+- Hügel am Horizont: runde Glockenform statt 7-eckiger Kegel, nur über dem Boden (der Boden wird ohne Tiefe gezeichnet). Gleiche Zufallsfolge, die übrige Welt bleibt gleich.
+- Vermutet: Der gerechnete Boden kostet bei „Mittel“ auf dem Handy etwas Leistung; die automatische Auflösung gleicht das aus.

@@ -85,3 +85,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 77 | 05.11.2026 | (Während der Arbeit) Standard-Branch ist jetzt `main`. Auf GitHub noch etwas ändern? | Alter Branch: Löschen von hier blockiert, Anleitung für den Nutzer. Hinweise zu GitHub-Einstellungen |
 | 78 | 05.11.2026 | Alter Branch ist gelöscht. | Bestätigt. Befund: Pages-Schritt auf `main` scheitert ohne Protokoll (vermutlich Branch-Regel der Umgebung „github-pages“), Anleitung für den Nutzer |
 | 79 | 05.11.2026 | Regel geändert, bitte prüfen. | Neuer Lauf auf `main`, Veröffentlichung auf GitHub Pages geprüft |
+| 80 | 05.11.2026 | (Screenshot aus 61 m Höhe) Die Karte sieht bei Schön und Mittel außerhalb des Orts nicht schön aus. Makel verbessern, eventuell die Kartengrenze besser hinbekommen. | Boden außerhalb des Bodenmusters gerechnet (keine Streifen), Felder mit Hecken außen, Mittel ohne Schachbrett, Nebel dünner, Boden bis 1500 m, runde Hügel |

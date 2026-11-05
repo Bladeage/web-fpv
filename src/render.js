@@ -89,6 +89,27 @@ uniform vec2 uOrigin;
 uniform sampler2D uGround;
 uniform float uVision, uHeat;
 out vec4 o;
+${NOISE}
+// Boden ohne Textur (Mittel überall, Schön außerhalb des vorberechneten Bereichs): Gras wie im Bodenmuster,
+// Erdflecken, weiter draußen Felder (Wiese, Weizen, Acker) mit Hecken. q: 1 voll, 0 sparsam (weniger Rauschen).
+vec3 groundProc(vec2 p, float q){
+  float n1 = vnoise(p*0.08)*0.6 + vnoise(p*0.35)*0.3 + (q > 0.5 ? vnoise(p*1.7)*0.1 : 0.05);
+  vec3 c = vec3(0.27, 0.48, 0.18)*(0.8 + 0.4*n1);
+  c = mix(c, vec3(0.42, 0.36, 0.24), smoothstep(0.72, 0.86, vnoise(p*0.05 + 7.0))*0.55);
+  // Felder ab etwa 250 m von der Kartenmitte (dort liegen Kurs und Testecken): Rechtecke 60 x 40 m, leicht gedreht
+  float r = length(p - vec2(30.0, -10.0)), fk = smoothstep(240.0, 300.0, r);
+  if (fk > 0.0) {
+    vec2 g = mat2(0.96, 0.28, -0.28, 0.96)*p/vec2(60.0, 40.0), cell = floor(g), f = fract(g);
+    float h = hash(cell), h2 = hash(cell + 17.3);
+    vec3 fc = h < 0.35 ? vec3(0.30, 0.52, 0.20) : h < 0.6 ? vec3(0.62, 0.58, 0.30) : h < 0.8 ? vec3(0.45, 0.36, 0.24) : vec3(0.22, 0.40, 0.16);
+    fc *= 0.9 + 0.2*h2;
+    fc *= 0.94 + 0.06*sin((h2 > 0.5 ? f.x*60.0 : f.y*40.0)*1.6);   // Fahrspuren / Saatreihen
+    float edge = min(min(f.x, 1.0 - f.x)*60.0, min(f.y, 1.0 - f.y)*40.0);
+    fc = mix(vec3(0.16, 0.30, 0.12), fc, smoothstep(0.8, 2.2, edge));   // Hecke am Feldrand
+    c = mix(c, fc*(0.92 + 0.16*n1), fk);
+  }
+  return c;
+}
 // Bildmodus (V1): 1 Wärmebild (Szene gedämpftes Grau, warme Objekte hell), 2 Nachtsicht (grün, dunkler)
 vec3 vis(vec3 col){
   if (uVision < 0.5) return col;
@@ -100,7 +121,7 @@ void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
   bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5;
-  if (ground && uGfx < 1.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
+  if (ground && uGfx < 0.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
     vec2 p = vW.xz;
     float ch = mod(floor(p.x/8.0) + floor(p.y/8.0), 2.0);
     c *= 0.88 + 0.12*ch;
@@ -122,7 +143,14 @@ void main(){
     return;
   }
   bool full = uGfx > 1.5;
-  if (ground && full) c = texture(uGround, (vW.xz - uOrigin)/uSize).rgb;   // vorab gerechnetes Bodenmuster
+  if (ground) {
+    c = groundProc(vW.xz, full ? 1.0 : 0.0);
+    if (full) {   // im vorberechneten Bereich (mit Schatten und Wegen) die Textur, zum Rand hin weich in den gerechneten Boden
+      vec2 uv = (vW.xz - uOrigin)/uSize;
+      float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
+      if (e > 0.0) c = mix(c, texture(uGround, uv).rgb, smoothstep(0.0, 30.0, e));
+    }
+  }
   if (full && wall && abs(n.y) < 0.5) {   // Fenster: Raster auf den Wänden, unten Sockel
     vec2 w = vec2(vW.x + vW.z, vW.y);
     vec2 f = fract(w/vec2(2.6, 3.0));
@@ -140,7 +168,7 @@ void main(){
   vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
   float d = length(vW - uCam);
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
-  float hz = full ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/350.0))*0.18 : 0.0;   // Dunst nah am Boden
+  float hz = full ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/450.0))*0.12 : 0.0;   // Dunst nah am Boden
   col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + hz, 0.0, 1.0));
   col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);   // ACES-Näherung
   o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), uAlpha);
@@ -473,7 +501,7 @@ export function render(dt) {
   gl.uniformMatrix4fv(P.u.uVP, false, vp);
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
-  gl.uniform1f(P.u.uFogD, 1/260);
+  gl.uniform1f(P.u.uFogD, GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel, man sieht die Felder (Einfach unverändert)
   gl.uniform1f(P.u.uGfx, GFX);
   gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
   gl.uniform1f(P.u.uSize, GROUND.size); gl.uniform2f(P.u.uOrigin, GROUND.origin[0], GROUND.origin[1]);

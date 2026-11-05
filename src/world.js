@@ -61,15 +61,21 @@ export class MeshBuilder {
       this.triOut(P(0, h, 0), P(a0, h), P(a1, h), ax, col); this.triOut(P(0, -h, 0), P(a1, -h), P(a0, -h), vScale(ax, -1), col);
     }
   }
-  cone(cx, cz, r, h, seg, col) {
-    const apex = [cx, h, cz];
-    for (let i = 0; i < seg; i++) {
-      const a0 = i/seg*Math.PI*2, a1 = (i+1)/seg*Math.PI*2;
-      const p0 = [cx + Math.cos(a0)*r, 0, cz + Math.sin(a0)*r];
-      const p1 = [cx + Math.cos(a1)*r, 0, cz + Math.sin(a1)*r];
-      this.tri(p1, p0, apex, col);
+  // Runder Hügel nur über dem Boden: Glockenform y = h·cos²(π/2·ρ/r) aus Ringen, Rand leicht unregelmäßig (aus der Position).
+  hill(cx, cz, r, h, col) {
+    const N = 6, M = 18, P = (i, j) => {
+      const t = i/N, a = j/M*Math.PI*2, k = 1 + 0.12*Math.sin(a*3 + cx*0.7) + 0.06*Math.sin(a*5 + cz*0.3);
+      const rho = r*t*k, y = i === N ? 0 : h*Math.cos(Math.PI/2*t)**2;
+      return [cx + Math.cos(a)*rho, y, cz + Math.sin(a)*rho];
+    };
+    for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+      const a = P(i, j), b = P(i, j + 1), c = P(i + 1, j + 1), d = P(i + 1, j);
+      const sh = 0.94 + 0.06*Math.sin(i*1.7 + j*2.3 + cx);   // leichte Farbunterschiede
+      const cc = [col[0]*sh, col[1]*sh, col[2]*sh];
+      if (i === 0) this.tri(a, c, d, cc); else this.quad(a, b, c, d, cc);   // innen: Spitze (alle Punkte gleich) als Dreieck
     }
   }
+
 }
 
 export const colliders = [];
@@ -124,6 +130,10 @@ export function buildWorld() {
   // In Kacheln von 30 m: Ein einziges riesiges Viereck macht die Tiefe ungenau, flache Platten (Startplatz) verschwänden darin.
   for (let x = -L; x < L; x += 30) for (let z = -L; z < L; z += 30)
     mb.quad([x,0,z], [x,0,z+30], [x+30,0,z+30], [x+30,0,z], [0.35, 0.50, 0.27, 0]);
+  // Außen bis 1500 m (Sichtweite der Kamera) in großen Kacheln: sonst endet der Boden bei 600 m sichtbar im Nebel
+  for (let x = -1500; x < 1500; x += 300) for (let z = -1500; z < 1500; z += 300)
+    if (x + 300 <= -L || x >= L || z + 300 <= -L || z >= L)
+      mb.quad([x,0,z], [x,0,z+300], [x+300,0,z+300], [x+300,0,z], [0.35, 0.50, 0.27, 0]);
   const groundCount = mb.count;   // Boden zuerst und ohne Tiefe zeichnen (render.js), dann flackern Platten darauf nicht
   // Startplatz
   mb.box([0, 0.003, 0], [1.2, 0.003, 1.2], 0, [0.22, 0.27, 0.34]);   // flach: die Drohne steht physikalisch auf y = 0
@@ -132,7 +142,7 @@ export function buildWorld() {
   // Hügel am Horizont
   for (let i = 0; i < 30; i++) {
     const a = R()*Math.PI*2, d = 340 + R()*180;
-    mb.cone(Math.cos(a)*d, Math.sin(a)*d, 45 + R()*55, 22 + R()*55, 7, [0.36, 0.46, 0.40]);
+    mb.hill(Math.cos(a)*d, Math.sin(a)*d, 45 + R()*55, 22 + R()*55, [0.33, 0.46, 0.31]);   // gleiche Zufallsfolge wie früher (Kegel)
   }
   // Bäume
   let placed = 0, tries = 0;
