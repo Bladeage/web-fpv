@@ -439,3 +439,9 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Nebel bei Mittel und Schön dünner (1/380 statt 1/260), Bodendunst schwächer. Boden reicht jetzt bis 1500 m (Sichtweite), außen in 300-m-Kacheln.
 - Hügel am Horizont: runde Glockenform statt 7-eckiger Kegel, nur über dem Boden (der Boden wird ohne Tiefe gezeichnet). Gleiche Zufallsfolge, die übrige Welt bleibt gleich.
 - Vermutet: Der gerechnete Boden kostet bei „Mittel“ auf dem Handy etwas Leistung; die automatische Auflösung gleicht das aus.
+
+## Physik zurück auf den Stand vor dem SimITL-Vergleich (05.11.2026, Prompt 81)
+- Nutzer: Flug mit dem eigenen Regler war vorher deutlich besser. Zurückgenommen: Druckpunkt-Versatz, ESC-Verzögerung (beide aus Prompt 75) und die Kreisel-Korrektur für den eigenen Regler (Prompt 76). `src/physics.js` entspricht für den eigenen Regler wieder genau dem Stand von Commit 632a804. `test/simitl.test.mjs` entfernt.
+- Bleibt, nur für Betaflight (ändert am eigenen Regler nichts): Kreisel bekommt die Drehrate, mit der die Lage gedreht wurde (`s.wq`, sonst kippt Betaflight nach der Landung unbemerkt um), und Leerlauf in Ruhe am Boden.
+- Test Betaflight-Landung: Grenze 8° (Hüpfen im Bodeneffekt bei 75 % Schwebegas), der alte Fehler kippte bis 60°.
+- Erkenntnis: Der eigene Regler reagiert empfindlich auf zusätzliche Verzögerung und Störmomente. Neue Physik-Effekte künftig erst mit Flugtest des Nutzers übernehmen.

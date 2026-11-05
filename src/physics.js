@@ -38,11 +38,6 @@ export const PHYS = {
   rotDamp: 0.002,                         // Luftdämpfung der Drehung in N m s
   kp: [22, 14, 22], ki: [20, 15, 20], iMax: 3,   // Rate-PID je Achse (Nicken, Gieren, Rollen); Ausgang als Winkelbeschleunigung
   size: 1,                                // Modellgröße relativ zu 5 Zoll (Darstellung, Kamera)
-  cpY: 0.005,                             // Druckpunkt über dem Schwerpunkt in m je Größe 1 (Schätzung: SimITL nutzt 2 cm; Rotoren und
-                                          // Rahmenplatten sitzen höher als Akku und Schwerpunkt). Ab 1 cm hält der eigene Regler die Rate
-                                          // nicht mehr genau (Test Raten), daher 5 mm. Luftwiderstand dreht die Drohne leicht auf.
-  escDelay: 0.001,                        // Verzögerung im Motorregler (ESC) in s (Schätzung: SimITL nutzt 2 ms, real etwa 1 bis 4 ms.
-                                          // Mit 2 ms schaukelt sich der eigene Regler beim Aufsetzen auf, daher die untere Grenze 1 ms)
   mass: 0, I: [0, 0, 0], Itune: [0, 0, 0],// aus der Geometrie berechnet (computeInertia)
   twr: 0, thrScale: 1,                    // Schub zu Gewicht bei vollem Akku (berechnet); Faktor für eigenen Schub
   m: {}                                   // Motorkonstanten (computeMotor)
@@ -123,7 +118,7 @@ function newSim() {
     p: [game.home[0], PHYS.foot + 0.005, game.home[1]], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
-    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], cmdPrev: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
+    mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
     om: [0, 0, 0, 0], rpm: [0, 0, 0, 0],   // Motordrehzahl in rad/s und U/min
     flippedT: 0, turtle: false, turtleAir: 0, afterTurtle: false   // Zeit auf dem Kopf liegend, Turtle-Modus
   };
@@ -224,8 +219,7 @@ export function step(h) {
   }
 
   // 3. Rate-PID und Mischer (Quad-X). Am Boden mit wenig Gas: Motoren aus, Regler ruht.
-  const gy = s.wq || s.w;   // Kreisel: wirkliche Drehrate im letzten Schritt (siehe s.wq)
-  const a = PHYS.arm/Math.SQRT2, err = [tx - gy[0], ty - gy[1], tz - gy[2]];
+  const a = PHYS.arm/Math.SQRT2, err = [tx - s.w[0], ty - s.w[1], tz - s.w[2]];
   // Liegt oder steht am Boden mit Gas unten und Sticks in der Mitte: Regler ruht, kämpft nicht gegen den Boden.
   // Mit Stick-Ausschlag regelt er auch am Boden (wie Betaflight mit Airmode): Gieren dreht die Drohne, Rollen kippt sie.
   // Ab 10 % Ausschlag, damit Rauschen von Touch-Sticks und Funken nicht stört. Nach dem Turtle-Modus erst,
@@ -267,8 +261,7 @@ export function step(h) {
     }
     for (let i = 0; i < 4; i++) s.cmd[i] = game.armed ? clamp(m[i] - cut, 0, 1) : 0;
     // Liegt sie ruhig am Boden (Gas unten, Sticks mittig): Leerlauf wie beim eigenen Regler. Sonst regelt Betaflight
-    // (Airmode) nach der Landung gegen den Boden, oft mit verschätzter Lage, und kippt die Drohne um. Echte Piloten
-    // schalten dafür nach der Landung unscharf.
+    // (Airmode) nach der Landung gegen den Boden. Echte Piloten schalten dafür nach der Landung unscharf.
     if (rest && game.armed) for (let i = 0; i < 4; i++) s.cmd[i] = PHYS.idle;
   }
   // Turtle-Modus (Betaflight "Flip over after crash"), schaltet sich von selbst ein:
@@ -297,22 +290,18 @@ export function step(h) {
     MOTORS.forEach(([mx, mz], i) => { const k = clamp(mz*sz - mx*sx, 0, 1); s.cmd[i] = k > 0.05 ? 0.15 + 0.35*k : 0; });   // Ton und Propeller
     s.wi[0] = s.wi[1] = s.wi[2] = 0;
   }
-  // ESC-Verzögerung: Der Motor bekommt den Befehl von vor PHYS.escDelay. Kürzer als ein Physikschritt (4,2 ms),
-  // deshalb zwischen dem letzten und dem jetzigen Befehl gemischt (lineare Näherung einer Totzeit).
-  const kd = Math.min(1, PHYS.escDelay/h), ue = s.cmd.map((c, i) => c + (s.cmdPrev[i] - c)*kd);
-  s.cmdPrev = s.cmd.slice();
   const E = BAT.cells*cellOcv(1 - s.mah/BAT.cap) - s.vrc;
   let su2 = 0, sue = 0;
-  for (let i = 0; i < 4; i++) { su2 += ue[i]*ue[i]; sue += ue[i]*mc.ke*s.om[i]; }
+  for (let i = 0; i < 4; i++) { su2 += s.cmd[i]*s.cmd[i]; sue += s.cmd[i]*mc.ke*s.om[i]; }
   const Vb = Math.max(0, (E - BAT.ri*(1 - sue/mc.rm))/(1 + BAT.ri*su2/mc.rm));
   let ibat = 1.0;   // Grundlast Elektronik, Kamera, Sender in A (Schätzung)
   const domega = [0, 0, 0, 0];
   for (let i = 0; i < 4; i++) {
-    const I = (ue[i]*Vb - mc.ke*s.om[i])/mc.rm;
+    const I = (s.cmd[i]*Vb - mc.ke*s.om[i])/mc.rm;
     const q = mc.ke*(I - mc.i0*Math.sign(s.om[i])) - mc.kQ*s.om[i]*s.om[i];
     domega[i] = q/mc.J;
     s.om[i] = Math.max(0, s.om[i] + domega[i]*h);
-    ibat += ue[i]*I;
+    ibat += s.cmd[i]*I;
     s.mot[i] = s.om[i]/wFull;
   }
   ibat = Math.max(0, ibat);
@@ -352,7 +341,7 @@ export function step(h) {
     if (s.grounded) { s.v[0] *= kf; s.v[2] *= kf; }
   }
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
-  s.wq = w.slice();   // Drehrate, mit der die Lage in diesem Schritt gedreht wurde: das misst der Kreisel (Bodenstöße danach bremsen s.w)
+  s.wq = w.slice();   // nur für Betaflight: Drehrate, mit der die Lage gedreht wurde (Kreisel), siehe bf.js
 
   // 6. Kräfte: Schub, Schwerkraft, Rotorwiderstand (quer zum Rotor, ~ Drehzahl), Rumpfwiderstand nach Lage
   const upN = qRot(s.q, [0,1,0]);
@@ -362,12 +351,6 @@ export function step(h) {
   const bd = 0.5*PHYS.rho*(PHYS.cdaF*(1 - cAx) + PHYS.cdaT*cAx)*sp/PHYS.mass;
   const acc = [0, 0, 0];
   for (let i = 0; i < 3; i++) acc[i] = upN[i]*aT - vPerp[i]*rd - s.v[i]*bd;
-  // Druckpunkt über dem Schwerpunkt: Der Luftwiderstand des Rahmens greift oben an und dreht die Drohne gegen die
-  // Flugrichtung, im schnellen Vorwärtsflug hebt sich die Nase leicht (Pendelmoment). Moment = r x F, ins Körpersystem gedreht.
-  // Nur der Rahmen-Widerstand wie in SimITL; der Rotorwiderstand bleibt im Schwerpunkt.
-  const Fd = [0, 1, 2].map(i => -s.v[i]*bd*PHYS.mass);
-  const Mcp = qRot([-s.q[0], -s.q[1], -s.q[2], s.q[3]], vCross(vScale(upN, PHYS.cpY*PHYS.size), Fd));
-  for (let i = 0; i < 3; i++) s.w[i] += Mcp[i]/PHYS.I[i]*h;
   acc[1] -= PHYS.g;
   s.v = vAdd(s.v, vScale(acc, h));
   const prev = s.p;
