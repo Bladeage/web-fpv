@@ -13,7 +13,8 @@ import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
-import { mapInit, mapOpen } from './mapui.js';
+import { mapInit, mapOpen, mapDraw } from './mapui.js';
+import { srcInit, srcOpen } from './srcui.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 
 export const $ = id => document.getElementById(id);
@@ -158,6 +159,7 @@ export function show(name) {
   document.querySelectorAll('#menu section').forEach(s => { s.hidden = s.dataset.screen !== name; });
   syncMenu();
   menu.scrollTop = 0;
+  if (name === 'map') requestAnimationFrame(mapDraw);   // Quellen können sich geändert haben (grüne Länder)
   const f = document.querySelector(`#menu section[data-screen="${name}"] .primary:not([hidden])`);
   if (f) f.focus({ preventScroll: true });
   fitPanel();
@@ -179,7 +181,7 @@ async function rwLive() {
   rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen';
   const t0 = performance.now();
   try {
-    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = 'Lade ' + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal);
+    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg);
     $('rwMsg').textContent = '';
     return true;
   } catch (e) {
@@ -190,6 +192,22 @@ async function rwLive() {
     if ($('rwMsg').textContent === '') { syncMenu(); $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
     fitPanel();
   }
+}
+// Luftbilder mehrerer Quellen (Landesgrenze) zusammensetzen: erst ein Bild als Grund, darüber je Quelle ihre Zellen.
+// imgs: JPEG/PNG-Bytes je Quelle (oder null), cells: Quelle je Zelle (RW_CELLS²). Ergebnis: JPEG-Bytes.
+async function mergeImg(imgs, cells) {
+  const bm = await Promise.all(imgs.map(b => b ? createImageBitmap(new Blob([b])).catch(() => null) : null)), first = bm.find(Boolean);
+  if (!first) return null;
+  const N = first.width, C = Math.round(Math.sqrt(cells.length)), cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const c = cv.getContext('2d'), k = N/C;
+  c.drawImage(first, 0, 0, N, N);
+  bm.forEach((b, i) => {
+    if (!b) return;
+    c.save(); c.beginPath();
+    for (let j = 0; j < C; j++) for (let x = 0; x < C; x++) if (cells[j*C + x] === i) c.rect(x*k, j*k, k + 0.5, k + 0.5);
+    c.clip(); c.drawImage(b, 0, 0, N, N); c.restore();
+  });
+  return new Uint8Array(await (await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
 }
 const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
 async function start() {
@@ -213,6 +231,8 @@ $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 
 $('rwGo').addEventListener('click', () => rwLive());
 // Karte (L2): Punkt wählen, übernehmen lädt sofort
 $('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
+srcInit(show);
+$('mapSrc').addEventListener('click', () => srcOpen());
 mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwLive(); }, () => fitPanel());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;

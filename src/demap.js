@@ -41,3 +41,11 @@ export const mapClamp = v => ({ E: Math.min(DE_BOX[2], Math.max(DE_BOX[0], v.E))
 export function mapFitGermany(w, h) {
   return { E: (DE_BOX[0] + DE_BOX[2])/2, N: (DE_BOX[1] + DE_BOX[3])/2, s: Math.max((DE_BOX[2] - DE_BOX[0])/w, (DE_BOX[3] - DE_BOX[1])/h)*1.02 };
 }
+// Rechteck eines Landes (UTM 32, m) mit Rand in m, oder null
+export function deLandBox(name, pad = 2000) {
+  const m = deMap(), l = m && m.lands.find(x => x.name === name);
+  if (!l) return null;
+  let b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const r of l.rings) for (const [x, y] of r) b = [Math.min(b[0], x*100), Math.min(b[1], y*100), Math.max(b[2], x*100), Math.max(b[3], y*100)];
+  return [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+}

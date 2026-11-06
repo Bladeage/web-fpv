@@ -99,24 +99,64 @@ export function bldClass(fn) {
   return 0;
 }
 
-// Gebiet laden und packen. a: { bbox, crs, startNear [E, N], name, place, attribution }, src: Quelle (siehe RW_SOURCES).
-// get(url) liefert ein Uint8Array (oder wirft); text(url) liefert Text oder null (Kachel fehlt). say(Schritt, Anteil 0..1).
-export async function rwFetchArea(a, src, get, text, say = () => {}) {
-  const n = a.n || RW_GRIDN, buf = u8 => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+// Gebiet laden und packen. a: { bbox, crs, startNear [E, N], name, place, attribution }, src: Quelle oder Liste von Quellen
+// (erste = Hauptquelle, alle im selben Koordinatensystem). get(url) liefert ein Uint8Array (oder wirft); text(url) liefert Text
+// oder null (Kachel fehlt). say(Schritt, Anteil 0..1).
+// Mehrere Quellen (Landesgrenze, L3): opt.cells = Raster RW_CELLS² mit der Nummer der Quelle je Zelle (rwCellSources). Höhen und
+// Oberfläche: je Bildpunkt die Quelle seiner Zelle, fehlt dort ein Wert, die nächste mit Wert. Gebäude: aus der Quelle der Zelle,
+// in der ihre Mitte liegt. Luftbild: opt.mergeImg(bilder, cells) setzt im Browser zusammen; ohne sie nur die Hauptquelle.
+export const RW_CELLS = 64;
+export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
+  const srcs = Array.isArray(src) ? src : [src], multi = srcs.length > 1 && opt.cells;
+  const n = a.n || RW_GRIDN, buf = u8 => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength), C = RW_CELLS;
+  const cellOf = (i, j) => opt.cells[Math.floor(j*C/n)*C + Math.floor(i*C/n)];
+  // Raster aus allen Quellen zusammensetzen (ungültig: kein Zahlwert, Füllwert, unter -1000 m)
+  const raster = async (key, what) => {
+    const got = [];
+    for (const s of multi ? srcs : srcs.slice(0, 1)) {
+      if (!s[key]) { got.push(null); continue; }
+      const t = readTiff(buf(await get(wcsUrl(s[key], a.bbox, a.crs, n))));
+      if (t.w !== n || t.h !== n) throw new Error(what + 'raster ' + t.w + 'x' + t.h + ' statt ' + n);
+      got.push(t);
+    }
+    if (!multi) return got[0];
+    const bad = (t, k) => !t || !isFinite(t.data[k]) || t.data[k] === t.nodata || t.data[k] < -1000;
+    const first = got.find(t => t), out = { w: n, h: n, nodata: first ? first.nodata : NaN, data: new Float32Array(n*n) };
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j*n + i, c = cellOf(i, j);
+      let t = c >= 0 && !bad(got[c], k) ? got[c] : got.find(g => !bad(g, k));
+      out.data[k] = t ? t.data[k] : NaN;
+    }
+    return out;
+  };
   say('Höhen', 0);
-  const dgm = readTiff(buf(await get(wcsUrl(src.dgm, a.bbox, a.crs, n))));
-  if (dgm.w !== n || dgm.h !== n) throw new Error('Höhenraster ' + dgm.w + 'x' + dgm.h + ' statt ' + n);
+  const dgm = await raster('dgm', 'Höhen');
+  if (!dgm) throw new Error('Quelle ohne Höhen (WCS)');
   say('Oberfläche (Bäume)', 0.1);
-  const dom = src.dom ? readTiff(buf(await get(wcsUrl(src.dom, a.bbox, a.crs, n)))).data : null;
+  const domR = srcs[0].dom || multi ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
   say('Luftbild', 0.2);
-  const dop = src.dop ? await get(wmsUrl(src.dop, a.bbox, a.crs, a.dopN || RW_DOPN)) : null;
+  let dop = null;
+  if (multi && opt.mergeImg) {
+    const imgs = [];
+    for (const s of srcs) imgs.push(s.dop ? await get(wmsUrl(s.dop, a.bbox, a.crs, a.dopN || RW_DOPN)).catch(() => null) : null);
+    dop = await opt.mergeImg(imgs, opt.cells);
+  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN));
   const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3];
-  const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] }, tiles = src.lod2 ? lod2Urls(src.lod2, a.bbox) : [];
-  for (let k = 0; k < tiles.length; k++) {
-    say('Gebäude ' + (k + 1) + ' von ' + tiles.length, 0.45 + 0.45*k/tiles.length);
-    const xml = await text(tiles[k]);
+  // Gebäude: je Quelle ihre Kacheln; bei mehreren nur Gebäude, deren Mitte in einer Zelle dieser Quelle liegt
+  const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
+  const jobs = [];
+  (multi ? srcs : srcs.slice(0, 1)).forEach((s, si) => { if (s.lod2) for (const u of lod2Urls(s.lod2, a.bbox)) jobs.push([si, u]); });
+  for (let k = 0; k < jobs.length; k++) {
+    const [si, u] = jobs[k];
+    say('Gebäude ' + (k + 1) + ' von ' + jobs.length, 0.45 + 0.45*k/jobs.length);
+    const keep = !multi ? inBox : (e, nn) => {
+      if (!inBox(e, nn)) return false;
+      const i = (e - a.bbox[0])/(a.bbox[2] - a.bbox[0])*n, j = (a.bbox[3] - nn)/(a.bbox[3] - a.bbox[1])*n, c = cellOf(Math.min(n - 1, i), Math.min(n - 1, j));
+      return c === si || (c < 0 && si === 0);
+    };
+    const xml = await text(u);
     if (!xml) continue;   // Kachel ohne Gebäude
-    const o = readLod2(xml, inBox), base = bld.info.length;
+    const o = readLod2(xml, keep), base = bld.info.length;
     // Schleifen statt push(...liste): große Kacheln (Innenstadt) sprengen sonst im Browser den Aufrufstapel
     for (const x of o.roof) bld.roof.push(x);
     for (const x of o.wall) bld.wall.push(x);
@@ -125,7 +165,51 @@ export async function rwFetchArea(a, src, get, text, say = () => {}) {
     for (const i of o.wallId) bld.wallId.push(i + base);
   }
   say('Bäume', 0.92);
-  return rwPack(a, dgm, dom, bld, dop);
+  const p = rwPack(a, dgm, dom, bld, dop);
+  p.meta.attribution = [...new Set(srcs.map(s => s.attribution).filter(Boolean))].join('; ');
+  return p;
+}
+// Quelle je Zelle (RW_CELLS² über dem Gebiet): Land der Zellmitte -> Nummer der Quelle dieses Landes in srcs, sonst -1.
+// toLand(E, N) liefert das Land für einen Punkt im Koordinatensystem des Gebiets.
+export function rwCellSources(a, srcs, toLand) {
+  const C = RW_CELLS, out = new Int8Array(C*C), w = a.bbox[2] - a.bbox[0], h = a.bbox[3] - a.bbox[1];
+  for (let j = 0; j < C; j++) for (let i = 0; i < C; i++) {
+    const land = toLand(a.bbox[0] + (i + 0.5)*w/C, a.bbox[3] - (j + 0.5)*h/C);
+    out[j*C + i] = srcs.findIndex(s => s.land && s.land === land);
+  }
+  return out;
+}
+// Prüfen einer Quelle an einem Punkt (UTM im System der Quelle): kleine Abrufe je Ebene. Rückgabe [{ was, ok, text }].
+export async function rwCheckSource(s, E, N, get, text) {
+  const bb = [Math.round(E) - 100, Math.round(N) - 100, Math.round(E) + 100, Math.round(N) + 100], out = [];
+  const run = async (was, fn) => { try { out.push({ was, ok: true, text: await fn() }); } catch (e) { out.push({ was, ok: false, text: String(e.message || e) }); } };
+  const tif = async svc => { const b = await get(wcsUrl(svc, bb, s.crs, 16)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+    const ok = [...t.data].filter(v => isFinite(v) && v !== t.nodata && v > -1000); if (!ok.length) throw new Error('nur Füllwerte (Ort außerhalb?)');
+    return 'Höhe ' + ok[0].toFixed(1) + ' m'; };
+  if (s.dgm) await run('Höhen', () => tif(s.dgm)); else out.push({ was: 'Höhen', ok: false, text: 'fehlt (nötig)' });
+  if (s.dom) await run('Oberfläche', () => tif(s.dom));
+  if (s.dop) await run('Luftbild', async () => { const b = await get(wmsUrl(s.dop, bb, s.crs, 64)); if (!(b[0] === 0xff && b[1] === 0xd8) && !(b[0] === 0x89 && b[1] === 0x50)) throw new Error('kein Bild'); return (b.length/1024).toFixed(0) + ' KB Bild'; });
+  if (s.lod2) await run('Gebäude', async () => { const u = lod2Urls(s.lod2, bb)[0], t = await text(u); if (t === null) return 'keine Kachel an diesem Ort (' + u.split('/').pop() + ')';
+    if (!/CityModel/.test(t.slice(0, 5000))) throw new Error('kein CityGML'); return 'Kachel erreichbar (' + u.split('/').pop() + ')'; });
+  return out;
+}
+// Eigene Quellen aus einer Datei lesen (Export dieses Programms). Prüft die nötigen Felder. Rückgabe { sources, errors }.
+export function rwSourcesParse(json) {
+  let d; try { d = JSON.parse(json); } catch (e) { return { sources: [], errors: ['keine gültige Datei (JSON)'] }; }
+  const list = Array.isArray(d) ? d : d && Array.isArray(d.sources) ? d.sources : null;
+  if (!list) return { sources: [], errors: ['keine Quellenliste gefunden'] };
+  const ok = [], errors = [], url = u => typeof u === 'string' && /^https?:\/\//.test(u);
+  list.forEach((s, i) => {
+    const e = [];
+    if (!s || typeof s.name !== 'string' || !s.name) e.push('Name fehlt');
+    if (!s || !['EPSG:25832', 'EPSG:25833'].includes(s.crs)) e.push('Koordinatensystem nur EPSG:25832 oder EPSG:25833');
+    if (!s || !s.dgm || !url(s.dgm.url) || !s.dgm.coverage) e.push('Höhen (WCS-Adresse und Coverage) fehlen');
+    for (const k of ['dom', 'dop', 'lod2']) if (s && s[k] && !url(s[k].url)) e.push(k + ': Adresse ungültig');
+    if (s && s.lod2 && !/\{E\}/.test(s.lod2.url)) e.push('Gebäude: Muster braucht {E} und {N}');
+    if (e.length) errors.push('Quelle ' + (i + 1) + ': ' + e.join(', '));
+    else ok.push({ id: s.id || 'eigen-' + i, name: s.name, land: s.land || '', crs: s.crs, dgm: s.dgm, dom: s.dom || null, dop: s.dop || null, lod2: s.lod2 || null, attribution: s.attribution || s.name });
+  });
+  return { sources: ok, errors };
 }
 // Packen wie die eingebetteten Dateien: Höhen 16 Bit in dm über dem tiefsten Punkt; Gebäude als 16 Bit in dm
 // (Kartenkoordinaten: Mitte = Ursprung, x nach Osten, z nach Süden, y über dem Startplatz), erst Dächer, dann Wände,

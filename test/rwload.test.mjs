@@ -81,3 +81,94 @@ test('L1: Fehler beim Laden werden verständlich gemeldet, das alte Gebiet bleib
     assert.equal(rw.ver, ver, 'kein halbes Gebiet übernommen');
   } finally { globalThis.fetch = old; }
 });
+
+// ---- L3: eigene Quellen, mehrere Quellen an einer Grenze ----
+import { rwCellSources, rwCheckSource, rwSourcesParse, RW_CELLS } from '../src/rwload.js';
+import { rwPlan, rwSources } from '../src/realworld.js';
+import { deSetMap, deLandAt } from '../src/demap.js';
+import { readTiff } from '../src/geo.js';
+
+// Kleines TIFF ohne Kompression (Gleitkomma), wie es ein WCS liefern kann
+function makeTiff(n, val, nodata = -9999) {
+  const nd = Buffer.from(String(nodata) + '\0'), tags = [[256, 4, 1, n], [257, 4, 1, n], [258, 3, 1, 32], [259, 3, 1, 1], [262, 3, 1, 1], [273, 4, 1, 0], [277, 3, 1, 1], [278, 4, 1, n], [279, 4, 1, n*n*4], [339, 3, 1, 3], [42113, 2, nd.length, 0]];
+  const ifd = 8, ndOff = ifd + 2 + tags.length*12 + 4, dataOff = ndOff + nd.length + (nd.length % 2), b = Buffer.alloc(dataOff + n*n*4);
+  b.write('II', 0); b.writeUInt16LE(42, 2); b.writeUInt32LE(ifd, 4); b.writeUInt16LE(tags.length, ifd);
+  tags.forEach(([t, ty, c, v], k) => { const o = ifd + 2 + k*12; b.writeUInt16LE(t, o); b.writeUInt16LE(ty, o + 2); b.writeUInt32LE(c, o + 4);
+    if (t === 273) b.writeUInt32LE(dataOff, o + 8); else if (t === 42113) b.writeUInt32LE(ndOff, o + 8); else if (ty === 3) b.writeUInt16LE(v, o + 8); else b.writeUInt32LE(v, o + 8); });
+  nd.copy(b, ndOff);
+  for (let k = 0; k < n*n; k++) b.writeFloatLE(typeof val === 'function' ? val(k % n, Math.floor(k/n)) : val, dataOff + k*4);
+  return new Uint8Array(b);
+}
+const srcA = { id: 'a', name: 'Quelle A', land: 'Nordrhein-Westfalen', crs: 'EPSG:25832', dgm: { url: 'https://a.test/wcs', coverage: 'dgm' }, dop: { url: 'https://a.test/wms', layer: 'dop' }, lod2: { url: 'https://a.test/LoD2_{E}_{N}.gml', tileKm: 1 }, attribution: 'A-Lizenz' };
+const srcB = { id: 'b', name: 'Quelle B', land: 'Niedersachsen', crs: 'EPSG:25832', dgm: { url: 'https://b.test/wcs', coverage: 'dgm' }, lod2: { url: 'https://b.test/LoD2_{E}_{N}.gml', tileKm: 1 }, attribution: 'B-Lizenz' };
+
+test('L3: eigenes TIFF wird gelesen (Testhilfe)', () => {
+  const t = readTiff(makeTiff(8, (i, j) => i + 10*j).buffer);
+  assert.equal(t.w, 8); assert.equal(t.data[8*3 + 2], 32); assert.equal(t.nodata, -9999);
+});
+
+test('L3: zwei Quellen an einer Grenze: Höhen je Zelle, Lücken aus der anderen, Gebäude nach Land', async () => {
+  const n = 32, a = { ...rwAreaAt(305000, 5604000, srcA), n, place: 'Grenze' };
+  const cells = new Int8Array(RW_CELLS*RW_CELLS).map((_, k) => (k % RW_CELLS) < RW_CELLS/2 ? 0 : 1);   // links A, rechts B
+  // A: 100 m, aber in Spalte 3 Füllwert (Lücke); B: 200 m
+  const get = async u => u.startsWith('https://a.test/wcs') ? makeTiff(n, (i) => i === 3 ? -9999 : 100) : u.startsWith('https://b.test/wcs') ? makeTiff(n, 200) : new Uint8Array([0xff, 0xd8]);
+  // Je Quelle ein Haus links (bei 304600) und eins rechts (bei 305300); B liefert beide, A auch
+  const house = (e0, n0, fn) => gml(e0, n0).replace('31001_2700', fn);
+  const text = async u => u.includes('_305_5604') ? `<core:CityModel>${house(304600, 5604000, u.startsWith('https://a') ? '31001_1000' : '31001_1100').replace(/<\/?core:CityModel>/g, '')}${house(305300, 5604000, u.startsWith('https://a') ? '31001_1000' : '31001_1100').replace(/<\/?core:CityModel>/g, '')}</core:CityModel>` : null;
+  let merged = null;
+  const p = await rwFetchArea(a, [srcA, srcB], get, text, () => {}, { cells, mergeImg: async (imgs, c) => { merged = [imgs.length, c === cells]; return new Uint8Array([0xff, 0xd8, 1]); } });
+  const q = p.q, lo = p.meta.hMin, h = k => lo + q[k]*0.1;
+  assert.equal(lo, 100);
+  assert.ok(Math.abs(h(5*n + 1) - 100) < 1e-6, 'links: A');
+  assert.ok(Math.abs(h(5*n + 3) - 200) < 1e-6, 'Lücke in A: aus B gefüllt');
+  assert.ok(Math.abs(h(5*n + 30) - 200) < 1e-6, 'rechts: B');
+  assert.deepEqual(merged, [2, true], 'Luftbilder beider Quellen zusammengesetzt');
+  assert.equal(p.meta.buildings, 2, 'je Haus nur einmal (links aus A, rechts aus B)');
+  const nt = p.meta.roofTris + p.meta.wallTris, cls = [...p.b16.slice(nt*10, nt*10 + 2)].map(v => v & 15).sort();
+  assert.deepEqual(cls, [0, 1], 'Wohnhaus aus A (links), Wohnhaus mit Laden aus B (rechts)');
+  assert.equal(p.meta.attribution, 'A-Lizenz; B-Lizenz');
+});
+
+test('L3: Quelle prüfen (Höhen, Luftbild, Gebäude) mit verständlichen Ergebnissen', async () => {
+  const ok = await rwCheckSource(srcA, 305000, 5604000, async u => u.includes('wcs') ? makeTiff(16, 321.5) : new Uint8Array([0xff, 0xd8, 0, 0]), async () => '<core:CityModel>x</core:CityModel>');
+  assert.deepEqual(ok.map(r => [r.was, r.ok]), [['Höhen', true], ['Luftbild', true], ['Gebäude', true]]);
+  assert.match(ok[0].text, /321\.5/);
+  const bad = await rwCheckSource(srcA, 305000, 5604000, async u => { if (u.includes('wcs')) return makeTiff(16, -9999); throw new Error('Keine Verbindung zu a.test'); }, async () => null);
+  assert.deepEqual(bad.map(r => r.ok), [false, false, true]);
+  assert.match(bad[0].text, /Füllwerte/); assert.match(bad[1].text, /Keine Verbindung/); assert.match(bad[2].text, /keine Kachel/);
+});
+
+test('L3: Quellen-Datei lesen: gültige übernehmen, Fehler benennen', () => {
+  const r = rwSourcesParse(JSON.stringify({ format: 'fpvsim-quellen', version: 1, sources: [srcB, { name: 'Ohne Höhen', crs: 'EPSG:25832' }, { ...srcB, name: 'Falsches Muster', lod2: { url: 'https://x/lod2.gml' } }, { ...srcB, name: 'GK', crs: 'EPSG:31466' }] }));
+  assert.deepEqual(r.sources.map(s => s.name), ['Quelle B']);
+  assert.equal(r.errors.length, 3);
+  assert.match(r.errors.join(' '), /Höhen .* fehlen/); assert.match(r.errors.join(' '), /\{E\} und \{N\}/); assert.match(r.errors.join(' '), /EPSG:25832 oder EPSG:25833/);
+  assert.deepEqual(rwSourcesParse('kein json').errors, ['keine gültige Datei (JSON)']);
+});
+
+test('L3: Planung an echten Grenzen: Nachbarland dazu, anderes Koordinatensystem außen vor', () => {
+  deSetMap(JSON.parse(readFileSync(new URL('../realworld/germany.json', import.meta.url), 'utf8')));
+  rw.userSources = [];
+  const nds = { ...srcB, id: 'nds' }, sn = { ...srcB, id: 'sn', name: 'Sachsen', land: 'Sachsen', crs: 'EPSG:25833' }, th = { ...srcB, id: 'th', name: 'Thüringen', land: 'Thüringen' };
+  // Grenze NRW / Niedersachsen bei Rahden (52.43, 8.62): ohne eigene Quelle nur NRW, mit Niedersachsen beide
+  let plan = rwPlan(52.43, 8.62);
+  assert.ok(plan === null || plan.srcs.every(s => s.id === 'nrw'));
+  rw.userSources = [nds];
+  // Grenze suchen: von Minden (NRW) nach Norden, bis das Land wechselt
+  const land = (la, lo) => deLandAt(...toUtm(la, lo));
+  let la = 52.29; while (la < 52.7 && land(la, 8.92) === 'Nordrhein-Westfalen') la += 0.001;
+  assert.equal(land(la, 8.92), 'Niedersachsen');
+  plan = rwPlan(la - 0.001, 8.92);
+  assert.ok(plan, 'Punkt an der Grenze gefunden');
+  assert.deepEqual(plan.srcs.map(s => s.id).sort(), ['nds', 'nrw']);
+  const cells = rwCellSources(plan.area, plan.srcs, plan.toLand);
+  assert.ok(cells.includes(0) && cells.includes(1), 'beide Quellen haben Zellen');
+  // Grenze Thüringen (UTM 32) / Sachsen (UTM 33): Sachsen bleibt außen vor
+  rw.userSources = [th, sn];
+  let lo = 12.0; while (lo < 12.6 && land(50.85, lo) !== 'Sachsen') lo += 0.001;   // von Thüringen nach Osten bis Sachsen
+  const p2 = rwPlan(50.85, lo - 0.001);
+  assert.ok(p2, 'Grenzpunkt TH/SN gefunden');
+  assert.deepEqual([p2.srcs[0].crs, p2.skipped[0].crs].sort(), ['EPSG:25832', 'EPSG:25833']);
+  assert.ok(rwSources().find(s => s.id === 'sn').box[2] > 800000, 'Rechteck aus dem Land berechnet');
+  rw.userSources = [];
+});

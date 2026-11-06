@@ -474,4 +474,5 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Live-Quellen geplant (L1 bis L5) und L1 erledigt (06.11.2026, Prompt 106): Ort in NRW per Koordinate laden. Siehe `docs/echte-welt.md`.
 - L2 erledigt (06.11.2026, Prompt 107/108): Deutschlandkarte zum Auswählen. Siehe `docs/echte-welt.md`.
 - Propeller im Kamerabild ganz statt angeschnitten (06.11.2026, Prompt 109): eigener Durchgang, Kamera fest am Rahmen hinter und unter den vorderen Propellern (render.js, drawPropsFpv).
+- L3 erledigt (06.11.2026, Prompt 109): eigene Quellen, Prüfen, Import/Export, mehrere Quellen an Landesgrenzen. Siehe `docs/echte-welt.md`.
 - 3D-Mesh M1 erledigt (06.11.2026), siehe `docs/echte-welt.md`. Nächste Etappe M2 (Nachladen).

@@ -4,13 +4,13 @@
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
-import { rwSourceAt, rwAreaAt, rwFetchArea } from './rwload.js';
-import { deLandAt, deMap } from './demap.js';
+import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwCellSources } from './rwload.js';
+import { deLandAt, deMap, deLandBox } from './demap.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [] };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -30,13 +30,30 @@ export function rwApply(p, x = {}) {
   rw.on = on; rw.ver++;
   return rw;
 }
-// Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (Etappe L1, bisher Quellen für NRW in UTM 32).
-// say(Schritt, Anteil) meldet den Fortschritt; signal bricht ab. Bei Fehler bleibt das alte Gebiet erhalten.
-export async function rwLoadLive(lat, lon, say = () => {}, signal) {
-  const [E, N] = toUtm(lat, lon, 32), src = rwSourceAt(E, N, undefined, deMap() ? deLandAt : null);
-  if (!src) throw new Error('Für diesen Ort ist keine Quelle hinterlegt (bisher nur NRW).');
-  const a = rwAreaAt(E, N, src);
-  a.place = lat.toFixed(5) + ', ' + lon.toFixed(5);
+// Alle Quellen: eigene (rw.userSources, aus den Einstellungen) zuerst, dann die Vorlagen. Rechteck aus dem Land, falls keins da ist.
+export function rwSources() {
+  return [...rw.userSources, ...RW_SOURCES].map(s => s.box ? s : { ...s, box: deLandBox(s.land) || [0, 0, 0, 0] });
+}
+const zoneOf = s => s.crs === 'EPSG:25833' ? 33 : 32;
+// Quellen für ein Gebiet um Breite/Länge: Hauptquelle am Mittelpunkt, dazu die Quellen der Länder, die das Gebiet
+// berührt (Probe auf 5 x 5 Punkten), im selben Koordinatensystem. Rückgabe { srcs, area, skipped } oder null.
+export function rwPlan(lat, lon, list = rwSources()) {
+  const land = deMap() ? deLandAt : null, [E32, N32] = toUtm(lat, lon, 32), main = rwSourceAt(E32, N32, list, land);
+  if (!main) return null;
+  const z = zoneOf(main), [E, N] = toUtm(lat, lon, z), area = rwAreaAt(E, N, main);
+  area.place = lat.toFixed(5) + ', ' + lon.toFixed(5);
+  const to32 = (e, n) => { const [la, lo] = fromUtm(e, n, z); return toUtm(la, lo, 32); };
+  const srcs = [main], skipped = [];
+  if (land) for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) {
+    const p = to32(area.bbox[0] + i*250, area.bbox[1] + j*250), s = rwSourceAt(p[0], p[1], list, land);
+    if (!s || srcs.includes(s) || skipped.includes(s)) continue;
+    (zoneOf(s) === z ? srcs : skipped).push(s);
+  }
+  return { srcs, area, skipped, toLand: (e, n) => land ? land(...to32(e, n)) : null };
+}
+// Abrufe für das Laden und Prüfen: get(url) -> Bytes, text(url) -> Text oder null (404). Fehler verständlich:
+// keine Verbindung (offline oder gesperrt), Dienst antwortet mit Fehlercode, Dienst meldet Fehler als XML, Abbruch.
+export function rwNet(signal) {
   const host = u => u.split('/')[2];
   const go = async u => {
     try { return await fetch(u, { signal }); }
@@ -50,9 +67,21 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal) {
     return b;
   };
   const text = async u => { const r = await go(u); if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return r.text(); };
-  const p = await rwFetchArea(a, src, get, text, say);
+  return { get, text };
+}
+// Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (L1, mehrere Quellen L3).
+// say(Schritt, Anteil) meldet den Fortschritt; signal bricht ab; mergeImg setzt Luftbilder an Grenzen zusammen (Browser).
+// Bei Fehler bleibt das alte Gebiet erhalten.
+export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null) {
+  const plan = rwPlan(lat, lon);
+  if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
+  const { srcs, area: a } = plan;
+  if (plan.skipped.length) say('Hinweis: ' + plan.skipped.map(s => s.name).join(', ') + ' nutzt ein anderes Koordinatensystem und bleibt außen vor', 0);
+  const { get, text } = rwNet(signal);
+  const opt = srcs.length > 1 ? { cells: rwCellSources(a, srcs, plan.toLand), mergeImg } : {};
+  const p = await rwFetchArea(a, srcs, get, text, say, opt);
   rwApply(p, { live: true });
-  rw.liveAt = [lat, lon];
+  rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name);
   return rw;
 }
 // Eingebettete Daten im Browser entpacken (DecompressionStream, Bordmittel). Werkzeug und Tests nutzen zlib direkt.

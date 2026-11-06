@@ -152,6 +152,17 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Quelle gilt nur im eigenen Land (gesichert, Test): Das Rechteck der NRW-Quelle reicht bis Belgien und Niedersachsen; mit Karte prüft rwSourceAt das Land.
 - Geprüft: Logik in Node (Land an bekannten Orten, Ausland, Zoom hält den Punkt), Ablauf im Browser (Klick bei Aachen, Laden 17 bis 20 s), Menü passt auf allen vier Größen, auch nach der Auswahl.
 
+## L3: Eigene Quellen (erledigt 06.11.2026, Prompt 109)
+
+- Menü: Karte → „Quellen“. Liste mit eigenen Quellen und Vorlagen (NRW). „Neu“, „Kopie“ (Vorlage als Muster), „Bearbeiten“, „Importieren“, „Exportieren“ (Datei `fpv-quellen.json`, Format `fpvsim-quellen` Version 1).
+- Formular: Name, Bundesland, Koordinatensystem (UTM 32 oder 33), Höhen (WCS, nötig), Oberfläche für Bäume (WCS), Luftbild (WMS), Gebäude LoD2 (Muster mit {E} {N} in km, Kachelgröße), Quellenvermerk. „Prüfen“ macht kleine Abrufe je Ebene am gewählten Ort oder in der Landesmitte und meldet je Ebene ok oder den Fehler (Gebäude nur als Teilabruf der ersten 5 KB). „Speichern“ prüft die Pflichtfelder.
+- Eigene Quellen liegen im Browser (Einstellungen) und gelten vor den Vorlagen. Das Rechteck einer Quelle kommt aus dem Umriss ihres Landes.
+- Landesgrenze: Hauptquelle am Mittelpunkt; dazu jede Quelle eines Landes, das das Gebiet berührt (Probe auf 5 x 5 Punkten), wenn sie dasselbe Koordinatensystem hat. Andere (UTM 32 neben 33, etwa Thüringen/Sachsen) bleiben außen vor, mit Hinweis.
+- Zusammensetzen: Raster 64 x 64 Zellen (16 m), jede Zelle gehört der Quelle ihres Landes. Höhen und Oberfläche je Bildpunkt aus der Quelle der Zelle; fehlt dort ein Wert, aus der nächsten mit Wert. Luftbild im Browser: Canvas, je Quelle ihre Zellen. Gebäude aus der Quelle der Zelle, in der ihre Mitte liegt (keine doppelten Häuser). Quellenvermerke aller Quellen.
+- Gesichert (06.11.2026): Der NRW-Dienst liefert über die Grenze hinaus gültige Höhen und Luftbild (Dreiländereck Vaals geprüft). Ob andere Länder außen Füllwerte liefern, ist offen; das Zusammensetzen deckt beides ab.
+- Geprüft: Tests mit künstlichen Quellen (Lücke gefüllt, Gebäude je Land, Luftbild-Zusammensetzen aufgerufen), Planung an echten Grenzen (NRW/Niedersachsen bei Minden, Thüringen/Sachsen), Datei lesen mit Fehlern. Im Browser: NRW-Vorlage kopiert und geprüft; Ladetest an der Grenze NRW/Niedersachsen mit einer Testquelle (43 s). Werkzeug Monschau weiter Byte für Byte gleich.
+- Offen: echte Dienste anderer Länder sind nicht als Vorlage hinterlegt (Nutzer trägt sie ein); Mischen von UTM 32 und 33 in einem Gebiet.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

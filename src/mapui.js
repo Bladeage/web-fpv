@@ -4,7 +4,7 @@
 import { cfg } from './state.js';
 import { deMap, deLandAt, mapToScreen, mapFromScreen, mapZoom, mapClamp, mapFitGermany } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
-import { RW_SOURCES, rwSourceAt } from './rwload.js';
+import { rwSources, rwPlan } from './realworld.js';
 import { parseLatLon } from './format.js';
 
 const BASEMAP = 'https://sgx.geodatenzentrum.de/wms_basemapde?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=de_basemapde_web_raster_farbe&STYLES=&CRS=EPSG:25832&FORMAT=image/png';
@@ -29,7 +29,7 @@ export function mapDraw() {
   if (M.bm) { const [x0, y0] = P(M.bm.box[0], M.bm.box[3]), [x1, y1] = P(M.bm.box[2], M.bm.box[1]); c.drawImage(M.bm.img, x0, y0, x1 - x0, y1 - y0); }
   // Länder: mit hinterlegter Quelle grün getönt, Grenzen dunkel
   // Am Anfang nur Grenzen; das Land des gewählten Punkts hell hervorgehoben und beschriftet (Wunsch Nutzer)
-  const map = deMap(), srcLands = new Set(RW_SOURCES.map(s => s.land)), selLand = M.sel ? deLandAt(M.sel[0], M.sel[1]) : null;
+  const map = deMap(), srcLands = new Set(rwSources().map(s => s.land)), selLand = M.sel ? deLandAt(M.sel[0], M.sel[1]) : null;
   if (map) for (const l of map.lands) {
     c.beginPath();
     for (const r of l.rings) r.forEach(([x, y], i) => { const [sx, sy] = P(x*100, y*100); if (i) c.lineTo(sx, sy); else c.moveTo(sx, sy); });
@@ -74,10 +74,11 @@ function wantBasemap(w, h, dpr) {
 function info() {
   const off = M.bmErr ? ' Hintergrundkarte nicht erreichbar, nur Grenzen.' : '';
   if (!M.sel) { el('mapInfo').textContent = 'Klicke auf die Karte, um den Mittelpunkt zu setzen. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
-  const [lat, lon] = fromUtm(M.sel[0], M.sel[1]), land = deLandAt(M.sel[0], M.sel[1]), src = rwSourceAt(M.sel[0], M.sel[1], RW_SOURCES, deLandAt);
+  const [lat, lon] = fromUtm(M.sel[0], M.sel[1]), land = deLandAt(M.sel[0], M.sel[1]), plan = rwPlan(lat, lon);
   el('mapInfo').textContent = lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
-    + (src ? 'Quelle: ' + src.name : 'keine Quelle hinterlegt (eigene Quellen kommen mit Etappe L3)') + '.' + off;
-  el('mapOk').disabled = !src;
+    + (plan ? 'Quelle: ' + plan.srcs.map(x => x.name).join(' + ') + (plan.skipped.length ? ' (ohne ' + plan.skipped.map(x => x.name).join(', ') + ': anderes Koordinatensystem)' : '')
+      : 'keine Quelle hinterlegt, unter „Quellen“ eintragen') + '.' + off;
+  el('mapOk').disabled = !plan;
   layout();
 }
 // Text unter der Karte geändert: Menü neu einpassen (die Größe hängt von der Zahl der Zeilen ab), danach neu zeichnen
