@@ -103,6 +103,20 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Koordinaten: WGS84 in Grad mit 5 Stellen (etwa 1 m), zum Beispiel „50.55769N 6.24517E“. Umrechnung UTM → Breite/Länge in `src/geo.js` (`fromUtm`), im Test auf unter 1e-7 Grad genau gegen `toUtm`.
 - „E“ statt „O“ für Ost, weil O neben Ziffern wie eine Null aussieht.
 
+## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
+
+Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
+
+- basemap.de 3D Gebäude (BKG): 3D Tiles aus LoD2 für ganz Deutschland, `.glb` ohne Draco, ohne Texturen, CORS erlaubt (gesichert). Beta-Lizenz: nur im laufenden Dienst, Speichern und Einbetten verboten (gesichert). Höchstens zur Laufzeit für andere Länder.
+- basemap.de 3D Gelände DGM5: Terrain-RGB-PNG und Quantized Mesh, CORS erlaubt, gleiche Beta-Lizenz (gesichert).
+- Mapterhorn: Terrarium-WebP bis Stufe 17, CORS `*`; in NRW ist die Quelle das DGM1 NRW, weltweit Copernicus 30 m (gesichert). Gut für Gebiete außerhalb NRW (vermutet).
+- AWS Terrain Tiles: Terrarium-PNG, CORS `*` (gesichert), in Deutschland grob (vermutet).
+- Sentinel-2 cloudless (EOX): 10 m, gewerblich nur mit Lizenz (gesichert). Nur für den fernen Horizont.
+- NRW zusätzlich: LoD2 als SLPK, Landbedeckung (15 Klassen, WMS, CORS erlaubt) (gesichert).
+- ALKIS vereinfacht (WFS NRW): Gebäudefunktion (Wohnhaus, Kirche, Parkhaus, Überdachung ...), dl-de/zero, CORS erlaubt (gesichert). Nutzbar für passende Fassaden (vermutet).
+- Ortsnamen: Nominatim (höchstens 1 Anfrage je Sekunde, keine laufenden Abfragen) ungeeignet; GN250 des BKG (dl-de/by-2.0, Quellenhinweis Pflicht) als Alternative; umgesetzt sind die Ortslagen aus dem Basis-DLM (dl-de/zero).
+- Betrachter und Wandler (CesiumJS, iTowns, Giro3D, MapLibre, deck.gl, 3DTilesRendererJS, OSM2World, pg2b3dm, py3dtiles, citygml-tools): offene Lizenzen (gesichert), aber für uns nicht nötig; Java/PostGIS/Python widersprechen „nur Node-Bordmittel“. OSM2World als Ideenquelle für Dachformen (vermutet).
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.
