@@ -175,6 +175,16 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
   7. Quellen ohne Bundesland, Oberfläche ohne Coverage-ID oder Luftbild ohne Layer wurden beim Import angenommen. Jetzt abgelehnt mit Grund. Test.
 - Fortschritt beim Laden in MB (Gebäudekacheln, Luftbild). Hinweise im Menü, Hilfe und README nennen Karte und Quellen. Datenmenge Innenstadt korrigiert (siehe L1).
 
+## L4: Speichern im Browser, Gewässer und Ortsnamen (erledigt 06.11.2026, Prompt 111)
+
+- Jeder live geladene Ort wird im Browser gespeichert (IndexedDB `fpvsim-echtewelt`, Bereiche `areas`, `info`, `land`): Höhen, Gebäude, Bäume, Luftbild, Gewässer, Orte, wie die eingebetteten Daten. Monschau-Altstadt: 4 MB. Schlüssel: Breite, Länge (5 Stellen) und Namen der Quellen.
+- Modus-Seite: Auswahl „Gespeicherte Orte“ (neueste zuerst, mit Größe). Ein gespeicherter Ort öffnet ohne Netz (geprüft: Netz im Browser ganz gesperrt, 0 s). Auch „Laden“ mit gleicher Koordinate nimmt den Speicher.
+- Gewässer und Ortsnamen: Quellen mit Landesdaten (NRW: Basis-DLM, Feld `dlm`) zeigen unter Karte → Quellen → „Speicher im Browser“ die Zeile „Gewässer und Ortsnamen“: einmal laden (Teilabrufe aus dem ZIP, gew01_f.shp, sie01_f.shp, sie01_f.dbf, zusammen 60 MB, hier 6,5 s) oder löschen. Danach bekommt jeder neu geladene Ort Wasser (Absturz bei Landung) und den nächsten Ort im OSD; gespeicherte Orte bekommen es beim nächsten Öffnen. Schlüssel der Landesdaten ist die Paket-Adresse (eine Kopie der Vorlage nutzt dieselben Daten).
+- `src/rwdlm.js` (ohne DOM): ZIP-Inhaltsverzeichnis (ZIP64), Shape und DBF lesen, Gewässer rastern, Orte ausschneiden. Gesichert: Für Monschau entsteht genau dieselbe Gewässermaske und dieselbe Ortsliste wie in den eingebetteten Dateien (Werkzeuge water.mjs und features.mjs).
+- `src/rwstore.js`: Speicher; ohne Speicher (privates Fenster) lädt das Programm wie bisher nur aus dem Netz.
+- Speicher-Bereich zeigt gespeicherte Orte (einzeln löschen) und den belegten Platz (Schätzung des Browsers).
+- Geprüft: Tests mit selbst gebautem ZIP, Shapefile und DBF (Teich mit Insel, Orte im Umkreis), Laden mit Speicher ohne Netz, Landesdaten nachträglich. Im Browser der ganze Ablauf mit echten Diensten; Menüs passen auf allen vier Größen (bei „Ort laden“ ist die allgemeine Beschreibung ausgeblendet, dl-de/zero verlangt keinen Quellenvermerk).
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

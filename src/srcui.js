@@ -1,14 +1,15 @@
 /* Quellen für „Echte Welt“ (Etappe L3): Liste (Vorlagen und eigene), Formular, Prüfen, Import und Export.
    Eigene Quellen liegen in cfg.rwSources (Browser-Speicher) und gelten vor den Vorlagen (rw.userSources). */
 import { cfg, saveCfg } from './state.js';
-import { rw, rwNet } from './realworld.js';
+import { rw, rwNet, rwSources, rwLandData, rwLandHas } from './realworld.js';
+import { RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage } from './rwstore.js';
 import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { deMap } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
 
 const srcEl = id => document.getElementById(id);
-const SRC = { show: null, edit: -1, busy: null };
+const SRC = { show: null, fit: () => {}, edit: -1, busy: null };
 const SRC_FIELDS = [['sfName', 'name'], ['sfLand', 'land'], ['sfCrs', 'crs'], ['sfDgm', 'dgm.url'], ['sfDgmC', 'dgm.coverage'], ['sfDom', 'dom.url'], ['sfDomC', 'dom.coverage'],
   ['sfDop', 'dop.url'], ['sfDopL', 'dop.layer'], ['sfLod', 'lod2.url'], ['sfLodK', 'lod2.tileKm'], ['sfAttr', 'attribution']];
 const srcGetP = (o, p) => p.split('.').reduce((x, k) => x && x[k], o);
@@ -30,7 +31,40 @@ function srcList() {
   for (const s of RW_SOURCES) row(s, s.land + ' · Vorlage', 'Kopie', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
-export function srcOpen() { srcEl('srcMsg').textContent = ''; srcList(); SRC.show('sources'); }
+export function srcOpen() { srcEl('srcMsg').textContent = ''; srcList(); srcStoreFill(); SRC.show('sources'); }
+// Speicher (L4): Landesdaten je Quelle mit Basis-DLM (einmal laden oder löschen), gespeicherte Orte (löschen), belegter Platz
+async function srcStoreFill() {
+  const box = srcEl('srcStore'), rows = [];
+  const row = (title, label, btn, fn) => {
+    const r = document.createElement('div'); r.className = 'srcrow';
+    const t = document.createElement('div'), b = document.createElement('b'), sm = document.createElement('small');
+    b.textContent = title; sm.textContent = label; t.append(b, sm);
+    const k = document.createElement('button'); k.className = 'secondary'; k.textContent = btn; k.addEventListener('click', () => fn(k));
+    r.append(t, k); rows.push(r);
+  };
+  const seen = new Set();
+  for (const s of rwSources().filter(x => x.dlm && !seen.has(x.dlm.url) && seen.add(x.dlm.url))) {   // je Paket einmal
+    const has = await rwLandHas(s, RW_STORE), keys = [s.dlm.water, ...s.dlm.places].map(f => s.dlm.url + ':' + f);
+    row('Gewässer und Ortsnamen ' + (s.land || s.name), has ? 'gespeichert (Basis-DLM)' : 'einmalig etwa ' + s.dlm.mb + ' MB, danach auch offline', has ? 'Löschen' : 'Laden',
+      has ? async () => { for (const k of keys) await storeDel('land', k); srcStoreFill(); } : k => srcLand(s, k));
+  }
+  for (const x of (await storeAll('info')).sort((a, b) => b.date - a.date))
+    row(x.place, (x.size/1e6).toFixed(0) + ' MB · ' + new Date(x.date).toLocaleDateString('de-DE') + (x.water ? ' · mit Gewässern' : ''), 'Löschen', async () => { await storeAreaDel(x.key); srcStoreFill(); });
+  box.textContent = ''; box.append(...rows);
+  const u = await storeUsage();
+  srcEl('srcUse').innerHTML = '<b>Speicher im Browser</b>' + (u && u.usage ? ': ' + (u.usage/1e6).toFixed(0) + ' MB belegt' : '') + (rows.length ? '' : ' (noch leer; geladene Orte werden automatisch gespeichert)');
+  SRC.fit();   // Zeilen kamen nach dem Einpassen dazu
+}
+// Landesdaten laden (zweiter Klick bricht ab)
+async function srcLand(s, btn) {
+  if (SRC.busy) { SRC.busy.abort(); return; }
+  SRC.busy = new AbortController(); btn.textContent = 'Abbrechen';
+  try {
+    const mb = await rwLandData(s, RW_STORE, (t, f) => { srcEl('srcMsg').textContent = 'Lade ' + t + ' … ' + Math.round(f*100) + ' %'; }, SRC.busy.signal);
+    srcEl('srcMsg').textContent = 'Gewässer und Ortsnamen gespeichert (' + mb.toFixed(0) + ' MB). Sie gelten für neu geladene Orte und beim nächsten Öffnen gespeicherter Orte.';
+  } catch (e) { srcEl('srcMsg').textContent = 'Nicht geladen: ' + (e.message || e); }
+  finally { SRC.busy = null; srcStoreFill(); }
+}
 
 function srcForm(i) {
   SRC.edit = i;
@@ -93,8 +127,8 @@ async function srcImport(f) {
   cfg.rwSources = [...(cfg.rwSources || []), ...add]; srcStore(); srcList();
   srcEl('srcMsg').textContent = add.length + ' Quellen übernommen' + (r.sources.length > add.length ? ', ' + (r.sources.length - add.length) + ' schon vorhanden (gleicher Name)' : '') + (r.errors.length ? '. Nicht übernommen: ' + r.errors.join('; ') : '.');
 }
-export function srcInit(show) {
-  SRC.show = show; srcApply();
+export function srcInit(show, fit) {
+  SRC.show = show; SRC.fit = fit || SRC.fit; srcApply();
   srcEl('srcNew').addEventListener('click', () => srcForm(-1));
   srcEl('srcExp').addEventListener('click', srcExport);
   srcEl('srcImp').addEventListener('click', () => srcEl('srcFile').click());

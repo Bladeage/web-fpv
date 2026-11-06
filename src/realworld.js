@@ -6,6 +6,7 @@ import { clamp } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
 import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwCellSources } from './rwload.js';
 import { deLandAt, deMap, deLandBox } from './demap.js';
+import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
@@ -53,21 +54,22 @@ export function rwPlan(lat, lon, list = rwSources()) {
 }
 // Abrufe für das Laden und Prüfen: get(url) -> Bytes, text(url) -> Text oder null (404). Fehler verständlich:
 // keine Verbindung (offline oder gesperrt), Dienst antwortet mit Fehlercode, Dienst meldet Fehler als XML, Abbruch.
+// Antwort lesen; prog(Bytes) meldet bei großen Dateien den Fortschritt (Gebäude-Kacheln bis 70 MB, Landesdaten)
+async function readBody(r, prog) {
+  if (!prog || !r.body || !r.body.getReader) return new Uint8Array(await r.arrayBuffer());
+  const rd = r.body.getReader(), parts = [];
+  let n = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prog(n); }
+  const b = new Uint8Array(n); let o = 0; for (const x of parts) { b.set(x, o); o += x.length; }
+  return b;
+}
 export function rwNet(signal) {
   const host = u => u.split('/')[2];
   const go = async u => {
     try { return await fetch(u, { signal }); }
     catch (e) { if (e.name === 'AbortError') throw new Error('Abgebrochen'); throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)'); }
   };
-  // Antwort lesen; prog(Bytes) meldet bei großen Dateien den Fortschritt (Gebäude-Kacheln bis 15 MB)
-  const body = async (r, prog) => {
-    if (!prog || !r.body || !r.body.getReader) return new Uint8Array(await r.arrayBuffer());
-    const rd = r.body.getReader(), parts = [];
-    let n = 0;
-    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prog(n); }
-    const b = new Uint8Array(n); let o = 0; for (const x of parts) { b.set(x, o); o += x.length; }
-    return b;
-  };
+  const body = readBody;
   const get = async (u, prog) => {
     const r = await go(u);
     if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
@@ -81,17 +83,40 @@ export function rwNet(signal) {
 // Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (L1, mehrere Quellen L3).
 // say(Schritt, Anteil) meldet den Fortschritt; signal bricht ab; mergeImg setzt Luftbilder an Grenzen zusammen (Browser).
 // Bei Fehler bleibt das alte Gebiet erhalten.
-export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null) {
+// store (Browser, L4): { get(key), put(key, rec), land(key) } – gespeicherte Gebiete und Landesdaten. Ohne store: immer laden.
+export const rwAreaKey = (lat, lon, srcs) => lat.toFixed(5) + ',' + lon.toFixed(5) + '|' + srcs.map(s => s.name).join('+');
+// Gewässer und Ortsnamen aus gespeicherten Landesdaten der Hauptquelle (nur gleiches Koordinatensystem). Setzt meta.water.
+export async function rwExtras(p, src, store) {
+  const d = src && src.dlm, out = {};
+  if (!store || !d || p.meta.crs !== src.crs) return out;
+  const w = await store.land(d.url + ':' + d.water);
+  if (w) { const r = dlmWater(w, p.meta.bbox); out.water = r.bits; p.meta.water = { n: r.n, res: r.res, area: r.wet, source: 'Basis-DLM ' + d.water }; }
+  const ps = await store.land(d.url + ':' + d.places[0]), pd = await store.land(d.url + ':' + d.places[1]);
+  if (ps && pd) out.features = { places: dlmPlaces(ps, pd, p.meta.bbox), source: src.attribution };
+  return out;
+}
+export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null) {
   const plan = rwPlan(lat, lon);
   if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
-  const { srcs, area: a } = plan;
+  const { srcs, area: a } = plan, key = rwAreaKey(lat, lon, srcs);
+  const saved = store ? await store.get(key) : null;
+  if (saved && saved.meta) {   // schon gespeichert: ohne Netz, sofort
+    say('aus dem Speicher', 0.5);
+    const x = saved.water || saved.features ? { water: saved.water, features: saved.features } : await rwExtras(saved, srcs[0], store);
+    rwApply(saved, { live: true, ...x });
+    if (x.water && !saved.water) await store.put(key, { ...saved, ...x });   // Landesdaten kamen später dazu
+    rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = true; rw.liveDlm = !!srcs[0].dlm;
+    return rw;
+  }
   if (plan.skipped.length) say('Hinweis: ' + plan.skipped.map(s => s.name).join(', ') + ' nutzt ein anderes Koordinatensystem und bleibt außen vor', 0);
   const { get, text } = rwNet(signal);
   const opt = srcs.length > 1 ? { cells: rwCellSources(a, srcs, plan.toLand), mergeImg } : {};
   const p = await rwFetchArea(a, srcs, get, text, say, opt);
   if (signal && signal.aborted) throw new Error('Abgebrochen');   // etwa während des Zusammensetzens der Luftbilder
-  rwApply(p, { live: true });
-  rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name);
+  const x = await rwExtras(p, srcs[0], store);
+  rwApply(p, { live: true, ...x });
+  rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
+  if (store) { say('speichern', 0.98); rw.stored = await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: x.features || null, lat, lon, srcs: rw.liveSrcs }); }
   return rw;
 }
 // Eingebettete Daten im Browser entpacken (DecompressionStream, Bordmittel). Werkzeug und Tests nutzen zlib direkt.
@@ -395,4 +420,35 @@ export function rwPlace(x, z) {
   best.dir = DIRS[Math.round(((a/(Math.PI/4)) % 8 + 8)) % 8];
   delete best.q;
   return best;
+}
+
+// Landesdaten einer Quelle (Basis-DLM: Gewässerflächen, Ortslagen) einmal laden und speichern (L4). store.landPut(key, bytes),
+// Schlüssel = Paket-Adresse:Datei (eine Kopie der Vorlage nutzt dieselben Daten).
+// Teilabrufe aus dem großen ZIP (Größe per HEAD). say(Text, Anteil) meldet MB.
+export async function rwLandData(src, store, say = () => {}, signal) {
+  const d = src.dlm, files = [d.water, ...d.places];
+  const fail = e => { if (e.name === 'AbortError') throw new Error('Abgebrochen'); throw new Error('Keine Verbindung zu ' + d.url.split('/')[2] + ' (offline oder Zugriff gesperrt)'); };
+  const h = await fetch(d.url, { method: 'HEAD', signal }).catch(fail), total = +h.headers.get('content-length');
+  if (!h.ok || !total) throw new Error('Größe des Pakets unbekannt (' + h.status + ')');
+  const range = async (a, b, prog) => {
+    const r = await fetch(d.url, { headers: { Range: `bytes=${a}-${b}` }, signal }).catch(fail);
+    if (r.status !== 206) throw new Error('Server liefert keine Teilabrufe (' + r.status + ')');
+    return readBody(r, prog);
+  };
+  let done = 0;
+  for (const f of files) {
+    say('Suche ' + f, done/d.mb);
+    const e = await dlmFind((a, b) => range(a, b), total, f);
+    if (!e) throw new Error(f + ' nicht im Paket');
+    if (e.method !== 0) throw new Error(f + ' ist gepackt (nicht unterstützt)');
+    const b = await range(e.off, e.off + e.size - 1, n => say(f + ' (' + ((done + n/1e6)).toFixed(0) + ' von ' + d.mb + ' MB)', Math.min(1, (done + n/1e6)/d.mb)));
+    if (!await store.landPut(d.url + ':' + f, b)) throw new Error('Speichern im Browser nicht möglich (Speicher voll oder gesperrt)');
+    done += b.length/1e6;
+  }
+  return done;
+}
+export async function rwLandHas(src, store) {
+  if (!src.dlm || !store) return false;
+  for (const f of [src.dlm.water, ...src.dlm.places]) if (!await store.landHas(src.dlm.url + ':' + f)) return false;
+  return true;
 }

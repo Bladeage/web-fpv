@@ -26,7 +26,7 @@ export const SCENARIOS = [
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Folge dem orangen Auto: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
-  { id: 'real',    name: 'Echte Welt',         info: '1 x 1 km echtes Gelände mit Luftbild, Häusern und Bäumen. Eingebaut: Monschau, oder einen Ort laden (NRW hinterlegt, andere Länder über Quellen). Daten: Geobasis NRW, dl-de/zero-2.0.' }
+  { id: 'real',    name: 'Echte Welt',         info: '1 x 1 km echtes Gelände mit Luftbild, Häusern und Bäumen. Daten: Geobasis NRW, dl-de/zero-2.0.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
 

@@ -15,6 +15,7 @@ import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { srcInit, srcOpen } from './srcui.js';
+import { RW_STORE, storeAll } from './rwstore.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 
 export const $ = id => document.getElementById(id);
@@ -87,11 +88,13 @@ export function syncMenu() {
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real';
   $('rwOpts').hidden = cfg.scen !== 'real';
+  $('courseInfo').hidden = cfg.scen === 'real' && cfg.rwSrc === 'live';   // Platz für Ort laden (bei Monschau steht die Beschreibung da)
   press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
-  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume.'
-    : 'Mittelpunkt eingeben (Breite, Länge) oder auf der Karte wählen. Lädt je nach Ort 15 bis 200 MB (Innenstadt Aachen: rund 170 MB).';
+  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
+      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Karte → Quellen.' : '')
+    : 'Breite, Länge oder Karte. 15 bis 200 MB, danach gespeichert.';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
   const total = cfg.scen === 'hunt2' ? 7 : cfg.scen === 'hunt3' ? 6 : 9;
@@ -188,7 +191,8 @@ async function rwLiveDo() {
   rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen';
   const t0 = performance.now();
   try {
-    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg);
+    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE);
+    rwSavedFill();
     $('rwMsg').textContent = '';
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
     if (game.started && game.scenRun === 'real') { setScenario('real'); respawn(); }
@@ -218,6 +222,16 @@ async function mergeImg(imgs, cells) {
   });
   return new Uint8Array(await (await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
 }
+// Gespeicherte Orte (L4): Auswahl lädt sofort aus dem Speicher
+async function rwSavedFill() {
+  const list = (await storeAll('info')).sort((a, b) => b.date - a.date), sel = $('rwSaved');
+  sel.textContent = '';
+  const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); };
+  add('', 'Gespeicherte Orte (' + list.length + ')');
+  for (const x of list) add(x.lat + ', ' + x.lon, x.place + ' · ' + (x.buildings || 0) + ' Gebäude · ' + (x.size/1e6).toFixed(0) + ' MB');
+  sel.hidden = !list.length || cfg.rwSrc !== 'live';
+  fitPanel();
+}
 const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
 async function start() {
   if (cfg.scen === 'real' && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
@@ -235,13 +249,15 @@ async function start() {
 }
 
 for (const x of SCENARIOS) addChoice($('scenList'), x.name, '', () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
-document.querySelectorAll('#rwSeg button').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); fitPanel(); }));
+document.querySelectorAll('#rwSeg button').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
 $('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
 $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
 $('rwGo').addEventListener('click', () => rwLive());
+$('rwSaved').addEventListener('change', e => { if (!e.target.value) return; cfg.rwLL = e.target.value; cfg.rwSrc = 'live'; saveCfg(); e.target.value = ''; syncMenu(); rwReplace(); });
+rwSavedFill();
 // Karte (L2): Punkt wählen, übernehmen lädt sofort
 $('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
-srcInit(show);
+srcInit(show, () => fitPanel());
 $('mapSrc').addEventListener('click', () => srcOpen());
 mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwReplace(); }, () => fitPanel());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }

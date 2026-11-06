@@ -212,7 +212,8 @@ details{margin-top:10px}
 /* Quellen (L3): Liste und Formular */
 .nav3{grid-template-columns:1fr 1fr 1fr}
 .nav4{grid-template-columns:1fr 1fr 1fr 1fr}
-.srclist{display:grid;gap:6px;margin:6px 0 8px}
+.srclist{display:grid;gap:6px;margin:6px 0 8px;max-height:24vh;overflow:auto}
+.rwsaved{margin-top:6px;font-size:13px;padding:4px 8px}
 .srcrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--chip)}
 .srcrow b{font-size:14px}
 .srcrow small{display:block;opacity:.75}

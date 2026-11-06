@@ -11,6 +11,8 @@ export const RW_SOURCES = [{
   dom: { url: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dom', coverage: 'nw_dom' },
   dop: { url: 'https://www.wms.nrw.de/geobasis/wms_nw_dop', layer: 'nw_dop_rgb' },
   lod2: { url: 'https://www.opengeodata.nrw.de/produkte/geobasis/3dg/lod2_gml/lod2_gml/LoD2_32_{E}_{N}_1_NW.gml', tileKm: 1 },
+  // Landesdaten (L4): Basis-DLM als ein ZIP; Gewässerflächen und Ortslagen einmal laden (zusammen 60 MB, gesichert 06.11.2026)
+  dlm: { url: 'https://www.opengeodata.nrw.de/produkte/geobasis/lm/akt/basis-dlm/basis-dlm_EPSG25832_Shape.zip', water: 'gew01_f.shp', places: ['sie01_f.shp', 'sie01_f.dbf'], mb: 60 },
   attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
 }];
 // Rastergrößen: Höhen 512² (knapp 2 m), Luftbild 4096² (0,25 m) für 1 x 1 km
