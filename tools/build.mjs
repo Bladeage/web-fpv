@@ -91,7 +91,8 @@ export function bundle() {
     .replace("'%%RW_DGM%%'", () => "'" + readFileSync(RW + '.dgm').toString('base64') + "'")
     .replace("'%%RW_MESHIDX%%'", () => JSON.stringify(readFileSync(RW + '-mesh.json', 'utf8')))
     .replace("'%%RW_MESHGEO%%'", () => "'" + readFileSync(RW + '-mesh.geo').toString('base64') + "'")
-    .replace("'%%RW_MESHTEX%%'", () => "'" + readFileSync(RW + '-mesh.tex').toString('base64') + "'");
+    .replace("'%%RW_MESHTEX%%'", () => "'" + readFileSync(RW + '-mesh.tex').toString('base64') + "'")
+    .replace("'%%RW_WATER%%'", () => "'" + readFileSync(RW + '.water').toString('base64') + "'");
   if (js.includes("'%%VERSION%%'")) js = js.replace("'%%VERSION%%'", () => JSON.stringify(version()));
   new vm.Script(js, { filename: 'fpvsim-bundle.js' });   // nur parsen: Syntaxfehler, doppelte let/const
   return { js, files: order.map(m => m.file) };

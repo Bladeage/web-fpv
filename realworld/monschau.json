@@ -21,5 +21,11 @@
  "attribution": "Geobasis NRW, Datenlizenz Deutschland – Zero 2.0",
  "roofTris": 6323,
  "wallTris": 14444,
- "trees": 3033
+ "trees": 3033,
+ "water": {
+  "n": 1000,
+  "res": 1,
+  "area": 23497,
+  "source": "Basis-DLM gew01_f (Gewässerflächen)"
+ }
 }

@@ -9,7 +9,7 @@ import { STEP, step, respawn, hoverThrottle } from '../src/physics.js';
 import { setScenario } from '../src/scenario.js';
 import { applyDrone } from '../src/drone.js';
 import { readTiff, toUtm } from '../src/geo.js';
-import { rw, rwInit, rwSetMesh, groundH, groundN, rwMesh, rwNear } from '../src/realworld.js';
+import { rw, rwInit, rwSetMesh, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh } from '../src/realworld.js';
 import { pilot } from '../src/pilot.js';
 import { qRot } from '../src/math.js';
 
@@ -18,6 +18,7 @@ const meta = JSON.parse(readFileSync(file('realworld/monschau.json'), 'utf8'));
 const q = inflateSync(readFileSync(file('realworld/monschau.dgm')));
 rwInit(meta, new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2));
 const un = n => { const b = inflateSync(readFileSync(file('realworld/monschau.' + n))); return new Int16Array(b.buffer, b.byteOffset, b.byteLength/2); };
+rw.water = new Uint8Array(inflateSync(readFileSync(file('realworld/monschau.water'))));
 const mg = inflateSync(readFileSync(file('realworld/monschau-mesh.geo')));
 rwSetMesh(JSON.parse(readFileSync(file('realworld/monschau-mesh.json'), 'utf8')), new Int16Array(mg.buffer, mg.byteOffset, mg.byteLength/2), new Uint8Array(readFileSync(file('realworld/monschau-mesh.tex'))));
 buildWorld();
@@ -154,4 +155,41 @@ test('Echte Welt: Rechenzeit im Mesh', () => {
   s.p = [w.m[0] + w.n[0]*2, w.m[1], w.m[2] + w.n[2]*2]; game.throttle = hoverThrottle();
   const t0 = performance.now(); run(2); const ms = (performance.now() - t0)/2;
   assert.ok(ms < 60, 'eine Sekunde Flug braucht ' + ms.toFixed(1) + ' ms Rechenzeit');
+});
+
+// Gewässer: eine nasse Stelle mitten in der Rur und eine trockene daneben suchen
+function wetDry() {
+  rw.on = true;
+  for (let z = -400; z <= 400; z += 2) for (let x = -400; x <= 400; x += 2) {
+    if (![-3, 0, 3].every(d => waterAt(x + d, z) && waterAt(x, z + d))) continue;   // mitten im Fluss
+    for (let r = 8; r < 40; r += 2) for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r]])
+      if (![-3, 0, 3].some(d => waterAt(x + dx + d, z + dz) || waterAt(x + dx, z + dz + d))) return { wet: [x, z], dry: [x + dx, z + dz] };
+  }
+}
+function dropAt(xz, h, dmg) {
+  cfg.dmg = dmg; cfg.ghost = true; setScenario('real'); respawn();   // nur Boden und Wasser prüfen
+  const s = game.sim; s.p = [xz[0], groundH(xz[0], xz[1]) + h, xz[1]]; s.v = [0, 0, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0;
+  run(2.5);
+  cfg.ghost = false;
+  return game.state;
+}
+test('Echte Welt: Gewässer aus dem Basis-DLM, Netz zum Zeichnen', () => {
+  assert.ok(meta.water && meta.water.area > 5000, 'Rur im Gebiet: ' + (meta.water && meta.water.area) + ' m²');
+  const p = wetDry(); assert.ok(p, 'nasse und trockene Stelle gefunden');
+  assert.ok(rwWaterMesh().length > 1000);
+  rw.on = false; assert.equal(waterAt(p.wet[0], p.wet[1]), false, 'normaler Modus: kein Wasser');
+});
+test('Echte Welt: Landung im Wasser setzt die Drohne außer Gefecht, auch ohne Schadensmodell', () => {
+  const p = wetDry();
+  assert.equal(dropAt(p.wet, 0.5, 'off'), 'crashed');
+  assert.match(game.sim.crashMsg, /Wasser/);
+  assert.equal(dropAt(p.dry, 0.5, 'off'), 'fly', 'daneben an Land: weiter flugbereit');
+});
+test('Echte Welt: tiefer Überflug über dem Wasser bleibt ohne Folgen', () => {
+  const p = wetDry();
+  cfg.dmg = 'off'; cfg.ghost = true; setScenario('real'); respawn();
+  const s = game.sim; s.p = [p.wet[0], groundH(p.wet[0], p.wet[1]) + 1.5, p.wet[1]]; s.v = [0, 0, 0]; s.q = [0, 0, 0, 1];
+  run(1, () => { game.throttle = hoverThrottle() + 0.05; });
+  cfg.ghost = false;
+  assert.equal(game.state, 'fly');
 });

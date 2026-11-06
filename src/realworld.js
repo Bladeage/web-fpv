@@ -6,8 +6,8 @@ import { clamp } from './math.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen (deflate, Base64),
 // 3D-Mesh: Index aller Knoten (JSON, zum Nachladen), grobe Stufe als Dreiecke (deflate) und ihre Texturen (JPEG hintereinander)
-export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', meshIdx: '%%RW_MESHIDX%%', meshGeo: '%%RW_MESHGEO%%', meshTex: '%%RW_MESHTEX%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, mesh: null, grid: null };
+export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', meshIdx: '%%RW_MESHIDX%%', meshGeo: '%%RW_MESHGEO%%', meshTex: '%%RW_MESHTEX%%', water: '%%RW_WATER%%' };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, mesh: null, grid: null, water: null };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -25,6 +25,7 @@ export async function rwLoadEmbedded() {
     const meta = JSON.parse(RW_DATA.meta), bytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const unpack = async b64 => new Response(new Blob([bytes(b64)]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer();
     rwInit(meta, new Uint16Array(await unpack(RW_DATA.dgm)));
+    if (!RW_DATA.water.startsWith('%%')) rw.water = new Uint8Array(await unpack(RW_DATA.water));
     if (!RW_DATA.meshIdx.startsWith('%%')) rwSetMesh(JSON.parse(RW_DATA.meshIdx), new Int16Array(await unpack(RW_DATA.meshGeo)), bytes(RW_DATA.meshTex));
     return rw;
   } catch (e) { rw.err = String(e.message || e); return rw; }
@@ -109,4 +110,33 @@ export function rwNear(x, z, R) {
     for (const b of c.b) if (b.st !== stamp) { b.st = stamp; boxes.push(b); }
   }
   return { tris, boxes };
+}
+
+// Gewässer (Basis-DLM): Bitmaske meta.water.n x n (1 m), Zeile 0 = Norden. Die Wasseroberfläche liegt auf dem
+// Höhenmodell (dort ist es die Wasserlinie) plus WATER_UP, damit sie über dem Flussbett des Mesh sichtbar ist.
+export const WATER_UP = 0.25;
+export function waterAt(x, z) {
+  if (!rw.on || !rw.water) return false;
+  const w = rw.meta.water, i = Math.floor((x + rw.size/2)/w.res), j = Math.floor((z + rw.size/2)/w.res);
+  if (i < 0 || j < 0 || i >= w.n || j >= w.n) return false;
+  const b = j*w.n + i;
+  return (rw.water[b >> 3] >> (b & 7) & 1) === 1;
+}
+// Netz für das Wasser: je Rasterzeile zusammenhängende Strecken als Vierecke, Höhe aus dem Gelände. Schlicht blaugrau.
+export function rwWaterMesh() {
+  const out = [], w = rw.meta && rw.meta.water;
+  if (!rw.water || !w) return new Float32Array(0);
+  const on = rw.on; rw.on = true;
+  const col = [0.24, 0.38, 0.5], wet = (i, j) => { const b = j*w.n + i; return (rw.water[b >> 3] >> (b & 7) & 1) === 1; };
+  const P = (x, z) => [x, groundH(x, z) + WATER_UP, z], h = rw.size/2;
+  for (let j = 0; j < w.n; j++) for (let i = 0; i < w.n; i++) {
+    if (!wet(i, j)) continue;
+    let k = i; while (k + 1 < w.n && wet(k + 1, j)) k++;
+    const x0 = i*w.res - h, x1 = (k + 1)*w.res - h, z0 = j*w.res - h, z1 = (j + 1)*w.res - h;
+    const a = P(x0, z0), b = P(x1, z0), c = P(x1, z1), d = P(x0, z1);
+    for (const p of [a, d, c, a, c, b]) out.push(p[0], p[1], p[2], 0, 1, 0, col[0], col[1], col[2], 1);
+    i = k;
+  }
+  rw.on = on;
+  return new Float32Array(out);
 }

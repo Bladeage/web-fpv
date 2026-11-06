@@ -70,6 +70,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Physik: Kollision mit den Mesh-Dreiecken (Häuser, Bäume, Hänge als eine Fläche); Höhenmodell bleibt der Boden darunter.
 - LoD2, Bäume und Luftbild nicht mehr eingebettet (Dateien entfernt; das Werkzeug `realworld.mjs` kann sie für andere Länder weiter erzeugen). HTML 5,3 MB.
 
+## Gewässer (erledigt 06.11.2026, Prompt 97)
+
+- Quelle: ATKIS Basis-DLM NRW (Shape-Gesamtpaket 4,7 GB, Teilabruf), Ebene `gew01_f` (Gewässerflächen). Werkzeug `tools/water.mjs`: Flächen im Gebiet als 1-m-Raster (Inseln trocken), gepackt 2,7 KB. Monschau: die Rur, 23 497 m².
+- Darstellung: schlichte blaugraue Fläche 0,25 m über dem Höhenmodell (dort ist es die Wasserlinie).
+- Physik: Berührt die Drohne die Wasserfläche, stürzt sie ab, immer (auch ohne Schadensmodell). Meldung „Ins Wasser gestürzt. R für Neustart“.
+- Offen: schmale Gewässer sind im Basis-DLM nur Linien (`gew01_l`, 27 Achsen im Gebiet, z. B. die Rur flussaufwärts); mit einer angenommenen Breite ergänzbar.
+- Weitere Daten im Gebiet (Basis-DLM, geprüft): 78 Straßenachsen, 21 Waldflächen, 20 Bauwerke an Gewässer und Verkehr (Brücken, Wehre), 1 Turm, 3 Schutzgebiete (Natur-/Umweltschutz), Hecken und Baumreihen.
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.

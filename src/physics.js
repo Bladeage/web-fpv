@@ -9,7 +9,7 @@ import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
-import { rw, groundH, groundN, rwNear } from './realworld.js';
+import { rw, groundH, groundN, rwNear, waterAt, WATER_UP } from './realworld.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -393,6 +393,8 @@ export function step(h) {
     if (i < FEET) s.grounded = true;   // steht auf den Füßen
   }
   if (resolve(ground, PHYS.crashV*1.2*dmgMode().crashK, 'Bodenkontakt zu schnell')) return;
+  // Echte Welt: Wasser setzt die Drohne immer außer Gefecht (auch ohne Schadensmodell), nur Neustart hilft
+  if (rw.on && waterAt(s.p[0], s.p[2]) && s.p[1] - PHYS.foot < groundH(s.p[0], s.p[2]) + WATER_UP) { crash('Ins Wasser gestürzt. R für Neustart'); return; }
   // Umgedreht liegen geblieben: startet den Turtle-Modus (siehe oben), sonst Hinweis im OSD
   s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < 0.5 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;   // auf dem Kopf oder auf der Seite
   // 7. Hindernisse
