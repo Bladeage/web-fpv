@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { deflateSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 import { toAspx, checkAspx } from './aspx.mjs';
 
@@ -82,7 +83,9 @@ export function bundle() {
   const order = collectModules();
   let js = "'use strict';\n" + order.map(m => `/* ----- src/${m.file} ----- */\n${m.body}\n`).join('\n');
   // Betaflight (sitl/betaflight.wasm, GPLv3) als Base64 an Stelle des Platzhalters in src/bf.js
-  if (js.includes("'%%BF_WASM%%'")) js = js.replace("'%%BF_WASM%%'", () => "'" + readFileSync(join(ROOT, 'sitl/betaflight.wasm')).toString('base64') + "'");
+  // Gepackt (deflate, verlustfrei; Prüfbericht Nr. 9): 460 statt 170 KB vor Base64. Entpackt beim Start (bf.bfPrepare).
+  const packed = f => "'" + deflateSync(readFileSync(f), { level: 9 }).toString('base64') + "'";
+  if (js.includes("'%%BF_WASM%%'")) js = js.replace("'%%BF_WASM%%'", () => packed(join(ROOT, 'sitl/betaflight.wasm')));
   // Version: 1.<Anzahl Commits>, dazu Datum und Kurz-Hash des gebauten Commits. Zählt mit jedem Commit auf main hoch.
   // Ohne git (zum Beispiel ausgepacktes Archiv): „dev“. Die CI holt dafür die ganze Historie (fetch-depth: 0).
   // Echte Welt (realworld/, Geobasis NRW, dl-de/zero-2.0): Beschreibung, Höhen (deflate) und Luftbild als Base64
@@ -96,9 +99,9 @@ export function bundle() {
     .replace("'%%RW_WATER%%'", () => "'" + readFileSync(RW + '.water').toString('base64') + "'")
     .replace("'%%RW_FARQ%%'", () => "'" + readFileSync(RW + '.far').toString('base64') + "'")
     .replace("'%%RW_FARDOP%%'", () => "'" + readFileSync(RW + '.far.jpg').toString('base64') + "'")
-    .replace("'%%RW_FEATURES%%'", () => JSON.stringify(readFileSync(RW + '.features.json', 'utf8')));
+    .replace("'%%RW_FEATURES%%'", () => packed(RW + '.features.json'));   // Kartenebenen gepackt (109 statt 38 KB)
   // Deutschlandkarte (Ländergrenzen, BKG VG2500) für die Auswahl eines Ortes
-  if (js.includes("'%%DE_MAP%%'")) js = js.replace("'%%DE_MAP%%'", () => JSON.stringify(readFileSync(join(ROOT, 'realworld', 'germany.json'), 'utf8')));
+  if (js.includes("'%%DE_MAP%%'")) js = js.replace("'%%DE_MAP%%'", () => packed(join(ROOT, 'realworld', 'germany.json')));   // gepackt, entpackt beim Start (demap.dePrepare)
   if (js.includes("'%%VERSION%%'")) js = js.replace("'%%VERSION%%'", () => JSON.stringify(version()));
   new vm.Script(js, { filename: 'fpvsim-bundle.js' });   // nur parsen: Syntaxfehler, doppelte let/const
   return { js, files: order.map(m => m.file) };

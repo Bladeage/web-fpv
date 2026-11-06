@@ -16,7 +16,7 @@ Legende: **G** = gesichert (im Code oder durch Lauf geprüft), **V** = vermutet.
 | 6 | `rwLoadTile`, `rwModels` | **G.** Bäume am Kachelrand schweben oder sinken leicht. | niedrig | hoch, kaum sichtbar | S | **Erledigt** (1.121) beim Laden der Kachel. Rest: Lädt später ein Nachbar, behalten Bäume im 30-m-Saum ihre Höhe (Zentimeter bis wenige Dezimeter, V). |
 | 7 | `render.js` 1065 Zeilen, `render()` 287, `physics.step` 230, `realworld.js` 660 | **G.** Lesbar, aber jede Änderung berührt viel. Kein Fehler. | niedrig | – | M | Nur aufteilen, wenn ohnehin angefasst. |
 | 8 | CI nur mit Node-Tests | **G.** Grafikfehler fallen erst beim Nutzer auf. | mittel | – | M | Browser-Test in CI (Playwright nur als Prüfwerkzeug, nicht im Produkt). Entscheidung des Nutzers. |
-| 9 | `tools/build.mjs`; Datei 8,0 MB | **G.** Langsamer erster Start, besonders SharePoint. | mittel | hoch | M | Luftbild Monschau 2048² (spart etwa 2,5 MB), Umgebung 1024²; Größe im Test prüfen. |
+| 9 | `tools/build.mjs`; Datei 8,0 MB | **G.** Langsamer erster Start, besonders SharePoint. | mittel | hoch | M | **Teil erledigt** (1.124, Nutzer wählte „ohne Qualitätsverlust“): Betaflight, Deutschlandkarte und Kartenebenen gepackt eingebettet, Datei 8,04 auf 7,56 MB (−6 %). Übertragung mit gzip nur 5,55 auf 5,49 MB (−1 %), weil Server ohnehin packen. Wirkliche Ersparnis beim Laden nur mit kleineren Luftbildern (Option „mit Qualitätsverlust“). Luftbilder unverändert (verkleinern kostet Schärfe; in Node ohne Bibliothek nicht neu packbar). Kommentare entfernen: nur 83 KB, verworfen. Build-Test prüft Gleichheit und Größe. |
 | 10 | `hud.drawHud` → `rwPlace`; Propeller | **Teils falsch.** `rwPlace` gemessen 0,22 ms je Bild, unerheblich. Rest V, gering. | niedrig | niedrig | S | `rwPlace` alle 0,5 s zwischenspeichern. Sonst lassen. |
 | 11 | `rwPlan`, `rwLoadTile` | **G.** UTM 33 wird sauber ausgelassen, nicht gemischt. | niedrig | niedrig | L | So lassen, bis jemand an der Ostgrenze fliegt. |
 
@@ -36,7 +36,7 @@ Legende: **G** = gesichert (im Code oder durch Lauf geprüft), **V** = vermutet.
 1. **Nachladen stabil und flüssig** (Nr. 12, 5, 13). **Erledigt** in Version 1.120. Kleine Eingriffe, großer Effekt. Prüfen: Messung in Node unter 20 ms bei Kachel 4 km; Test mit Abruf, der nie antwortet.
 2. **Eine Bodenfläche** (Nr. 1, 6). **Erledigt** in Version 1.121. Physik gleich Bild. Prüfen: Test „Drohne am Hang: Abstand zur gezeichneten Fläche unter 1 cm“.
 3. **Grafik und Speicher robust** (Nr. 3, 4). **Erledigt** in Version 1.123. Prüfen: Kontextverlust im Browser auslösen; vollen Speicher simulieren.
-4. **Startgröße** (Nr. 9). Prüfen: Build-Test unter 5 MB.
+4. **Startgröße** (Nr. 9). **Ohne Qualitätsverlust erledigt** in Version 1.124. Prüfen: Build-Test unter 5 MB.
 5. **Rechenarbeit auslagern** (Nr. 2). Erst nach 1 bis 3. Prüfen: Bildzeit beim Nachladen unter 30 ms.
 
 Nr. 7 und 8 nur im Zuge dieser Etappen. Offen für den Nutzer: Nr. 8 (Browser-Test in CI).

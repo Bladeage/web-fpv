@@ -50,3 +50,16 @@ test('Konverter liefert dasselbe wie tools/to_aspx.py', (t) => {
   const noStyle = t => t.replace(/<style>[\s\S]*?<\/style>/, '<style></style>');
   assert.equal(noStyle(readFileSync(join(dir, 'out.aspx'), 'ascii')), noStyle(toAspx(html)));
 });
+
+test('Prüfbericht Nr. 9: Betaflight, Deutschlandkarte und Kartenebenen gepackt eingebettet, verlustfrei', async (t) => {
+  const { inflateSync } = await import('node:zlib');
+  const dir = mkdtempSync(join(tmpdir(), 'fpvsim-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  build(dir);
+  const html = readFileSync(join(dir, 'fpvsim.html'), 'utf8'), root = new URL('../', import.meta.url);
+  const back = re => inflateSync(Buffer.from(html.match(re)[1], 'base64'));
+  assert.ok(back(/const BF_WASM = '([^']+)'/).equals(readFileSync(new URL('sitl/betaflight.wasm', root))), 'Betaflight gleich');
+  assert.ok(back(/const DE_DATA = '([^']+)'/).equals(readFileSync(new URL('realworld/germany.json', root))), 'Karte gleich');
+  assert.ok(back(/features: '([^']+)'/).equals(readFileSync(new URL('realworld/monschau.features.json', root))), 'Kartenebenen gleich');
+  assert.ok(html.length < 7.7e6, 'Datei ' + (html.length/1e6).toFixed(2) + ' MB (vorher 8,04 MB)');
+});

@@ -21,6 +21,8 @@ import { stepPilot } from './pilot.js';
 import { mapPagePos } from './mapui.js';
 import { rw, rwLoadEmbedded, rwStreamStep } from './realworld.js';
 import { RW_STORE } from './rwstore.js';
+import { bfPrepare } from './bf.js';
+import { dePrepare } from './demap.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
@@ -73,6 +75,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// Gepackt eingebettete Daten entpacken (Betaflight, Deutschlandkarte), im Hintergrund; dauert Millisekunden
+bfPrepare(); dePrepare();
 resize();
 show('main');
 if (!gl) {

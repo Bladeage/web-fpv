@@ -179,7 +179,7 @@ export async function rwLoadEmbedded() {
     const p = { meta, q: new Uint16Array(await unpack(RW_DATA.dgm)), b16: new Int16Array(await unpack(RW_DATA.bld)), t16: new Int16Array(await unpack(RW_DATA.trees)),
       dop: RW_DATA.dop.startsWith('%%') ? null : bytes(RW_DATA.dop),
       farq: meta.far && !RW_DATA.farq.startsWith('%%') ? new Uint16Array(await unpack(RW_DATA.farq)) : null, fardop: meta.far && !RW_DATA.fardop.startsWith('%%') ? bytes(RW_DATA.fardop) : null };
-    rwApply(p, { features: RW_DATA.features.startsWith('%%') ? null : JSON.parse(RW_DATA.features), water: RW_DATA.water.startsWith('%%') ? null : new Uint8Array(await unpack(RW_DATA.water)) });
+    rwApply(p, { features: RW_DATA.features.startsWith('%%') ? null : JSON.parse(new TextDecoder().decode(await unpack(RW_DATA.features))), water: RW_DATA.water.startsWith('%%') ? null : new Uint8Array(await unpack(RW_DATA.water)) });
     return rw;
   } catch (e) { rw.err = String(e.message || e); return rw; }
 }

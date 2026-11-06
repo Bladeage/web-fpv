@@ -19,11 +19,17 @@ export function bfDecode(b64) {
   for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
   return u;
 }
+// Der Build bettet die Datei gepackt ein (deflate). Einmal beim Start entpacken (Bordmittel DecompressionStream);
+// das dauert Millisekunden, lange bevor ein Flug beginnt. Bis dahin fliegt bfStart nicht (eigener Regler).
+export async function bfPrepare() {
+  if (bf.mod || BF_WASM.length < 1000 || bf.err) return !!bf.mod;
+  try { return bfLoad(new Uint8Array(await new Response(new Blob([bfDecode(BF_WASM)]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer())); }
+  catch (e) { bf.err = String(e); return false; }
+}
 // Neu starten (bei jedem Neustart der Drohne): frische Instanz, Einstellungen, 1,5 s Vorlauf mit AUX1 aus,
 // damit Funksignal und Kreisel-Abgleich bereit sind. Danach folgt AUX1 dem Scharf-Zustand des Spiels.
 export function bfStart() {
   bf.ready = false;
-  if (!bf.mod && BF_WASM.length > 1000 && !bf.err) bfLoad(bfDecode(BF_WASM));
   if (!bf.mod) return false;
   try {
     const env = {};   // Hardware-Funktionen ohne Gegenstück im Browser: geben 0 zurück

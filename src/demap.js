@@ -2,10 +2,17 @@
    Grenzen der Bundesländer: BKG VG2500, © BKG 2026 dl-de/by-2-0 (vereinfacht, tools/germany.mjs), eingebettet (geht offline).
    Ansicht: Mittelpunkt in UTM 32 (m) und Maßstab (m je Bildpunkt); Bildschirm y nach unten, Norden oben. */
 
+// Der Build bettet die Karte gepackt ein (deflate, Base64). dePrepare entpackt sie einmal beim Start (Bordmittel
+// DecompressionStream); bis dahin liefert deMap null wie ohne Karte (Laden eines Orts nutzt dann nur die Hauptquelle).
 export const DE_DATA = '%%DE_MAP%%';
 let deCache = null;
-export function deMap() {
-  if (!deCache && !DE_DATA.startsWith('%%')) deCache = JSON.parse(DE_DATA);
+export function deMap() { return deCache; }
+export async function dePrepare() {
+  if (deCache || DE_DATA.startsWith('%%')) return deCache;
+  try {
+    const b = Uint8Array.from(atob(DE_DATA), c => c.charCodeAt(0));
+    deCache = JSON.parse(new TextDecoder().decode(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer()));
+  } catch (e) { deCache = null; }
   return deCache;
 }
 export function deSetMap(m) { deCache = m; }   // für Werkzeuge und Tests
