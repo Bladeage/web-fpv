@@ -50,6 +50,17 @@ NRW als eingebettetes Beispiel (1 x 1 km). Weitere Bundesländer: Nutzer tragen 
 - Tests: Wand langsam, Wand mit 40 m/s (kein Durchtunneln), Absturz mit Schaden, Landung auf dem Dach, Baumkrone, Rechenzeit (unter 60 ms je Sekunde Flug).
 - Korrigiert: Tests nutzten die Schadensstufe „hard“, die es nicht gibt (es gilt dann „mild“); jetzt „real“.
 
+## 3D-Mesh NRW (Befund 06.11.2026, Prompt 95)
+
+Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim Digitalen Zwilling NRW (texturiertes 3D-Netz aus Luftbildern).
+
+- Quelle: Geobasis NRW, 3D-Mesh, `https://www.opengeodata.nrw.de/produkte/geobasis/lusat/akt/3dmesh/3dmesh/` (Übersicht `mesh_meta.zip` mit GeoJSON der Teilgebiete). Monschau liegt in `Mesh_AC1443T45_nw_2025.slpk` (258 GB, Befliegung 07.03.2025).
+- Zugriff: Teilabrufe (HTTP Range) und CORS `*` erlaubt. Das Paket muss nicht geladen werden, nur einzelne Dateien daraus.
+- Format: SLPK = ZIP64 mit I3S 1.7 IntegratedMesh (meshpyramids), EPSG:25832, Höhe DHHN2016 (7837). Kein Hash-Index, das zentrale Verzeichnis (174 MB, 1,68 Mio. Einträge) muss einmal gelesen werden (im Werkzeug, 11 s).
+- Je Knoten: `geometries/0.bin.gz` unkomprimiert (gzip; Kopf 8 Byte, dann Position Float32 x3 relativ zur Knotenmitte, UV Float32 x2, ohne Indizes), `geometries/1.bin.gz` Draco (nicht nötig), `textures/0.jpg` (Atlas bis 1024²). Knotenbaum in `nodepages/*.json.gz` (64 je Seite, OBB, lodThreshold).
+- Mengen für Monschau (Knoten, die 1 x 1 km berühren): Stufe 14: 5 Knoten, ~120 000 Dreiecke, ~73 cm/Pixel. Stufe 15: 34 Knoten, ~39 cm/Pixel. Stufe 16: 73 Knoten, ~20 cm/Pixel. Stufe 17: 355 Knoten, ~7 cm/Pixel (je Knoten ~66 x 46 m, 396 KB Geometrie + 146 KB Textur). Stufe 18: 1 280 Knoten, ~4 cm/Pixel.
+- Folgerung: Volle Schärfe wie beim Digitalen Zwilling geht nur mit Nachladen während des Flugs (nahe Knoten fein, ferne grob). Einbetten nur grob (Stufe 14) oder für ein kleines Gebiet.
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.
