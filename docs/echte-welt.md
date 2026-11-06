@@ -31,6 +31,15 @@ NRW als eingebettetes Beispiel (1 x 1 km). Weitere Bundesländer: Nutzer tragen 
 - Kartenkoordinaten: Mitte des Gebiets = Ursprung, x nach Osten, z nach Süden, y = Höhe über dem Startpunkt.
 - Physik: Boden ist nicht mehr überall y = 0, sondern `groundH(x, z)` aus dem Höhenmodell (mit Neigung). Nur im Modus „Echte Welt“; die übrige Karte bleibt unverändert.
 
+## Stand RW1 (erledigt 06.11.2026, Prompt 93)
+
+- Werkzeug `tools/realworld.mjs`: lädt DGM (WCS, 512 x 512) und Luftbild (WMS, 2048 x 2048) für Monschau, sucht den flachsten Startplatz, legt `realworld/monschau.{json,dgm,jpg}` ab (Höhen 16 Bit in dm, deflate: 274 KB; Luftbild 908 KB). Der Build bettet sie ein, HTML etwa 2,5 MB.
+- `src/geo.js`: GeoTIFF-Leser (Streifen/Kacheln, LZW, Prädiktor 1/2/3, Gleitkomma) und WGS84 -> UTM. `src/realworld.js`: Gelände, `groundH`, `groundN`, Netz.
+- Physik: Bodenkontakt gegen die Geländeebene unter jedem Teil der Hitbox (Höhe und Neigung). Im normalen Modus unverändert (flach bei y = 0).
+- Darstellung: Gelände-Netz 4 m mit Luftbild, außen Rand bis 1,5 km; Spielkarte, Stadt, Ostereier und Vögel aus. Nebel dünner (1/700), kein Bodendunst. Kamera nie unter dem Gelände.
+- Modus „Echte Welt“ im Menü (Freiflug), Start auf der Wiese über der Altstadt mit Blick zur Altstadt, Pilot auf dem Gelände.
+- Tests: `test/realworld.test.mjs` (TIFF-Probe aus NRW, UTM, Gelände, Start, Abheben, Hang mit und ohne Schaden).
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.

@@ -4,6 +4,7 @@
 import { MeshBuilder } from './world.js';
 import { game } from './state.js';
 import { clamp } from './math.js';
+import { groundH } from './realworld.js';
 
 // Standort relativ zum Startpunkt: hinten links (die Drohne startet mit der Nase nach -z). Antenne der Funke in 1,35 m Höhe.
 // Größe: 1,78 m (Schätzung: durchschnittlicher Erwachsener).
@@ -11,8 +12,11 @@ export const PILOT_POS = { off: [-1.6, 3.6], antenna: 1.35, turn: 1.2, headMax: 
 export const pilot = { p: [PILOT_POS.off[0], 0, PILOT_POS.off[1]], yaw: 0, head: 0, headPitch: 0 };
 
 export function placePilot() {
-  pilot.p = [game.home[0] + PILOT_POS.off[0], 0, game.home[1] + PILOT_POS.off[1]];
-  pilot.yaw = Math.atan2(PILOT_POS.off[0], PILOT_POS.off[1]);   // schaut zum Startplatz
+  // Versatz mit der Startrichtung gedreht (hinter der Drohne), Füße auf dem Boden
+  const y = game.homeYaw || 0, c = Math.cos(y), s = Math.sin(y), [ox, oz] = PILOT_POS.off;
+  const x = game.home[0] + ox*c + oz*s, z = game.home[1] - ox*s + oz*c;
+  pilot.p = [x, groundH(x, z), z];
+  pilot.yaw = Math.atan2(x - game.home[0], z - game.home[1]);   // schaut zum Startplatz
   pilot.head = 0; pilot.headPitch = 0;
   return pilot.p;
 }
@@ -27,7 +31,7 @@ export function stepPilot(dt, drone) {
   if (Math.abs(err) > 0.35) pilot.yaw = wrap(pilot.yaw + clamp(err, -PILOT_POS.turn*dt, PILOT_POS.turn*dt));   // kleine Abweichung: Körper bleibt stehen
   const headWant = clamp(wrap(want - pilot.yaw), -PILOT_POS.headMax, PILOT_POS.headMax);
   pilot.head += (headWant - pilot.head)*Math.min(1, dt*4);
-  const pitchWant = clamp(Math.atan2(drone[1] - 1.65, dist), -0.4, 1.0);
+  const pitchWant = clamp(Math.atan2(drone[1] - pilot.p[1] - 1.65, dist), -0.4, 1.0);
   pilot.headPitch += (pitchWant - pilot.headPitch)*Math.min(1, dt*4);
 }
 

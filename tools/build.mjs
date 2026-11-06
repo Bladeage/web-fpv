@@ -85,6 +85,11 @@ export function bundle() {
   if (js.includes("'%%BF_WASM%%'")) js = js.replace("'%%BF_WASM%%'", () => "'" + readFileSync(join(ROOT, 'sitl/betaflight.wasm')).toString('base64') + "'");
   // Version: 1.<Anzahl Commits>, dazu Datum und Kurz-Hash des gebauten Commits. Zählt mit jedem Commit auf main hoch.
   // Ohne git (zum Beispiel ausgepacktes Archiv): „dev“. Die CI holt dafür die ganze Historie (fetch-depth: 0).
+  // Echte Welt (realworld/, Geobasis NRW, dl-de/zero-2.0): Beschreibung, Höhen (deflate) und Luftbild als Base64
+  const RW = join(ROOT, 'realworld', 'monschau');
+  if (js.includes("'%%RW_META%%'")) js = js.replace("'%%RW_META%%'", () => JSON.stringify(readFileSync(RW + '.json', 'utf8')))
+    .replace("'%%RW_DGM%%'", () => "'" + readFileSync(RW + '.dgm').toString('base64') + "'")
+    .replace("'%%RW_DOP%%'", () => "'" + readFileSync(RW + '.jpg').toString('base64') + "'");
   if (js.includes("'%%VERSION%%'")) js = js.replace("'%%VERSION%%'", () => JSON.stringify(version()));
   new vm.Script(js, { filename: 'fpvsim-bundle.js' });   // nur parsen: Syntaxfehler, doppelte let/const
   return { js, files: order.map(m => m.file) };

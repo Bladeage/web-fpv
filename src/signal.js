@@ -11,6 +11,7 @@ import { clamp } from './math.js';
 import { game } from './state.js';
 import { colliders } from './world.js';
 import { town } from './town.js';
+import { rw, groundH } from './realworld.js';
 
 export const PILOT = [-1.6, 1.35, 3.6];   // wird je Szenario auf die Funke des Piloten gesetzt (pilot.js)
 export const signal = { video: 100, lq: 100, block: 0, t: 0 };
@@ -34,14 +35,14 @@ function segHitsBox(a, b, c) {
 // Dicke Hindernisse (Gebäude) dämpfen stark, Stämme und Stangen wenig, Baumkronen mittel.
 export function obstruction(p) {
   let sum = 0;
-  for (const list of [colliders, town]) for (const c of list) if (segHitsBox(PILOT, p, c)) sum += clamp(Math.min(c.h[0], c.h[2])*12, 4, 35);
+  if (!rw.on) for (const list of [colliders, town]) for (const c of list) if (segHitsBox(PILOT, p, c)) sum += clamp(Math.min(c.h[0], c.h[2])*12, 4, 35);
   return sum;
 }
 // Signal ohne Schwanken: video und lq in Prozent, block = Dämpfung durch Hindernisse
 export function signalTarget(p) {
   const d = Math.hypot(p[0] - PILOT[0], p[1] - PILOT[1], p[2] - PILOT[2]);   // Abstand im Raum, auch Höhe zählt
   const block = obstruction(p);
-  const low = p[1] < 2 && d > 40 ? (2 - p[1])*5 : 0;   // dicht am Boden in der Ferne: Fresnel-Zone verdeckt
+  const hg = p[1] - groundH(p[0], p[2]), low = hg < 2 && d > 40 ? (2 - hg)*5 : 0;   // dicht am Boden in der Ferne: Fresnel-Zone verdeckt
   // Je doppelte Entfernung: Video -38 Punkte ab 90 m, Steuerung -25 Punkte ab 180 m (Schätzung, passend zur Kartengröße)
   return {
     video: clamp(100 - 38*Math.log2(Math.max(1, d/90)) - block - low, 0, 100),

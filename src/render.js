@@ -10,6 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
+import { rw, rwMesh, groundH, RW_DATA } from './realworld.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -88,7 +89,7 @@ uniform vec4 uOver;
 uniform float uFogD, uAlpha, uGfx, uSize;
 uniform vec2 uOrigin;
 uniform sampler2D uGround;
-uniform float uVision, uHeat;
+uniform float uVision, uHeat, uPhoto;
 out vec4 o;
 ${NOISE}
 // Boden ohne Textur (Mittel überall, Schön außerhalb des vorberechneten Bereichs): Gras wie im Bodenmuster,
@@ -122,7 +123,13 @@ void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
   bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5;
-  if (ground && uGfx < 0.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
+  if (ground && uPhoto > 0.5) {   // echte Welt: Luftbild im Gebiet, außen gerechneter Boden, 25 m weicher Übergang
+    vec2 uv = (vW.xz - uOrigin)/uSize;
+    float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
+    c = groundProc(vW.xz, 0.0);
+    if (e > -1.0) c = mix(c, texture(uGround, clamp(uv, 0.0, 1.0)).rgb, smoothstep(-1.0, 25.0, e));
+  }
+  if (ground && uGfx < 0.5 && uPhoto < 0.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
     vec2 p = vW.xz;
     float ch = mod(floor(p.x/8.0) + floor(p.y/8.0), 2.0);
     c *= 0.88 + 0.12*ch;
@@ -144,7 +151,7 @@ void main(){
     return;
   }
   bool full = uGfx > 1.5;
-  if (ground) {
+  if (ground && uPhoto < 0.5) {
     c = groundProc(vW.xz, full ? 1.0 : 0.0);
     if (full) {   // im vorberechneten Bereich (mit Schatten und Wegen) die Textur, zum Rand hin weich in den gerechneten Boden
       vec2 uv = (vW.xz - uOrigin)/uSize;
@@ -169,7 +176,7 @@ void main(){
   vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
   float d = length(vW - uCam);
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
-  float hz = full ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/450.0))*0.12 : 0.0;   // Dunst nah am Boden
+  float hz = full && uPhoto < 0.5 ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/450.0))*0.12 : 0.0;   // Dunst nah am Boden
   col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + hz, 0.0, 1.0));
   col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);   // ACES-Näherung
   o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), uAlpha);
@@ -241,7 +248,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, photoTex = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -353,7 +360,7 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = buildWorld();
@@ -368,6 +375,20 @@ export function initGL() {
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
   birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
   pilotMesh = { body: upload(buildPilotMesh('body')), head: upload(buildPilotMesh('head')) };   // Pilot mit Funke
+  // Luftbild der echten Welt (eingebettetes JPEG) als Textur, mit Mipmaps und Anisotropie
+  if (!RW_DATA.dop.startsWith('%%')) {
+    const img = new Image();
+    img.onload = () => {
+      photoTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, photoTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const an = gl.getExtension('EXT_texture_filter_anisotropic');
+      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    };
+    img.src = 'data:image/jpeg;base64,' + RW_DATA.dop;
+  }
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -462,14 +483,15 @@ export function render(dt) {
     // Mindestens 3,5 cm über dem Boden, sonst sieht man am Boden durch die Karte (Bildebene 2 cm vor dem Auge).
     const sz = PHYS.size;
     eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), 0.015*sz)));
-    eye[1] = Math.max(eye[1], 0.035);
+    eye[1] = Math.max(eye[1], groundH(eye[0], eye[2]) + 0.035);
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {
     const f = qRot(sim.q, [0,0,-1]), fl = Math.hypot(f[0], f[2]);
     if (fl > 0.2) game.camHeading = [f[0]/fl, 0, f[2]/fl];
     const cd = 2.4*clamp(PHYS.size, 0.45, 1.5), ch = 0.8*clamp(PHYS.size, 0.45, 1.5);   // Verfolger-Abstand nach Drohnengröße
-    const target = [sim.p[0] - game.camHeading[0]*cd, Math.max(0.4, sim.p[1] + ch), sim.p[2] - game.camHeading[2]*cd];
+    const tx = sim.p[0] - game.camHeading[0]*cd, tz = sim.p[2] - game.camHeading[2]*cd;
+    const target = [tx, Math.max(groundH(tx, tz) + 0.4, sim.p[1] + ch), tz];   // nie unter dem Gelände
     const k = Math.min(1, dt*6);
     game.camPos = vAdd(game.camPos, vScale(vSub(target, game.camPos), k));
     eye = game.camPos;
@@ -503,13 +525,16 @@ export function render(dt) {
   gl.uniformMatrix4fv(P.u.uVP, false, vp);
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
-  gl.uniform1f(P.u.uFogD, GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel, man sieht die Felder (Einfach unverändert)
+  gl.uniform1f(P.u.uFogD, rw.on ? 1/700 : GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel (Einfach unverändert). Echte Welt: klare Sicht, Nebel verdeckt erst den Rand
   gl.uniform1f(P.u.uGfx, GFX);
   gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
   gl.uniform1f(P.u.uSize, GROUND.size); gl.uniform2f(P.u.uOrigin, GROUND.origin[0], GROUND.origin[1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, groundTex); gl.uniform1i(P.u.uGround, 0);
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  gl.uniform1f(P.u.uPhoto, rw.on ? 1 : 0);
+  if (rw.on) drawTerrain();
+  else {
   gl.bindVertexArray(worldMesh.vao);
   // Boden ohne Tiefen-Eintrag: Alles steht auf oder über ihm und wird danach gezeichnet. So können flache Platten
   // (Startplatz, Rasen, Landeplatz) nie mit dem Boden flackern, auch wenn die Tiefe am Gerät grob aufgelöst ist.
@@ -538,6 +563,7 @@ export function render(dt) {
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qMul(qAxis([0,1,0], Math.PI), qAxis([0,0,1], f))), vAdd(sh, qRot(q, [-0.04, 0, 0]))));
     gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
   }
+  }   // Ende Spielkarte
   // Pilot hinter dem Startplatz: Körper dreht um die Hochachse, Kopf dazu seitlich und nach oben (Drehpunkt im Hals)
   {
     const qb = qAxis([0,1,0], pilot.yaw);
@@ -551,7 +577,7 @@ export function render(dt) {
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.bindVertexArray(worldMesh.vao);
   const pulse = 0.75 + 0.15*Math.sin(performance.now()/180);
-  gates.forEach((g, i) => {
+  if (!rw.on) gates.forEach((g, i) => {
     if (i === sim.next && scen.id === 'gates') gl.uniform4f(P.u.uOver, 0.15, 1.0, 0.35, pulse);
     else gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
     gl.drawArrays(gl.TRIANGLES, g.start, g.count);
@@ -725,6 +751,20 @@ export function render(dt) {
   drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
 }
+// Echte Welt: Gelände-Netz (einmal gebaut, mit Indizes) und Luftbild statt Bodenmuster. Schreibt Tiefe (Hügel verdecken).
+function drawTerrain() {
+  if (!terrain) {
+    const { v, idx } = rwMesh(2, 1500), m = upload(v), ib = gl.createBuffer();
+    gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+    gl.bindVertexArray(null);
+    terrain = { vao: m.vao, n: idx.length };
+  }
+  gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
+  gl.uniform1f(P.u.uPhoto, photoTex ? 1 : 0);
+  gl.bindVertexArray(terrain.vao);
+  gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
+}
 // Lens-Flare: nur ab „Mittel“, im normalen Bild, wenn die Sonne im Bild steht und kein Hindernis davor ist.
 // Je näher die Sonne an der Bildmitte, desto stärker. Weiches Ein- und Ausblenden (0,15 s), damit es nicht flackert.
 function drawFlare(vp, eye, asp, GFX, VIS, dt) {
@@ -732,7 +772,7 @@ function drawFlare(vp, eye, asp, GFX, VIS, dt) {
   let want = 0;
   if (GFX > 0 && VIS === 0 && c[3] > 0) {
     const x = c[0]/c[3], y = c[1]/c[3], r = Math.hypot(x*asp, y);
-    if (Math.abs(x) < 1.1 && Math.abs(y) < 1.1 && !rayBlocked(eye, SUN, 400, colliders) && !rayBlocked(eye, SUN, 400, town))
+    if (Math.abs(x) < 1.1 && Math.abs(y) < 1.1 && (rw.on || (!rayBlocked(eye, SUN, 400, colliders) && !rayBlocked(eye, SUN, 400, town))))
       want = clamp(1.25 - r*0.7, 0, 1);
     flareP[0] = x; flareP[1] = y;
   }

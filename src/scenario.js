@@ -12,6 +12,7 @@ import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.j
 import { TOWN } from './town.js';
 import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
+import { rw } from './realworld.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
@@ -23,7 +24,8 @@ export const SCENARIOS = [
   { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Folge dem orangen Auto: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
-  { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' }
+  { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
+  { id: 'real',    name: 'Echte Welt',         info: 'Monschau (Eifel), 1 x 1 km: echtes Gelände und Luftbild. Start auf der Wiese über der Altstadt. Daten: Geobasis NRW, dl-de/zero-2.0.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
 
@@ -311,7 +313,8 @@ const TASKS = {
   hunt3:   { check: checkHunt, collide: null, early: true },
   deliver: { check: checkDeliver, collide: null },
   follow:  { check: checkFollow, collide: null },
-  free:    { check() {}, collide: null }
+  free:    { check() {}, collide: null },
+  real:    { check() {}, collide: null }
 };
 task.reset = reset;
 
@@ -319,8 +322,11 @@ task.reset = reset;
 export function setScenario(id) {
   if (!TASKS[id]) id = 'gates';
   scen.id = id; scen.version++;
-  game.home = id === 'free' ? TOWN.start.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
-  const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
+  // Echte Welt nur mit geladenem Gelände; Start auf der flachsten Stelle (Werkzeug), Nase zur Mitte des Gebiets (Altstadt)
+  rw.on = id === 'real' && rw.ready;
+  game.home = rw.on ? rw.meta.home.slice() : id === 'free' ? TOWN.start.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
+  game.homeYaw = rw.on ? Math.atan2(game.home[0], game.home[1]) : 0;
+  const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   cfg.scen = id;
   task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
@@ -331,6 +337,7 @@ export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
   if (scen.id === 'free') return 'FREIFLUG';
+  if (scen.id === 'real') return 'ECHTE WELT';
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
   if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');

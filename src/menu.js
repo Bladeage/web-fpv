@@ -1,6 +1,6 @@
 /* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
-import { cfg, game, keys, ptr, saveCfg, KEY_FN, keyOf, keyName, setKey, keyLearn, VERSION } from './state.js';
+import { cfg, game, keys, ptr, saveCfg, KEY_FN, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
@@ -8,6 +8,7 @@ import { audioInit, audioPause } from './audio.js';
 import { fmtTime } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
+import { rw, rwLoadEmbedded } from './realworld.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
@@ -162,7 +163,9 @@ export function resume() { keyLearn.fn = null; audioInit(); game.paused = false;
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
-function start() {
+async function start() {
+  if (cfg.scen === 'real' && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
+  if (cfg.scen === 'real' && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
   setScenario(cfg.scen); applyDrone(cfg.drone); saveCfg();
   game.scenRun = cfg.scen;
   respawn(); resume();

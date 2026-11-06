@@ -18,11 +18,14 @@ import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
 import { stepPilot } from './pilot.js';
+import { rw, rwLoadEmbedded } from './realworld.js';
 
 fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
 gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 setScenario(cfg.scen); game.scenRun = cfg.scen;
+// Gelände der echten Welt im Hintergrund entpacken; war sie zuletzt gewählt, danach dort neu starten
+rwLoadEmbedded().then(() => { if (cfg.scen === 'real' && rw.ready && !rw.on) { setScenario('real'); respawn(); } });
 applyDrone(cfg.drone);
 respawn();
 
@@ -38,7 +41,7 @@ function frame(now) {
     updKeyboard(dt);
     updTouch();
     updSignal(dt);
-    stepBirds(dt, game.sim.p);
+    if (!rw.on) stepBirds(dt, game.sim.p);   // Vögel nur auf der Spielkarte
     stepPilot(dt, game.sim.p);
     if (game.state === 'fly') {
       acc += dt;

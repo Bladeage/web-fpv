@@ -1,0 +1,22 @@
+{
+ "name": "monschau",
+ "place": "Monschau (Eifel, NRW)",
+ "crs": "EPSG:25832",
+ "bbox": [
+  304200,
+  5603500,
+  305200,
+  5604500
+ ],
+ "n": 512,
+ "hMin": 384.4700012207031,
+ "hMax": 519.6799926757812,
+ "hScale": 0.1,
+ "home": [
+  176.8,
+  -264.6
+ ],
+ "hHome": 510.16,
+ "startSpan": 0.33,
+ "attribution": "Geobasis NRW, Datenlizenz Deutschland – Zero 2.0"
+}

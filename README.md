@@ -63,6 +63,10 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 
 `math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js`, `osd.js`, `signal.js`, `targets.js`, `vehicles.js`, `bf.js`, `balloon.js`, `aircraft.js`, `town.js`, `eggs.js` und `birds.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
+## Daten „Echte Welt“
+
+Gelände und Luftbild von Monschau: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (https://www.govdata.de/dl-de/zero-2-0). Abgelegt in `realworld/`, geladen mit `node tools/realworld.mjs`, beim Build eingebettet. Plan: `docs/echte-welt.md`.
+
 ## Lizenz
 
 GNU General Public License Version 3 (GPLv3), Text in `LICENSE`.

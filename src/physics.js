@@ -9,6 +9,7 @@ import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
+import { rw, groundH, groundN } from './realworld.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -115,7 +116,8 @@ export const task = { check: checkGate, collide: null, reset() {}, early: false,
 
 function newSim() {
   return {
-    p: [game.home[0], PHYS.foot + 0.005, game.home[1]], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0],
+    p: [game.home[0], groundH(game.home[0], game.home[1]) + PHYS.foot + 0.005, game.home[1]], v: [0, 0, 0],
+    q: [0, Math.sin(game.homeYaw/2), 0, Math.cos(game.homeYaw/2)], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
     mot: [0, 0, 0, 0], cmd: [0, 0, 0, 0], hp: [1, 1, 1, 1], wi: [0, 0, 0], vib: 0,   // Motorausgang, Befehl, Zustand je Rotor, I-Anteil
@@ -201,7 +203,7 @@ export function step(h) {
   // 2. Aerodynamik am Rotor (gilt für alle vier gleich, außer Propwash-Rauschen)
   const vAx = vDot(s.v, up);                                  // Anströmung entlang der Rotorachse (+ = Steigflug)
   const vPerp = vSub(s.v, vScale(up, vAx)), vHor = vLen(vPerp);
-  const zr = Math.max(s.p[1] - PHYS.foot + PHYS.propY, mc.R*0.5);   // Rotorhöhe über Grund
+  const zr = Math.max(s.p[1] - groundH(s.p[0], s.p[2]) - PHYS.foot + PHYS.propY, mc.R*0.5);   // Rotorhöhe über Grund
   const ge = up[1] > 0.5 ? Math.min(1.4, 1/(1 - (mc.R/(4*zr))**2)) : 1;   // Bodeneffekt (Cheeseman-Bennett)
   const fac = [0, 0, 0, 0];
   for (let i = 0; i < 4; i++) {
@@ -255,7 +257,7 @@ export function step(h) {
     // Gieren dreht die Drohne also weiter. Alle Motoren einzeln zu kappen ginge nicht: Dann folgt die Drohne dem
     // Stick nicht, und Betaflight schaltet sich ab (Schutz gegen Durchgehen beim Start). Schub ~ Steuerwert².
     let cut = 0;
-    if ((s.grounded || s.onGround || s.p[1] < 0.25) && game.throttle < 0.05) {
+    if ((s.grounded || s.onGround || s.p[1] - groundH(s.p[0], s.p[2]) < 0.25) && game.throttle < 0.05) {
       const lim = 4*(0.6*hoverThrottle())**2, sq = c => m.reduce((t, x) => t + Math.max(0, x - c)**2, 0);
       if (sq(0) > lim) { let lo = 0, hi = 1; for (let n = 0; n < 12; n++) { const c = (lo + hi)/2; if (sq(c) > lim) lo = c; else hi = c; } cut = hi; }
     }
@@ -356,7 +358,7 @@ export function step(h) {
   const prev = s.p;
   s.p = vAdd(s.p, vScale(s.v, h));
   // Ostereier: in jedem Modus gleich, Berühren genügt
-  const egg = checkEggs(prev, s.p, PHYS.radius*0.6, eggsFound);
+  const egg = rw.on ? -1 : checkEggs(prev, s.p, PHYS.radius*0.6, eggsFound);   // Ostereier nur auf der Spielkarte
   if (egg >= 0) {
     saveEggs();
     const all = eggsFound.length >= EGGS.length;
@@ -371,16 +373,18 @@ export function step(h) {
     task.check(prev, s.p, h);
     if (game.pendingRespawn) { game.pendingRespawn = false; respawnDrone(); return; }
   }
-  // 6. Boden: jede Kugel der Hitbox gegen den Boden (y = 0). Kufe unten trägt die Drohne, Propeller können aufsetzen.
+  // 6. Boden: jede Kugel der Hitbox gegen den Boden. Kufe unten trägt die Drohne, Propeller können aufsetzen.
+  // Normaler Modus: Ebene y = 0. Echte Welt: Geländeebene unter dem Teil (Höhe und Neigung aus dem Höhenmodell).
   s.grounded = false; s.onGround = false;
   const hb = hitbox(), ground = [], upB = qRot(s.q, [0, 1, 0]);
   for (let i = 0; i < hb.length; i++) {
-    const [x, y, z, rad, rot, thick] = hb[i], r = qRot(s.q, [x, y, z]), sp = support(rad, thick, [0, 1, 0], upB);
-    const pen = sp.r - (s.p[1] + r[1]);
+    const [x, y, z, rad, rot, thick] = hb[i], r = qRot(s.q, [x, y, z]), pc = vAdd(s.p, r);
+    const gn = groundN(pc[0], pc[2]), gh = groundH(pc[0], pc[2]), sp = support(rad, thick, gn, upB);
+    const pen = sp.r - vDot([0, pc[1] - gh, 0], gn);   // Abstand zur Geländeebene (flach: s.p[1] + r[1])
     // Fast berührende Teile (unter 2 mm) zählen mit: Der Stoß wirkt dann in der Mitte zwischen den Füßen,
     // statt abwechselnd an einzelnen Füßen. Sonst schaukelt und dreht sich die Drohne am Boden ohne Ende.
     if (pen <= -0.002) continue;
-    ground.push({ n: [0, 1, 0], pen: Math.max(0, pen), r: vAdd(r, sp.d), rot });
+    ground.push({ n: gn, pen: Math.max(0, pen), r: vAdd(r, sp.d), rot });
     s.onGround = true;
     if (i < FEET) s.grounded = true;   // steht auf den Füßen
   }
@@ -388,7 +392,7 @@ export function step(h) {
   // Umgedreht liegen geblieben: startet den Turtle-Modus (siehe oben), sonst Hinweis im OSD
   s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < 0.5 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;   // auf dem Kopf oder auf der Seite
   // 7. Hindernisse
-  if (!cfg.ghost) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest
+  if (!cfg.ghost && !rw.on) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest. Echte Welt: eigene Hindernisse (RW2)
     for (const c of colliders) if (collide(c, h)) return;
     for (const c of town) if (collide(c, h)) return;   // kleine Stadt mit Testecken
     if (task.collide && task.collide(h)) return;
