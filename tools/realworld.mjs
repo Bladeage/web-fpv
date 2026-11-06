@@ -40,6 +40,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   writeFileSync(join(OUT, a.name + '.trees'), deflateSync(Buffer.from(p.t16.buffer), { level: 9 }));
   writeFileSync(join(OUT, a.name + '.dgm'), deflateSync(Buffer.from(p.q.buffer), { level: 9 }));
   writeFileSync(join(OUT, a.name + '.jpg'), p.dop);
+  if (p.far) {   // Umgebung 10 x 10 km (L5a)
+    p.meta.far = p.far.meta;
+    writeFileSync(join(OUT, a.name + '.far'), deflateSync(Buffer.from(p.far.q.buffer), { level: 9 }));
+    if (p.far.dop) writeFileSync(join(OUT, a.name + '.far.jpg'), p.far.dop);
+  }
   writeFileSync(join(OUT, a.name + '.json'), JSON.stringify(p.meta, null, 1) + '\n');
   console.log(p.meta, 'Luftbild', p.dop.length, 'B');
 }

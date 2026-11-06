@@ -18,6 +18,7 @@
  ],
  "hHome": 510.16,
  "startSpan": 0.33,
+ "startV": 2,
  "attribution": "Geobasis NRW, Datenlizenz Deutschland – Zero 2.0",
  "roofTris": 6382,
  "wallTris": 14527,
@@ -28,5 +29,11 @@
   "res": 1,
   "area": 23497,
   "source": "Basis-DLM gew01_f (Gewässerflächen)"
+ },
+ "far": {
+  "n": 401,
+  "size": 10025,
+  "hMin": 337.44000244140625,
+  "hScale": 0.1
  }
 }

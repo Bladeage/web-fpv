@@ -35,10 +35,10 @@ export async function storeAll(store) { return (await tx(store, 'readonly', s =>
 export async function storeUsage() { try { return await navigator.storage.estimate(); } catch (e) { return null; } }
 // Gebiet speichern (Daten und Kurzbeschreibung) und wieder löschen
 export async function storeArea(key, rec) {
-  const size = ['q', 'b16', 't16', 'dop', 'water'].reduce((t, k) => t + (rec[k] ? rec[k].byteLength : 0), 0);
+  const size = ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].reduce((t, k) => t + (rec[k] ? rec[k].byteLength : 0), 0);
   if (!await storePut('areas', key, rec)) return false;
   await storePut('info', key, { key, lat: rec.lat, lon: rec.lon, place: rec.meta.place, srcs: rec.srcs, size, date: rec.date || Date.now(), water: !!rec.water, buildings: rec.meta.buildings, trees: rec.meta.trees,
-    parts: Object.fromEntries(['q', 'b16', 't16', 'dop', 'water'].map(k => [k, rec[k] ? rec[k].byteLength : 0])) });
+    parts: Object.fromEntries(['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].map(k => [k, rec[k] ? rec[k].byteLength : 0])) });
   return true;
 }
 export async function storeAreaDel(key) { await storeDel('areas', key); await storeDel('info', key); }
@@ -56,7 +56,7 @@ export function geoPack(areas, land) {
   const head = { version: 1, created: new Date().toISOString(), areas: [], land: [] };
   for (const r of areas) {
     const parts = {};
-    for (const k of ['q', 'b16', 't16', 'dop', 'water']) if (r[k]) { parts[k] = [geoType(r[k]), r[k].byteLength]; blobs.push(bytes(r[k])); }
+    for (const k of ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop']) if (r[k]) { parts[k] = [geoType(r[k]), r[k].byteLength]; blobs.push(bytes(r[k])); }
     head.areas.push({ key: r.key, meta: r.meta, lat: r.lat, lon: r.lon, srcs: r.srcs, features: r.features || null, date: r.date || null, parts });
   }
   for (const { key, data } of land) { head.land.push({ key, len: data.byteLength }); blobs.push(bytes(data)); }
@@ -90,12 +90,12 @@ export async function storeStats() {
   const infos = await storeAll('info');
   for (const x of infos) if (!x.parts) {   // Kurzbeschreibung von vor L4b: Größen je Art einmal nachtragen
     const r = await storeGet('areas', x.key);
-    if (r) { x.parts = Object.fromEntries(['q', 'b16', 't16', 'dop', 'water'].map(k => [k, r[k] ? r[k].byteLength : 0])); x.trees = r.meta.trees; await storePut('info', x.key, x); }
+    if (r) { x.parts = Object.fromEntries(['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].map(k => [k, r[k] ? r[k].byteLength : 0])); x.trees = r.meta.trees; await storePut('info', x.key, x); }
   }
   const sum = k => infos.reduce((t, x) => t + ((x.parts && x.parts[k]) || 0), 0);
   const d = await db(), land = [];
   if (d) await new Promise(res => { try { const r = d.transaction('land').objectStore('land').openCursor();
     r.onsuccess = () => { const c = r.result; if (c) { land.push({ key: c.key, size: c.value.byteLength }); c.continue(); } else res(); }; r.onerror = res; } catch (e) { res(); } });
   return { areas: infos.length, size: infos.reduce((t, x) => t + (x.size || 0), 0), buildings: infos.reduce((t, x) => t + (x.buildings || 0), 0), trees: infos.reduce((t, x) => t + (x.trees || 0), 0),
-    water: infos.filter(x => x.water).length, bytes: { q: sum('q'), b16: sum('b16'), t16: sum('t16'), dop: sum('dop'), water: sum('water') }, land };
+    water: infos.filter(x => x.water).length, bytes: { q: sum('q'), b16: sum('b16'), t16: sum('t16'), dop: sum('dop'), water: sum('water'), far: sum('farq') + sum('fardop') }, land };
 }

@@ -7,7 +7,8 @@ Ziel: Fliegen in einem echten Gebiet aus amtlichen offenen Geodaten (wie ein Flu
 - **Eingebaut:** Monschau 1 x 1 km. Höhen (DGM, 2 m), Luftbild (DOP, 0,25 m), LoD2-Gebäude mit Fassaden nach Nutzung, Bäume aus DOM minus DGM, Rur als Wasser (Absturz), Ortsnamen, Kartenlinien (aus).
 - **Live laden (L1 bis L4):** Modus „Echte Welt“ → „Ort laden“: Koordinate oder „Karte“. NRW als Vorlage; andere Länder unter Karte → „Quellen“. Mehrere Quellen an Landesgrenzen. Geladene Orte im Browser gespeichert („Gespeicherte Orte“, offline). Gewässer und Ortsnamen NRW einmal laden (60 MB).
 - **Daten:** Optionen → Daten: Übersicht, Export und Import aller Geodaten als Datei (L4b).
-- **Offen:** L5 Nachladen beim Fliegen; Mischen von UTM 32 und 33; Dienste anderer Länder ungeprüft.
+- **Umgebung:** 10 x 10 km grobes Gelände mit Luftbild um jedes Gebiet (L5a).
+- **Offen:** L5b Nachladen von Gebäuden und Bäumen beim Fliegen; Mischen von UTM 32 und 33; Dienste anderer Länder ungeprüft.
 - **Code:** `src/realworld.js` (Laufzeit), `src/rwload.js` (Laden, Quellen), `src/rwdlm.js` (Basis-DLM), `src/rwstore.js` (Speicher), `src/demap.js` und `src/mapui.js` (Karte), `src/srcui.js` (Quellen), `src/geo.js` (GeoTIFF, UTM, CityGML). Werkzeuge in `tools/`.
 - Die Abschnitte unten sind das Protokoll in zeitlicher Reihenfolge; ältere Abschnitte beschreiben Zwischenstände (etwa das 3D-Mesh, „Ort laden (NRW)“).
 
@@ -206,6 +207,16 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - **Export:** alle gespeicherten Orte und Landesdaten in einer Datei `fpv-geodaten-<Datum>.fpvgeo` (eigenes Format: Kennung, Kopf als JSON, Datenblöcke; im Browser mit gzip gepackt). Monschau-Altstadt: 4 MB; mit Landesdaten NRW etwa 64 MB.
 - **Import:** dieselbe Datei an einem anderen Rechner; die Orte stehen danach unter „Gespeicherte Orte“ und öffnen ohne Netz. Schlägt das Laden fehl, weil kein Server erreichbar ist, bietet die Meldung den Knopf „Geodaten importieren“ an.
 - Geprüft: Hin und zurück verlustfrei (Test), fremde und abgeschnittene Dateien abgelehnt (Test). Im Browser zwei getrennte Profile: A lädt und exportiert, B ohne Netz bekommt den Import angeboten, importiert und fliegt den Ort, ohne Fehler. Menüs passen auf allen vier Größen.
+
+## L5a: Umgebung 10 x 10 km (erledigt 06.11.2026, Prompt 118)
+
+- Problem (Bild des Nutzers, Köln): Hinter dem 1-km-Gebiet begannen sofort die gerechneten bunten Felder.
+- Lösung: Zu jedem Gebiet lädt das Programm eine grobe Umgebung von 10 x 10 km: Höhen alle 25 m (WCS, 401², etwa 200 KB) und Luftbild 2048² (knapp 5 m, etwa 0,9 bis 1,4 MB). Zusammen etwa 5 s (gesichert, Monschau und Köln). Lücken (Füllwerte im Nachbarland) werden vom Rand her gefüllt.
+- Raster: 401 Zellen über 10 025 m legen die Messpunkte auf -5000, -4975 … 5000 m; die Ränder des Gebiets (±500 m) liegen damit genau auf Messpunkten. Das feine Netz endet genau am Rand, das grobe hat dort ein Loch: keine Risse, keine Überlappung (Test).
+- Bodenhöhe: im Gebiet das feine Raster, außen die Umgebung, innen am Rand 30 m weicher Übergang (Sprung unter 5 cm, Test). Die Physik nutzt dieselbe Höhe; außen ist das Gelände also nicht mehr flach.
+- Bild: Luftbild der Umgebung als zweite Textur, am Rand des Gebiets weich ins feine Bild, am Rand der Umgebung über 300 m in den gerechneten Boden. Sicht in der echten Welt bis 9 km, leichter Dunst (Nebel 1/2200).
+- Gespeichert und exportiert mit dem Ort (farq, fardop). Monschau eingebaut: `realworld/monschau.far` (198 KB) und `monschau.far.jpg` (912 KB); die Datei wächst auf 8,0 MB.
+- Noch nicht: Gebäude und Bäume außerhalb des Gebiets (L5b).
 
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 

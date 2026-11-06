@@ -17,6 +17,10 @@ export const RW_SOURCES = [{
 }];
 // Rastergrößen: Höhen 512² (knapp 2 m), Luftbild 4096² (0,25 m) für 1 x 1 km
 export const RW_GRIDN = 512, RW_DOPN = 4096;
+// Umgebung (L5a): 10 x 10 km um das Gebiet, Höhen alle 25 m, Luftbild 2048² (knapp 5 m). Ein WCS liefert Werte für
+// Zellmitten; 401 Zellen über 10 025 m legen die Messpunkte auf -5000, -4975, ... 5000 m. So liegen die Ränder des
+// 1-km-Gebiets (±500 m) genau auf Messpunkten, und die Netze passen ohne Risse aneinander.
+export const RW_FAR = { size: 10025, n: 401, dop: 2048 };
 
 // Abruf-Adressen (WCS 2.0.1 GetCoverage, WMS 1.3.0 GetMap)
 export function wcsUrl(svc, bbox, crs, n) {
@@ -185,6 +189,7 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   }
   say('Bäume', 0.92);
   const p = rwPack(a, dgm, dom, bld, dop);
+  if (opt.far !== false) p.far = await rwFetchFar(a, srcs[0], get, say).catch(() => null);   // Umgebung: ohne sie geht es auch
   p.meta.attribution = [...new Set(srcs.map(s => s.attribution).filter(Boolean))].join('; ');
   return p;
 }
@@ -280,4 +285,35 @@ export function rwFixStart(p) {
   if (st) m.home = [+((st.i + 0.5)*cell - half).toFixed(1), +((st.j + 0.5)*cell - half).toFixed(1)];
   m.startV = 2;
   return true;
+}
+// Umgebung (L5a) laden: grobe Höhen und Luftbild für 10 x 10 km um die Mitte des Gebiets. Lücken (Füllwerte, etwa im
+// Nachbarland) mit dem nächsten gültigen Wert füllen. Rückgabe { meta: { n, size, hMin, hScale }, q (16 Bit, dm über hMin), dop }.
+export async function rwFetchFar(a, src, get, say = () => {}) {
+  const c = [(a.bbox[0] + a.bbox[2])/2, (a.bbox[1] + a.bbox[3])/2], h = RW_FAR.size/2, n = RW_FAR.n, bb = [c[0] - h, c[1] - h, c[0] + h, c[1] + h];
+  say('Umgebung (Höhen)', 0.94);
+  const b = await get(wcsUrl(src.dgm, bb, a.crs, n)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  if (t.w !== n || t.h !== n) throw new Error('Umgebung: Raster ' + t.w + 'x' + t.h);
+  const v = Float32Array.from(t.data, x => isFinite(x) && x !== t.nodata && x > -1000 ? x : NaN);
+  rwFillGaps(v, n);
+  let lo = Infinity; for (const x of v) if (x < lo) lo = x;
+  if (!isFinite(lo)) throw new Error('Umgebung ohne Höhen');
+  const q = Uint16Array.from(v, x => Math.round((x - lo)*10));
+  say('Umgebung (Luftbild)', 0.96);
+  const dop = src.dop ? await get(wmsUrl(src.dop, bb, a.crs, RW_FAR.dop)).catch(() => null) : null;
+  return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q, dop };
+}
+// Lücken (NaN) im Raster n x n schrittweise vom Rand der gültigen Werte her füllen (Mittel der gültigen Nachbarn)
+export function rwFillGaps(v, n) {
+  for (let pass = 0, left = 1; left && pass < 2*n; pass++) {
+    left = 0;
+    const src = v.slice();
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j*n + i;
+      if (!Number.isNaN(src[k])) continue;
+      let s = 0, c = 0;
+      for (const [x, y] of [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) if (x >= 0 && y >= 0 && x < n && y < n && !Number.isNaN(src[y*n + x])) { s += src[y*n + x]; c++; }
+      if (c) v[k] = s/c; else left++;
+    }
+  }
+  return v;
 }

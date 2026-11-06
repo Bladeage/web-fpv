@@ -10,8 +10,8 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
-export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [] };
+export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -27,6 +27,15 @@ export function rwApply(p, x = {}) {
   const on = rw.on;
   Object.assign(rw, { tris: null, grid: null, bldId: null, bldInfo: null, trees: [], water: x.water || null, features: x.features || null, dop: p.dop || null, live: !!x.live });
   rwInit(p.meta, p.q);
+  // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far
+  const F = p.far || (p.farq && p.meta.far ? { meta: p.meta.far, q: p.farq, dop: p.fardop } : null);
+  rw.far = null; rw.farDop = null;
+  if (F) {
+    const m = F.meta, h = new Float32Array(m.n*m.n);
+    for (let i = 0; i < h.length; i++) h[i] = m.hMin + F.q[i]*m.hScale - p.meta.hHome;
+    rw.far = { n: m.n, size: m.size, cell: m.size/m.n, h };
+    rw.farDop = F.dop || null;
+  }
   rwModels(p.b16, p.t16);
   rw.on = on; rw.ver++;
   return rw;
@@ -125,7 +134,12 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   const x = await rwExtras(p, srcs[0], store);
   rwApply(p, { live: true, ...x });
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
-  if (store) { say('speichern', 0.98); rw.stored = await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: x.features || null, lat, lon, srcs: rw.liveSrcs }); }
+  if (store) {
+    say('speichern', 0.98);
+    if (p.far) p.meta.far = p.far.meta;   // Umgebung flach speichern (farq, fardop), Beschreibung in meta.far
+    rw.stored = await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: x.features || null,
+      farq: p.far ? p.far.q : null, fardop: p.far ? p.far.dop : null, lat, lon, srcs: rw.liveSrcs });
+  }
   return rw;
 }
 // Eingebettete Daten im Browser entpacken (DecompressionStream, Bordmittel). Werkzeug und Tests nutzen zlib direkt.
@@ -136,18 +150,32 @@ export async function rwLoadEmbedded() {
     const meta = JSON.parse(RW_DATA.meta), bytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const unpack = async b64 => new Response(new Blob([bytes(b64)]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer();
     const p = { meta, q: new Uint16Array(await unpack(RW_DATA.dgm)), b16: new Int16Array(await unpack(RW_DATA.bld)), t16: new Int16Array(await unpack(RW_DATA.trees)),
-      dop: RW_DATA.dop.startsWith('%%') ? null : bytes(RW_DATA.dop) };
+      dop: RW_DATA.dop.startsWith('%%') ? null : bytes(RW_DATA.dop),
+      farq: meta.far && !RW_DATA.farq.startsWith('%%') ? new Uint16Array(await unpack(RW_DATA.farq)) : null, fardop: meta.far && !RW_DATA.fardop.startsWith('%%') ? bytes(RW_DATA.fardop) : null };
     rwApply(p, { features: RW_DATA.features.startsWith('%%') ? null : JSON.parse(RW_DATA.features), water: RW_DATA.water.startsWith('%%') ? null : new Uint8Array(await unpack(RW_DATA.water)) });
     return rw;
   } catch (e) { rw.err = String(e.message || e); return rw; }
 }
 const at = (i, j) => rw.h[clamp(j, 0, rw.n - 1)*rw.n + clamp(i, 0, rw.n - 1)];
 // Bodenhöhe an (x, z), bilinear zwischen den Rasterpunkten (Punktmitten)
-export function groundH(x, z) {
-  if (!rw.on) return 0;
+function mainH(x, z) {
   const u = (x + rw.size/2)/rw.cell - 0.5, v = (z + rw.size/2)/rw.cell - 0.5;
   const i = Math.floor(u), j = Math.floor(v), fu = clamp(u - i, 0, 1), fv = clamp(v - j, 0, 1);
   return (at(i, j)*(1 - fu) + at(i + 1, j)*fu)*(1 - fv) + (at(i, j + 1)*(1 - fu) + at(i + 1, j + 1)*fu)*fv;
+}
+// Umgebung: Messpunkte bei -size/2 + (k + 0,5)*cell (k = 0..n-1), außen fortgesetzt
+function farH(x, z) {
+  const F = rw.far, o = -F.size/2 + F.cell/2, u = clamp((x - o)/F.cell, 0, F.n - 1), v = clamp((z - o)/F.cell, 0, F.n - 1);
+  const i = Math.min(F.n - 2, Math.floor(u)), j = Math.min(F.n - 2, Math.floor(v)), fu = u - i, fv = v - j, h = F.h, n = F.n;
+  return (h[j*n + i]*(1 - fu) + h[j*n + i + 1]*fu)*(1 - fv) + (h[(j + 1)*n + i]*(1 - fu) + h[(j + 1)*n + i + 1]*fu)*fv;
+}
+export const RW_SEAM = 30;   // m: innen am Rand des Gebiets weich von der Umgebung zum feinen Gelände
+export function groundH(x, z) {
+  if (!rw.on) return 0;
+  if (!rw.far) return mainH(x, z);
+  const t = (rw.size/2 - Math.max(Math.abs(x), Math.abs(z)))/RW_SEAM;
+  if (t <= 0) return farH(x, z);
+  return t >= 1 ? mainH(x, z) : farH(x, z)*(1 - t) + mainH(x, z)*t;
 }
 // Bodenrichtung (Normale, Einheitsvektor nach oben) aus dem Höhenverlauf
 export function groundN(x, z) {
@@ -175,6 +203,26 @@ export function rwMesh(step = 2, far = 1500) {
   return { v, idx };
 }
 
+// Netz der Umgebung (L5a): Messpunkte alle 25 m über 10 km, außen ein Rand bis 15 km; Zellen im Gebiet fehlen (dort liegt
+// das feine Netz, die Ränder treffen sich genau auf Messpunkten). Ecken wie rwMesh (Ort, Normale, Farbe, Alpha 0 = Boden).
+export function rwFarMesh(edge = 15000) {
+  const F = rw.far;
+  if (!F) return { v: new Float32Array(0), idx: new Uint32Array(0) };
+  const o = -F.size/2 + F.cell/2, pos = [-edge];
+  for (let k = 0; k < F.n; k++) pos.push(o + k*F.cell);
+  pos.push(edge);
+  const k = pos.length, half = rw.size/2, v = new Float32Array(k*k*10), idx = [];
+  for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
+    const x = pos[i], z = pos[j], n = groundN(x, z);
+    v.set([x, groundH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], (j*k + i)*10);
+  }
+  for (let j = 0; j < k - 1; j++) for (let i = 0; i < k - 1; i++) {
+    if (pos[i] >= -half - 0.01 && pos[i + 1] <= half + 0.01 && pos[j] >= -half - 0.01 && pos[j + 1] <= half + 0.01) continue;   // Loch für das Gebiet
+    const a = j*k + i, b = a + 1, c = a + k, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  return { v, idx: new Uint32Array(idx) };
+}
 // Kollision mit Gebäuden: Dreiecke in einem Raster von 8 m für die schnelle Suche
 export const RW_GRID = 8;
 // Kollisions-Dreiecke (je 9 Werte) und Hindernis-Quader (Bäume) setzen, Suchraster bauen

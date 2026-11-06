@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH } from './realworld.js';
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
@@ -89,8 +89,9 @@ uniform vec3 uSun, uCam, uFog;
 uniform vec4 uOver;
 uniform float uFogD, uAlpha, uGfx, uSize;
 uniform vec2 uOrigin;
-uniform sampler2D uGround;
-uniform float uVision, uHeat, uPhoto;
+uniform sampler2D uGround, uFar;
+uniform float uVision, uHeat, uPhoto, uFarOn, uFarSize;
+uniform vec2 uFarOrigin;
 out vec4 o;
 ${NOISE}
 // Boden ohne Textur (Mittel überall, Schön außerhalb des vorberechneten Bereichs): Gras wie im Bodenmuster,
@@ -198,13 +199,19 @@ void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
   bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5;
-  if (ground && uPhoto > 0.5) {   // echte Welt: Luftbild im Gebiet, außen gerechneter Boden, 25 m weicher Übergang
+  if (ground && uPhoto > 0.5) {   // echte Welt: Luftbild im Gebiet (25 m weicher Rand), außen das Luftbild der Umgebung (L5a), ganz außen gerechneter Boden
     vec2 uv = (vW.xz - uOrigin)/uSize;
     float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
-    c = groundProc(vW.xz, 0.0);
+    vec3 far = groundProc(vW.xz, 0.0);
+    if (uFarOn > 0.5) {
+      vec2 fv = (vW.xz - uFarOrigin)/uFarSize;
+      float fe = min(min(fv.x, 1.0 - fv.x), min(fv.y, 1.0 - fv.y))*uFarSize;
+      far = mix(far, texture(uFar, clamp(fv, 0.0, 1.0)).rgb, smoothstep(-1.0, 300.0, fe));
+    }
+    c = far;
     if (e > -1.0) c = mix(c, texture(uGround, clamp(uv, 0.0, 1.0)).rgb, smoothstep(-1.0, 25.0, e));
     if (vCol.a > 0.07) {   // Baumkrone: Farbe des Luftbilds darunter (unscharf, sonst Streifen an den Seiten), Licht weich
-      c = mix(groundProc(vW.xz, 0.0), texture(uGround, clamp(uv, 0.0, 1.0), 3.0).rgb, smoothstep(-1.0, 25.0, e));
+      c = mix(far, texture(uGround, clamp(uv, 0.0, 1.0), 3.0).rgb, smoothstep(-1.0, 25.0, e));
       c = mix(c, vec3(0.20, 0.30, 0.15), 0.15);
       n = normalize(n + vec3(0.0, 1.3, 0.0));
     }
@@ -337,7 +344,7 @@ void main(){
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, rwGlVer = -1, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -449,7 +456,7 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = buildWorld();
@@ -548,7 +555,7 @@ export function render(dt) {
   const W = glc.width, H = glc.height, asp = W/H;
   const hf = (cfg.fov || 110)*DEG;   // horizontales Blickfeld
   const vf = clamp(2*Math.atan(Math.tan(hf/2)/asp), 55*DEG, 120*DEG);
-  const proj = mPersp(vf, asp, rw.on ? 0.06 : cfg.cam === 'fpv' ? 0.02 : 0.05, 1500);   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an. Echte Welt: 0,06 m, dreifach feinere Tiefe in der Ferne (Dächer, Wasser)
+  const proj = mPersp(vf, asp, rw.on ? (rw.far ? 0.1 : 0.06) : cfg.cam === 'fpv' ? 0.02 : 0.05, rw.on && rw.far ? 9000 : 1500);   // echte Welt mit Umgebung (L5a): Sicht bis 9 km, nahe Ebene 0,1 m (Tiefe bleibt fein)   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an. Echte Welt: 0,06 m, dreifach feinere Tiefe in der Ferne (Dächer, Wasser)
   let view, eye;
   if (cfg.cam === 'fpv') {
     let qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
@@ -602,7 +609,7 @@ export function render(dt) {
   gl.uniformMatrix4fv(P.u.uVP, false, vp);
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
-  gl.uniform1f(P.u.uFogD, rw.on ? 1/700 : GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel (Einfach unverändert). Echte Welt: klare Sicht, Nebel verdeckt erst den Rand
+  gl.uniform1f(P.u.uFogD, rw.on ? (rw.far ? 1/2200 : 1/700) : GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel (Einfach unverändert). Echte Welt: klare Sicht, Nebel verdeckt erst den Rand
   gl.uniform1f(P.u.uGfx, GFX);
   gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
   gl.uniform1f(P.u.uSize, GROUND.size); gl.uniform2f(P.u.uOrigin, GROUND.origin[0], GROUND.origin[1]);
@@ -831,7 +838,7 @@ export function render(dt) {
 }
 // Luftbild der echten Welt (DOP, 4096² für 1 km = 0,25 m je Pixel) als Textur mit Mipmaps; zu groß fürs Gerät: verkleinert.
 // Kommt als JPEG-Bytes (eingebettet oder live geladen); Entpacken läuft im Hintergrund, bis dahin der gerechnete Boden.
-function loadPhoto(bytes, ver) {
+function loadPhoto(bytes, ver, set = t => { photoTex = t; }) {
   createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })).then(img => {
     if (ver !== rwGlVer) return;   // inzwischen ein anderes Gebiet
     const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
@@ -844,7 +851,7 @@ function loadPhoto(bytes, ver) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     const an = gl.getExtension('EXT_texture_filter_anisotropic');
     if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    photoTex = t;
+    set(t);
   }).catch(() => {});
 }
 const freeGl = m => { if (m) { gl.deleteVertexArray(m.vao); if (m.buf) gl.deleteBuffer(m.buf); if (m.ib) gl.deleteBuffer(m.ib); } };
@@ -852,23 +859,29 @@ const freeGl = m => { if (m) { gl.deleteVertexArray(m.vao); if (m.buf) gl.delete
 // Neues Gebiet (rw.ver): alle Netze und das Luftbild frei geben und neu bauen.
 function drawTerrain() {
   if (rwGlVer !== rw.ver) {
-    [terrain, rwModelGl, waterGl, featGl].forEach(freeGl);
-    if (photoTex) gl.deleteTexture(photoTex);
-    terrain = rwModelGl = waterGl = featGl = photoTex = null;
+    [terrain, farGl, rwModelGl, waterGl, featGl].forEach(freeGl);
+    for (const t of [photoTex, farTex]) if (t) gl.deleteTexture(t);
+    terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null;
     rwGlVer = rw.ver;
     if (rw.dop) loadPhoto(rw.dop, rw.ver);
+    if (rw.farDop) loadPhoto(rw.farDop, rw.ver, t => { farTex = t; });
   }
-  if (!terrain) {
-    const { v, idx } = rwMesh(2, 1500), m = upload(v), ib = gl.createBuffer();
+  const indexed = ({ v, idx }) => { const m = upload(v), ib = gl.createBuffer();
     gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    terrain = { vao: m.vao, buf: m.buf, ib, n: idx.length };
-  }
+    gl.bindVertexArray(null); return { vao: m.vao, buf: m.buf, ib, n: idx.length }; };
+  // Gebiet fein (mit Umgebung bis genau an den Rand, sonst mit Rand bis 1,5 km); Umgebung grob mit Loch für das Gebiet
+  if (!terrain) terrain = indexed(rwMesh(2, rw.far ? rw.size/2 : 1500));
+  if (!farGl && rw.far) farGl = indexed(rwFarMesh());
   gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
-  gl.uniform1f(P.u.uPhoto, photoTex ? 1 : 0);
+  gl.uniform1f(P.u.uPhoto, photoTex || farTex ? 1 : 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, farTex || groundTex); gl.uniform1i(P.u.uFar, 1);
+  gl.uniform1f(P.u.uFarOn, farTex ? 1 : 0);
+  if (rw.far) { gl.uniform1f(P.u.uFarSize, rw.far.size); gl.uniform2f(P.u.uFarOrigin, -rw.far.size/2, -rw.far.size/2); }
+  gl.activeTexture(gl.TEXTURE0);
   gl.bindVertexArray(terrain.vao);
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
+  if (farGl) { gl.bindVertexArray(farGl.vao); gl.drawElements(gl.TRIANGLES, farGl.n, gl.UNSIGNED_INT, 0); }
   // Gewässer: schlichte Fläche über dem Flussbett (Basis-DLM)
   if (!waterGl && rw.water) waterGl = upload(rwWaterMesh());
   if (waterGl && waterGl.count) {   // leicht nach vorn gezogen, damit der Spiegel in der Ferne nicht mit dem Flussbett flackert

@@ -94,6 +94,8 @@ export function bundle() {
     .replace("'%%RW_BLD%%'", () => "'" + readFileSync(RW + '.bld').toString('base64') + "'")
     .replace("'%%RW_TREES%%'", () => "'" + readFileSync(RW + '.trees').toString('base64') + "'")
     .replace("'%%RW_WATER%%'", () => "'" + readFileSync(RW + '.water').toString('base64') + "'")
+    .replace("'%%RW_FARQ%%'", () => "'" + readFileSync(RW + '.far').toString('base64') + "'")
+    .replace("'%%RW_FARDOP%%'", () => "'" + readFileSync(RW + '.far.jpg').toString('base64') + "'")
     .replace("'%%RW_FEATURES%%'", () => JSON.stringify(readFileSync(RW + '.features.json', 'utf8')));
   // Deutschlandkarte (Ländergrenzen, BKG VG2500) für die Auswahl eines Ortes
   if (js.includes("'%%DE_MAP%%'")) js = js.replace("'%%DE_MAP%%'", () => JSON.stringify(readFileSync(join(ROOT, 'realworld', 'germany.json'), 'utf8')));

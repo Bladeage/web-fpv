@@ -296,3 +296,35 @@ test('Echte Welt: Gebäudenutzung (ALKIS-Code aus LoD2) -> Fassadenklasse', asyn
     '31001_2700': 4, '31001_3021': 5, '31001_3071': 5, '31001_3041': 6, '31001_3043': 6, '31001_3038': 6, '51001_1012': 6, '51007_1400': 6, '31001_1310': 0, '': 0 };
   for (const [fn, k] of Object.entries(want)) assert.equal(bldClass(fn), k, fn);
 });
+
+test('L5a: Umgebung 10 km: Bodenhöhe ohne Sprung am Rand, außen echtes Gelände, Netz mit Loch für das Gebiet', async () => {
+  const { rwApply, rwFarMesh, rwMesh: mesh } = await import('../src/realworld.js');
+  const { rwFillGaps } = await import('../src/rwload.js');
+  const farq = inflateSync(readFileSync(file('realworld/monschau.far')));
+  const p = { meta, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees'), farq: new Uint16Array(farq.buffer, farq.byteOffset, farq.byteLength/2), fardop: null };
+  assert.equal(p.farq.length, meta.far.n*meta.far.n);
+  rwApply(p);
+  rw.on = true;
+  assert.ok(rw.far && rw.far.n === 401 && Math.abs(rw.far.cell - 25) < 1e-9);
+  // Am Rand (±500 m) stetig; über den Übergang (30 m) höchstens so steil wie das Gelände selbst
+  let jump = 0;
+  for (let z = -480; z <= 480; z += 20) for (const s of [-1, 1]) { const a = groundH(s*499.99, z), b = groundH(s*500.01, z); jump = Math.max(jump, Math.abs(a - b)); }
+  assert.ok(jump < 0.05, 'Sprung am Rand ' + jump.toFixed(3) + ' m');
+  // Außen nicht mehr flach fortgesetzt: Höhen 2 km entfernt unterscheiden sich deutlich
+  const out = [[2000, 0], [-2000, 0], [0, 2000], [0, -2000]].map(([x, z]) => groundH(x, z));
+  assert.ok(Math.max(...out) - Math.min(...out) > 20, 'Umgebung hat Relief: ' + out.map(v => v.toFixed(0)).join(' '));
+  // Netz der Umgebung: kein Dreieck im Gebiet; feines Netz endet genau an ±500 m
+  const fm = rwFarMesh();
+  for (let i = 0; i < fm.idx.length; i += 3) {
+    const c = [0, 1, 2].map(k => fm.idx[i + k]*10), mx = c.reduce((t, o) => t + fm.v[o], 0)/3, mz = c.reduce((t, o) => t + fm.v[o + 2], 0)/3;
+    assert.ok(!(Math.abs(mx) < 500 && Math.abs(mz) < 500), 'Dreieck der Umgebung im Gebiet bei ' + mx + ', ' + mz);
+  }
+  const im = mesh(2, 500); let ex = 0; for (let i = 0; i < im.v.length; i += 10) ex = Math.max(ex, Math.abs(im.v[i]), Math.abs(im.v[i + 2]));
+  assert.equal(ex, 500);
+  // Lücken (Nachbarland ohne Werte) werden vom Rand her gefüllt
+  const g = Float32Array.from([1, NaN, NaN, NaN, NaN, NaN, NaN, NaN, 3]); rwFillGaps(g, 3);
+  assert.ok(g.every(v => Number.isFinite(v) && v >= 1 && v <= 3));
+  rw.on = false;
+  // wieder ohne Umgebung wie die übrigen Tests
+  rwApply({ meta: { ...meta, far: undefined }, q: p.q, b16: p.b16, t16: p.t16 });
+});
