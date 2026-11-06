@@ -475,6 +475,7 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Live-Quellen geplant (L1 bis L5) und L1 erledigt (06.11.2026, Prompt 106): Ort in NRW per Koordinate laden. Siehe `docs/echte-welt.md`.
 - L2 erledigt (06.11.2026, Prompt 107/108): Deutschlandkarte zum Auswählen. Siehe `docs/echte-welt.md`.
 - Propeller im Kamerabild ganz statt angeschnitten (06.11.2026, Prompt 109): eigener Durchgang, Kamera fest am Rahmen hinter und unter den vorderen Propellern (render.js, drawPropsFpv).
+- Propeller im Kamerabild wieder am Bildrand (06.11.2026, Prompt 113, Optik von Fable): eigener Durchgang mit derselben Kamera wie das Bild, naher Bildebene 3 mm (keine Schnittkante), drei verjüngte, angestellte Blätter (buildRotorMesh), weiche Unschärfescheibe aus 20 Ringen (buildRotorBlur). Ersetzt die schwebende Darstellung aus Prompt 109.
 - L3 erledigt (06.11.2026, Prompt 109): eigene Quellen, Prüfen, Import/Export, mehrere Quellen an Landesgrenzen. Siehe `docs/echte-welt.md`.
 - Polieren (Prompt 110) und L4 erledigt (06.11.2026, Prompt 111): Speichern im Browser, Gewässer und Ortsnamen einmal laden. Siehe `docs/echte-welt.md`.
 - Housekeeping (06.11.2026, Prompt 112): README-Aufbau vollständig, neue Übergabe `docs/handover-2026-11-06.md`, CLAUDE.md zeigt darauf, CI veröffentlicht die Seite ohne doppelte 6,5 MB und mit 20 Minuten Zeitgrenze. Nächste Etappe: L5 nach Tests des Nutzers.

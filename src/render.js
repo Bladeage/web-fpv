@@ -1,7 +1,7 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say, eggsFound } from './state.js';
-import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildBlade, buildDisc, PROP_S } from './world.js';
+import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
@@ -335,7 +335,7 @@ void main(){
   o = vec4(c*uK, 1.0);
 }`;
 
-let bladeMesh = null, discMesh = null;
+let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
 let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, rwGlVer = -1, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
@@ -464,8 +464,10 @@ export function initGL() {
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
   birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
   pilotMesh = { body: upload(buildPilotMesh('body')), head: upload(buildPilotMesh('head')) };   // Pilot mit Funke
-  bladeMesh = upload(buildBlade());
-  discMesh = upload(buildDisc());
+  // Propeller: vorne rot, hinten dunkelgrau (Farbe im Netz, damit das Licht das Blatt formt statt einer flachen Tönung)
+  rotorMesh = { front: upload(buildRotorMesh(ROTOR_RED)), rear: upload(buildRotorMesh(ROTOR_DARK)) };
+  rotorBlur = { front: buildRotorBlur(ROTOR_RED), rear: buildRotorBlur(ROTOR_DARK) };
+  discMesh = upload(buildDisc());   // flache Scheibe: weiche Schatten unter bewegten Objekten
   skyVao = gl.createVertexArray();
   gl.bindVertexArray(skyVao);
   const b = gl.createBuffer();
@@ -823,7 +825,7 @@ export function render(dt) {
     gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
   }
   if (cfg.cam !== 'fpv') drawProps(md, dt);
-  else if (cfg.propsView) drawPropsFpv(md, dt, vf, asp);
+  else if (cfg.propsView) drawPropsFpv(md, dt, vf, asp, eye, lastCamQ);
   drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
 }
@@ -908,52 +910,107 @@ function drawFlare(vp, eye, asp, GFX, VIS, dt) {
   gl.useProgram(P.p);
 }
 
-const propAng = [0, 0.8, 1.6, 2.4];
-// Propeller im Kamerabild (Wunsch Nutzer): ganz und rund statt angeschnitten. Die Bildkamera sitzt vorne auf Höhe der
-// Propeller; die vorderen reichen bis hinter sie, und die nahe Bildebene schneidet sie gerade ab. Deshalb ein eigener
-// Durchgang mit einer Kamera fest am Rahmen (ohne Uptilt), hinter und unter den vorderen Propellern, wie zwischen den Platten:
-// Abstand so, dass jeder Randpunkt mit 4° Luft ins Bild passt (je nach Blickfeld), Propellermitte knapp unter halber Höhe der
-// oberen Bildhälfte. Tiefe vorher löschen: die Propeller liegen immer vor der Welt.
-function drawPropsFpv(md, dt, vf, asp) {
-  const sim = game.sim, sz = PHYS.size, c = 0.088*PROP_S, r = 0.063*PROP_S, py = 0.026*PROP_S;
-  // Abstand d (nach vorn bis zur Propellermitte) und Höhe dy: kleinstes d, bei dem jeder Randpunkt der Scheibe mit Luft im Bild liegt
-  const tx = Math.tan(Math.atan(Math.tan(vf/2)*asp) - 4*DEG), ty = Math.tan(vf/2 - 4*DEG);
-  let d = c + 0.02, dy = 0;
-  for (; d < 1; d += 0.005) {
-    dy = d*Math.tan(vf/2*0.45);
-    let ok = true;
-    for (let k = 0; k < 24 && ok; k++) { const a = k/24*Math.PI*2, f = d + r*Math.sin(a); ok = f > 0.02 && (c + r*Math.cos(a))/f <= tx && dy/f <= ty; }
-    if (ok) break;
-  }
-  const eye = vAdd(sim.p, qRot(sim.q, [0, (py - dy)*sz, (d - c)*sz]));
-  const vpo = mMul(mPersp(vf, asp, 0.004*sz, 3*sz), mView(sim.q, eye));
-  gl.clear(gl.DEPTH_BUFFER_BIT);
-  gl.uniformMatrix4fv(P.u.uVP, false, vpo); gl.uniform3fv(P.u.uCam, eye);
-  drawProps(md, dt, true);
+
+// Propeller (R3, 06.11.2026): drei Blätter je Motor statt eines flachen Balkens. Blatt von der Nabe bis zur Spitze
+// verjüngt, mit runder Spitze, Anstellwinkel 24° an der Wurzel bis 10° an der Spitze (verdrillt). Maße sind Schätzungen
+// für einen 5-Zoll-Dreiblatt-Propeller, Maßstab PROP_S wie das Drohnenmodell. Radius 0,063·PROP_S bleibt (Hitbox PHYS.m.R).
+// Nur eine Fläche je Blatt (keine Dicke): ohne Rückseiten-Ausblendung wird sie von beiden Seiten gezeichnet; die Normale
+// zeigt nach oben, damit das Blatt auch von unten (Kamerabild) hell bleibt. Nabe als kleiner Zylinder mit Kappe.
+const ROTOR_R0 = 0.009, ROTOR_R = 0.063;   // Nabenradius und Spitzenradius (× PROP_S)
+const ROTOR_RED = [0.78, 0.12, 0.09], ROTOR_DARK = [0.24, 0.24, 0.26];   // Blattfarben vorne und hinten (matter Kunststoff)
+// Halbe Blattbreite in Modelleinheiten an der Stelle t (0 Wurzel, 1 Spitze): breit um die Mitte, runde Spitze
+function rotorHalfChord(t) {
+  const round = t < 0.85 ? 1 : Math.sqrt(Math.max(0, 1 - ((t - 0.85)/0.15)**2));
+  return (0.0045 + 0.004*Math.sin(Math.PI*t))*round*PROP_S;
 }
+function buildRotorMesh(col) {
+  const mb = new MeshBuilder(), s = PROP_S, N = 8, up = [0, 1, 0];
+  for (let b = 0; b < 3; b++) {
+    const a = b/3*Math.PI*2, cs = Math.cos(a), sn = Math.sin(a);
+    // Punkt am Radius r, Querversatz u entlang der Sehne, Anstellwinkel th: um die Blattachse gekippt, dann um die Nabe gedreht
+    const P = (r, u, th) => { const x = r, y = u*Math.sin(th), z = u*Math.cos(th); return [x*cs - z*sn, y, x*sn + z*cs]; };
+    for (let i = 0; i < N; i++) {
+      const t0 = i/N, t1 = (i + 1)/N;
+      const r0 = (ROTOR_R0 + (ROTOR_R - ROTOR_R0)*t0)*s, r1 = (ROTOR_R0 + (ROTOR_R - ROTOR_R0)*t1)*s;
+      const h0 = rotorHalfChord(t0), h1 = rotorHalfChord(t1), th0 = (24 - 14*t0)*DEG, th1 = (24 - 14*t1)*DEG;
+      const p00 = P(r0, -h0, th0), p01 = P(r0, h0, th0), p10 = P(r1, -h1, th1), p11 = P(r1, h1, th1);
+      const blade = vScale(col, 0.7 + 0.3*t1);   // zur Wurzel hin dunkler: wirkt wie Schatten der Nabe, kein flacher Fleck
+      mb.triOut(p00, p10, p11, up, blade); mb.triOut(p00, p11, p01, up, blade);
+    }
+  }
+  mb.cyl([0, 0.003*s, 0], 0.0075*s, 0.004*s, 8, [0.22, 0.22, 0.24]);   // Nabe
+  mb.cyl([0, 0.0085*s, 0], 0.0045*s, 0.0015*s, 8, [0.6, 0.6, 0.64]);   // Mutter
+  return new Float32Array(mb.d);
+}
+// Unschärfescheibe eines drehenden Propellers: Ringe von der Nabe bis zur Spitze, jeder Ring mit eigener Deckkraft.
+// Deckkraft = Anteil der Zeit, in dem ein Punkt vom Blatt bedeckt ist: drei Blätter × Blattbreite / Kreisumfang.
+// Innen dicht (gut 40 %), zur Spitze dünn (wenige %); dazu ein schmaler Saum an der Spitze, wie ihn Kameras zeigen.
+// Ein Puffer, je Ring ein Zeichenaufruf (uAlpha), weil der Shader eine feste Deckkraft je Aufruf hat.
+function buildRotorBlur(col) {
+  const mb = new MeshBuilder(), s = PROP_S, n = 32, bands = [];
+  const edges = [];   // 20 Ringe von 0,12 R bis 0,96 R, dazu der Saum: Stufen der Deckkraft unter 2 %, im Bild nicht sichtbar
+  for (let i = 0; i <= 20; i++) edges.push(0.12 + 0.84*i/20);
+  edges.push(1.0);
+  const haze = col.map(c => c*0.75 + 0.25);   // Schleier etwas heller als das Blatt (Glanzlichter verwischen mit)
+  for (let b = 0; b + 1 < edges.length; b++) {
+    const ri = Math.max(edges[b]*ROTOR_R, ROTOR_R0)*s, ro = edges[b + 1]*ROTOR_R*s, rm = (ri + ro)/2;
+    const t = clamp((rm/s - ROTOR_R0)/(ROTOR_R - ROTOR_R0), 0, 1);
+    let a = 3*2*rotorHalfChord(t)/(2*Math.PI*rm);                         // Bedeckungsanteil
+    if (b + 2 === edges.length) a = Math.max(a, 0.14);                       // Saum an der Spitze
+    const first = mb.count;
+    for (let i = 0; i < n; i++) {
+      const a0 = i/n*Math.PI*2, a1 = (i + 1)/n*Math.PI*2;
+      const Q = (ang, r) => [Math.cos(ang)*r, 0, Math.sin(ang)*r];
+      mb.quad(Q(a0, ri), Q(a0, ro), Q(a1, ro), Q(a1, ri), haze);
+    }
+    bands.push({ first, count: mb.count - first, a: clamp(a, 0, 0.6) });
+  }
+  const m = upload(new Float32Array(mb.d));
+  return { vao: m.vao, buf: m.buf, bands };
+}
+
+const propAng = [0, 0.8, 1.6, 2.4];
+// Propeller im Kamerabild (Wunsch Nutzer, 06.11.2026): am Bildrand wie bei einer echten FPV-Kamera, nicht frei schwebend.
+// Dieselbe Kamera wie das Hauptbild (Auge, Lage, Uptilt), aber ein eigener Durchgang: die nahe Bildebene liegt bei
+// 3 mm je Größe 1 statt 2 cm (echte Welt 6 cm). So schneidet keine gerade Linie mehr mitten im Bild durch die Scheiben;
+// die vorderen Propeller ragen nur noch aus den oberen Ecken und Rändern ins Bild. Geprüft: Punkte in 3 mm Abstand
+// liegen bei jedem Blickfeld bis 150° außerhalb des Bildes (Scheibe beginnt 3 cm neben der Kamera). Tiefe vorher löschen,
+// weil die Tiefenwerte des Hauptbilds zu einer anderen Projektion gehören; die Propeller liegen ohnehin direkt vor der Kamera.
+function drawPropsFpv(md, dt, vf, asp, eye, qc) {
+  const sz = PHYS.size;
+  gl.uniformMatrix4fv(P.u.uVP, false, mMul(mPersp(vf, asp, 0.003*sz, 2*sz), mView(qc, eye)));
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  drawProps(md, dt, true);
+  gl.uniformMatrix4fv(P.u.uVP, false, lastVP);
+}
+// Propeller je Motor: Unschärfescheibe (Ringe, Deckkraft mit dem Gas), darüber die drei Blätter, die mit dem Gas blasser werden.
+// Sichtbare Drehung gedrosselt (9 + Gas·38 rad/s), sonst flimmern die Blätter; die Scheibe trägt den Eindruck der Drehung.
+// Vorne rot, hinten dunkelgrau (Farbe im Netz). Im Kamerabild nur die vorderen (die hinteren liegen hinter der Kamera).
 function drawProps(md, dt, frontOnly = false) {
   const sim = game.sim;
   const S = PROP_S, spin = game.state === 'fly' && !game.paused && game.armed;
   const w = spin ? 9 + sim.thr*38 : 0;                 // sichtbare Drehung, gedrosselt gegen Flimmern
   const blur = spin ? clamp(0.3 + sim.thr*1.4, 0, 1) : 0;
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform1f(P.u.uHeat, 0.3);   // Kunststoff, leicht warm vom Motor: im Wärmebild grau, nicht weiß
+  gl.uniform4f(P.u.uOver, 0, 0, 0, 0);   // keine Tönung: Farbe steckt im Netz
   for (let i = 0; i < 4; i++) {
     const [mx, mz, dir] = MOTORS[i];
     propAng[i] += dir*w*dt;
     const hp = sim.hp[i];
     if (hp <= 0 || (frontOnly && mz > 0)) continue;   // Propeller abgebrochen; im Kamerabild nur die vorderen
     const mp = mMul(md, mFromQT(qAxis([0,1,0], propAng[i]), [mx*0.088*S, 0.026*S, mz*0.088*S]));
-    if (hp < 0.5) { mp[0] *= 0.55; mp[1] *= 0.55; mp[2] *= 0.55; }   // stark beschädigt: kurzes Blatt
+    if (hp < 0.5) for (const k of [0, 1, 2, 8, 9, 10]) mp[k] *= 0.55;   // stark beschädigt: kurze Blätter, kleine Scheibe
     gl.uniformMatrix4fv(P.u.uModel, false, mp);
-    if (mz < 0) gl.uniform4f(P.u.uOver, 0.92, 0.22, 0.14, 0.9); else gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
-    gl.uniform1f(P.u.uAlpha, 1 - blur*0.75);
-    gl.bindVertexArray(bladeMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, bladeMesh.count);
-    if (blur > 0) {
+    const side = mz < 0 ? 'front' : 'rear', rotor = rotorMesh[side], rb = rotorBlur[side];
+    if (blur > 0) {   // Unschärfescheibe zuerst (ohne Tiefe), die blassen Blätter darüber
       gl.depthMask(false);
-      gl.uniform1f(P.u.uAlpha, blur*0.3);
-      gl.bindVertexArray(discMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, discMesh.count);
+      gl.bindVertexArray(rb.vao);
+      for (const b of rb.bands) { gl.uniform1f(P.u.uAlpha, blur*b.a); gl.drawArrays(gl.TRIANGLES, b.first, b.count); }
       gl.depthMask(true);
     }
+    gl.uniform1f(P.u.uAlpha, 1 - blur*0.8);
+    gl.bindVertexArray(rotor.vao); gl.drawArrays(gl.TRIANGLES, 0, rotor.count);
   }
-  gl.disable(gl.BLEND); gl.uniform1f(P.u.uAlpha, 1); gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  gl.disable(gl.BLEND); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uHeat, 0);
 }
