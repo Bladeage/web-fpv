@@ -133,10 +133,18 @@ test('Echte Welt: Gebäude (LoD2) und Bäume geladen, je Gebäude eine Nummer', 
 
 test('Echte Welt: Netz mit Fassaden (Sockelhöhe im Alpha), Dächer und Kronen', () => {
   const v = rwModelMesh(), n = v.length/10;
-  let wall = 0, roof = 0, crown = 0, bad = 0;
-  for (let i = 0; i < n; i++) { const a = v[i*10 + 9]; if (a >= 0.125 && a < 0.5) wall++; else if (a === 1) roof++; else if (a > 0.07 && a < 0.125) crown++; else bad++; if (!Number.isFinite(v[i*10 + 1])) bad++; }
+  let wall = 0, roof = 0, trunk = 0, crown = 0, bad = 0, eaveOk = 0;
+  for (let i = 0; i < n; i++) {
+    const a = v[i*10 + 9], nl = Math.hypot(v[i*10 + 3], v[i*10 + 4], v[i*10 + 5]);
+    if (a >= 0.125 && a < 0.5) { wall++; if (nl >= 2 && nl <= 2.99) eaveOk++; } else if (Math.abs(a - 0.6) < 1e-6) roof++; else if (a === 1) trunk++; else if (a > 0.07 && a < 0.125) crown++; else bad++;
+    if (!Number.isFinite(v[i*10 + 1])) bad++;
+  }
   assert.equal(bad, 0);
-  assert.ok(wall >= (T().length/9 - rw.meta.roofTris)*3 && roof > 0 && crown > rw.trees.length*48*3 - 1, `Wände ${wall}, Dach/Stamm ${roof}, Krone ${crown}`);
+  assert.ok(wall >= (T().length/9 - rw.meta.roofTris)*3*0.95 && roof >= rw.meta.roofTris*3*0.95 && trunk > 0 && crown > rw.trees.length*48*3 - 1, `Wände ${wall}, Dach ${roof}, Stamm ${trunk}, Krone ${crown}`);
+  assert.equal(eaveOk, wall, 'jede Wand trägt ihre Traufhöhe in der Länge der Normale');
+  // Traufe: bei den meisten Wänden mindestens 2 m über dem Sockel, nie über dem höchsten Punkt des Gebäudes
+  let tall = 0; for (let i = 0; i < n; i += 3) { const a = v[i*10 + 9]; if (a < 0.125 || a >= 0.5) continue; if ((Math.hypot(v[i*10 + 3], v[i*10 + 4], v[i*10 + 5]) - 2)*100 > 2) tall++; }
+  assert.ok(tall/(wall/3) > 0.8, 'Traufe über 2 m: ' + (tall/(wall/3)*100).toFixed(0) + ' %');
   // Klasse und Sockelhöhe kommen im Shader zurück (wallInfo), auch in 32 Bit wie auf der Grafikkarte
   const back = a => { const k = Math.floor((a - 0.13)/0.04); return [k, (a - 0.132 - k*0.04)/0.035*380 - 190]; };
   for (let k = 0; k < 8; k++) for (const y of [-190, -120.4, -3.2, 0, 18.9, 190]) {

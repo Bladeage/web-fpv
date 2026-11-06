@@ -214,26 +214,49 @@ export function rwModels(b16, t16) {
 }
 // Netz der Gebäude und Bäume. Je Gebäude Farben nach Nutzung (ALKIS-Gebäudefunktion aus LoD2): Putz, Metall, Holz,
 // Naturstein; Dächer Schiefer, Ziegel, Grau, Flachdächer Kies/Bitumen (Farbtöne: Schätzung für die Eifel).
-// Wände: Alpha 0,13 bis 0,49 = Fassade; darin stecken Klasse und Sockelhöhe (rwWallAlpha), der Shader zeichnet danach
+// Wände: Alpha 0,13 bis 0,49 = Fassade; darin stecken Klasse und Sockelhöhe (rwWallAlpha), in der Länge der Normale die
+// Traufhöhe (rwWallNl). Dächer: Alpha 0,6, Farbe aus dem Luftbild. Der Shader zeichnet danach
 // Fenster, Läden, Tore, Bretter, Mauerwerk oder Fachwerk. Bäume: Stamm und runde Krone in der Farbe des Luftbilds (Alpha 0,08).
-const WALLS = [[0.92, 0.9, 0.86], [0.9, 0.84, 0.72], [0.8, 0.79, 0.76], [0.86, 0.74, 0.56], [0.94, 0.93, 0.9], [0.62, 0.64, 0.68]];
+// Putz gedämpft (Weiß gebrochen, Ocker, Grau, Graugrün), dazu Schieferverkleidung (dunkelgrau, in der Eifel verbreitet)
+const WALLS = [[0.84, 0.82, 0.78], [0.82, 0.77, 0.68], [0.74, 0.73, 0.71], [0.78, 0.69, 0.55], [0.86, 0.85, 0.81], [0.6, 0.62, 0.65],
+  [0.72, 0.74, 0.69], [0.8, 0.74, 0.66], [0.36, 0.38, 0.42]];
 const ROOFS = [[0.26, 0.28, 0.32], [0.3, 0.31, 0.35], [0.48, 0.24, 0.18], [0.24, 0.25, 0.28], [0.42, 0.41, 0.4]];
 const FLAT = [[0.42, 0.42, 0.41], [0.34, 0.34, 0.35], [0.47, 0.45, 0.41]];
 const WALL_BY = { 3: [[0.66, 0.68, 0.7], [0.52, 0.58, 0.64], [0.76, 0.74, 0.68], [0.48, 0.52, 0.56]], 4: [[0.42, 0.3, 0.2], [0.36, 0.26, 0.18], [0.5, 0.38, 0.26]],
   6: [[0.58, 0.53, 0.47], [0.52, 0.49, 0.45], [0.62, 0.58, 0.52]], 7: [[0.94, 0.92, 0.87]] };
 // Wand-Alpha: Klasse k (0 bis 7, 7 = Fachwerk) und Sockelhöhe y (-190 bis 190 m). Der Shader rechnet zurück.
+export const rwWallNl = e => 2 + clamp(e, 0, 99)/100;
 export const rwWallAlpha = (y, k = 0) => 0.132 + k*0.04 + (clamp(y, -190, 190) + 190)/380*0.035;
 export function rwModelMesh() {
   const T = rw.tris, nr = rw.meta.roofTris, nt = T ? T.length/9 : 0, out = [];
-  const tri = (a, b, c, col, al, up) => {
+  const tri = (a, b, c, col, al, up, nl = 1) => {
     let n = [(b[1] - a[1])*(c[2] - a[2]) - (b[2] - a[2])*(c[1] - a[1]), (b[2] - a[2])*(c[0] - a[0]) - (b[0] - a[0])*(c[2] - a[2]), (b[0] - a[0])*(c[1] - a[1]) - (b[1] - a[1])*(c[0] - a[0])];
-    const l = Math.hypot(...n) || 1; n = n.map(v => v/l);
+    const l = Math.hypot(...n);
+    if (l < 1e-9) return;   // Dreieck ohne Fläche (kommt in LoD2 vor): unsichtbar, weglassen
+    n = n.map(v => v/l);
     if (up && n[1] < 0) n = n.map(v => -v);
-    for (const p of [a, b, c]) out.push(p[0], p[1], p[2], n[0], n[1], n[2], col[0], col[1], col[2], al);
+    for (const p of [a, b, c]) out.push(p[0], p[1], p[2], n[0]*nl, n[1]*nl, n[2]*nl, col[0], col[1], col[2], al);
   };
   const hash = i => { const k = Math.sin(i*12.9898 + 4.1)*43758.5453; return k - Math.floor(k); };
   const base = new Map();   // tiefster Punkt je Gebäude (Sockel)
   for (let t = nr; t < nt; t++) { const id = rw.bldId ? rw.bldId[t] : 0, y = Math.min(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); base.set(id, Math.min(base.get(id) ?? 1e9, y)); }
+  // Traufhöhe je Wandfläche: Dreiecke eines Gebäudes in derselben Ebene bilden eine Wand. Traufe = höchster der Punkte an
+  // den beiden seitlichen Enden der Wand (beim Giebel die Schultern, sonst die Oberkante). Darüber zeichnet der Shader keine Fenster.
+  const eave = new Float32Array(nt), groups = new Map();
+  for (let t = nr; t < nt; t++) {
+    const o = t*9, ux = T[o + 3] - T[o], uy = T[o + 4] - T[o + 1], uz = T[o + 5] - T[o + 2], vx = T[o + 6] - T[o], vy = T[o + 7] - T[o + 1], vz = T[o + 8] - T[o + 2];
+    let nx = uy*vz - uz*vy, nz = ux*vy - uy*vx; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+    if (nx < -1e-6 || (Math.abs(nx) <= 1e-6 && nz < 0)) { nx = -nx; nz = -nz; }
+    const key = (rw.bldId ? rw.bldId[t] : 0) + ':' + Math.round(Math.atan2(nz, nx)*30) + ':' + Math.round((nx*T[o] + nz*T[o + 2])*4);
+    if (!groups.has(key)) groups.set(key, { tx: -nz, tz: nx, t: [] });
+    groups.get(key).t.push(t);
+  }
+  for (const g of groups.values()) {
+    let lo = Infinity, hi = -Infinity; const P = [];
+    for (const t of g.t) for (let k = 0; k < 3; k++) { const o = t*9 + k*3, u = T[o]*g.tx + T[o + 2]*g.tz; P.push([u, T[o + 1]]); lo = Math.min(lo, u); hi = Math.max(hi, u); }
+    let e = -Infinity; for (const [u, y] of P) if (u - lo < 0.3 || hi - u < 0.3) e = Math.max(e, y);
+    for (const t of g.t) eave[t] = e;
+  }
   const top = new Map();   // höchster Punkt je Gebäude (für Fachwerk nur bei niedrigen Häusern)
   for (let t = 0; t < nt; t++) { const id = rw.bldId ? rw.bldId[t] : 0, y = Math.max(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); top.set(id, Math.max(top.get(id) ?? -1e9, y)); }
   const kind = id => {   // Fassadenklasse; Fachwerk (7) für etwa ein Drittel der niedrigen Wohnhäuser (Annahme: typisch für Monschau, nicht aus den Daten)
@@ -243,8 +266,12 @@ export function rwModelMesh() {
   for (let t = 0; t < nt; t++) {
     const o = t*9, a = [T[o], T[o + 1], T[o + 2]], b = [T[o + 3], T[o + 4], T[o + 5]], c = [T[o + 6], T[o + 7], T[o + 8]], id = rw.bldId ? rw.bldId[t] : 0;
     const flat = rw.bldInfo && rw.bldInfo[id] & 16, k = kind(id), pal = WALL_BY[k] || WALLS;
-    if (t < nr) tri(a, b, c, flat || k === 2 ? FLAT[Math.floor(hash(id)*FLAT.length)] : ROOFS[Math.floor(hash(id)*ROOFS.length)], 1, true);
-    else tri(a, b, c, pal[Math.floor(hash(id + 77)*pal.length)], rwWallAlpha(base.get(id) ?? 0, k), false);
+    // Dach: Alpha 0,6 = Dachfläche aus dem Luftbild; die Farbe hier gilt nur außerhalb des Bildes und als leichte Beimischung
+    if (t < nr) tri(a, b, c, flat || k === 2 ? FLAT[Math.floor(hash(id)*FLAT.length)] : ROOFS[Math.floor(hash(id)*ROOFS.length)], 0.6, true);
+    else {   // Wand: Länge der Normale = 2 + Traufhöhe über dem Sockel / 100 (der Shader liest sie zurück)
+      const b0 = base.get(id) ?? 0;
+      tri(a, b, c, pal[Math.floor(hash(id + 77)*pal.length)], rwWallAlpha(b0, k), false, rwWallNl(eave[t] - b0));
+    }
   }
   const bark = [0.32, 0.24, 0.17];
   for (const tr of rw.trees) {

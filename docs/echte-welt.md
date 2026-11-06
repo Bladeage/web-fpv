@@ -118,6 +118,13 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Fachwerk: etwa ein Drittel der niedrigen Wohnhäuser (unter 13 m). Annahme, typisch für Monschau; die Daten sagen nichts über Fachwerk.
 - Ablage: `.bld` hängt je Gebäude Klasse + 16 x Flachdach an. Im Netz trägt das Alpha der Wand Klasse und Sockelhöhe (`rwWallAlpha`, Test prüft die Rückrechnung in 32 Bit).
 
+## Traufe, Vielfalt, Dächer aus dem Luftbild (erledigt 06.11.2026, Prompt 105)
+
+- Traufe: Wanddreiecke eines Gebäudes in derselben Ebene bilden eine Wand; Traufe = höchster Punkt an den beiden seitlichen Enden (Giebel: Schultern). Die Höhe über dem Sockel steckt in der Länge der Normale (2 + Traufe/100). Der Shader zeichnet keine Fenster, Tore und Streben darüber und keine Fenster, die die Traufe schneiden würden.
+- Vielfalt je Haus (Wohnhäuser, Fachwerk): Feldbreite 2,2 bis 3,1 m, Geschoss 2,7 bis 3,2 m, Fensterbreite und -höhe verschieden; Putz gedämpfter, dazu Schieferverkleidung; etwa jedes dritte Haus mit Erdgeschoss aus Bruchstein (Annahme, typisch für Monschau). Zufall aus der gerundeten Sockelhöhe (ungerundet gab es Pixelrauschen).
+- Dächer: Farbe aus dem Luftbild an der Stelle (15 % Dachfarbe beigemischt), Licht weich. Befund: Das Luftbild zeigt viele Dächer hell (vermutet: Aufnahme im Winter, Reif oder Sonnenreflex auf Schiefer); am Rand eines Dachs kann Straße oder Fassade aus dem Bild stammen, weil das Luftbild kein echtes Orthofoto ist (vermutet).
+- 384 Wanddreiecke ohne Fläche (aus LoD2) werden weggelassen.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
