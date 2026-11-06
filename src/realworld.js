@@ -213,7 +213,9 @@ function tileH(T, x, z) {
   const i = clamp(Math.floor(u), 0, n - 2), j = clamp(Math.floor(v), 0, n - 2), fu = clamp(u - i, 0, 1), fv = clamp(v - j, 0, 1);
   return (h[j*n + i]*(1 - fu) + h[j*n + i + 1]*fu)*(1 - fv) + (h[(j + 1)*n + i]*(1 - fu) + h[(j + 1)*n + i + 1]*fu)*fv;
 }
-export function groundH(x, z) {
+// Gemessene Höhe (Raster bilinear, an offenen Rändern weich in die Umgebung). Daraus entstehen die Ecken der Netze.
+// Physik und alles andere nutzen groundH: die gezeichnete Fläche zwischen diesen Ecken (siehe unten).
+export function rwSampleH(x, z) {
   if (!rw.on) return 0;
   if (!rw.far) return mainH(x, z);
   const T = rwTileAt(x, z);
@@ -233,32 +235,43 @@ export function groundH(x, z) {
   if (t <= 0) return farH(x, z);
   return t >= 1 ? tileH(T, x, z) : farH(x, z)*(1 - t) + tileH(T, x, z)*t;
 }
-// Bodenrichtung (Normale, Einheitsvektor nach oben) aus dem Höhenverlauf
+// Normale aus den gemessenen Höhen (glatt, für das Licht der Netze)
+function sampleN(x, z) {
+  const e = rw.cell, dx = (rwSampleH(x + e, z) - rwSampleH(x - e, z))/(2*e), dz = (rwSampleH(x, z + e) - rwSampleH(x, z - e))/(2*e);
+  const l = Math.hypot(dx, 1, dz);
+  return [-dx/l, 1/l, -dz/l];
+}
+// Bodenhöhe = Höhe der gezeichneten Geländefläche an (x, z): dieselben Ecken und Dreiecke wie rwMesh (Abstand RW_STEP
+// Rasterpunkte) bzw. rwFarMesh. Vorher rechnete die Physik mit den gemessenen Höhen dazwischen; die gezeichnete Fläche lag am
+// Hang bis 4 m darüber (Monschau, an 32 % der Punkte über 3,5 cm), die Drohne sank sichtbar ein, die Kamera sah das Gelände
+// von unten. Jetzt eine Fläche für Physik, Kamera, Bäume, Vögel und Pilot (Prüfbericht Nr. 1).
+export const RW_STEP = 2;
+const tri = (a, b, c, d, fx, fz) => fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz);
+export function groundH(x, z) {
+  if (!rw.on) return 0;
+  const T = rwTileAt(x, z);
+  if (!T && rw.far) {   // Umgebung: Dreiecke über den Messpunkten (25 m), außen der Rand bis 15 km wie rwFarMesh
+    const F = rw.far, o = -F.size/2 + F.cell/2, E = RW_FAR_EDGE;
+    const fp = k => k < 0 ? -E : k >= F.n ? E : o + k*F.cell, fi = l => l < o ? -1 : Math.min(F.n - 1, Math.floor((l - o)/F.cell));
+    const cx = clamp(x, -E, E), cz = clamp(z, -E, E), i = fi(cx), j = fi(cz), x0 = fp(i), x1 = fp(i + 1), z0 = fp(j), z1 = fp(j + 1);
+    return tri(rwSampleH(x0, z0), rwSampleH(x1, z0), rwSampleH(x0, z1), rwSampleH(x1, z1), (cx - x0)/(x1 - x0), (cz - z0)/(z1 - z0));
+  }
+  // Startgebiet ohne Umgebung: dessen Netz mit Rand bis 1,5 km (auch außerhalb des Gebiets)
+  const main = !T || T === rw.main, N = main ? rw.n : T.n, C = main ? rw.size/rw.n : T.cell, ox = main ? 0 : T.dx, oz = main ? 0 : T.dz;
+  if (!N) return rwSampleH(x, z);
+  const m = Math.floor(N/RW_STEP), edge = rw.far ? rw.size/2 : 1500;
+  const pos = k => k <= 0 ? -edge : k > m ? edge : (((k - 1)*RW_STEP + RW_STEP/2) - N/2)*C;
+  const idx = l => { if (l < pos(1)) return 0; if (l >= pos(m)) return m; return clamp(1 + Math.floor((l/C + N/2 - RW_STEP/2)/RW_STEP), 1, m - 1); };
+  const lx = clamp(x - ox, -edge, edge), lz = clamp(z - oz, -edge, edge), i = idx(lx), j = idx(lz), x0 = pos(i), x1 = pos(i + 1), z0 = pos(j), z1 = pos(j + 1);
+  const W = (a, b) => rwSampleH(a + ox, b + oz);
+  return tri(W(x0, z0), W(x1, z0), W(x0, z1), W(x1, z1), (lx - x0)/(x1 - x0), (lz - z0)/(z1 - z0));
+}
+// Bodenrichtung (Normale, Einheitsvektor nach oben) der gezeichneten Fläche
 export function groundN(x, z) {
   if (!rw.on) return [0, 1, 0];
   const e = rw.cell, dx = (groundH(x + e, z) - groundH(x - e, z))/(2*e), dz = (groundH(x, z + e) - groundH(x, z - e))/(2*e);
   const l = Math.hypot(dx, 1, dz);
   return [-dx/l, 1/l, -dz/l];
-}
-// Höhe der gezeichneten Geländefläche an (x, z): dieselben Ecken und Dreiecke wie rwMesh (Abstand RW_STEP Rasterpunkte) bzw.
-// rwFarMesh. Die Fläche liegt am Hang bis einige Meter über groundH (gemessen: Monschau bis 4 m, an 32 % der Punkte über
-// 3,5 cm). Die Kamera hält Abstand zu dieser Fläche, sonst sieht sie das Gelände von unten (Fehlerbericht Nutzer).
-export const RW_STEP = 2;
-export function rwSurfaceH(x, z) {
-  if (!rw.on) return 0;
-  const T = rwTileAt(x, z), tri = (a, b, c, d, fx, fz) => fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz);
-  if (!T) {
-    if (!rw.far) return groundH(x, z);
-    const F = rw.far, o = -F.size/2 + F.cell/2, u = clamp((x - o)/F.cell, 0, F.n - 1.001), v = clamp((z - o)/F.cell, 0, F.n - 1.001);
-    const i = Math.floor(u), j = Math.floor(v), X = o + i*F.cell, Z = o + j*F.cell, c = F.cell;
-    return tri(groundH(X, Z), groundH(X + c, Z), groundH(X, Z + c), groundH(X + c, Z + c), u - i, v - j);
-  }
-  const N = T.n, C = T.cell, m = Math.floor(N/RW_STEP), edge = rw.far ? rw.size/2 : (T === rw.main ? 1500 : rw.size/2);
-  const pos = k => k <= 0 ? -edge : k > m ? edge : (((k - 1)*RW_STEP + RW_STEP/2) - N/2)*C;
-  const idx = l => { if (l < pos(1)) return 0; if (l >= pos(m)) return m; return clamp(1 + Math.floor((l/C + N/2 - RW_STEP/2)/RW_STEP), 1, m - 1); };
-  const lx = x - T.dx, lz = z - T.dz, i = idx(lx), j = idx(lz), x0 = pos(i), x1 = pos(i + 1), z0 = pos(j), z1 = pos(j + 1);
-  const W = (a, b) => groundH(a + T.dx, b + T.dz);
-  return tri(W(x0, z0), W(x1, z0), W(x0, z1), W(x1, z1), (lx - x0)/(x1 - x0), (lz - z0)/(z1 - z0));
 }
 // Netz fürs Gelände: Raster mit Abstand step Rasterpunkte (2 = 4 m), außen ein Rand bis „far“ m in Randhöhe.
 // Rückgabe: Ecken (wie MeshBuilder: Ort, Normale, Farbe, Alpha 0 = Boden) und Dreiecks-Indizes.
@@ -269,8 +282,8 @@ export function rwMesh(step = 2, far = 1500, T = null) {
   pos.push(far);
   const k = pos.length, v = new Float32Array(k*k*10), idx = new Uint32Array((k - 1)*(k - 1)*6);
   for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
-    const x = pos[i] + ox, z = pos[j] + oz, n = groundN(x, z), o = (j*k + i)*10;
-    v.set([x, groundH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], o);
+    const x = pos[i] + ox, z = pos[j] + oz, n = sampleN(x, z), o = (j*k + i)*10;
+    v.set([x, rwSampleH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], o);
   }
   let t = 0;
   for (let j = 0; j < k - 1; j++) for (let i = 0; i < k - 1; i++) {
@@ -282,7 +295,8 @@ export function rwMesh(step = 2, far = 1500, T = null) {
 
 // Netz der Umgebung (L5a): Messpunkte alle 25 m über 10 km, außen ein Rand bis 15 km; Zellen im Gebiet fehlen (dort liegt
 // das feine Netz, die Ränder treffen sich genau auf Messpunkten). Ecken wie rwMesh (Ort, Normale, Farbe, Alpha 0 = Boden).
-export function rwFarMesh(edge = 15000) {
+export const RW_FAR_EDGE = 15000;   // m: Rand des Umgebungsnetzes (bis zum Horizont)
+export function rwFarMesh(edge = RW_FAR_EDGE) {
   const F = rw.far;
   if (!F) return { v: new Float32Array(0), idx: new Uint32Array(0) };
   const o = -F.size/2 + F.cell/2, pos = [-edge];
@@ -290,8 +304,8 @@ export function rwFarMesh(edge = 15000) {
   pos.push(edge);
   const k = pos.length, half = rw.size/2, v = new Float32Array(k*k*10), idx = [];
   for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
-    const x = pos[i], z = pos[j], n = groundN(x, z);
-    v.set([x, groundH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], (j*k + i)*10);
+    const x = pos[i], z = pos[j], n = sampleN(x, z);
+    v.set([x, rwSampleH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], (j*k + i)*10);
   }
   for (let j = 0; j < k - 1; j++) for (let i = 0; i < k - 1; i++) {
     const T = rwTileAt((pos[i] + pos[i + 1])/2, (pos[j] + pos[j + 1])/2);   // Loch für das Gebiet und jede geladene Kachel
@@ -365,12 +379,14 @@ export function rwWaterMesh(T = rw.main) {
     const gi = Math.round((i + 0.5)*res/G), gj = Math.round((j + 0.5)*res/G);
     for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) if (gi + x >= 0 && gj + y >= 0 && gi + x < m && gj + y < m) near[(gj + y)*m + gi + x] = 1;
   }
+  // Bodenhöhe je nasser Zelle nur einmal rechnen (jede wird von bis zu 80 Ecken gefragt; groundH ist die gezeichnete Fläche)
+  const hc = new Float32Array(n*n).fill(NaN), cellH = (i, j) => { const k = j*n + i; let v = hc[k]; if (v !== v) v = hc[k] = groundH((i + 0.5)*res - h + ox, (j + 0.5)*res - h + oz); return v; };
   const lvl = new Float32Array(m*m).fill(NaN);
   for (let gj = 0; gj < m; gj++) for (let gi = 0; gi < m; gi++) {
     if (!near[gj*m + gi]) continue;
     const ci = Math.round(gi*G/res), cj = Math.round(gj*G/res);
     let lo = Infinity;
-    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) lo = Math.min(lo, groundH((ci + x + 0.5)*res - h + ox, (cj + y + 0.5)*res - h + oz));
+    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) lo = Math.min(lo, cellH(ci + x, cj + y));
     const x = gi*G - h + ox, z = gj*G - h + oz;   // über Wasser: dem Flussbett folgen (Wehre, Gefälle); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
     if (lo < Infinity) lvl[gj*m + gi] = (wet(ci, cj) ? Math.max(lo, groundH(x, z)) : lo) + WATER_UP;
   }
@@ -662,10 +678,15 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const n = p.meta.n, h = new Float32Array(n*n);
   for (let k = 0; k < n*n; k++) h[k] = p.meta.hMin + p.q[k]*p.meta.hScale - m.hHome;
   const T = { i, j, dx: i*S, dz: j*S, n, cell: S/n, h, water: x.water || null, wmeta: p.meta.water || null, dop: p.dop, key, place: p.meta.place };
-  const own = (wx, wz) => tileH(T, wx, wz), w = T.wmeta;
+  const w = T.wmeta;
   const wet = (wx, wz) => { if (!T.water || !w) return false; const i = Math.floor((wx - T.dx + S/2)/w.res), j = Math.floor((wz - T.dz + S/2)/w.res), b = j*w.n + i;
     return i >= 0 && j >= 0 && i < w.n && j < w.n && (T.water[b >> 3] >> (b & 7) & 1) === 1; };
-  return Object.assign(T, rwTileModels(p.b16, p.t16, p.meta, T.dx, p.meta.hHome - m.hHome, T.dz, own, wet));
+  // Bäume auf die gezeichnete Fläche, wie sie mit dieser Kachel aussieht (Ränder zur Umgebung eingeschlossen): Kachel dafür kurz
+  // eintragen (ohne Warten dazwischen, die Physik sieht das nicht). Vorher: eigene Höhen ohne Rand, Bäume am Rand schwebten (Nr. 6).
+  const code = tileCode(i, j), had = tileByCode.get(code), on = rw.on;
+  tileByCode.set(code, T); rw.on = true;
+  try { return Object.assign(T, rwTileModels(p.b16, p.t16, p.meta, T.dx, p.meta.hHome - m.hHome, T.dz, groundH, wet)); }
+  finally { if (had) tileByCode.set(code, had); else tileByCode.delete(code); rw.on = on; }
 }
 // Ein Schritt (etwa jede Sekunde aus der Hauptschleife): entladen, was weit weg ist, und die nächste nötige Kachel laden.
 // Liefert true, wenn sich etwas geändert hat. Ändert sich das Gebiet währenddessen (rw.ver), wird das Ergebnis verworfen.

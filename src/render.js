@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH, rwSurfaceH } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
@@ -570,7 +570,7 @@ export function render(dt) {
     // Mindestens 3,5 cm über dem Boden, sonst sieht man am Boden durch die Karte (Bildebene 2 cm vor dem Auge).
     const sz = PHYS.size;
     eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), 0.015*sz)));
-    eye[1] = Math.max(eye[1], Math.max(groundH(eye[0], eye[2]), rwSurfaceH(eye[0], eye[2])) + 0.035);   // auch über der gezeichneten Fläche (echte Welt)
+    eye[1] = Math.max(eye[1], groundH(eye[0], eye[2]) + 0.035);   // groundH ist die gezeichnete Fläche (echte Welt)
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {

@@ -50,7 +50,9 @@ test('Gelände: Höhen, Neigung, Netz; Startplatz bei y = 0', () => {
   let lo = 1e9; for (let x = -480; x <= 480; x += 40) for (let z = -480; z <= 480; z += 40) lo = Math.min(lo, groundH(x, z));
   assert.ok(lo < -80, 'Tal deutlich unter dem Start: ' + lo.toFixed(0) + ' m');
   const n = groundN(0, 0); assert.ok(Math.abs(Math.hypot(...n) - 1) < 1e-9 && n[1] > 0);
-  assert.equal(groundH(2000, 0), groundH(499.9, 0), 'außen setzt sich der Rand fort');
+  // außen der Rand des Netzes bis 1,5 km (ohne Umgebung): dahinter gleich, kein Sprung am letzten Messpunkt
+  assert.equal(groundH(2000, 0), groundH(1500, 0), 'außen setzt sich der Rand fort');
+  assert.ok(Math.abs(groundH(1500, 0) - groundH(499.9, 0)) < 1, 'Rand fast eben');
   const m = rwMesh(2, 1500); assert.equal(m.idx.length, (258 - 1)**2*6);
   rw.on = false;
   assert.equal(groundH(100, 100), 0, 'normaler Modus: flach');
@@ -309,7 +311,9 @@ test('L5a: Umgebung 10 km: Bodenhöhe ohne Sprung am Rand, außen echtes Geländ
   // Am Rand (±500 m) stetig; über den Übergang (30 m) höchstens so steil wie das Gelände selbst
   let jump = 0;
   for (let z = -480; z <= 480; z += 20) for (const s of [-1, 1]) { const a = groundH(s*499.99, z), b = groundH(s*500.01, z); jump = Math.max(jump, Math.abs(a - b)); }
-  assert.ok(jump < 0.05, 'Sprung am Rand ' + jump.toFixed(3) + ' m');
+  // Die Netze treffen sich am Rand mit verschieden dichten Ecken (fein alle 4 m, Umgebung alle 25 m): kleine Stufe in der
+  // gezeichneten Fläche, die groundH seit Prüfbericht Nr. 1 genau abbildet (gemessen 0,12 m)
+  assert.ok(jump < 0.2, 'Sprung am Rand ' + jump.toFixed(3) + ' m');
   // Außen nicht mehr flach fortgesetzt: Höhen 2 km entfernt unterscheiden sich deutlich
   const out = [[2000, 0], [-2000, 0], [0, 2000], [0, -2000]].map(([x, z]) => groundH(x, z));
   assert.ok(Math.max(...out) - Math.min(...out) > 20, 'Umgebung hat Relief: ' + out.map(v => v.toFixed(0)).join(' '));
@@ -386,9 +390,9 @@ test('Kamera nie unter der gezeichneten Fläche (Fehlerbericht Nutzer): rwSurfac
     return fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz); };
   let worst = 0, above = 0;
   for (let n = 0; n < 4000; n++) { const x = (Math.random() - 0.5)*990, z = (Math.random() - 0.5)*990, s = surf(x, z);
-    worst = Math.max(worst, Math.abs(s - R.rwSurfaceH(x, z))); above = Math.max(above, s - groundH(x, z)); }
-  assert.ok(worst < 1e-3, 'rwSurfaceH weicht vom Netz ab: ' + worst);
-  assert.ok(above > 0.035, 'ohne die Korrektur läge die Kamera teils unter der Fläche (Netz bis ' + above.toFixed(2) + ' m über groundH)');
+    worst = Math.max(worst, Math.abs(s - groundH(x, z))); above = Math.max(above, s - R.rwSampleH(x, z)); }
+  assert.ok(worst < 1e-3, 'groundH (Physik) weicht vom gezeichneten Netz ab: ' + worst);
+  assert.ok(above > 0.035, 'die gemessenen Höhen allein lägen teils unter dem Netz (bis ' + above.toFixed(2) + ' m); daher zählt die Fläche');
   rw.on = false;
   R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
 });
@@ -432,4 +436,25 @@ test('Prüfbericht Nr. 5: Abruf ohne Antwort endet nach der Zeitgrenze; Gebietsw
     assert.ok(!rw.tileBusy && rw.tileFail.size === 0 && !rw.tileErr, 'abgebrochen, ohne Fehler und ohne Pause');
   } finally { globalThis.fetch = old; rw.on = false; }
   R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
+});
+
+test('Prüfbericht Nr. 1: Drohne liegt am Hang auf der gezeichneten Fläche, nicht darin', async () => {
+  const R = await import('../src/realworld.js'), { PHYS } = await import('../src/physics.js');
+  cfg.dmg = 'off'; cfg.ghost = true; setScenario('real'); respawn();
+  rw.on = true;
+  // Stelle, an der das Netz deutlich über den gemessenen Höhen liegt (dort sank die Drohne früher ein)
+  let best = null;
+  for (let x = -400; x <= 400; x += 3) for (let z = -400; z <= 400; z += 3) { const d = groundH(x, z) - R.rwSampleH(x, z); if (!best || d > best.d) best = { x, z, d }; }
+  assert.ok(best.d > 0.3, 'Netz liegt am Hang über den Messwerten: ' + best.d.toFixed(2) + ' m');
+  // Netz unabhängig nachrechnen (Dreieck aus den Ecken von rwMesh)
+  const m = R.rwMesh(2, 1500), k = Math.round(Math.sqrt(m.v.length/10)), xs = Array.from({ length: k }, (_, i) => m.v[i*10]), Y = (i, j) => m.v[(j*k + i)*10 + 1];
+  const surf = (x, z) => { const i = xs.findIndex((v, n) => n + 1 < k && x >= v && x <= xs[n + 1]), j = xs.findIndex((v, n) => n + 1 < k && z >= v && z <= xs[n + 1]);
+    const fx = (x - xs[i])/(xs[i + 1] - xs[i]), fz = (z - xs[j])/(xs[j + 1] - xs[j]), a = Y(i, j), b = Y(i + 1, j), c = Y(i, j + 1), d = Y(i + 1, j + 1);
+    return fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz); };
+  const s = game.sim;
+  s.p = [best.x, groundH(best.x, best.z) + 0.3, best.z]; s.v = [0, 0, 0]; s.w = [0, 0, 0]; game.throttle = 0;
+  let low = 1e9;
+  run(0.6, () => { low = Math.min(low, s.p[1] - PHYS.foot - surf(s.p[0], s.p[2])); });
+  assert.ok(low > -0.03, 'Unterseite nie unter der gezeichneten Fläche: ' + low.toFixed(3) + ' m');
+  cfg.ghost = false;
 });

@@ -252,6 +252,15 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Kartenrand (gesichert im Code): Umgebung 10 x 10 km um den Start, Nachladen bis 4,5 km. Ab 300 m vor dem Rand der Umgebung (5 km) geht das Luftbild in gerechnete Felder über. Mitwandern der Umgebung ist offen (Prüfbericht Nr. 16).
 - Geprüft: Tests ohne Netz (Zeitgrenze, Abbruch, gleiche Zellenzahl nah und fern); im Browser Monschau mit nachgeladener Kachel über die echten Dienste.
 
+## Eine Bodenfläche für Physik und Bild (06.11.2026, Prompt 125, Prüfbericht Etappe 2)
+
+- `groundH` liefert jetzt die gezeichnete Fläche: dieselben Dreiecke wie die Netze (fein alle 4 m, Umgebung alle 25 m, Rand bis 15 km). Die Netze selbst bauen auf den gemessenen Höhen (`rwSampleH`, bilinear, weich in die Umgebung). Damit stehen Drohne, Verfolgerkamera, Pilot, Vögel und Bäume auf dem, was man sieht. Vorher lag das Bild am Hang bis 4 m über der Physik; nur die FPV-Kamera war korrigiert.
+- Wasser: Der Spiegel richtet sich nach der gezeichneten Fläche. Vorher lagen 8 % der Ecken mitten im Fluss darunter (Monschau, gemessen). Aufbau schneller (103 statt 135 ms), weil jede Zellenhöhe nur einmal gerechnet wird.
+- Bäume nachgeladener Kacheln stehen auf der Fläche mit Rand zur Umgebung (vorher eigene Höhen ohne Rand).
+- Kosten: `groundH` etwa 0,6 µs statt 0,13 µs; Physik und Netze unverändert schnell (gemessen in Node).
+- Bekannt: Am Rand Gebiet/Umgebung treffen sich verschieden dichte Netze, Stufe bis 0,12 m (Prüfbericht Nr. 17).
+- Geprüft: Test „Drohne am steilsten Unterschied von Netz und Messwerten liegt auf dem Netz“ (unabhängig aus dem Netz nachgerechnet), Wasser-Test gegen die gezeichnete Fläche, Browser mit Nachladen über die echten Dienste.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
