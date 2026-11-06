@@ -91,7 +91,7 @@ export function syncMenu() {
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
   if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume.'
-    : 'Mittelpunkt eingeben (Breite, Länge, etwa aus einer Karte kopiert). Lädt je nach Ort 10 bis 50 MB (Schätzung).';
+    : 'Mittelpunkt eingeben (Breite, Länge) oder auf der Karte wählen. Lädt je nach Ort 15 bis 200 MB (Innenstadt Aachen: rund 170 MB).';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
   const total = cfg.scen === 'hunt2' ? 7 : cfg.scen === 'hunt3' ? 6 : 9;
@@ -173,9 +173,16 @@ export function resume() { keyLearn.fn = null; audioInit(); game.paused = false;
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
-// Echte Welt, Ort laden: Fortschritt im Menü, ein zweiter Klick bricht ab (rwBusy oben)
-async function rwLive() {
-  if (rwBusy) { rwBusy.abort(); return false; }
+// Echte Welt, Ort laden: Fortschritt im Menü. Knopf „Laden“: ein zweiter Klick bricht ab (rwBusy oben).
+// Start und Kartenwahl brechen nicht ab: Start wartet auf das laufende Laden, die Karte ersetzt es durch den neuen Ort.
+let rwJob = null;
+function rwLive() {
+  if (rwBusy) { rwBusy.abort(); return Promise.resolve(false); }
+  return rwLiveRun();
+}
+async function rwReplace() { if (rwBusy) { rwBusy.abort(); await rwJob; } return rwLiveRun(); }
+function rwLiveRun() { rwJob = rwLiveDo(); return rwJob; }
+async function rwLiveDo() {
   const ll = parseLatLon(cfg.rwLL);
   if (!ll) { $('rwMsg').textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }
   rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen';
@@ -183,12 +190,14 @@ async function rwLive() {
   try {
     await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg);
     $('rwMsg').textContent = '';
+    // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
+    if (game.started && game.scenRun === 'real') { setScenario('real'); respawn(); }
     return true;
   } catch (e) {
     $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
     return false;
   } finally {
-    rwBusy = null; $('rwGo').textContent = 'Laden';
+    rwBusy = null; rwJob = null; $('rwGo').textContent = 'Laden';
     if ($('rwMsg').textContent === '') { syncMenu(); $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
     fitPanel();
   }
@@ -211,9 +220,10 @@ async function mergeImg(imgs, cells) {
 }
 const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
 async function start() {
+  if (cfg.scen === 'real' && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
   if (cfg.scen === 'real' && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
-    say('Lade Gebiet …', 30);
-    if (!await rwLive()) { say('Ort nicht geladen, fliege Monschau. ' + $('rwMsg').textContent, 5); await rwLoadEmbedded(); }
+    say('Lade Gebiet …', 60);
+    if (!await rwLiveRun()) { say('Ort nicht geladen, fliege Monschau. ' + $('rwMsg').textContent, 5); await rwLoadEmbedded(); }
     else say('Gebiet geladen', 1.5);
   }
   if (cfg.scen === 'real' && cfg.rwSrc !== 'live' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
@@ -233,7 +243,7 @@ $('rwGo').addEventListener('click', () => rwLive());
 $('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
 srcInit(show);
 $('mapSrc').addEventListener('click', () => srcOpen());
-mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwLive(); }, () => fitPanel());
+mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwReplace(); }, () => fitPanel());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DRONES)) {

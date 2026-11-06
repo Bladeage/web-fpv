@@ -67,7 +67,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 
 Gelände und Luftbild von Monschau: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (https://www.govdata.de/dl-de/zero-2-0). Abgelegt in `realworld/`, geladen mit `node tools/realworld.mjs`, beim Build eingebettet. Plan: `docs/echte-welt.md`.
 
-Andere Orte in NRW lädt der Browser live aus denselben Diensten (Geobasis NRW, dl-de/zero-2.0).
+Andere Orte lädt der Browser live (1 x 1 km): Modus „Echte Welt“ → „Ort laden“, Breite und Länge eintragen oder „Karte“ öffnen und klicken. Für NRW sind die Dienste von Geobasis NRW hinterlegt (dl-de/zero-2.0). Für andere Bundesländer trägt man die Dienste unter Karte → „Quellen“ ein (Höhen als WCS, Luftbild als WMS, Gebäude als LoD2-Kacheln); „Prüfen“ testet sie, „Exportieren“ und „Importieren“ geben sie weiter. An Landesgrenzen setzt das Programm mehrere Quellen zusammen.
 
 Deutschlandkarte zur Auswahl:
 - Ländergrenzen: © BKG 2026 dl-de/by-2-0 (https://www.govdata.de/dlde/by-2-0), VG2500, vereinfacht; Datenquellen: https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf. Abgelegt in `realworld/germany.json` (`node tools/germany.mjs`).

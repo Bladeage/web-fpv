@@ -50,6 +50,7 @@ export function findStart(h, n, bbox, near) {
     if (Math.hypot(i - ci, j - cj)*cell > 80 || i < 6 || j < 6 || i >= n - 6 || j >= n - 6) continue;
     let lo = 1e9, hi = -1e9;
     for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) { const v = at(i + x, j + y); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    if (!(hi - lo >= 0)) continue;   // Fenster mit ungültigen Werten (NaN) nie als Start
     if (!best || hi - lo < best.s) best = { i, j, s: hi - lo };
   }
   return best;
@@ -71,11 +72,11 @@ export function findTrees(dgm, dom, roofs, n, bbox) {
     }
   }
   const nd = new Float32Array(n*n);
-  for (let k = 0; k < n*n; k++) nd[k] = mask[k] ? 0 : Math.max(0, dom[k] - dgm[k]);
+  for (let k = 0; k < n*n; k++) { const v = dom[k] - dgm[k]; nd[k] = mask[k] || !isFinite(v) ? 0 : Math.max(0, v); }   // ohne Wert: kein Baum
   const trees = [], R = 3;
   for (let j = R; j < n - R; j++) for (let i = R; i < n - R; i++) {
     const v = nd[j*n + i];
-    if (v < 3 || v > 45) continue;
+    if (!(v >= 3 && v <= 45)) continue;
     let top = true;
     for (let y = -R; y <= R && top; y++) for (let x = -R; x <= R; x++) {
       if (!x && !y || x*x + y*y > R*R) continue;
@@ -135,12 +136,14 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   say('Oberfläche (Bäume)', 0.1);
   const domR = srcs[0].dom || multi ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
   say('Luftbild', 0.2);
+  // Fortschritt beim Herunterladen großer Dateien: Schritt mit MB
+  const mb = (what, f) => n => say(what + ' (' + (n/1e6).toFixed(1) + ' MB)', f);
   let dop = null;
   if (multi && opt.mergeImg) {
     const imgs = [];
-    for (const s of srcs) imgs.push(s.dop ? await get(wmsUrl(s.dop, a.bbox, a.crs, a.dopN || RW_DOPN)).catch(() => null) : null);
+    for (const s of srcs) imgs.push(s.dop ? await get(wmsUrl(s.dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2)).catch(() => null) : null);
     dop = await opt.mergeImg(imgs, opt.cells);
-  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN));
+  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2));
   const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3];
   // Gebäude: je Quelle ihre Kacheln; bei mehreren nur Gebäude, deren Mitte in einer Zelle dieser Quelle liegt
   const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
@@ -148,13 +151,14 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   (multi ? srcs : srcs.slice(0, 1)).forEach((s, si) => { if (s.lod2) for (const u of lod2Urls(s.lod2, a.bbox)) jobs.push([si, u]); });
   for (let k = 0; k < jobs.length; k++) {
     const [si, u] = jobs[k];
-    say('Gebäude ' + (k + 1) + ' von ' + jobs.length, 0.45 + 0.45*k/jobs.length);
+    const step = 'Gebäude ' + (k + 1) + ' von ' + jobs.length, f = 0.45 + 0.45*k/jobs.length;
+    say(step, f);
     const keep = !multi ? inBox : (e, nn) => {
       if (!inBox(e, nn)) return false;
       const i = (e - a.bbox[0])/(a.bbox[2] - a.bbox[0])*n, j = (a.bbox[3] - nn)/(a.bbox[3] - a.bbox[1])*n, c = cellOf(Math.min(n - 1, i), Math.min(n - 1, j));
       return c === si || (c < 0 && si === 0);
     };
-    const xml = await text(u);
+    const xml = await text(u, mb(step, f));
     if (!xml) continue;   // Kachel ohne Gebäude
     const o = readLod2(xml, keep), base = bld.info.length;
     // Schleifen statt push(...liste): große Kacheln (Innenstadt) sprengen sonst im Browser den Aufrufstapel
@@ -205,6 +209,9 @@ export function rwSourcesParse(json) {
     if (!s || !['EPSG:25832', 'EPSG:25833'].includes(s.crs)) e.push('Koordinatensystem nur EPSG:25832 oder EPSG:25833');
     if (!s || !s.dgm || !url(s.dgm.url) || !s.dgm.coverage) e.push('Höhen (WCS-Adresse und Coverage) fehlen');
     for (const k of ['dom', 'dop', 'lod2']) if (s && s[k] && !url(s[k].url)) e.push(k + ': Adresse ungültig');
+    if (s && s.dom && !s.dom.coverage) e.push('Oberfläche: Coverage-ID fehlt');
+    if (s && s.dop && !s.dop.layer) e.push('Luftbild: Layer fehlt');
+    if (!s || !s.land) e.push('Bundesland fehlt');
     if (s && s.lod2 && !/\{E\}/.test(s.lod2.url)) e.push('Gebäude: Muster braucht {E} und {N}');
     if (e.length) errors.push('Quelle ' + (i + 1) + ': ' + e.join(', '));
     else ok.push({ id: s.id || 'eigen-' + i, name: s.name, land: s.land || '', crs: s.crs, dgm: s.dgm, dom: s.dom || null, dop: s.dop || null, lod2: s.lod2 || null, attribution: s.attribution || s.name });
@@ -217,9 +224,13 @@ export function rwSourcesParse(json) {
 export function rwPack(a, dgm, dom, bld, dop) {
   const n = dgm.w;
   let lo = 1e9, hi = -1e9;
-  for (const v of dgm.data) if (isFinite(v) && v !== dgm.nodata) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
-  const q = new Uint16Array(n*n);
-  for (let i = 0; i < q.length; i++) { const v = dgm.data[i]; q[i] = Math.round(((isFinite(v) && v !== dgm.nodata ? v : lo) - lo)*10); }
+  for (const v of dgm.data) if (isFinite(v) && v !== dgm.nodata && v > -1000) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (!(hi >= lo)) throw new Error('Keine gültigen Höhen im Gebiet');
+  // Ungültige Höhen (Füllwert, NaN aus dem Zusammensetzen) durch den tiefsten Wert ersetzen; Oberfläche dort = Gelände (kein Baum)
+  const H = new Float32Array(n*n), q = new Uint16Array(n*n);
+  for (let i = 0; i < q.length; i++) { const v = dgm.data[i], ok = isFinite(v) && v !== dgm.nodata && v > -1000; H[i] = ok ? v : lo; q[i] = Math.round((H[i] - lo)*10); }
+  if (dom) dom = dom.map((v, i) => isFinite(v) && v > -1000 ? v : H[i]);
+  dgm = { ...dgm, data: H };
   const near = a.startNear || [(a.bbox[0] + a.bbox[2])/2, (a.bbox[1] + a.bbox[3])/2];
   const st = findStart(dgm.data, n, a.bbox, near), cell = (a.bbox[2] - a.bbox[0])/n, half = (a.bbox[2] - a.bbox[0])/2;
   const home = [(st.i + 0.5)*cell - half, (st.j + 0.5)*cell - half];

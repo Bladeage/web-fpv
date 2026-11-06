@@ -172,3 +172,21 @@ test('L3: Planung an echten Grenzen: Nachbarland dazu, anderes Koordinatensystem
   assert.ok(rwSources().find(s => s.id === 'sn').box[2] > 800000, 'Rechteck aus dem Land berechnet');
   rw.userSources = [];
 });
+
+test('L3 Polieren: Lücken ohne Werte werden keine Bäume, der Start bleibt gültig', async () => {
+  const n = 32, a = { ...rwAreaAt(305000, 5604000, srcA), n, place: 'Lücke' };
+  const cells = new Int8Array(RW_CELLS*RW_CELLS).map((_, k) => (k % RW_CELLS) < RW_CELLS/2 ? 0 : 1);
+  // beide Quellen ohne Oberfläche; Spalten 10 bis 21 (auch am Start in der Mitte) in keiner Quelle mit Wert
+  const get = async u => u.includes('wcs') ? makeTiff(n, i => i >= 10 && i <= 21 ? -9999 : 100 + i*0.1) : new Uint8Array([0xff, 0xd8]);
+  const p = await rwFetchArea(a, [srcA, srcB], get, async () => null, () => {}, { cells });
+  assert.equal(p.meta.trees, 0, 'keine Bäume aus Lücken (vorher fast jeder Bildpunkt)');
+  assert.ok(Number.isFinite(p.meta.hHome) && Number.isFinite(p.meta.startSpan), 'Start gültig: ' + p.meta.hHome);
+  assert.ok([...p.q].every(v => Number.isFinite(v)));
+  await assert.rejects(rwFetchArea(a, [srcA, srcB], async u => u.includes('wcs') ? makeTiff(n, -9999) : new Uint8Array([0xff, 0xd8]), async () => null, () => {}, { cells }), /Keine gültigen Höhen/);
+});
+
+test('L3 Polieren: Quellen ohne Bundesland, Oberfläche ohne Coverage oder Luftbild ohne Layer werden abgelehnt', () => {
+  const r = rwSourcesParse(JSON.stringify([{ ...srcB, land: '' }, { ...srcB, name: 'x', dom: { url: 'https://b.test/dom' } }, { ...srcB, name: 'y', dop: { url: 'https://b.test/wms' } }]));
+  assert.equal(r.sources.length, 0);
+  assert.match(r.errors[0], /Bundesland fehlt/); assert.match(r.errors[1], /Coverage-ID fehlt/); assert.match(r.errors[2], /Layer fehlt/);
+});

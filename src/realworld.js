@@ -59,14 +59,23 @@ export function rwNet(signal) {
     try { return await fetch(u, { signal }); }
     catch (e) { if (e.name === 'AbortError') throw new Error('Abgebrochen'); throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)'); }
   };
-  const get = async u => {
+  // Antwort lesen; prog(Bytes) meldet bei großen Dateien den Fortschritt (Gebäude-Kacheln bis 15 MB)
+  const body = async (r, prog) => {
+    if (!prog || !r.body || !r.body.getReader) return new Uint8Array(await r.arrayBuffer());
+    const rd = r.body.getReader(), parts = [];
+    let n = 0;
+    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prog(n); }
+    const b = new Uint8Array(n); let o = 0; for (const x of parts) { b.set(x, o); o += x.length; }
+    return b;
+  };
+  const get = async (u, prog) => {
     const r = await go(u);
     if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
-    const b = new Uint8Array(await r.arrayBuffer());
+    const b = await body(r, prog);
     if (b[0] === 0x3c) throw new Error(host(u) + ' meldet: ' + new TextDecoder().decode(b.slice(0, 300)).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
     return b;
   };
-  const text = async u => { const r = await go(u); if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return r.text(); };
+  const text = async (u, prog) => { const r = await go(u); if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await body(r, prog)); };
   return { get, text };
 }
 // Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (L1, mehrere Quellen L3).
@@ -80,6 +89,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   const { get, text } = rwNet(signal);
   const opt = srcs.length > 1 ? { cells: rwCellSources(a, srcs, plan.toLand), mergeImg } : {};
   const p = await rwFetchArea(a, srcs, get, text, say, opt);
+  if (signal && signal.aborted) throw new Error('Abgebrochen');   // etwa während des Zusammensetzens der Luftbilder
   rwApply(p, { live: true });
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name);
   return rw;

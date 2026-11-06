@@ -139,7 +139,7 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Menü „Echte Welt“: „Monschau (eingebaut)“ oder „Ort laden (NRW)“ mit Feld für Breite, Länge (Punkt oder Komma als Dezimalzeichen) und Knopf „Laden“ (nochmal drücken bricht ab). Fortschritt und Fehler stehen darunter. Start ohne geladenen Ort lädt erst; schlägt das fehl, geht es mit Monschau weiter.
 - `src/rwload.js` (ohne DOM): Quellen (NRW als Vorlage), Adressen, Laden und Packen. Das Werkzeug `tools/realworld.mjs` nutzt denselben Code; die Monschau-Dateien sind damit Byte für Byte gleich geblieben (geprüft).
 - Geladen werden Höhen (512², 2 m), Oberfläche (für Bäume), Luftbild (4096², 0,25 m) und die LoD2-Kacheln, die das Gebiet berühren (mit Gebäudenutzung). Ohne Gewässer und Ortsnamen (siehe L4).
-- Test im Browser (gesichert): Aachen, Dom (50.7753, 6.0839): 21 s, 2688 Gebäude, 1430 Bäume, Dom gut erkennbar. Fehler dabei gefunden und behoben: große Innenstadt-Kacheln sprengten mit `push(...liste)` den Aufrufstapel.
+- Test im Browser (gesichert): Aachen, Dom (50.7753, 6.0839): 21 s, 2688 Gebäude, 1430 Bäume, Dom gut erkennbar. Datenmenge (gesichert beim Polieren): die vier LoD2-Kacheln um den Dom haben 44, 13, 69 und 46 MB, zusammen rund 170 MB; Monschau 14 MB. Bei langsamem Netz dauert eine Innenstadt also Minuten (Schätzung: 16 Mbit/s etwa 90 s). Abhilfe: Speichern im Browser (L4). Fehler dabei gefunden und behoben: große Innenstadt-Kacheln sprengten mit `push(...liste)` den Aufrufstapel.
 - Fehlermeldungen: keine Quelle für den Ort, keine Verbindung (offline oder gesperrt), Dienst meldet Fehler (Text aus der Antwort), falsche Rastergröße, Abbruch. Das alte Gebiet bleibt dabei erhalten.
 - Grafik: neues Gebiet (rw.ver) gibt Netze und Luftbild frei und baut sie neu.
 
@@ -162,6 +162,18 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Gesichert (06.11.2026): Der NRW-Dienst liefert über die Grenze hinaus gültige Höhen und Luftbild (Dreiländereck Vaals geprüft). Ob andere Länder außen Füllwerte liefern, ist offen; das Zusammensetzen deckt beides ab.
 - Geprüft: Tests mit künstlichen Quellen (Lücke gefüllt, Gebäude je Land, Luftbild-Zusammensetzen aufgerufen), Planung an echten Grenzen (NRW/Niedersachsen bei Minden, Thüringen/Sachsen), Datei lesen mit Fehlern. Im Browser: NRW-Vorlage kopiert und geprüft; Ladetest an der Grenze NRW/Niedersachsen mit einer Testquelle (43 s). Werkzeug Monschau weiter Byte für Byte gleich.
 - Offen: echte Dienste anderer Länder sind nicht als Vorlage hinterlegt (Nutzer trägt sie ein); Mischen von UTM 32 und 33 in einem Gebiet.
+
+## Polieren nach L3 (erledigt 06.11.2026, Prompt 110)
+
+- Zweiter Prüfer (Agent, nur lesen) über alle Änderungen seit dem Wasser. Funde und Lösung:
+  1. Lücken ohne Werte (Grenze, Quelle ohne Oberfläche) wurden zu Bäumen auf fast jedem Bildpunkt (bis 256 000, Absturz des Browsers möglich). Jetzt: ohne Wert kein Baum. Test.
+  2. Ein ungültiger Wert am Start machte das ganze Gelände ungültig (NaN). Jetzt: ungültige Höhen werden vor dem Packen durch den tiefsten Wert ersetzt, der Start meidet Fenster mit Lücken; ganz ohne Höhen gibt es eine Fehlermeldung. Test.
+  3. Start während des Ladens brach das Laden ab. Jetzt: Start wartet. Im Browser geprüft.
+  4. Kartenwahl während des Ladens brach ab, ohne neu zu laden. Jetzt: der neue Ort ersetzt das laufende Laden.
+  5. „Weiterfliegen“ nach dem Laden eines neuen Orts ließ die Drohne an der alten Stelle im neuen Gelände. Jetzt: Neustart am neuen Startplatz.
+  6. Abbruch während des Zusammensetzens der Luftbilder wurde übergangen. Jetzt beachtet.
+  7. Quellen ohne Bundesland, Oberfläche ohne Coverage-ID oder Luftbild ohne Layer wurden beim Import angenommen. Jetzt abgelehnt mit Grund. Test.
+- Fortschritt beim Laden in MB (Gebäudekacheln, Luftbild). Hinweise im Menü, Hilfe und README nennen Karte und Quellen. Datenmenge Innenstadt korrigiert (siehe L1).
 
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
