@@ -478,3 +478,4 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - L3 erledigt (06.11.2026, Prompt 109): eigene Quellen, Prüfen, Import/Export, mehrere Quellen an Landesgrenzen. Siehe `docs/echte-welt.md`.
 - Polieren (Prompt 110) und L4 erledigt (06.11.2026, Prompt 111): Speichern im Browser, Gewässer und Ortsnamen einmal laden. Siehe `docs/echte-welt.md`.
 - Housekeeping (06.11.2026, Prompt 112): README-Aufbau vollständig, neue Übergabe `docs/handover-2026-11-06.md`, CLAUDE.md zeigt darauf, CI veröffentlicht die Seite ohne doppelte 6,5 MB und mit 20 Minuten Zeitgrenze. Nächste Etappe: L5 nach Tests des Nutzers.
+- L4b erledigt (06.11.2026, Prompt 117): Optionen der echten Welt mit Reiter „Daten“ (Übersicht, Export, Import). Nächste Etappe L5.

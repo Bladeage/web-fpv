@@ -97,7 +97,7 @@ export function syncMenu() {
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
   if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
-      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Karte → Quellen.' : '')
+      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
     : 'Breite, Länge oder Karte. 15 bis 200 MB, danach gespeichert.';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
@@ -203,6 +203,10 @@ async function rwLiveDo() {
     return true;
   } catch (e) {
     $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
+    if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
+      const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Geodaten importieren';
+      b.addEventListener('click', () => srcOpen('data')); $('rwMsg').append(' ', b);
+    }
     return false;
   } finally {
     rwBusy = null; rwJob = null; $('rwGo').textContent = 'Laden';
@@ -261,7 +265,8 @@ document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('c
   if (!spec && SPECIAL.has(cfg.scen)) cfg.scen = cfg.lastStd && !SPECIAL.has(cfg.lastStd) ? cfg.lastStd : 'gates';
   saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
-document.querySelectorAll('#rwSeg button').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
+document.querySelectorAll('#rwSeg button[data-src]').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
+$('rwOpt').addEventListener('click', () => srcOpen('data'));   // Optionen der echten Welt (Daten, Quellen)
 $('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
 $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
 $('rwGo').addEventListener('click', () => rwLive());
@@ -269,8 +274,8 @@ $('rwSaved').addEventListener('change', e => { if (!e.target.value) return; cfg.
 rwSavedFill();
 // Karte (L2): Punkt wählen, übernehmen lädt sofort
 $('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
-srcInit(show, () => fitPanel());
-$('mapSrc').addEventListener('click', () => srcOpen());
+srcInit(show, () => fitPanel(), () => rwSavedFill());
+$('mapSrc').addEventListener('click', () => srcOpen('src'));
 mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwReplace(); }, () => fitPanel());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;

@@ -6,6 +6,7 @@ Ziel: Fliegen in einem echten Gebiet aus amtlichen offenen Geodaten (wie ein Flu
 
 - **Eingebaut:** Monschau 1 x 1 km. Höhen (DGM, 2 m), Luftbild (DOP, 0,25 m), LoD2-Gebäude mit Fassaden nach Nutzung, Bäume aus DOM minus DGM, Rur als Wasser (Absturz), Ortsnamen, Kartenlinien (aus).
 - **Live laden (L1 bis L4):** Modus „Echte Welt“ → „Ort laden“: Koordinate oder „Karte“. NRW als Vorlage; andere Länder unter Karte → „Quellen“. Mehrere Quellen an Landesgrenzen. Geladene Orte im Browser gespeichert („Gespeicherte Orte“, offline). Gewässer und Ortsnamen NRW einmal laden (60 MB).
+- **Daten:** Optionen → Daten: Übersicht, Export und Import aller Geodaten als Datei (L4b).
 - **Offen:** L5 Nachladen beim Fliegen; Mischen von UTM 32 und 33; Dienste anderer Länder ungeprüft.
 - **Code:** `src/realworld.js` (Laufzeit), `src/rwload.js` (Laden, Quellen), `src/rwdlm.js` (Basis-DLM), `src/rwstore.js` (Speicher), `src/demap.js` und `src/mapui.js` (Karte), `src/srcui.js` (Quellen), `src/geo.js` (GeoTIFF, UTM, CityGML). Werkzeuge in `tools/`.
 - Die Abschnitte unten sind das Protokoll in zeitlicher Reihenfolge; ältere Abschnitte beschreiben Zwischenstände (etwa das 3D-Mesh, „Ort laden (NRW)“).
@@ -197,6 +198,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Fehler behoben (gesichert, im Code gefunden): Bei live geladenen Orten mit Landesdaten gibt es nur Ortsnamen, keine Straßen und Bäche; der Straßenname in der Aufgabenzeile warf dann im Flug in jedem Bild einen Fehler. Test.
 - Rauchtest im Browser: Monschau, live mit Landesdaten, aus dem Speicher mit Weiterfliegen; je vier Durchgänge (Grafik einfach bis schön, Drohnen- und Verfolgerkamera, Wärmebild und Nachtsicht, Kartenlinien an): keine Fehler.
 - Gespeicherte und geladene Orte heißen mit Landesdaten nach der nächsten Ortslage (bis 2 km), etwa „Monschau · 50.55470, 6.24250“.
+
+## L4b: Optionen mit Reiter „Daten“ (erledigt 06.11.2026, Prompt 117)
+
+- Modus → Spezial → Echte Welt → „Optionen“ (oder Karte → „Quellen“): Seite „Echte Welt: Optionen“ mit Reitern „Daten“ und „Quellen“ (die bisherige Quellen-Seite).
+- **Daten:** Übersicht je Art mit Anzahl und Größe: gespeicherte Orte, Höhen, Luftbild, Gebäude, Bäume, Gewässer, Landesdaten, Speicher im Browser gesamt. Darunter Landesdaten laden oder löschen und die gespeicherten Orte zum Löschen.
+- **Export:** alle gespeicherten Orte und Landesdaten in einer Datei `fpv-geodaten-<Datum>.fpvgeo` (eigenes Format: Kennung, Kopf als JSON, Datenblöcke; im Browser mit gzip gepackt). Monschau-Altstadt: 4 MB; mit Landesdaten NRW etwa 64 MB.
+- **Import:** dieselbe Datei an einem anderen Rechner; die Orte stehen danach unter „Gespeicherte Orte“ und öffnen ohne Netz. Schlägt das Laden fehl, weil kein Server erreichbar ist, bietet die Meldung den Knopf „Geodaten importieren“ an.
+- Geprüft: Hin und zurück verlustfrei (Test), fremde und abgeschnittene Dateien abgelehnt (Test). Im Browser zwei getrennte Profile: A lädt und exportiert, B ohne Netz bekommt den Import angeboten, importiert und fliegt den Ort, ohne Fehler. Menüs passen auf allen vier Größen.
 
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 

@@ -48,7 +48,7 @@
         <div class="list grid2" id="specList"></div>
         <p class="hint" id="specInfo"></p>
         <div id="rwOpts">
-          <div class="seg small" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button></div>
+          <div class="seg small seg3" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button><button id="rwOpt" title="Daten, Export und Import, Quellen">Optionen</button></div>
           <div id="rwLive" class="rwlive">
             <input type="text" id="rwLL" placeholder="Breite, Länge  z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
             <button class="secondary" id="rwMap">Karte</button>
@@ -71,15 +71,23 @@
     </section>
 
     <section data-screen="sources" hidden>
-      <h1>Quellen</h1>
-      <p class="hint">Dienste der Länder für die echte Welt. Eigene Quellen gehen vor die Vorlagen. Am Rand eines Landes setzt das Programm mehrere Quellen zusammen.</p>
-      <div class="srclist" id="srcList"></div>
-      <div class="seg small seg3"><button id="srcNew">Neu</button><button id="srcImp">Importieren</button><button id="srcExp">Exportieren</button></div>
-      <p class="hint" id="srcUse"><b>Speicher im Browser</b></p>
-      <div class="srclist" id="srcStore"></div>
-      <input type="file" id="srcFile" accept=".json,application/json" hidden>
-      <p class="hint" id="srcMsg"></p>
-      <div class="nav"><button class="secondary" data-go="map">Zurück</button><button class="primary" data-go="map">Zur Karte</button></div>
+      <h1>Echte Welt: Optionen</h1>
+      <div class="tabs tabs2" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button></div>
+      <div id="geoData">
+        <div class="geostats" id="geoStats"></div>
+        <div class="srclist" id="srcStore"></div>
+        <div class="seg small"><button id="geoExp">Exportieren</button><button id="geoImp">Importieren</button></div>
+        <input type="file" id="geoFile" accept=".fpvgeo,application/octet-stream,application/gzip" hidden>
+        <p class="hint" id="geoMsg"></p>
+      </div>
+      <div id="geoSrc" hidden>
+        <p class="hint">Dienste der Länder für die echte Welt. Eigene Quellen gehen vor die Vorlagen. Am Rand eines Landes setzt das Programm mehrere Quellen zusammen.</p>
+        <div class="srclist" id="srcList"></div>
+        <div class="seg small seg3"><button id="srcNew">Neu</button><button id="srcImp">Importieren</button><button id="srcExp">Exportieren</button></div>
+        <input type="file" id="srcFile" accept=".json,application/json" hidden>
+        <p class="hint" id="srcMsg"></p>
+      </div>
+      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" data-go="map">Zur Karte</button></div>
     </section>
 
     <section data-screen="source" hidden>

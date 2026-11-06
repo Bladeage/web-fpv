@@ -2,14 +2,14 @@
    Eigene Quellen liegen in cfg.rwSources (Browser-Speicher) und gelten vor den Vorlagen (rw.userSources). */
 import { cfg, saveCfg } from './state.js';
 import { rw, rwNet, rwSources, rwLandData, rwLandHas } from './realworld.js';
-import { RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage } from './rwstore.js';
+import { RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage, storePut, storeArea, storeStats, storeExportAll, geoPack, geoUnpack } from './rwstore.js';
 import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { deMap } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
 
 const srcEl = id => document.getElementById(id);
-const SRC = { show: null, fit: () => {}, edit: -1, busy: null };
+const SRC = { show: null, fit: () => {}, onData: () => {}, edit: -1, busy: null, tab: 'data' };
 const SRC_FIELDS = [['sfName', 'name'], ['sfLand', 'land'], ['sfCrs', 'crs'], ['sfDgm', 'dgm.url'], ['sfDgmC', 'dgm.coverage'], ['sfDom', 'dom.url'], ['sfDomC', 'dom.coverage'],
   ['sfDop', 'dop.url'], ['sfDopL', 'dop.layer'], ['sfLod', 'lod2.url'], ['sfLodK', 'lod2.tileKm'], ['sfAttr', 'attribution']];
 const srcGetP = (o, p) => p.split('.').reduce((x, k) => x && x[k], o);
@@ -31,7 +31,26 @@ function srcList() {
   for (const s of RW_SOURCES) row(s, s.land + ' · Vorlage', 'Kopie', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
-export function srcOpen() { srcEl('srcMsg').textContent = ''; srcList(); srcStoreFill(); SRC.show('sources'); }
+// Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen)
+export function srcOpen(tab = SRC.tab) { srcEl('srcMsg').textContent = ''; srcTab(tab); srcList(); srcStoreFill(); SRC.show('sources'); }
+function srcTab(tab) {
+  SRC.tab = tab;
+  document.querySelectorAll('#geoTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.gtab === tab)));
+  srcEl('geoData').hidden = tab !== 'data'; srcEl('geoSrc').hidden = tab !== 'src';
+  SRC.fit();
+}
+// Übersicht je Art: Anzahl und Größe (gespeicherte Orte, Landesdaten, Browser gesamt)
+async function srcStats() {
+  const st = await storeStats(), u = await storeUsage(), MB = b => b < 1e5 ? Math.round(b/1e3) + ' KB' : (b/1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB', N = x => x.toLocaleString('de-DE');
+  const rows = [['Gespeicherte Orte', N(st.areas), MB(st.size)], ['Höhen', N(st.areas), MB(st.bytes.q)], ['Luftbild', N(st.areas), MB(st.bytes.dop)],
+    ['Gebäude', N(st.buildings), MB(st.bytes.b16)], ['Bäume', N(st.trees), MB(st.bytes.t16)], ['Gewässer', N(st.water) + ' Orte', MB(st.bytes.water)],
+    ['Landesdaten (Gewässer, Orte)', st.land.length + ' Dateien', MB(st.land.reduce((t, x) => t + x.size, 0))]];
+  const box = srcEl('geoStats'); box.textContent = '';
+  const add = (t, cls) => { const e = document.createElement('span'); e.textContent = t; if (cls) e.className = cls; box.append(e); };
+  for (const r of rows) r.forEach((t, i) => add(t, i ? '' : ''));
+  if (u && u.usage) { add('Speicher im Browser gesamt', 'sum'); add('', 'sum'); add(MB(u.usage), 'sum'); }
+  return st;
+}
 // Speicher (L4): Landesdaten je Quelle mit Basis-DLM (einmal laden oder löschen), gespeicherte Orte (löschen), belegter Platz
 async function srcStoreFill() {
   const box = srcEl('srcStore'), rows = [];
@@ -51,8 +70,9 @@ async function srcStoreFill() {
   for (const x of (await storeAll('info')).sort((a, b) => b.date - a.date))
     row(x.place, (x.size/1e6).toFixed(0) + ' MB · ' + new Date(x.date).toLocaleDateString('de-DE') + (x.water ? ' · mit Gewässern' : ''), 'Löschen', async () => { await storeAreaDel(x.key); srcStoreFill(); });
   box.textContent = ''; box.append(...rows);
-  const u = await storeUsage();
-  srcEl('srcUse').innerHTML = '<b>Speicher im Browser</b>' + (u && u.usage ? ': ' + (u.usage/1e6).toFixed(0) + ' MB belegt' : '') + (rows.length ? '' : ' (noch leer; geladene Orte werden automatisch gespeichert)');
+  await srcStats();
+  if (!rows.length) srcEl('geoMsg').textContent ||= 'Noch leer. Geladene Orte werden automatisch gespeichert.';
+  SRC.onData();
   SRC.fit();   // Zeilen kamen nach dem Einpassen dazu
 }
 // Landesdaten laden (zweiter Klick bricht ab)
@@ -60,9 +80,9 @@ async function srcLand(s, btn) {
   if (SRC.busy) { SRC.busy.abort(); return; }
   SRC.busy = new AbortController(); btn.textContent = 'Abbrechen';
   try {
-    const mb = await rwLandData(s, RW_STORE, (t, f) => { srcEl('srcMsg').textContent = 'Lade ' + t + ' … ' + Math.round(f*100) + ' %'; }, SRC.busy.signal);
-    srcEl('srcMsg').textContent = 'Gewässer und Ortsnamen gespeichert (' + mb.toFixed(0) + ' MB). Sie gelten für neu geladene Orte und beim nächsten Öffnen gespeicherter Orte.';
-  } catch (e) { srcEl('srcMsg').textContent = 'Nicht geladen: ' + (e.message || e); }
+    const mb = await rwLandData(s, RW_STORE, (t, f) => { srcEl('geoMsg').textContent = 'Lade ' + t + ' … ' + Math.round(f*100) + ' %'; }, SRC.busy.signal);
+    srcEl('geoMsg').textContent = 'Gewässer und Ortsnamen gespeichert (' + mb.toFixed(0) + ' MB). Sie gelten für neu geladene Orte und beim nächsten Öffnen gespeicherter Orte.';
+  } catch (e) { srcEl('geoMsg').textContent = 'Nicht geladen: ' + (e.message || e); }
   finally { SRC.busy = null; srcStoreFill(); }
 }
 
@@ -127,8 +147,38 @@ async function srcImport(f) {
   cfg.rwSources = [...(cfg.rwSources || []), ...add]; srcStore(); srcList();
   srcEl('srcMsg').textContent = add.length + ' Quellen übernommen' + (r.sources.length > add.length ? ', ' + (r.sources.length - add.length) + ' schon vorhanden (gleicher Name)' : '') + (r.errors.length ? '. Nicht übernommen: ' + r.errors.join('; ') : '.');
 }
-export function srcInit(show, fit) {
-  SRC.show = show; SRC.fit = fit || SRC.fit; srcApply();
+// Geodaten exportieren: alle gespeicherten Orte und Landesdaten in einer Datei (gzip), für einen Rechner ohne Netz
+async function geoExport() {
+  srcEl('geoMsg').textContent = 'Stelle Datei zusammen …';
+  const all = await storeExportAll();
+  if (!all.areas.length && !all.land.length) { srcEl('geoMsg').textContent = 'Nichts zu exportieren: noch keine Orte oder Landesdaten gespeichert.'; return; }
+  let blob = new Blob(geoPack(all.areas, all.land), { type: 'application/octet-stream' });
+  const raw = blob.size;
+  if (typeof CompressionStream === 'function') blob = await new Response(blob.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+  const a = document.createElement('a'), day = new Date().toISOString().slice(0, 10);
+  a.href = URL.createObjectURL(blob); a.download = 'fpv-geodaten-' + day + '.fpvgeo';
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  srcEl('geoMsg').textContent = 'Exportiert: ' + all.areas.length + ' Orte, ' + all.land.length + ' Landesdateien, ' + (blob.size/1e6).toFixed(0) + ' MB (ungepackt ' + (raw/1e6).toFixed(0) + ' MB), Datei ' + a.download + '. Am anderen Rechner unter Optionen → Daten → Importieren.';
+}
+async function geoImport(f) {
+  srcEl('geoMsg').textContent = 'Lese ' + f.name + ' …';
+  try {
+    let b = new Uint8Array(await f.arrayBuffer());
+    if (b[0] === 0x1f && b[1] === 0x8b) b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    const r = geoUnpack(b);
+    let na = 0, nl = 0;
+    for (const x of r.areas) if (await storeArea(x.key, x)) na++;
+    for (const x of r.land) if (await storePut('land', x.key, x.data)) nl++;
+    srcEl('geoMsg').textContent = 'Importiert: ' + na + ' Orte, ' + nl + ' Landesdateien (Datei vom ' + new Date(r.created).toLocaleDateString('de-DE') + '). Die Orte stehen unter „Gespeicherte Orte“.';
+  } catch (e) { srcEl('geoMsg').textContent = 'Nicht importiert: ' + (e.message || e); }
+  srcStoreFill();
+}
+export function srcInit(show, fit, onData) {
+  SRC.show = show; SRC.fit = fit || SRC.fit; SRC.onData = onData || SRC.onData; srcApply();
+  document.querySelectorAll('#geoTabs button').forEach(b => b.addEventListener('click', () => srcTab(b.dataset.gtab)));
+  srcEl('geoExp').addEventListener('click', geoExport);
+  srcEl('geoImp').addEventListener('click', () => srcEl('geoFile').click());
+  srcEl('geoFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) geoImport(f); e.target.value = ''; });
   srcEl('srcNew').addEventListener('click', () => srcForm(-1));
   srcEl('srcExp').addEventListener('click', srcExport);
   srcEl('srcImp').addEventListener('click', () => srcEl('srcFile').click());
