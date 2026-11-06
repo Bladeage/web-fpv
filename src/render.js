@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
@@ -905,7 +905,11 @@ function drawTerrain() {
       const n = { terrain: indexed(rwMesh(2, rw.size/2, T)), model: null, water: null, tex: null, born: ++tileGen };
       tileGl.set(T, n); budget--;
       if (T.dop) loadPhoto(T.dop, rw.ver, t => { if (tileGl.get(T) === n) n.tex = t; else gl.deleteTexture(t); });
-    } else if (!g.model) { g.model = upload(rwModelMesh(T)); g.water = T.water ? upload(rwWaterMesh(T)) : null; budget--; }
+    } else if (!g.model) {
+      // Netz der Gebäude und Bäume (Innenstadt bis 160 ms): im Hintergrund-Thread, wenn es ihn gibt; hier nur hochladen
+      if (!g.job) g.job = rw.work ? rw.work('modelMesh', { S: rwMeshInput(T) }).catch(() => rwModelMesh(T)).then(v => { g.data = v; }) : (g.data = rwModelMesh(T), true);
+      if (g.data) { g.model = upload(g.data); g.data = null; g.water = T.water ? upload(rwWaterMesh(T)) : null; budget--; }
+    }
   }
   if (farDirty && budget && [...tileGl.values()].every(g => g.model)) { freeGl(farGl); farGl = indexed(rwFarMesh()); farGen = tileGen; farDirty = false; budget--; }
   if (mainDirty && !farDirty && budget) { freeGl(terrain); terrain = null; mainDirty = false; }

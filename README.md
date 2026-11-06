@@ -65,6 +65,8 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/rwload.js` | Echte Welt: Quellen (NRW-Vorlage), Abruf-Adressen, Laden und Packen eines Gebiets, Zusammensetzen an Landesgrenzen, Prüfen, Quellen-Datei |
 | `src/rwdlm.js` | Echte Welt: Basis-DLM (ZIP, Shape, DBF) für Gewässer und Ortsnamen |
 | `src/rwstore.js` | Echte Welt: Speicher im Browser (IndexedDB) für Orte und Landesdaten |
+| `src/rwworker.js` | Echte Welt: Aufträge im Hintergrund-Thread (Gebiet laden, Netz der Gebäude), läuft im Worker |
+| `src/rwthread.js` | Echte Welt: Hintergrund-Thread aus dem eigenen Script anlegen, Aufträge abgeben; ohne ihn rechnet das Hauptprogramm |
 | `src/demap.js`, `src/mapui.js`, `src/srcui.js` | Deutschlandkarte (Daten und Bedienung), Seiten „Quellen“ und „Quelle bearbeiten“ |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |
 | `tools/aspx.mjs` | ASPX-Konverter (Node-Port von `tools/to_aspx.py`) |
@@ -76,7 +78,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `sitl/` | Quellen und Build-Skript für Betaflight als WebAssembly |
 | `test/` | Tests mit `node:test` |
 
-`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm`, `rwworker` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
 ## Daten „Echte Welt“
 

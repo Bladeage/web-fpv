@@ -11,7 +11,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -89,7 +89,7 @@ export function rwNet(signal, stall = RW_STALL) {
     catch (e) {
       if (late) throw new Error(host(u) + ' antwortet nicht (' + stall/1000 + ' s ohne Daten)');
       if (e.name === 'AbortError' || ac.signal.aborted) throw new Error('Abgebrochen');
-      if (e instanceof TypeError) throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)');
+      if (e && e.name === 'TypeError') throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)');   // Name statt instanceof: gilt auch über Grenzen von Worker und Fenster
       throw e;
     }
     finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
@@ -127,6 +127,20 @@ export async function rwExtras(p, src, store) {
   }
   return out;
 }
+// Gebiet laden: im Hintergrund-Thread, wenn es ihn gibt (Prüfbericht Etappe 5: Abrufe, Raster, Gebäudekacheln, Bäume
+// rechnen dort; das Bild läuft weiter). Bilder mehrerer Quellen zusammensetzen braucht ein Canvas: dann im Hauptprogramm.
+// Fehlt der Worker oder fällt er aus, rechnet das Hauptprogramm wie bisher.
+async function rwFetch(a, srcs, say, signal, opt, store) {
+  if (rw.work && !opt.mergeImg) {
+    try { return await rw.work('area', { a, srcs, opt: { far: opt.far, cells: opt.cells || null, lod2: !!(store && store.lod2) } }, say, signal); }
+    catch (e) { if (!e.noWorker) throw e; }
+  }
+  const { get, text } = rwNet(signal);
+  if (store && store.lod2) opt.lod2Cache = { get: store.lod2, put: store.lod2Put };   // Gebäudekacheln anderer Orte wiederverwenden
+  return rwFetchArea(a, srcs, get, text, say, opt);
+}
+// Eingaben für rwModelMesh (Netz der Gebäude und Bäume einer Kachel), ohne den Rest der Kachel: geht an den Worker
+export const rwMeshInput = S => ({ tris: S.tris, nr: S.nr, bldId: S.bldId, bldInfo: S.bldInfo, trees: S.trees.map(t => ({ x: t.x, z: t.z, y0: t.y0, r: t.r, boxes: t.boxes.map(b => ({ c: b.c, h: b.h })) })) });
 export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null) {
   const plan = rwPlan(lat, lon);
   if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
@@ -150,10 +164,8 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
     return rw;
   }
   if (plan.skipped.length) say('Hinweis: ' + plan.skipped.map(s => s.name).join(', ') + ' nutzt ein anderes Koordinatensystem und bleibt außen vor', 0);
-  const { get, text } = rwNet(signal);
   const opt = srcs.length > 1 ? { cells: rwCellSources(a, srcs, plan.toLand), mergeImg } : {};
-  if (store && store.lod2) opt.lod2Cache = { get: store.lod2, put: store.lod2Put };   // Gebäudekacheln anderer Orte wiederverwenden
-  const p = await rwFetchArea(a, srcs, get, text, say, opt);
+  const p = await rwFetch(a, srcs, say, signal, opt, store);
   if (signal && signal.aborted) throw new Error('Abgebrochen');   // etwa während des Zusammensetzens der Luftbilder
   // Gewässer und Ortsnamen: Landesdaten beim ersten Ort automatisch (Nutzer, Prompt 121); schon vorhandene nicht noch einmal
   if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
@@ -668,11 +680,9 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
     if (p.tile && store.touch) store.touch(key);   // wieder genutzt: bleibt länger im Zwischenspeicher
   }
   else {
-    const { get, text } = rwNet(signal);
     const opt = { far: false, async: true };
-    if (store && store.lod2) opt.lod2Cache = { get: store.lod2, put: store.lod2Put };
     if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
-    p = await rwFetchArea(a, srcs, get, text, say, opt);
+    p = await rwFetch(a, srcs, say, signal, opt, store);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
     x = await rwExtras(p, srcs[0], store);
     if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });

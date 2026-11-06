@@ -268,6 +268,15 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Speicher im Browser: Nachgeladene Kacheln höchstens 400 MB (Schätzung, etwa 100 bis 200 Kacheln); die am längsten nicht genutzten gehen zuerst, wieder genutzte Kacheln werden aufgefrischt. Meldet der Browser über 90 % belegt, gehen zuerst alte Kacheln, dann zerlegte Gebäudekacheln. Schlägt das Schreiben fehl: Platz schaffen und nochmals versuchen, sonst im Menü „nicht gespeichert: Speicher im Browser voll oder gesperrt“. Eigene Orte und Landesdaten löscht nur der Nutzer. Optionen → Daten zeigt den freien Platz.
 - Geprüft im Browser: Kontextverlust auslösen und zurückholen (Spielkarte und Monschau zeichnen wieder, Tore 8, Flugzeit ruht); Speicher mit knapp gemeldetem Platz (die zwei ältesten Kacheln gelöscht, die wieder genutzte bleibt); Monschau auf einem nachgebildeten Handy.
 
+## Rechenarbeit im Hintergrund (06.11.2026, Prompt 129, Prüfbericht Etappe 5)
+
+- Ein Web Worker rechnet beim Laden eines Orts und beim Nachladen: Abrufe, Höhenraster, Gebäudekacheln (bis 70 MB Text je km², bleiben ganz im Worker), Bäume, Umgebung. Dazu das Netz der Gebäude und Bäume je Kachel. Das Hauptprogramm bekommt nur die fertigen Felder.
+- Eine Datei ohne externe Quellen: Der Worker entsteht aus dem eigenen Script (`rwthread.js` nimmt die Module ohne DOM, ersetzt die eingebetteten Daten durch Platzhalter, etwa 300 KB). Geht das nicht (Entwicklung mit Modulen, Seite verbietet Worker, Worker fällt aus), rechnet das Hauptprogramm wie bisher.
+- Mehrere Quellen an Landesgrenzen setzen Luftbilder mit einem Canvas zusammen: Dieser Fall bleibt im Hauptprogramm.
+- Gemessen im Browser (Kachel Köln Innenstadt, 1 344 Gebäude, echte Dienste): längste Blockade des Hauptprogramms 41 statt 119 ms, Summe der Blockaden über 50 ms 0 statt 556 ms.
+- Noch im Hauptprogramm: Neuaufbau von Umgebung und Startgebiet nach jeder neuen Kachel (in Node etwa 100 und 80 ms), Kachel-Gelände (37 ms), Wasser, Kollisionsraster (20 bis 50 ms).
+- Geprüft: Node-Test führt den Worker-Quelltext aus dem echten Build abgeschottet aus (gleiches Netz wie direkt, gleiches Gebiet, Fehlertexte); im Browser als lokale Datei: Worker startet, Kachel lädt.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

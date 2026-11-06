@@ -23,6 +23,7 @@ import { rw, rwLoadEmbedded, rwStreamStep } from './realworld.js';
 import { RW_STORE } from './rwstore.js';
 import { bfPrepare } from './bf.js';
 import { dePrepare } from './demap.js';
+import { rwThreadInit } from './rwthread.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
@@ -77,6 +78,7 @@ function frame(now) {
 
 // Gepackt eingebettete Daten entpacken (Betaflight, Deutschlandkarte), im Hintergrund; dauert Millisekunden
 bfPrepare(); dePrepare();
+rwThreadInit();   // Hintergrund-Thread für die echte Welt (Prüfbericht Etappe 5); ohne ihn rechnet das Hauptprogramm
 resize();
 show('main');
 if (!gl) {
