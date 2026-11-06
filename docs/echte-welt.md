@@ -61,10 +61,21 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Mengen für Monschau (Knoten, die 1 x 1 km berühren): Stufe 14: 5 Knoten, ~120 000 Dreiecke, ~73 cm/Pixel. Stufe 15: 34 Knoten, ~39 cm/Pixel. Stufe 16: 73 Knoten, ~20 cm/Pixel. Stufe 17: 355 Knoten, ~7 cm/Pixel (je Knoten ~66 x 46 m, 396 KB Geometrie + 146 KB Textur). Stufe 18: 1 280 Knoten, ~4 cm/Pixel.
 - Folgerung: Volle Schärfe wie beim Digitalen Zwilling geht nur mit Nachladen während des Flugs (nahe Knoten fein, ferne grob). Einbetten nur grob (Stufe 14) oder für ein kleines Gebiet.
 
+## Stand M1 (erledigt 06.11.2026, Prompt 96)
+
+- Entscheidung Nutzer: Nachladen im Flug plus grobe eingebettete Fassung; LoD2-Gebäude und Bäume werden ersetzt.
+- Werkzeug `tools/mesh.mjs`: liest das SLPK per Teilabruf (zentrales Verzeichnis zwischengespeichert in `tools/.cache/`), Knotenbaum im Gebiet mit 150 m Rand: 2 725 Knoten, Stufen 1 bis 18. Index `realworld/monschau-mesh.json` (je Knoten Lage, Stufe, Radius, lodThreshold, Byte-Position und Länge von Geometrie und Textur im Paket, Lage der Box). Grobe Stufe 13 (~115 cm/Pixel): 78 391 Dreiecke, Positionen 16 Bit in dm und UV 16 Bit, gepackt 1,1 MB; Texturen 1,6 MB.
+- Geprüft: Positionen sind relativ zur Knotenmitte in Landesachsen, die Drehung der Box gilt nicht für die Ecken (mit Drehung lagen Ecken bis 180 m unter dem Gelände). Mesh und Höhenmodell passen: 1 % der Ecken tiefer als 0,9 m unter dem Gelände, 10 % höchstens 0,3 m darüber.
+- Darstellung: eigenes Shader-Programm (Textur mit Licht aus dem Luftbild, Nebel, Bildmodus). Höhenmodell unter dem Mesh 4 m abgesenkt, außen in voller Höhe.
+- Physik: Kollision mit den Mesh-Dreiecken (Häuser, Bäume, Hänge als eine Fläche); Höhenmodell bleibt der Boden darunter.
+- LoD2, Bäume und Luftbild nicht mehr eingebettet (Dateien entfernt; das Werkzeug `realworld.mjs` kann sie für andere Länder weiter erzeugen). HTML 5,3 MB.
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.
 - RW2: LoD2-Gebäude (Darstellung und Kollision), Bäume aus DOM minus DGM (Darstellung, Kollision vereinfacht).
+- M2: Nachladen der scharfen Stufen (bis 17/18) rund um die Drohne aus dem SLPK (Teilabruf im Browser), Grafik und Kollision mit den feinsten geladenen Knoten.
+- M3: Feinschliff (Übergänge, Speicher, Handy, Ladeanzeige, ohne Internet).
 - RW3: Eigene Dienste: Eingabe von Mittelpunkt (Breite/Länge) und Adressen (WMS/WMTS für Luftbild, WCS für Höhen, Gebäude-Kacheln), Laden im Browser, Fehlermeldung bei fehlender CORS-Freigabe.
 - RW4 (später): Aufgaben in der echten Welt (Tore, Jagd), Signal durch Gelände verdeckt.
 

@@ -1,2 +1,7 @@
 dist/
 node_modules/
+tools/.cache/
+# Nicht mehr eingebettet (ersetzt durch das 3D-Mesh), vom Werkzeug realworld.mjs noch erzeugt:
+realworld/*.bld
+realworld/*.trees
+realworld/monschau.jpg

@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwModelMesh, groundH, RW_DATA } from './realworld.js';
+import { rw, rwMesh, groundH } from './realworld.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -247,9 +247,33 @@ void main(){
   o = vec4(c*uK, 1.0);
 }`;
 
+// 3D-Mesh der echten Welt: Farbe kommt aus dem Luftbild (Licht und Schatten sind schon darin), dazu Nebel und Bildmodus
+const MESH_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+uniform mat4 uVP;
+out vec2 vUV; out vec3 vW;
+void main(){ vUV = aUV; vW = aPos; gl_Position = uVP*vec4(aPos, 1.0); }`;
+const MESH_FS = `#version 300 es
+precision highp float;
+in vec2 vUV; in vec3 vW;
+uniform sampler2D uTex;
+uniform vec3 uCam, uFog;
+uniform float uFogD, uVision;
+out vec4 o;
+void main(){
+  vec3 c = texture(uTex, vUV).rgb;
+  float f = 1.0 - exp(-pow(length(vW - uCam)*uFogD, 1.6));
+  c = mix(c, uFog, clamp(f, 0.0, 1.0));
+  float l = dot(c, vec3(0.299, 0.587, 0.114));
+  if (uVision > 1.5) c = vec3(0.25, 1.0, 0.35)*(0.05 + 0.6*l);
+  else if (uVision > 0.5) c = vec3(0.12 + 0.30*l);
+  o = vec4(c, 1.0);
+}`;
+
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, PM = null, meshGl = [], airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -376,20 +400,7 @@ export function initGL() {
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
   birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
   pilotMesh = { body: upload(buildPilotMesh('body')), head: upload(buildPilotMesh('head')) };   // Pilot mit Funke
-  // Luftbild der echten Welt (eingebettetes JPEG) als Textur, mit Mipmaps und Anisotropie
-  if (!RW_DATA.dop.startsWith('%%')) {
-    const img = new Image();
-    img.onload = () => {
-      photoTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, photoTex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      const an = gl.getExtension('EXT_texture_filter_anisotropic');
-      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    };
-    img.src = 'data:image/jpeg;base64,' + RW_DATA.dop;
-  }
+  PM = program(MESH_VS, MESH_FS, ['uVP', 'uCam', 'uFog', 'uFogD', 'uVision', 'uTex']);   // 3D-Mesh (echte Welt)
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -534,7 +545,7 @@ export function render(dt) {
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.uniform1f(P.u.uPhoto, rw.on ? 1 : 0);
-  if (rw.on) drawTerrain();
+  if (rw.on) drawTerrain(vp, eye, VIS);
   else {
   gl.bindVertexArray(worldMesh.vao);
   // Boden ohne Tiefen-Eintrag: Alles steht auf oder über ihm und wird danach gezeichnet. So können flache Platten
@@ -752,22 +763,47 @@ export function render(dt) {
   drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
 }
-// Echte Welt: Gelände-Netz (einmal gebaut, mit Indizes) und Luftbild statt Bodenmuster. Schreibt Tiefe (Hügel verdecken).
-function drawTerrain() {
+// Echte Welt: Höhenmodell (unter dem Mesh abgesenkt, sichtbar nur außen) und das texturierte 3D-Mesh. Schreibt Tiefe.
+function drawTerrain(vp, eye, VIS) {
   if (!terrain) {
     const { v, idx } = rwMesh(2, 1500), m = upload(v), ib = gl.createBuffer();
     gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
     terrain = { vao: m.vao, n: idx.length };
   }
-  gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
-  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
-  gl.uniform1f(P.u.uPhoto, photoTex ? 1 : 0);
+  gl.uniform1f(P.u.uPhoto, 0);
   gl.bindVertexArray(terrain.vao);
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
-  // Gebäude (LoD2) und Bäume, ein Netz; Dächer und Kronen mit Luftbildfarbe
-  if (!rwModelGl && rw.tris) rwModelGl = upload(rwModelMesh());
-  if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
+  if (!rw.mesh) return;
+  if (!meshGl.length) for (const part of rw.mesh.parts) meshGl.push(uploadMesh(part));
+  gl.useProgram(PM.p);
+  gl.uniformMatrix4fv(PM.u.uVP, false, vp); gl.uniform3fv(PM.u.uCam, eye); gl.uniform3fv(PM.u.uFog, FOG);
+  gl.uniform1f(PM.u.uFogD, 1/700); gl.uniform1f(PM.u.uVision, VIS); gl.uniform1i(PM.u.uTex, 0);
+  gl.activeTexture(gl.TEXTURE0);
+  for (const m of meshGl) if (m.tex) { gl.bindTexture(gl.TEXTURE_2D, m.tex); gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); }
+  gl.useProgram(P.p);
+}
+// Ein Mesh-Teil auf die Grafikkarte: Ecken (Ort x y z, Textur u v) und die JPEG-Textur (asynchron entpackt)
+function uploadMesh(part) {
+  const n = part.pos.length/3, d = new Float32Array(n*5);
+  for (let v = 0; v < n; v++) d.set([part.pos[v*3], part.pos[v*3 + 1], part.pos[v*3 + 2], part.uv[v*2], part.uv[v*2 + 1]], v*5);
+  const vao = gl.createVertexArray(), buf = gl.createBuffer();
+  gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
+  gl.bindVertexArray(null);
+  const m = { vao, buf, count: n, tex: null };
+  createImageBitmap(new Blob([part.tex], { type: 'image/jpeg' })).then(img => {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const an = gl.getExtension('EXT_texture_filter_anisotropic');
+    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    m.tex = t;
+  }).catch(() => {});
+  return m;
 }
 // Lens-Flare: nur ab „Mittel“, im normalen Bild, wenn die Sonne im Bild steht und kein Hindernis davor ist.
 // Je näher die Sonne an der Bildmitte, desto stärker. Weiches Ein- und Ausblenden (0,15 s), damit es nicht flackert.
