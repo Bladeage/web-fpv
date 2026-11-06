@@ -11,7 +11,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..'), OUT = join(ROO
 // Monschau (Eifel): Altstadt im Rurtal. 1 x 1 km in UTM 32 (EPSG:25832). Start: Wiese oberhalb der Altstadt.
 export const AREA = {
   name: 'monschau', place: 'Monschau (Eifel, NRW)', crs: 'EPSG:25832', bbox: [304200, 5603500, 305200, 5604500],
-  n: 512, dop: 2048, startNear: [304814, 5604314],
+  n: 512, dop: 4096, startNear: [304814, 5604314],
   dgm: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dgm', dgmCoverage: 'nw_dgm',
   dopWms: 'https://www.wms.nrw.de/geobasis/wms_nw_dop', dopLayer: 'nw_dop_rgb', domCoverage: 'nw_dom',
   dom: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dom',
@@ -87,11 +87,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const t = readTiff(tif.buffer.slice(tif.byteOffset, tif.byteOffset + tif.byteLength));
   const dom = readTiff(domTif.buffer.slice(domTif.byteOffset, domTif.byteOffset + domTif.byteLength)).data;
   // Gebäude: alle 1-km-Kacheln, die das Gebiet berühren; Flächen mit Mitte im Gebiet
-  const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3], bld = { roof: [], wall: [] };
+  const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3], bld = { roof: [], wall: [], roofId: [], wallId: [] };
+  let idBase = 0;
   for (let e = Math.floor(a.bbox[0]/1000); e < Math.ceil(a.bbox[2]/1000); e++) for (let nn = Math.floor(a.bbox[1]/1000); nn < Math.ceil(a.bbox[3]/1000); nn++) {
     const r = await fetch(tile(a, e, nn));
     if (!r.ok) continue;   // Kachel ohne Gebäude
     const o = readLod2(await r.text(), inBox); bld.roof.push(...o.roof); bld.wall.push(...o.wall);
+    const nb = Math.max(-1, ...o.roofId, ...o.wallId) + 1;
+    bld.roofId.push(...o.roofId.map(i => i + idBase)); bld.wallId.push(...o.wallId.map(i => i + idBase)); idBase += nb;
   }
   if (t.w !== a.n || t.h !== a.n) throw new Error('Rastergröße ' + t.w + 'x' + t.h);
   let lo = 1e9, hi = -1e9;
@@ -106,11 +109,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     home: home.map(v => +v.toFixed(1)), hHome: +t.data[st.j*a.n + st.i].toFixed(2), startSpan: +st.s.toFixed(2), attribution: a.attribution };
   // Gebäude-Dreiecke als 16 Bit in Dezimetern (Kartenkoordinaten, y über dem Startplatz): erst Dächer, dann Wände
   const ec = (a.bbox[0] + a.bbox[2])/2, nc = (a.bbox[1] + a.bbox[3])/2, hHome = meta.hHome;
-  const pts = bld.roof.concat(bld.wall), b16 = new Int16Array(pts.length*3);
+  // dazu je Dreieck die Gebäudenummer (16 Bit), angehängt hinter den Ecken
+  const pts = bld.roof.concat(bld.wall), ids = bld.roofId.concat(bld.wallId), b16 = new Int16Array(pts.length*3 + ids.length);
   pts.forEach((p, k) => { b16[k*3] = Math.round((p[0] - ec)*10); b16[k*3 + 1] = Math.round((p[2] - hHome)*10); b16[k*3 + 2] = Math.round(-(p[1] - nc)*10); });
+  ids.forEach((v, k) => { b16[pts.length*3 + k] = v; });
   const trees = findTrees(t.data, dom, bld.roof, a), t16 = new Int16Array(trees.length*4);
   trees.forEach((tr, k) => t16.set(tr.map(v => Math.round(v*10)), k*4));
-  Object.assign(meta, { roofTris: bld.roof.length/3, wallTris: bld.wall.length/3, trees: trees.length });
+  Object.assign(meta, { roofTris: bld.roof.length/3, wallTris: bld.wall.length/3, buildings: idBase, trees: trees.length });
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, a.name + '.bld'), deflateSync(Buffer.from(b16.buffer), { level: 9 }));
   writeFileSync(join(OUT, a.name + '.trees'), deflateSync(Buffer.from(t16.buffer), { level: 9 }));

@@ -86,6 +86,16 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Schaltbar im OSD-Menü: „Kartenebenen (echte Welt)“, Vorgabe an.
 - Bäche lösen keinen Absturz aus (nur Anzeige); nur die Gewässerflächen (Rur) setzen die Drohne außer Gefecht.
 
+## Neue Gestaltung (erledigt 06.11.2026, Prompt 99)
+
+- Nutzer: Das Bild mit dem 3D-Mesh wirkt verschwommen und schlammig; Höhen und Tiefen sehen nicht gut aus. Die erste Fassung (Luftbild auf Höhenmodell) war besser. Lieber generische Gebäude mit Fassade und Fenstern, Wälder in der Farbe des Untergrunds, Vögel.
+- Grundlage wieder Luftbild auf Höhenmodell (wie RW1), Luftbild jetzt 4096² (0,25 m je Pixel, vorher 0,5 m), 3,5 MB.
+- Gebäude: Grundriss und Höhe aus LoD2, je Gebäude eine Nummer (`.bld` hängt sie hinter die Ecken). Je Gebäude eine Putzfarbe (6 Töne) und eine Dachfarbe (Schiefer, Ziegel, Grau). Fassade im Shader: Geschosse 2,9 m ab dem Sockel (Sockelhöhe steckt im Alpha der Wand), Fenster mit hellem Rahmen, Glas spiegelt je nach Blickwinkel, Sockel dunkler, weit weg weich zum Mittelwert (kein Flimmern).
+- Bäume: Stamm und runde Krone (acht Seiten, drei Ringe). Farbe der Krone aus dem Luftbild darunter (unscharf gelesen), Licht weich. Das Luftbild ist ein Winterbild: Laubbäume wirken bräunlich, Nadelbäume dunkelgrün.
+- Vögel auch in der echten Welt: Plätze auf Baumspitzen, Dächern und freier Wiese bis 260 m vom Start; Flugbogen hält Abstand zum Gelände (lange Wege 20 m).
+- Das 3D-Mesh ist nicht mehr eingebettet. Werkzeug `tools/mesh.mjs` und die Dateien `realworld/monschau-mesh.*` bleiben für später.
+- Datei: 6,3 MB (vorher 2,8 MB mit Luftbild 2048²).
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.
@@ -99,4 +109,4 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 
 - Andere Bundesländer: nicht jeder Dienst erlaubt CORS. Dann geht nur der Weg über das Werkzeug (vorab laden und einbetten).
 - LoD2 hat viele kleine Flächen; Kollision nur vereinfacht (Hülle je Gebäude).
-- Handy: großes Luftbild (2048²) und viele Gebäude-Dreiecke kosten Speicher und Leistung.
+- Handy: großes Luftbild (4096², bei kleinerer Höchstgröße der Grafikkarte wird es verkleinert) und viele Gebäude-Dreiecke kosten Speicher und Leistung.

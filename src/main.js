@@ -41,7 +41,7 @@ function frame(now) {
     updKeyboard(dt);
     updTouch();
     updSignal(dt);
-    if (!rw.on) stepBirds(dt, game.sim.p);   // Vögel nur auf der Spielkarte
+    stepBirds(dt, game.sim.p);
     stepPilot(dt, game.sim.p);
     if (game.state === 'fly') {
       acc += dt;

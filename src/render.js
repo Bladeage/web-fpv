@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwWaterMesh, rwFeatureMesh, groundH } from './realworld.js';
+import { rw, rwMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH, RW_DATA } from './realworld.js';
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
@@ -113,6 +113,31 @@ vec3 groundProc(vec2 p, float q){
   }
   return c;
 }
+// Fassade (echte Welt): Geschosse 2,9 m ab dem Sockel (base), Fenster 1,1 x 1,3 m im Abstand 2,6 m mit hellem Rahmen,
+// Sockel dunkler, Putz leicht fleckig. Fenster spiegeln den Himmel je nach Blickwinkel. Weit weg: weich zum Mittelwert.
+vec3 facade(vec3 c, vec3 p, vec3 n, float base, vec3 cam){
+  vec2 t = normalize(vec2(-n.z, n.x) + 1e-5);
+  vec2 q = vec2(dot(p.xz, t), p.y - base)/vec2(2.6, 2.9);
+  vec2 f = fract(q), fw = max(fwidth(q), vec2(1e-4)), k = fw*1.5;
+  float storey = floor(q.y);
+  c *= 0.93 + 0.1*vnoise(p.xz*0.7 + p.y*0.9);
+  float win = smoothstep(0.29 - k.x, 0.29 + k.x, f.x)*(1.0 - smoothstep(0.71 - k.x, 0.71 + k.x, f.x))
+            * smoothstep(0.3 - k.y, 0.3 + k.y, f.y)*(1.0 - smoothstep(0.75 - k.y, 0.75 + k.y, f.y));
+  float frame = smoothstep(0.25 - k.x, 0.25 + k.x, f.x)*(1.0 - smoothstep(0.75 - k.x, 0.75 + k.x, f.x))
+              * smoothstep(0.26 - k.y, 0.26 + k.y, f.y)*(1.0 - smoothstep(0.79 - k.y, 0.79 + k.y, f.y));
+  float h = hash(vec2(floor(q.x), storey) + floor(base));
+  float lit = step(0.78, h);   // manche Fenster mit hellem Vorhang
+  vec3 v = normalize(cam - p);
+  float fr = pow(1.0 - abs(dot(v, n)), 3.0);
+  vec3 glass = mix(vec3(0.10, 0.13, 0.17), vec3(0.55, 0.66, 0.78), 0.25 + 0.6*fr);
+  glass = mix(glass, vec3(0.78, 0.74, 0.62), lit*0.5);
+  float fade = clamp(1.6 - max(fw.x, fw.y)*3.0, 0.0, 1.0);   // ab ~0,5 Fenster je Pixel: Muster aus
+  vec3 pat = mix(mix(c, vec3(0.93, 0.92, 0.9), frame), glass, win);
+  vec3 avg = mix(c, vec3(0.3, 0.34, 0.4), 0.17);
+  c = mix(avg, pat, fade);
+  float plinth = 1.0 - smoothstep(0.45, 0.55, p.y - base);
+  return mix(c, c*vec3(0.55, 0.53, 0.5), plinth);
+}
 // Bildmodus (V1): 1 Wärmebild (Szene gedämpftes Grau, warme Objekte hell), 2 Nachtsicht (grün, dunkler)
 vec3 vis(vec3 col){
   if (uVision < 0.5) return col;
@@ -129,8 +154,15 @@ void main(){
     float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
     c = groundProc(vW.xz, 0.0);
     if (e > -1.0) c = mix(c, texture(uGround, clamp(uv, 0.0, 1.0)).rgb, smoothstep(-1.0, 25.0, e));
-    if (vCol.a > 0.07) c = mix(c*0.75, vec3(0.20, 0.30, 0.15), 0.25);   // Baumkrone: dunkler, etwas grüner als das Winterbild
+    if (vCol.a > 0.07) {   // Baumkrone: Farbe des Luftbilds darunter (unscharf, sonst Streifen an den Seiten), Licht weich
+      c = mix(groundProc(vW.xz, 0.0), texture(uGround, clamp(uv, 0.0, 1.0), 3.0).rgb, smoothstep(-1.0, 25.0, e));
+      c = mix(c, vec3(0.20, 0.30, 0.15), 0.15);
+      n = normalize(n + vec3(0.0, 1.3, 0.0));
+    }
   }
+  bool rwWall = wall && uPhoto > 0.5;
+  if (rwWall && abs(n.y) < 0.6) c = facade(c, vW, n, (vCol.a - 0.3)*2000.0, uCam);
+  if (uPhoto > 0.5 && !wall && !ground) c *= 0.9 + 0.2*vnoise(vW.xz*vec2(1.3, 4.0) + vW.y*3.0);   // Dach: Ziegelreihen angedeutet
   if (ground && uGfx < 0.5 && uPhoto < 0.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
     vec2 p = vW.xz;
     float ch = mod(floor(p.x/8.0) + floor(p.y/8.0), 2.0);
@@ -161,7 +193,7 @@ void main(){
       if (e > 0.0) c = mix(c, texture(uGround, uv).rgb, smoothstep(0.0, 30.0, e));
     }
   }
-  if (full && wall && abs(n.y) < 0.5) {   // Fenster: Raster auf den Wänden, unten Sockel
+  if (full && wall && abs(n.y) < 0.5 && uPhoto < 0.5) {   // Fenster: Raster auf den Wänden, unten Sockel
     vec2 w = vec2(vW.x + vW.z, vW.y);
     vec2 f = fract(w/vec2(2.6, 3.0));
     float win = step(0.3, f.x)*step(f.x, 0.7)*step(0.35, f.y)*step(f.y, 0.75)*step(1.2, vW.y);
@@ -174,7 +206,8 @@ void main(){
   vec3 sky = vec3(0.20, 0.27, 0.40), bounce = vec3(0.10, 0.09, 0.06);
   vec3 amb = mix(bounce, sky, 0.5 + 0.5*n.y);
   float ao = 1.0;
-  if (!ground) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
+  if (!ground && uPhoto < 0.5) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
+  if (rwWall) ao = mix(0.6, 1.0, smoothstep(0.0, 1.5, vW.y - (vCol.a - 0.3)*2000.0));   // echte Welt: Abdunklung ab dem Sockel
   vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
   float d = length(vW - uCam);
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
@@ -248,33 +281,9 @@ void main(){
   o = vec4(c*uK, 1.0);
 }`;
 
-// 3D-Mesh der echten Welt: Farbe kommt aus dem Luftbild (Licht und Schatten sind schon darin), dazu Nebel und Bildmodus
-const MESH_VS = `#version 300 es
-layout(location=0) in vec3 aPos;
-layout(location=1) in vec2 aUV;
-uniform mat4 uVP;
-out vec2 vUV; out vec3 vW;
-void main(){ vUV = aUV; vW = aPos; gl_Position = uVP*vec4(aPos, 1.0); }`;
-const MESH_FS = `#version 300 es
-precision highp float;
-in vec2 vUV; in vec3 vW;
-uniform sampler2D uTex;
-uniform vec3 uCam, uFog;
-uniform float uFogD, uVision;
-out vec4 o;
-void main(){
-  vec3 c = texture(uTex, vUV).rgb;
-  float f = 1.0 - exp(-pow(length(vW - uCam)*uFogD, 1.6));
-  c = mix(c, uFog, clamp(f, 0.0, 1.0));
-  float l = dot(c, vec3(0.299, 0.587, 0.114));
-  if (uVision > 1.5) c = vec3(0.25, 1.0, 0.35)*(0.05 + 0.6*l);
-  else if (uVision > 0.5) c = vec3(0.12 + 0.30*l);
-  o = vec4(c, 1.0);
-}`;
-
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, PM = null, meshGl = [], waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -401,7 +410,23 @@ export function initGL() {
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
   birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
   pilotMesh = { body: upload(buildPilotMesh('body')), head: upload(buildPilotMesh('head')) };   // Pilot mit Funke
-  PM = program(MESH_VS, MESH_FS, ['uVP', 'uCam', 'uFog', 'uFogD', 'uVision', 'uTex']);   // 3D-Mesh (echte Welt)
+  // Luftbild der echten Welt (DOP, 4096² für 1 km = 0,25 m je Pixel) als Textur mit Mipmaps; zu groß fürs Gerät: verkleinert
+  if (!RW_DATA.dop.startsWith('%%')) {
+    const img = new Image();
+    img.onload = () => {
+      const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      let src = img;
+      if (img.width > max) { src = document.createElement('canvas'); src.width = src.height = max; src.getContext('2d').drawImage(img, 0, 0, max, max); }
+      photoTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, photoTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const an = gl.getExtension('EXT_texture_filter_anisotropic');
+      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    };
+    img.src = 'data:image/jpeg;base64,' + RW_DATA.dop;
+  }
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -546,7 +571,7 @@ export function render(dt) {
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.uniform1f(P.u.uPhoto, rw.on ? 1 : 0);
-  if (rw.on) drawTerrain(vp, eye, VIS);
+  if (rw.on) drawTerrain();
   else {
   gl.bindVertexArray(worldMesh.vao);
   // Boden ohne Tiefen-Eintrag: Alles steht auf oder über ihm und wird danach gezeichnet. So können flache Platten
@@ -561,6 +586,7 @@ export function render(dt) {
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], eggYaw + i), p));
     gl.bindVertexArray(eggMesh[i].vao); gl.drawArrays(gl.TRIANGLES, 0, eggMesh[i].count);
   });
+  }   // Ende Spielkarte
   // Vögel: Rumpf, im Flug dazu zwei schlagende Flügel (der linke ist der rechte, um 180° gedreht)
   gl.uniform1f(P.u.uHeat, 0.8);   // warmblütig: hell im Wärmebild
   for (const b of birds) {
@@ -576,7 +602,6 @@ export function render(dt) {
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qMul(qAxis([0,1,0], Math.PI), qAxis([0,0,1], f))), vAdd(sh, qRot(q, [-0.04, 0, 0]))));
     gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
   }
-  }   // Ende Spielkarte
   // Pilot hinter dem Startplatz: Körper dreht um die Hochachse, Kopf dazu seitlich und nach oben (Drehpunkt im Hals)
   {
     const qb = qAxis([0,1,0], pilot.yaw);
@@ -764,28 +789,25 @@ export function render(dt) {
   drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
 }
-// Echte Welt: Höhenmodell (unter dem Mesh abgesenkt, sichtbar nur außen) und das texturierte 3D-Mesh. Schreibt Tiefe.
-function drawTerrain(vp, eye, VIS) {
+// Echte Welt: Höhenmodell mit Luftbild, Gewässer, Gebäude (LoD2, Fassaden) und Bäume, Kartenebenen. Schreibt Tiefe.
+function drawTerrain() {
   if (!terrain) {
     const { v, idx } = rwMesh(2, 1500), m = upload(v), ib = gl.createBuffer();
     gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
     terrain = { vao: m.vao, n: idx.length };
   }
-  gl.uniform1f(P.u.uPhoto, 0);
+  gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
+  gl.uniform1f(P.u.uPhoto, photoTex ? 1 : 0);
   gl.bindVertexArray(terrain.vao);
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
   // Gewässer: schlichte Fläche über dem Flussbett (Basis-DLM)
   if (!waterGl && rw.water) waterGl = upload(rwWaterMesh());
   if (waterGl && waterGl.count) { gl.bindVertexArray(waterGl.vao); gl.drawArrays(gl.TRIANGLES, 0, waterGl.count); }
-  if (!rw.mesh) return;
-  if (!meshGl.length) for (const part of rw.mesh.parts) meshGl.push(uploadMesh(part));
-  gl.useProgram(PM.p);
-  gl.uniformMatrix4fv(PM.u.uVP, false, vp); gl.uniform3fv(PM.u.uCam, eye); gl.uniform3fv(PM.u.uFog, FOG);
-  gl.uniform1f(PM.u.uFogD, 1/700); gl.uniform1f(PM.u.uVision, VIS); gl.uniform1i(PM.u.uTex, 0);
-  gl.activeTexture(gl.TEXTURE0);
-  for (const m of meshGl) if (m.tex) { gl.bindTexture(gl.TEXTURE_2D, m.tex); gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); }
-  gl.useProgram(P.p);
+  // Gebäude und Bäume, ein Netz
+  if (!rwModelGl && rw.tris) rwModelGl = upload(rwModelMesh());
+  if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
   // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder, Säule über Türmen; leicht nach vorn gezogen
   if (rw.features && osdOn(cfg.osd, 'mapLayers')) {
     if (!featGl) featGl = upload(rwFeatureMesh());
@@ -793,28 +815,6 @@ function drawTerrain(vp, eye, VIS) {
     gl.bindVertexArray(featGl.vao); gl.drawArrays(gl.TRIANGLES, 0, featGl.count);
     gl.disable(gl.POLYGON_OFFSET_FILL);
   }
-}
-// Ein Mesh-Teil auf die Grafikkarte: Ecken (Ort x y z, Textur u v) und die JPEG-Textur (asynchron entpackt)
-function uploadMesh(part) {
-  const n = part.pos.length/3, d = new Float32Array(n*5);
-  for (let v = 0; v < n; v++) d.set([part.pos[v*3], part.pos[v*3 + 1], part.pos[v*3 + 2], part.uv[v*2], part.uv[v*2 + 1]], v*5);
-  const vao = gl.createVertexArray(), buf = gl.createBuffer();
-  gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
-  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
-  gl.bindVertexArray(null);
-  const m = { vao, buf, count: n, tex: null };
-  createImageBitmap(new Blob([part.tex], { type: 'image/jpeg' })).then(img => {
-    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const an = gl.getExtension('EXT_texture_filter_anisotropic');
-    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    m.tex = t;
-  }).catch(() => {});
-  return m;
 }
 // Lens-Flare: nur ab „Mittel“, im normalen Bild, wenn die Sonne im Bild steht und kein Hindernis davor ist.
 // Je näher die Sonne an der Bildmitte, desto stärker. Weiches Ein- und Ausblenden (0,15 s), damit es nicht flackert.

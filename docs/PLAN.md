@@ -469,4 +469,5 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Plan und geprüfte Quellen: `docs/echte-welt.md`. Nächste Etappe RW1.
 - RW1 erledigt (06.11.2026): siehe `docs/echte-welt.md`. Nächste Etappe RW2 (LoD2-Gebäude, Bäume).
 - RW2 erledigt (06.11.2026): Gebäude und Bäume mit Kollision, siehe `docs/echte-welt.md`. Nächste Etappe RW3 (eigene Dienste).
+- Neue Gestaltung erledigt (06.11.2026, Prompt 99): Luftbild 0,25 m auf Höhenmodell, LoD2-Gebäude mit Fassaden und Fenstern, Bäume in Luftbildfarbe, Vögel; 3D-Mesh nicht eingebettet. Siehe `docs/echte-welt.md`.
 - 3D-Mesh M1 erledigt (06.11.2026), siehe `docs/echte-welt.md`. Nächste Etappe M2 (Nachladen).

@@ -123,22 +123,30 @@ export function triangulate(pts) {
   for (let i = 1; i + 1 < idx.length; i++) out.push([idx[0], idx[i], idx[i + 1]]);
   return out;
 }
-// CityGML (LoD2): Dach- und Wandflächen als Dreiecke. keep(x, y) wählt Flächen nach ihrer Mitte (UTM).
-// Rückgabe: { roof: [[x,y,z]...] in Dreiergruppen, wall: [...] } in UTM-Koordinaten und Höhe über NHN.
+// CityGML (LoD2): Dach- und Wandflächen als Dreiecke, je Gebäude. keep(x, y) wählt Gebäude nach der Mitte ihrer Flächen (UTM).
+// Rückgabe: { roof: [[x,y,z]...] in Dreiergruppen, wall: [...], roofId: [Gebäude je Dreieck], wallId: [...] }, UTM und Höhe über NHN.
 export function readLod2(xml, keep = () => true) {
-  const out = { roof: [], wall: [] };
-  const re = /<bldg:(RoofSurface|WallSurface)\b[\s\S]*?<\/bldg:\1>/g;
-  for (let m; (m = re.exec(xml)); ) {
-    const list = m[1] === 'RoofSurface' ? out.roof : out.wall;
-    const ext = /<gml:exterior>[\s\S]*?<gml:posList[^>]*>([^<]*)<\/gml:posList>/g;
-    for (let e; (e = ext.exec(m[0])); ) {
-      const v = e[1].trim().split(/\s+/).map(Number), pts = [];
-      for (let i = 0; i + 2 < v.length; i += 3) pts.push([v[i], v[i + 1], v[i + 2]]);
-      if (pts.length < 3) continue;
-      const cx = pts.reduce((t, p) => t + p[0], 0)/pts.length, cy = pts.reduce((t, p) => t + p[1], 0)/pts.length;
-      if (!keep(cx, cy)) continue;
-      for (const [a, b, c] of triangulate(pts)) list.push(pts[a], pts[b], pts[c]);
+  const out = { roof: [], wall: [], roofId: [], wallId: [] };
+  const bre = /<bldg:Building\b[\s\S]*?<\/bldg:Building>/g;
+  let id = 0;
+  for (let b; (b = bre.exec(xml)); ) {
+    const polys = [];
+    const re = /<bldg:(RoofSurface|WallSurface)\b[\s\S]*?<\/bldg:\1>/g;
+    for (let m; (m = re.exec(b[0])); ) {
+      const ext = /<gml:exterior>[\s\S]*?<gml:posList[^>]*>([^<]*)<\/gml:posList>/g;
+      for (let e; (e = ext.exec(m[0])); ) {
+        const v = e[1].trim().split(/\s+/).map(Number), pts = [];
+        for (let i = 0; i + 2 < v.length; i += 3) pts.push([v[i], v[i + 1], v[i + 2]]);
+        if (pts.length >= 3) polys.push([m[1] === 'RoofSurface', pts]);
+      }
     }
+    if (!polys.length) continue;
+    const all = polys.flatMap(p => p[1]), cx = all.reduce((t, p) => t + p[0], 0)/all.length, cy = all.reduce((t, p) => t + p[1], 0)/all.length;
+    if (!keep(cx, cy)) continue;
+    for (const [roof, pts] of polys) for (const [a, c2, d] of triangulate(pts)) {
+      (roof ? out.roof : out.wall).push(pts[a], pts[c2], pts[d]); (roof ? out.roofId : out.wallId).push(id);
+    }
+    id++;
   }
   return out;
 }

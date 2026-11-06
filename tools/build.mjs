@@ -87,11 +87,12 @@ export function bundle() {
   // Ohne git (zum Beispiel ausgepacktes Archiv): „dev“. Die CI holt dafür die ganze Historie (fetch-depth: 0).
   // Echte Welt (realworld/, Geobasis NRW, dl-de/zero-2.0): Beschreibung, Höhen (deflate) und Luftbild als Base64
   const RW = join(ROOT, 'realworld', 'monschau');
+  // Grundlage: Höhen, Luftbild, Gebäude (LoD2), Bäume, Gewässer, Kartenebenen. Das 3D-Mesh (-mesh.*) wird nicht eingebettet.
   if (js.includes("'%%RW_META%%'")) js = js.replace("'%%RW_META%%'", () => JSON.stringify(readFileSync(RW + '.json', 'utf8')))
     .replace("'%%RW_DGM%%'", () => "'" + readFileSync(RW + '.dgm').toString('base64') + "'")
-    .replace("'%%RW_MESHIDX%%'", () => JSON.stringify(readFileSync(RW + '-mesh.json', 'utf8')))
-    .replace("'%%RW_MESHGEO%%'", () => "'" + readFileSync(RW + '-mesh.geo').toString('base64') + "'")
-    .replace("'%%RW_MESHTEX%%'", () => "'" + readFileSync(RW + '-mesh.tex').toString('base64') + "'")
+    .replace("'%%RW_DOP%%'", () => "'" + readFileSync(RW + '.jpg').toString('base64') + "'")
+    .replace("'%%RW_BLD%%'", () => "'" + readFileSync(RW + '.bld').toString('base64') + "'")
+    .replace("'%%RW_TREES%%'", () => "'" + readFileSync(RW + '.trees').toString('base64') + "'")
     .replace("'%%RW_WATER%%'", () => "'" + readFileSync(RW + '.water').toString('base64') + "'")
     .replace("'%%RW_FEATURES%%'", () => JSON.stringify(readFileSync(RW + '.features.json', 'utf8')));
   if (js.includes("'%%VERSION%%'")) js = js.replace("'%%VERSION%%'", () => JSON.stringify(version()));

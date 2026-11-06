@@ -7,14 +7,33 @@ import { vAdd, vScale, clamp } from './math.js';
 import { colliders, MeshBuilder } from './world.js';
 import { TOWN } from './town.js';
 import { obstDist } from './targets.js';
+import { rw, groundH, rwNear, waterAt } from './realworld.js';
 
 // Schätzungen nach einer Taube: Fluggeschwindigkeit 8 m/s, flieht ab 8 m Abstand. n: Anzahl auf der Karte.
 export const BIRD = { n: 7, speed: 8, scare: 8, flee: 40, hopH: 0.08 };
 export const birds = [];
 let birdSpots = [];
 
+// Echte Welt: Baumspitzen, Dachflächen (Mitte eines Dachdreiecks) und freie Wiese, alle höchstens 260 m vom Start,
+// damit die wenigen Vögel auch zu sehen sind. Boden frei: kein Wasser, kein Haus und kein Baum in 3 m.
+function birdSpotsReal(rand, home) {
+  const out = [], near = (x, z) => Math.hypot(x - home[0], z - home[2]) < 260;
+  const trees = rw.trees.filter(t => near(t.x, t.z));
+  for (let i = 0; i < 25 && trees.length; i++) { const t = trees[Math.floor(rand()*trees.length)]; out.push({ p: [t.x, t.y0 + t.h + 0.05, t.z], kind: 'perch' }); }
+  const T = rw.tris, nr = rw.meta ? rw.meta.roofTris || 0 : 0;
+  for (let i = 0, k = 0; i < 25 && k < 400 && nr; k++) {
+    const o = Math.floor(rand()*nr)*9, x = (T[o] + T[o + 3] + T[o + 6])/3, z = (T[o + 2] + T[o + 5] + T[o + 8])/3;
+    if (near(x, z)) { out.push({ p: [x, (T[o + 1] + T[o + 4] + T[o + 7])/3 + 0.02, z], kind: 'perch' }); i++; }
+  }
+  for (let i = 0, k = 0; i < 15 && k < 400; k++) {
+    const a = rand()*Math.PI*2, d = 20 + rand()*220, x = home[0] + Math.cos(a)*d, z = home[2] + Math.sin(a)*d, n = rwNear(x, z, 3);
+    if (!waterAt(x, z) && !n.tris.length && !n.boxes.length) { out.push({ p: [x, groundH(x, z) + 0.01, z], kind: 'ground' }); i++; }
+  }
+  return out;
+}
 // Landeplätze: Baumkronen, Dächer, Boden (Sandkasten, Spielplatz-Rasen, Ruine, freie Wiese)
-function birdSpotsFind(rand) {
+function birdSpotsFind(rand, home) {
+  if (rw.on) return birdSpotsReal(rand, home);
   const out = [];
   for (const c of colliders) {
     if (c.h[0] === c.h[2] && Math.abs(c.h[1]/c.h[0] - 1.5/1.3) < 1e-6) out.push({ p: [c.c[0], c.c[1] + c.h[1]*1.05, c.c[2]], kind: 'perch' });   // Baumkrone
@@ -56,12 +75,20 @@ function birdFlyTo(b, spot, rand) {
   const d = birdHz(b.from, spot.p), top = Math.max(b.from[1], spot.p[1]);
   // Bogen: kurze Wege flach, lange Wege über Bäume und Häuser (über 17 m)
   b.apex = d > 40 ? Math.max(17, top + 4) + rand()*5 : top + clamp(d*0.2, 1.5, 6);
+  if (rw.on) {   // echte Welt: Gelände unter dem Weg, Scheitel so hoch, dass der Bogen Abstand hält (lang 20 m, kurz 2 m)
+    const f = b.from, e = spot.p, mid = (f[1] + e[1])/2, clear = d > 40 ? 20 : 2;
+    b.apex = Math.max(top + (d > 40 ? 4 + rand()*5 : clamp(d*0.2, 1.5, 6)), mid + 1);
+    for (let u = 0.05; u < 0.96; u += 0.05) {   // nah an Start und Ziel weniger Abstand (dort sitzt er ja)
+      const sn = Math.sin(Math.PI*u), g = groundH(f[0] + (e[0] - f[0])*u, f[2] + (e[2] - f[2])*u) + 0.3 + clear*Math.min(1, 2*sn), base = f[1] + (e[1] - f[1])*u;
+      b.apex = Math.max(b.apex, mid + (g - base)/sn);
+    }
+  }
   b.dur = Math.max(1.2, (d + 2*(b.apex - top))/BIRD.speed);
   b.yaw = Math.atan2(-(spot.p[0] - b.from[0]), -(spot.p[2] - b.from[2]));
 }
 // Neu verteilen (bei jedem Start). avoid: Startpunkt der Drohne, dort sitzt kein Vogel.
 export function initBirds(rand = Math.random, avoid = [0, 0, 0]) {
-  birdSpots = birdSpotsFind(rand);
+  birdSpots = birdSpotsFind(rand, avoid);
   birds.length = 0;
   for (let i = 0; i < BIRD.n; i++) {
     const b = { p: [0, 0, 0], yaw: rand()*Math.PI*2, col: i % 3, flap: rand()*6, spot: null, state: 'perch', t: 0, next: 0, hop: 0, peck: 0, wing: 0 };
@@ -96,12 +123,12 @@ export function stepBirds(h, drone, rand = Math.random) {
       if (b.hop > 0) {   // kleiner Hüpfer
         b.hop = Math.max(0, b.hop - h/0.25);
         b.p = vAdd(b.p, vScale(b.hopV, h));
-        b.p[1] = b.spot.p[1] + BIRD.hopH*Math.sin(Math.PI*b.hop);
+        b.p[1] = (rw.on ? groundH(b.p[0], b.p[2]) + 0.01 : b.spot.p[1]) + BIRD.hopH*Math.sin(Math.PI*b.hop);   // am Hang mit dem Boden
       } else if (b.next <= 0) {
         b.yaw += (rand() - 0.5)*2.5;
         const d = 0.3 + rand()*0.5, dir = [-Math.sin(b.yaw), 0, -Math.cos(b.yaw)], tgt = vAdd(b.p, vScale(dir, d));
         const home = b.spot.box ? 1.0 : 3;   // Sandkasten klein, Wiese großzügiger
-        if (birdHz(tgt, b.spot.p) < home && obstDist([tgt[0], 0.15, tgt[2]]) > 0.3) { b.hop = 1; b.hopV = vScale(dir, d/0.25); }
+        if (birdHz(tgt, b.spot.p) < home && (rw.on || obstDist([tgt[0], 0.15, tgt[2]]) > 0.3)) { b.hop = 1; b.hopV = vScale(dir, d/0.25); }
         b.next = 1.5 + rand()*2.5;
       }
     } else if (b.next <= 0) {   // sitzt: schaut sich um

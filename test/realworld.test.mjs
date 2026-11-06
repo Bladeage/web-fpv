@@ -9,9 +9,11 @@ import { STEP, step, respawn, hoverThrottle } from '../src/physics.js';
 import { setScenario } from '../src/scenario.js';
 import { applyDrone } from '../src/drone.js';
 import { readTiff, toUtm } from '../src/geo.js';
-import { rw, rwInit, rwSetMesh, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName } from '../src/realworld.js';
+import { rw, rwInit, rwModels, rwModelMesh, rwWallAlpha, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName } from '../src/realworld.js';
 import { pilot } from '../src/pilot.js';
 import { qRot } from '../src/math.js';
+import { birds, initBirds, stepBirds } from '../src/birds.js';
+import { rng } from '../src/world.js';
 
 const file = n => new URL('../' + n, import.meta.url);
 const meta = JSON.parse(readFileSync(file('realworld/monschau.json'), 'utf8'));
@@ -20,8 +22,7 @@ rwInit(meta, new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2));
 const un = n => { const b = inflateSync(readFileSync(file('realworld/monschau.' + n))); return new Int16Array(b.buffer, b.byteOffset, b.byteLength/2); };
 rw.features = JSON.parse(readFileSync(file('realworld/monschau.features.json'), 'utf8'));
 rw.water = new Uint8Array(inflateSync(readFileSync(file('realworld/monschau.water'))));
-const mg = inflateSync(readFileSync(file('realworld/monschau-mesh.geo')));
-rwSetMesh(JSON.parse(readFileSync(file('realworld/monschau-mesh.json'), 'utf8')), new Int16Array(mg.buffer, mg.byteOffset, mg.byteLength/2), new Uint8Array(readFileSync(file('realworld/monschau-mesh.tex'))));
+rwModels(un('bld'), un('trees'));
 buildWorld();
 after(() => { setScenario('gates'); cfg.dmg = 'off'; });
 const run = (sec, fn) => { for (let i = 0; i < sec/STEP && game.state === 'fly'; i++) { if (fn) fn(); step(STEP); } };
@@ -86,7 +87,7 @@ test('Echte Welt: Flug gegen den Hang, mit Schaden Absturz, ohne Schaden bleibt 
   assert.ok(best.n[1] < 0.8, 'Gebiet hat steile Hänge: Neigung ' + (Math.acos(best.n[1])*180/Math.PI).toFixed(0) + '°');
 });
 
-// Hilfen fürs Mesh: Dreieck t als Punkte, Normale, Fläche, Mitte
+// Hilfen für die Gebäude: Dreieck t als Punkte, Normale, Fläche, Mitte
 const T = () => rw.tris, P = (t, k) => [T()[t*9 + k*3], T()[t*9 + k*3 + 1], T()[t*9 + k*3 + 2]];
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], crs = (a, b) => [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
 const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
@@ -96,7 +97,8 @@ function triInfo(t) { const a = P(t, 0), b = P(t, 1), c = P(t, 2), n = crs(sub(b
 function pick(kind) {
   rw.on = true;
   let best = null;
-  for (let t = 0; t < T().length/9; t++) {
+  const nr = rw.meta.roofTris;
+  for (let t = kind === 'roof' ? 0 : nr; t < (kind === 'roof' ? nr : T().length/9); t++) {
     const i = triInfo(t);
     if (Math.abs(i.m[0]) > 400 || Math.abs(i.m[2]) > 400) continue;
     const above = i.m[1] - groundH(i.m[0], i.m[2]);
@@ -113,34 +115,43 @@ function fly(start, v, sec, dmg) {
   return track;
 }
 
-test('Echte Welt: 3D-Mesh geladen (grobe Stufe eingebettet, Index zum Nachladen)', () => {
-  assert.ok(T().length/9 > 50000, 'Dreiecke ' + T().length/9);
-  assert.ok(rw.mesh.idx.nodes.length > 1000 && rw.mesh.idx.nodes.some(n => n[2] === 18), 'Index bis Stufe 18: ' + rw.mesh.idx.nodes.length + ' Knoten');
-  assert.ok(rw.mesh.parts.every(p => p.tex[0] === 0xff && p.tex[1] === 0xd8), 'Texturen sind JPEG');
-  let lo = 1e9, hi = -1e9; for (let i = 0; i < T().length; i += 3) { lo = Math.min(lo, T()[i]); hi = Math.max(hi, T()[i]); }
-  assert.ok(lo < -600 && hi > 600, 'deckt das Gebiet ab');
-  // Mesh liegt ungefähr auf dem Höhenmodell (gleiche Höhenbezüge): Mittel der Abweichung auf freier Fläche klein
+test('Echte Welt: Gebäude (LoD2) und Bäume geladen, je Gebäude eine Nummer', () => {
+  const nr = rw.meta.roofTris, nw = T().length/9 - nr;
+  assert.ok(nr > 3000 && nw > 8000, 'Dächer ' + nr + ', Wände ' + nw);
+  assert.equal(rw.bldId.length, nr + nw);
+  const ids = new Set(rw.bldId);
+  assert.ok(ids.size === rw.meta.buildings && ids.size > 300, 'Gebäude ' + ids.size);
+  assert.ok(rw.trees.length > 1000, 'Bäume ' + rw.trees.length);
   rw.on = true;
-  // Eckpunkte minus Gelände: Dächer und Baumkronen liegen höher, aber kaum ein Punkt darf unter dem Gelände liegen
-  // (geprüft: mit falsch angewandter Drehung lagen Ecken bis 180 m darunter) und ein Teil liegt auf dem Boden
-  const d = []; for (let i = 0; i < T().length; i += 3*11) { const x = T()[i], z = T()[i + 2]; if (Math.abs(x) < 450 && Math.abs(z) < 450) d.push(T()[i + 1] - groundH(x, z)); }
-  d.sort((a, b) => a - b);
-  assert.ok(d[Math.floor(d.length*0.01)] > -3, '1 % tiefster Punkte: ' + d[Math.floor(d.length*0.01)].toFixed(2) + ' m');
-  assert.ok(Math.abs(d[Math.floor(d.length*0.1)]) < 1, '10 % auf dem Boden: ' + d[Math.floor(d.length*0.1)].toFixed(2) + ' m');
+  for (const tr of rw.trees.slice(0, 200)) assert.ok(Math.abs(tr.y0 - groundH(tr.x, tr.z)) < 1e-6 && tr.h >= 3);
+  // Gebäude stehen auf dem Gelände: Sockel (tiefster Wandpunkt) je Gebäude nah an der Bodenhöhe
+  const lo = new Map(); for (let t = nr; t < nr + nw; t++) for (let k = 0; k < 3; k++) { const p = P(t, k), id = rw.bldId[t]; if (!lo.has(id) || p[1] < lo.get(id)[1]) lo.set(id, p); }
+  const d = [...lo.values()].map(p => p[1] - groundH(p[0], p[2])).sort((a, b) => a - b);
+  assert.ok(Math.abs(d[Math.floor(d.length/2)]) < 1.5, 'Sockel im Mittel ' + d[Math.floor(d.length/2)].toFixed(2) + ' m über dem Boden');
+});
+
+test('Echte Welt: Netz mit Fassaden (Sockelhöhe im Alpha), Dächer und Kronen', () => {
+  const v = rwModelMesh(), n = v.length/10;
+  let wall = 0, roof = 0, crown = 0, bad = 0;
+  for (let i = 0; i < n; i++) { const a = v[i*10 + 9]; if (a >= 0.125 && a < 0.5) wall++; else if (a === 1) roof++; else if (a > 0.07 && a < 0.125) crown++; else bad++; if (!Number.isFinite(v[i*10 + 1])) bad++; }
+  assert.equal(bad, 0);
+  assert.ok(wall >= (T().length/9 - rw.meta.roofTris)*3 && roof > 0 && crown > rw.trees.length*48*3 - 1, `Wände ${wall}, Dach/Stamm ${roof}, Krone ${crown}`);
+  // Sockelhöhe kommt im Shader als (a - 0,3)*2000 zurück
+  for (const y of [-120.4, -3.2, 0, 18.9]) assert.ok(Math.abs((rwWallAlpha(y) - 0.3)*2000 - y) < 1e-6);
 });
 
 for (const [name, speed, dmg] of [['langsam ohne Schaden', 5, 'off'], ['sehr schnell ohne Schaden (kein Durchtunneln)', 40, 'off'], ['schnell mit Schaden', 12, 'real']]) {
-  test(`Echte Welt: Flug gegen eine steile Fläche im Mesh, ${name}`, () => {
+  test(`Echte Welt: Flug gegen eine Hauswand, ${name}`, () => {
     const w = pick('wall'), n = [w.n[0], 0, w.n[2]], l = Math.hypot(n[0], n[2]);
     const dir = [-n[0]/l, 0, -n[2]/l], start = [w.m[0] + n[0]/l*3, w.m[1], w.m[2] + n[2]/l*3];
     const side = p => dot(sub(p, w.m), w.n);
     const track = fly(start, dir.map(v => v*speed), 1, dmg);
-    if (dmg === 'real') assert.equal(game.state, 'crashed', 'Absturz an der Fläche');
+    if (dmg === 'real') assert.equal(game.state, 'crashed', 'Absturz an der Wand');
     else { assert.equal(game.state, 'fly'); assert.ok(Math.min(...track.map(side)) > -0.05, 'nie hindurch: ' + Math.min(...track.map(side)).toFixed(2) + ' m'); }
   });
 }
 
-test('Echte Welt: Aufsetzen auf einem Dach (Mesh)', () => {
+test('Echte Welt: Aufsetzen auf einem Dach', () => {
   const r = pick('roof'), start = [r.m[0], r.m[1] + 1.5, r.m[2]];
   cfg.dmg = 'off'; setScenario('real'); respawn();
   const s = game.sim; s.p = start; s.v = [0, 0, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0;
@@ -150,7 +161,16 @@ test('Echte Welt: Aufsetzen auf einem Dach (Mesh)', () => {
   assert.ok(above > -0.3 && above < 0.4, 'liegt auf dem Dach: ' + above.toFixed(2) + ' m (Boden ' + (r.m[1] - groundH(r.m[0], r.m[2])).toFixed(1) + ' m tiefer)');
 });
 
-test('Echte Welt: Rechenzeit im Mesh', () => {
+test('Echte Welt: Flug in eine Baumkrone prallt ab', () => {
+  rw.on = true;
+  const tr = rw.trees.filter(t => t.h > 12 && rwNear(t.x, t.z, 6).boxes.length <= 4 && Math.abs(t.x) < 400 && Math.abs(t.z) < 400)[0];
+  assert.ok(tr, 'freistehender Baum');
+  const cy = tr.boxes[1].c[1], start = [tr.x - tr.r - 3, cy, tr.z];
+  const track = fly(start, [6, 0, 0], 1, 'off');
+  assert.ok(Math.max(...track.map(p => p[0])) < tr.x, 'nicht durch die Krone: weiteste x ' + (Math.max(...track.map(p => p[0])) - tr.x).toFixed(2) + ' m vor der Mitte');
+});
+
+test('Echte Welt: Rechenzeit in der Altstadt', () => {
   cfg.dmg = 'off'; setScenario('real'); respawn();
   const s = game.sim, w = pick('wall');
   s.p = [w.m[0] + w.n[0]*2, w.m[1], w.m[2] + w.n[2]*2]; game.throttle = hoverThrottle();
@@ -207,4 +227,23 @@ test('Echte Welt: Kartenebenen (Basis-DLM) nur zur Anzeige', () => {
   // Bäche lösen keinen Absturz aus (nur Anzeige): ein Punkt auf dem Eschbach ist kein Wasser der Physik
   const st = F.streams.find(r => r.name === 'Eschbach'), sp = st.pts[Math.floor(st.pts.length/2)];
   assert.equal(waterAt(sp[0], sp[1]), false, 'Eschbach nur Anzeige');
+});
+
+test('Echte Welt: Vögel sitzen auf Bäumen, Dächern und Wiese und fliegen über dem Gelände', () => {
+  cfg.dmg = 'off'; setScenario('real'); respawn();
+  const home = game.sim.p.slice(), rand = rng(7);
+  let minClear = 1e9;
+  for (let run = 0; run < 4; run++) {
+    initBirds(rand, home);
+    assert.ok(birds.length > 0);
+    for (const b of birds) {
+      assert.ok(Math.hypot(b.p[0] - home[0], b.p[2] - home[2]) < 300, 'nah am Start');
+      if (b.state !== 'fly') assert.ok(b.p[1] >= groundH(b.p[0], b.p[2]) - 0.05, 'nicht im Boden');
+    }
+    for (let i = 0; i < 60/0.05; i++) {
+      stepBirds(0.05, null, rand);
+      for (const b of birds) if (b.state === 'fly') minClear = Math.min(minClear, b.p[1] - groundH(b.p[0], b.p[2]));
+    }
+  }
+  assert.ok(minClear > -0.1, 'im Flug nie unter dem Gelände: ' + minClear.toFixed(2) + ' m');
 });
