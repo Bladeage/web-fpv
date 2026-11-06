@@ -822,7 +822,8 @@ export function render(dt) {
     gl.bindVertexArray(droneMesh.vao);
     gl.drawArrays(gl.TRIANGLES, 0, droneMesh.count);
   }
-  if (cfg.cam !== 'fpv' || cfg.propsView) drawProps(md, dt);
+  if (cfg.cam !== 'fpv') drawProps(md, dt);
+  else if (cfg.propsView) drawPropsFpv(md, dt, vf, asp);
   drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
 }
@@ -908,7 +909,29 @@ function drawFlare(vp, eye, asp, GFX, VIS, dt) {
 }
 
 const propAng = [0, 0.8, 1.6, 2.4];
-function drawProps(md, dt) {
+// Propeller im Kamerabild (Wunsch Nutzer): ganz und rund statt angeschnitten. Die Bildkamera sitzt vorne auf Höhe der
+// Propeller; die vorderen reichen bis hinter sie, und die nahe Bildebene schneidet sie gerade ab. Deshalb ein eigener
+// Durchgang mit einer Kamera fest am Rahmen (ohne Uptilt), hinter und unter den vorderen Propellern, wie zwischen den Platten:
+// Abstand so, dass jeder Randpunkt mit 4° Luft ins Bild passt (je nach Blickfeld), Propellermitte knapp unter halber Höhe der
+// oberen Bildhälfte. Tiefe vorher löschen: die Propeller liegen immer vor der Welt.
+function drawPropsFpv(md, dt, vf, asp) {
+  const sim = game.sim, sz = PHYS.size, c = 0.088*PROP_S, r = 0.063*PROP_S, py = 0.026*PROP_S;
+  // Abstand d (nach vorn bis zur Propellermitte) und Höhe dy: kleinstes d, bei dem jeder Randpunkt der Scheibe mit Luft im Bild liegt
+  const tx = Math.tan(Math.atan(Math.tan(vf/2)*asp) - 4*DEG), ty = Math.tan(vf/2 - 4*DEG);
+  let d = c + 0.02, dy = 0;
+  for (; d < 1; d += 0.005) {
+    dy = d*Math.tan(vf/2*0.45);
+    let ok = true;
+    for (let k = 0; k < 24 && ok; k++) { const a = k/24*Math.PI*2, f = d + r*Math.sin(a); ok = f > 0.02 && (c + r*Math.cos(a))/f <= tx && dy/f <= ty; }
+    if (ok) break;
+  }
+  const eye = vAdd(sim.p, qRot(sim.q, [0, (py - dy)*sz, (d - c)*sz]));
+  const vpo = mMul(mPersp(vf, asp, 0.004*sz, 3*sz), mView(sim.q, eye));
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.uniformMatrix4fv(P.u.uVP, false, vpo); gl.uniform3fv(P.u.uCam, eye);
+  drawProps(md, dt, true);
+}
+function drawProps(md, dt, frontOnly = false) {
   const sim = game.sim;
   const S = PROP_S, spin = game.state === 'fly' && !game.paused && game.armed;
   const w = spin ? 9 + sim.thr*38 : 0;                 // sichtbare Drehung, gedrosselt gegen Flimmern
@@ -918,7 +941,7 @@ function drawProps(md, dt) {
     const [mx, mz, dir] = MOTORS[i];
     propAng[i] += dir*w*dt;
     const hp = sim.hp[i];
-    if (hp <= 0) continue;   // Propeller abgebrochen
+    if (hp <= 0 || (frontOnly && mz > 0)) continue;   // Propeller abgebrochen; im Kamerabild nur die vorderen
     const mp = mMul(md, mFromQT(qAxis([0,1,0], propAng[i]), [mx*0.088*S, 0.026*S, mz*0.088*S]));
     if (hp < 0.5) { mp[0] *= 0.55; mp[1] *= 0.55; mp[2] *= 0.55; }   // stark beschädigt: kurzes Blatt
     gl.uniformMatrix4fv(P.u.uModel, false, mp);
