@@ -1,7 +1,14 @@
-# Modus „Echte Welt“ (Planung, Stand 06.11.2026)
+# Modus „Echte Welt“ (Stand 06.11.2026)
 
 Ziel: Fliegen in einem echten Gebiet aus amtlichen offenen Geodaten (wie ein Flugsimulator mit echtem Gelände).
-NRW als eingebettetes Beispiel (1 x 1 km). Weitere Bundesländer: Nutzer tragen die Adressen der Dienste selbst ein.
+
+## Überblick (aktueller Stand)
+
+- **Eingebaut:** Monschau 1 x 1 km. Höhen (DGM, 2 m), Luftbild (DOP, 0,25 m), LoD2-Gebäude mit Fassaden nach Nutzung, Bäume aus DOM minus DGM, Rur als Wasser (Absturz), Ortsnamen, Kartenlinien (aus).
+- **Live laden (L1 bis L4):** Modus „Echte Welt“ → „Ort laden“: Koordinate oder „Karte“. NRW als Vorlage; andere Länder unter Karte → „Quellen“. Mehrere Quellen an Landesgrenzen. Geladene Orte im Browser gespeichert („Gespeicherte Orte“, offline). Gewässer und Ortsnamen NRW einmal laden (60 MB).
+- **Offen:** L5 Nachladen beim Fliegen; Mischen von UTM 32 und 33; Dienste anderer Länder ungeprüft.
+- **Code:** `src/realworld.js` (Laufzeit), `src/rwload.js` (Laden, Quellen), `src/rwdlm.js` (Basis-DLM), `src/rwstore.js` (Speicher), `src/demap.js` und `src/mapui.js` (Karte), `src/srcui.js` (Quellen), `src/geo.js` (GeoTIFF, UTM, CityGML). Werkzeuge in `tools/`.
+- Die Abschnitte unten sind das Protokoll in zeitlicher Reihenfolge; ältere Abschnitte beschreiben Zwischenstände (etwa das 3D-Mesh, „Ort laden (NRW)“).
 
 ## Entscheidungen des Nutzers (Prompt 92)
 
@@ -185,6 +192,12 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Speicher-Bereich zeigt gespeicherte Orte (einzeln löschen) und den belegten Platz (Schätzung des Browsers).
 - Geprüft: Tests mit selbst gebautem ZIP, Shapefile und DBF (Teich mit Insel, Orte im Umkreis), Laden mit Speicher ohne Netz, Landesdaten nachträglich. Im Browser der ganze Ablauf mit echten Diensten; Menüs passen auf allen vier Größen (bei „Ort laden“ ist die allgemeine Beschreibung ausgeblendet, dl-de/zero verlangt keinen Quellenvermerk).
 
+## Housekeeping (06.11.2026, Prompt 112)
+
+- Fehler behoben (gesichert, im Code gefunden): Bei live geladenen Orten mit Landesdaten gibt es nur Ortsnamen, keine Straßen und Bäche; der Straßenname in der Aufgabenzeile warf dann im Flug in jedem Bild einen Fehler. Test.
+- Rauchtest im Browser: Monschau, live mit Landesdaten, aus dem Speicher mit Weiterfliegen; je vier Durchgänge (Grafik einfach bis schön, Drohnen- und Verfolgerkamera, Wärmebild und Nachtsicht, Kartenlinien an): keine Fehler.
+- Gespeicherte und geladene Orte heißen mit Landesdaten nach der nächsten Ortslage (bis 2 km), etwa „Monschau · 50.55470, 6.24250“.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
@@ -201,15 +214,16 @@ Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io gepr�
 
 ## Etappen
 
-- RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.
-- RW2: LoD2-Gebäude (Darstellung und Kollision), Bäume aus DOM minus DGM (Darstellung, Kollision vereinfacht).
-- M2: Nachladen der scharfen Stufen (bis 17/18) rund um die Drohne aus dem SLPK (Teilabruf im Browser), Grafik und Kollision mit den feinsten geladenen Knoten.
-- M3: Feinschliff (Übergänge, Speicher, Handy, Ladeanzeige, ohne Internet).
-- RW3 (jetzt L1 bis L3, siehe „Live-Quellen: Plan“): Eigene Dienste: Eingabe von Mittelpunkt (Breite/Länge) und Adressen (WMS/WMTS für Luftbild, WCS für Höhen, Gebäude-Kacheln), Laden im Browser, Fehlermeldung bei fehlender CORS-Freigabe.
+- RW1 (erledigt): Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Physik auf echtem Gelände, Modus im Menü.
+- RW2 (erledigt): LoD2-Gebäude und Bäume mit Kollision.
+- M1 (erledigt, später verworfen): 3D-Mesh NRW eingebettet; wirkte verschwommen, ersetzt durch Luftbild und Fassaden (Prompt 99).
+- M2, M3 (zurückgestellt): Nachladen des 3D-Mesh.
+- L1 bis L4 (erledigt): Laden per Koordinate, Deutschlandkarte, eigene Quellen mit Grenzen, Speichern und Landesdaten.
+- L5 (offen): Nachladen beim Fliegen (Kacheln im Umkreis laden, alte entladen).
 - RW4 (später): Aufgaben in der echten Welt (Tore, Jagd), Signal durch Gelände verdeckt.
 
 ## Risiken (vermutet)
 
-- Andere Bundesländer: nicht jeder Dienst erlaubt CORS. Dann geht nur der Weg über das Werkzeug (vorab laden und einbetten).
-- LoD2 hat viele kleine Flächen; Kollision nur vereinfacht (Hülle je Gebäude).
+- Andere Bundesländer: nicht jeder Dienst erlaubt CORS. „Prüfen“ zeigt es; sonst bleibt nur der Weg über das Werkzeug (vorab laden und einbetten).
+- LoD2 hat viele kleine Flächen; die Kollision prüft die Dreiecke genau (Raster 8 m), in Innenstädten sind es über 100 000.
 - Handy: großes Luftbild (4096², bei kleinerer Höchstgröße der Grafikkarte wird es verkleinert) und viele Gebäude-Dreiecke kosten Speicher und Leistung.

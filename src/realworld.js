@@ -92,7 +92,15 @@ export async function rwExtras(p, src, store) {
   const w = await store.land(d.url + ':' + d.water);
   if (w) { const r = dlmWater(w, p.meta.bbox); out.water = r.bits; p.meta.water = { n: r.n, res: r.res, area: r.wet, source: 'Basis-DLM ' + d.water }; }
   const ps = await store.land(d.url + ':' + d.places[0]), pd = await store.land(d.url + ':' + d.places[1]);
-  if (ps && pd) out.features = { places: dlmPlaces(ps, pd, p.meta.bbox), source: src.attribution };
+  if (ps && pd) {
+    out.features = { places: dlmPlaces(ps, pd, p.meta.bbox), source: src.attribution };
+    // Name des Orts für Liste und Anzeige: nächste Ortslage zur Mitte (bis 2 km), davor die Koordinate
+    const f = rw.features; rw.features = out.features;
+    const pl = rwPlace(0, 0);
+    rw.features = f;
+    const pc = p.meta.place || '';
+    if (pl && pl.d < 2000 && !pc.includes(' · ')) p.meta.place = pl.name + (pc ? ' · ' + pc : '');
+  }
   return out;
 }
 export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null) {
@@ -281,7 +289,7 @@ export function rwNearName(x, z, r = 30) {
   const F = rw.features;
   if (!F || !rw.on) return '';
   let best = '', bd = r;
-  for (const key of ['streams', 'roads']) for (const f of F[key]) {
+  for (const key of ['streams', 'roads']) for (const f of F[key] || []) {   // live geladene Orte haben nur Ortsnamen
     if (!f.name) continue;
     for (let i = 0; i + 1 < f.pts.length; i++) {
       const [ax, az] = f.pts[i], [bx, bz] = f.pts[i + 1], dx = bx - ax, dz = bz - az, L = dx*dx + dz*dz;

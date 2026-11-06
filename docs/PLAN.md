@@ -469,6 +469,7 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Plan und geprüfte Quellen: `docs/echte-welt.md`. Nächste Etappe RW1.
 - RW1 erledigt (06.11.2026): siehe `docs/echte-welt.md`. Nächste Etappe RW2 (LoD2-Gebäude, Bäume).
 - RW2 erledigt (06.11.2026): Gebäude und Bäume mit Kollision, siehe `docs/echte-welt.md`. Nächste Etappe RW3 (eigene Dienste).
+- 3D-Mesh M1 (06.11.2026, Prompt 96) eingebettet, mit Prompt 99 wieder ersetzt; M2 zurückgestellt.
 - Neue Gestaltung erledigt (06.11.2026, Prompt 99): Luftbild 0,25 m auf Höhenmodell, LoD2-Gebäude mit Fassaden und Fenstern, Bäume in Luftbildfarbe, Vögel; 3D-Mesh nicht eingebettet. Siehe `docs/echte-welt.md`.
 - OSD Koordinaten und nächster Ort erledigt (06.11.2026, Prompt 101), siehe `docs/echte-welt.md`.
 - Live-Quellen geplant (L1 bis L5) und L1 erledigt (06.11.2026, Prompt 106): Ort in NRW per Koordinate laden. Siehe `docs/echte-welt.md`.
@@ -476,4 +477,4 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Propeller im Kamerabild ganz statt angeschnitten (06.11.2026, Prompt 109): eigener Durchgang, Kamera fest am Rahmen hinter und unter den vorderen Propellern (render.js, drawPropsFpv).
 - L3 erledigt (06.11.2026, Prompt 109): eigene Quellen, Prüfen, Import/Export, mehrere Quellen an Landesgrenzen. Siehe `docs/echte-welt.md`.
 - Polieren (Prompt 110) und L4 erledigt (06.11.2026, Prompt 111): Speichern im Browser, Gewässer und Ortsnamen einmal laden. Siehe `docs/echte-welt.md`.
-- 3D-Mesh M1 erledigt (06.11.2026), siehe `docs/echte-welt.md`. Nächste Etappe M2 (Nachladen).
+- Housekeeping (06.11.2026, Prompt 112): README-Aufbau vollständig, neue Übergabe `docs/handover-2026-11-06.md`, CLAUDE.md zeigt darauf, CI veröffentlicht die Seite ohne doppelte 6,5 MB und mit 20 Minuten Zeitgrenze. Nächste Etappe: L5 nach Tests des Nutzers.

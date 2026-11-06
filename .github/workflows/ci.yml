@@ -45,14 +45,18 @@ jobs:
         with:
           name: fpvsim-dist
           path: dist
+      # index.html ist der Simulator; fpvsim.html nur eine Weiterleitung (alte Links), statt die 6,5 MB doppelt hochzuladen
       - name: Seite zusammenstellen
         run: |
           mkdir _site
           cp dist/fpvsim.html _site/index.html
-          cp dist/fpvsim.html dist/fpvsim.aspx _site/
+          cp dist/fpvsim.aspx _site/
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./"><title>FPV-Simulator</title><a href="./">FPV-Simulator</a>\n' > _site/fpvsim.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
       - id: deploy
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 1200000   # 20 min: GitHub brauchte beim Abgleich zweimal länger als die vorgegebenen 10 min (06.11.2026)

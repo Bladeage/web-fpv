@@ -79,7 +79,8 @@ test('L4: Landesdaten aus dem Paket laden (Teilabrufe), danach Gewässer und Ort
     assert.equal(await rwLandHas(src, store), true);
     assert.equal(store.l.size, 3);
   } finally { globalThis.fetch = old; }
-  const p = { meta: { bbox: bb, crs: 'EPSG:25832' } }, x = await rwExtras(p, src, store);
+  const p = { meta: { bbox: bb, crs: 'EPSG:25832', place: '50.55000, 6.24000' } }, x = await rwExtras(p, src, store);
+  assert.equal(p.meta.place, 'Teststadt · 50.55000, 6.24000', 'Ortsname vor der Koordinate');
   assert.equal(p.meta.water.area, 3200);
   assert.equal(x.features.places[0].name, 'Teststadt');
 });
@@ -102,4 +103,16 @@ test('L4: geladener Ort wird gespeichert und beim zweiten Mal ohne Netz geöffne
     assert.ok(store.a.get(rwAreaKey(lat, lon, [RW_SOURCES[0]])).water, 'Speicher ergänzt');
     rw.on = false;
   } finally { globalThis.fetch = old; }
+});
+
+test('L4 Housekeeping: Ort mit Landesdaten (nur Ortsnamen): Straßenname, Kartenlinien und nächster Ort laufen ohne Fehler', async () => {
+  const { rwNearName, rwFeatureMesh, rwPlace } = await import('../src/realworld.js');
+  const p = { meta: { name: 'live', place: 'x', crs: 'EPSG:25832', bbox: bb, n: 2, hMin: 0, hMax: 0, hScale: 0.1, home: [0, 0], hHome: 0, roofTris: 0, wallTris: 0, buildings: 0, trees: 0 },
+    q: new Uint16Array(4), b16: new Int16Array(0), t16: new Int16Array(0) };
+  rwApply(p, { live: true, features: { places: dlmPlaces(placesShp, placesDbf, bb) } });
+  rw.on = true;
+  assert.equal(rwNearName(0, 0), '');
+  assert.equal(rwFeatureMesh().length, 0);
+  assert.equal(rwPlace(0, 0).name, 'Teststadt');
+  rw.on = false;
 });

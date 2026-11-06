@@ -7,7 +7,8 @@ Läuft direkt im Browser, ohne Installation. Empfohlen: Chrome oder Edge (PC), C
 Browser-Simulator für FPV-Drohnen. Reines HTML, CSS, JavaScript, WebGL2. Keine fremden Bibliotheken, einzige Ausnahme: Betaflight als Flugregler (GPLv3, siehe Lizenz).
 Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASCII).
 
-- Stand und Hintergrund: `docs/handover-2026-10-30.md`
+- Stand und Hintergrund: `docs/handover-2026-11-06.md` (ältere Übergabe: `docs/handover-2026-10-30.md`)
+- Echte Welt (Daten, Quellen, Etappen L1 bis L5): `docs/echte-welt.md`
 - Etappenplan: `docs/PLAN.md`
 - Prompt-Historie: `docs/prompt-historie.md`
 - Bisheriger Stand als Einzeldatei (Referenz, wird nicht mehr geändert): `legacy/fpv-sim-stufe1.html`
@@ -55,13 +56,27 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/vehicles.js` | Fahrzeuge der Jagd Boden: Fahrspur, Tempo, Treffer |
 | `src/signal.js` | Funkstrecke: Video und Steuerverbindung, Dämpfung durch Hindernisse |
 | `src/gamepad.js`, `src/input.js` | Funke/Gamepad, Tastatur, Touch |
+| `src/bf.js` | Betaflight als Flugregler (WebAssembly aus `sitl/`, GPLv3) |
+| `src/town.js`, `src/aircraft.js`, `src/balloon.js` | Kleine Stadt mit Testecken, Flugzeuge der Jagd, Ballon |
+| `src/eggs.js`, `src/birds.js`, `src/pilot.js` | Ostereier, Vögel, Pilot mit Funke hinter dem Startplatz |
 | `src/render.js`, `src/hud.js`, `src/audio.js`, `src/menu.js` | WebGL, OSD, Ton, Menü |
+| `src/geo.js` | GeoTIFF lesen, UTM und WGS84 umrechnen, CityGML (LoD2) lesen |
+| `src/realworld.js` | Echte Welt: Gelände, Gebäude, Bäume, Wasser, Netze; Laden eingebettet oder live, Quellenplanung an Grenzen |
+| `src/rwload.js` | Echte Welt: Quellen (NRW-Vorlage), Abruf-Adressen, Laden und Packen eines Gebiets, Zusammensetzen an Landesgrenzen, Prüfen, Quellen-Datei |
+| `src/rwdlm.js` | Echte Welt: Basis-DLM (ZIP, Shape, DBF) für Gewässer und Ortsnamen |
+| `src/rwstore.js` | Echte Welt: Speicher im Browser (IndexedDB) für Orte und Landesdaten |
+| `src/demap.js`, `src/mapui.js`, `src/srcui.js` | Deutschlandkarte (Daten und Bedienung), Seiten „Quellen“ und „Quelle bearbeiten“ |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |
 | `tools/aspx.mjs` | ASPX-Konverter (Node-Port von `tools/to_aspx.py`) |
+| `tools/realworld.mjs` | Monschau laden und in `realworld/` ablegen (derselbe Code wie das Live-Laden) |
+| `tools/water.mjs`, `tools/features.mjs` | Gewässer und Kartenebenen für Monschau aus dem Basis-DLM |
+| `tools/germany.mjs` | Ländergrenzen für die Deutschlandkarte (BKG VG2500) |
+| `tools/mesh.mjs` | 3D-Mesh NRW (Index, grobe Stufe); derzeit nicht eingebettet, für ein späteres Nachladen |
 | `tools/record-legacy-trace.mjs` | Nimmt Referenzdaten aus `legacy/` auf. Braucht Playwright, nicht Teil von Build und Tests. |
+| `sitl/` | Quellen und Build-Skript für Betaflight als WebAssembly |
 | `test/` | Tests mit `node:test` |
 
-`math.js`, `format.js`, `state.js`, `world.js`, `physics.js`, `gamepad.js`, `scenario.js`, `drone.js`, `osd.js`, `signal.js`, `targets.js`, `vehicles.js`, `bf.js`, `balloon.js`, `aircraft.js`, `town.js`, `eggs.js` und `birds.js` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
 ## Daten „Echte Welt“
 
