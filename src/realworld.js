@@ -8,7 +8,7 @@ import { fromUtm } from './geo.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, trees: [] };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [] };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -198,6 +198,8 @@ export function rwModels(b16, t16) {
   const nt = rw.meta.roofTris + rw.meta.wallTris, tris = new Float32Array(nt*9);
   for (let i = 0; i < nt*9; i++) tris[i] = b16[i]/10;
   rw.bldId = b16.slice(nt*9, nt*9 + nt);
+  const nb = rw.meta.buildings || 0;   // je Gebäude: Fassadenklasse (0 bis 6) + 16 x Flachdach
+  rw.bldInfo = b16.length >= nt*10 + nb && nb ? b16.slice(nt*10, nt*10 + nb) : null;
   const on = rw.on; rw.on = true;   // Bodenhöhe der Bäume braucht das Gelände
   rw.trees = [];
   for (let k = 0; k + 3 < t16.length; k += 4) {
@@ -210,12 +212,17 @@ export function rwModels(b16, t16) {
   rw.on = on;
   rwSetTris(tris, rw.trees.flatMap(t => t.boxes));
 }
-// Netz der Gebäude und Bäume. Je Gebäude eine Putzfarbe und eine Dachfarbe (Schiefer, Ziegel, Grau; Schätzung für die Eifel).
-// Wände: Alpha 0,2 bis 0,4 = Fassade; darin steckt die Sockelhöhe des Gebäudes (der Shader zählt die Geschosse ab dort). Bäume: Stamm und runde Krone, Krone mit der
-// Farbe des Luftbilds darunter (Alpha 0,08), damit Wald wie der Boden darunter aussieht.
+// Netz der Gebäude und Bäume. Je Gebäude Farben nach Nutzung (ALKIS-Gebäudefunktion aus LoD2): Putz, Metall, Holz,
+// Naturstein; Dächer Schiefer, Ziegel, Grau, Flachdächer Kies/Bitumen (Farbtöne: Schätzung für die Eifel).
+// Wände: Alpha 0,13 bis 0,49 = Fassade; darin stecken Klasse und Sockelhöhe (rwWallAlpha), der Shader zeichnet danach
+// Fenster, Läden, Tore, Bretter, Mauerwerk oder Fachwerk. Bäume: Stamm und runde Krone in der Farbe des Luftbilds (Alpha 0,08).
 const WALLS = [[0.92, 0.9, 0.86], [0.9, 0.84, 0.72], [0.8, 0.79, 0.76], [0.86, 0.74, 0.56], [0.94, 0.93, 0.9], [0.62, 0.64, 0.68]];
 const ROOFS = [[0.26, 0.28, 0.32], [0.3, 0.31, 0.35], [0.48, 0.24, 0.18], [0.24, 0.25, 0.28], [0.42, 0.41, 0.4]];
-export const rwWallAlpha = y => 0.3 + clamp(y, -190, 190)/2000;
+const FLAT = [[0.42, 0.42, 0.41], [0.34, 0.34, 0.35], [0.47, 0.45, 0.41]];
+const WALL_BY = { 3: [[0.66, 0.68, 0.7], [0.52, 0.58, 0.64], [0.76, 0.74, 0.68], [0.48, 0.52, 0.56]], 4: [[0.42, 0.3, 0.2], [0.36, 0.26, 0.18], [0.5, 0.38, 0.26]],
+  6: [[0.58, 0.53, 0.47], [0.52, 0.49, 0.45], [0.62, 0.58, 0.52]], 7: [[0.94, 0.92, 0.87]] };
+// Wand-Alpha: Klasse k (0 bis 7, 7 = Fachwerk) und Sockelhöhe y (-190 bis 190 m). Der Shader rechnet zurück.
+export const rwWallAlpha = (y, k = 0) => 0.132 + k*0.04 + (clamp(y, -190, 190) + 190)/380*0.035;
 export function rwModelMesh() {
   const T = rw.tris, nr = rw.meta.roofTris, nt = T ? T.length/9 : 0, out = [];
   const tri = (a, b, c, col, al, up) => {
@@ -227,10 +234,17 @@ export function rwModelMesh() {
   const hash = i => { const k = Math.sin(i*12.9898 + 4.1)*43758.5453; return k - Math.floor(k); };
   const base = new Map();   // tiefster Punkt je Gebäude (Sockel)
   for (let t = nr; t < nt; t++) { const id = rw.bldId ? rw.bldId[t] : 0, y = Math.min(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); base.set(id, Math.min(base.get(id) ?? 1e9, y)); }
+  const top = new Map();   // höchster Punkt je Gebäude (für Fachwerk nur bei niedrigen Häusern)
+  for (let t = 0; t < nt; t++) { const id = rw.bldId ? rw.bldId[t] : 0, y = Math.max(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); top.set(id, Math.max(top.get(id) ?? -1e9, y)); }
+  const kind = id => {   // Fassadenklasse; Fachwerk (7) für etwa ein Drittel der niedrigen Wohnhäuser (Annahme: typisch für Monschau, nicht aus den Daten)
+    const k = rw.bldInfo ? rw.bldInfo[id] & 15 : 0;
+    return (k === 0 || k === 1) && (top.get(id) - (base.get(id) ?? 0)) < 13 && hash(id + 311) < 0.35 ? 7 : k;
+  };
   for (let t = 0; t < nt; t++) {
     const o = t*9, a = [T[o], T[o + 1], T[o + 2]], b = [T[o + 3], T[o + 4], T[o + 5]], c = [T[o + 6], T[o + 7], T[o + 8]], id = rw.bldId ? rw.bldId[t] : 0;
-    if (t < nr) tri(a, b, c, ROOFS[Math.floor(hash(id)*ROOFS.length)], 1, true);
-    else tri(a, b, c, WALLS[Math.floor(hash(id + 77)*WALLS.length)], rwWallAlpha(base.get(id) ?? 0), false);
+    const flat = rw.bldInfo && rw.bldInfo[id] & 16, k = kind(id), pal = WALL_BY[k] || WALLS;
+    if (t < nr) tri(a, b, c, flat || k === 2 ? FLAT[Math.floor(hash(id)*FLAT.length)] : ROOFS[Math.floor(hash(id)*ROOFS.length)], 1, true);
+    else tri(a, b, c, pal[Math.floor(hash(id + 77)*pal.length)], rwWallAlpha(base.get(id) ?? 0, k), false);
   }
   const bark = [0.32, 0.24, 0.17];
   for (const tr of rw.trees) {

@@ -110,6 +110,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Lösung: Wasser als Raster 2 m, Spiegel über Wasser auf dem Flussbett, am Ufer auf dem tiefsten Wert der Umgebung; das Gelände bildet das Ufer. Leicht nach vorn gezogen. Nahe Bildebene in der echten Welt 0,06 m.
 - Kartenlinien (bunte Bänder) standardmäßig aus.
 
+## Fassaden nach Gebäudenutzung (erledigt 06.11.2026, Prompt 102)
+
+- Quelle (gesichert): Die LoD2-Daten NRW enthalten je Gebäude die ALKIS-Gebäudefunktion (`bldg:function`, z. B. `31001_1000`) und die Dachform (`bldg:roofType`). Die Bedeutung der Codes ist gegen den ALKIS-WFS NRW (vereinfacht, Feld „funktion“ als Text) geprüft. Keine neue Quelle nötig.
+- Klassen (`bldClass` in `tools/realworld.mjs`), Monschau: 0 Wohnhaus 342, 1 Wohnhaus mit Laden 112, 2 Garage/Carport/Überdachung 155, 3 Gewerbe/Versorgung/Parkhaus 60, 4 Landwirtschaft 36, 5 öffentlich (Schule, Museum, Polizei ...) 20, 6 Kirche/Kapelle/Burg/Turm 13. Flachdächer (Dachform 1000): 113.
+- Darstellung (Maße und Farben Schätzung): Wohnhaus Putz mit Fenstern; mit Laden große Schaufenster im Erdgeschoss; Garage Tor mit Lamellen; Gewerbe Blech mit Rippen und Fensterbändern; Scheune Bretter und Tor; öffentlich größere Fenster, höhere Geschosse; Kirche/Burg Bruchstein, schmale hohe Fenster. Flachdächer und Garagendächer grau.
+- Fachwerk: etwa ein Drittel der niedrigen Wohnhäuser (unter 13 m). Annahme, typisch für Monschau; die Daten sagen nichts über Fachwerk.
+- Ablage: `.bld` hängt je Gebäude Klasse + 16 x Flachdach an. Im Netz trägt das Alpha der Wand Klasse und Sockelhöhe (`rwWallAlpha`, Test prüft die Rückrechnung in 32 Bit).
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

@@ -134,9 +134,10 @@ export function triangulate(pts) {
   return out;
 }
 // CityGML (LoD2): Dach- und Wandflächen als Dreiecke, je Gebäude. keep(x, y) wählt Gebäude nach der Mitte ihrer Flächen (UTM).
-// Rückgabe: { roof: [[x,y,z]...] in Dreiergruppen, wall: [...], roofId: [Gebäude je Dreieck], wallId: [...] }, UTM und Höhe über NHN.
+// Rückgabe: { roof: [[x,y,z]...] in Dreiergruppen, wall: [...], roofId: [Gebäude je Dreieck], wallId: [...],
+// info: je Gebäude { fn: ALKIS-Gebäudefunktion (z. B. '31001_1000'), roof: Dachform (z. B. '3100') } }, UTM und Höhe über NHN.
 export function readLod2(xml, keep = () => true) {
-  const out = { roof: [], wall: [], roofId: [], wallId: [] };
+  const out = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
   const bre = /<bldg:Building\b[\s\S]*?<\/bldg:Building>/g;
   let id = 0;
   for (let b; (b = bre.exec(xml)); ) {
@@ -156,6 +157,8 @@ export function readLod2(xml, keep = () => true) {
     for (const [roof, pts] of polys) for (const [a, c2, d] of triangulate(pts)) {
       (roof ? out.roof : out.wall).push(pts[a], pts[c2], pts[d]); (roof ? out.roofId : out.wallId).push(id);
     }
+    const tag = t => (b[0].match(new RegExp('<bldg:' + t + '>([^<]*)<')) || [0, ''])[1].trim();
+    out.info.push({ fn: tag('function'), roof: tag('roofType') });
     id++;
   }
   return out;

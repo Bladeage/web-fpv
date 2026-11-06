@@ -137,8 +137,15 @@ test('Echte Welt: Netz mit Fassaden (Sockelhöhe im Alpha), Dächer und Kronen',
   for (let i = 0; i < n; i++) { const a = v[i*10 + 9]; if (a >= 0.125 && a < 0.5) wall++; else if (a === 1) roof++; else if (a > 0.07 && a < 0.125) crown++; else bad++; if (!Number.isFinite(v[i*10 + 1])) bad++; }
   assert.equal(bad, 0);
   assert.ok(wall >= (T().length/9 - rw.meta.roofTris)*3 && roof > 0 && crown > rw.trees.length*48*3 - 1, `Wände ${wall}, Dach/Stamm ${roof}, Krone ${crown}`);
-  // Sockelhöhe kommt im Shader als (a - 0,3)*2000 zurück
-  for (const y of [-120.4, -3.2, 0, 18.9]) assert.ok(Math.abs((rwWallAlpha(y) - 0.3)*2000 - y) < 1e-6);
+  // Klasse und Sockelhöhe kommen im Shader zurück (wallInfo), auch in 32 Bit wie auf der Grafikkarte
+  const back = a => { const k = Math.floor((a - 0.13)/0.04); return [k, (a - 0.132 - k*0.04)/0.035*380 - 190]; };
+  for (let k = 0; k < 8; k++) for (const y of [-190, -120.4, -3.2, 0, 18.9, 190]) {
+    const a = Math.fround(rwWallAlpha(y, k)), [k2, y2] = back(a);
+    assert.ok(a >= 0.125 && a < 0.5 && k2 === k && Math.abs(y2 - y) < 0.005, `k ${k} y ${y} -> ${k2} ${y2}`);
+  }
+  // Nutzung je Gebäude aus LoD2 (ALKIS): alle Klassen vorhanden, Wohnhäuser am häufigsten
+  const cnt = [0, 0, 0, 0, 0, 0, 0]; for (const v of rw.bldInfo) cnt[v & 15]++;
+  assert.ok(cnt.every(c => c > 0) && cnt[0] === Math.max(...cnt), 'Klassen ' + cnt.join(' '));
 });
 
 for (const [name, speed, dmg] of [['langsam ohne Schaden', 5, 'off'], ['sehr schnell ohne Schaden (kein Durchtunneln)', 40, 'off'], ['schnell mit Schaden', 12, 'real']]) {
@@ -273,4 +280,11 @@ test('Echte Welt: Koordinaten (UTM hin und zurück) und nächster Ort für das O
   assert.ok(far.name && far.d >= 0 && /^(N|NO|O|SO|S|SW|W|NW)$/.test(far.dir), JSON.stringify(far));
   const l = osdLines({}, new Proxy({ lq: 99, mode: 'angle', label: 'ECHTE WELT', place: far, lat, lon, hp: [] }, { get: (o, k) => k in o ? o[k] : 0, has: (o, k) => k in o })).tl.map(x => x.t);
   assert.ok(l.some(t => t.startsWith(far.name.toUpperCase())) && l.some(t => /^50\.\d{5}N 6\.\d{5}E$/.test(t)), l.join(' | '));
+});
+
+test('Echte Welt: Gebäudenutzung (ALKIS-Code aus LoD2) -> Fassadenklasse', async () => {
+  const { bldClass } = await import('../tools/realworld.mjs');
+  const want = { '31001_1000': 0, '31001_1100': 1, '31001_2460': 2, '51009_1610': 2, '51009_1611': 2, '31001_2461': 3, '31001_2000': 3, '31001_2500': 3,
+    '31001_2700': 4, '31001_3021': 5, '31001_3071': 5, '31001_3041': 6, '31001_3043': 6, '31001_3038': 6, '51001_1012': 6, '51007_1400': 6, '31001_1310': 0, '': 0 };
+  for (const [fn, k] of Object.entries(want)) assert.equal(bldClass(fn), k, fn);
 });

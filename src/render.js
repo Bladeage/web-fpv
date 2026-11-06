@@ -113,30 +113,66 @@ vec3 groundProc(vec2 p, float q){
   }
   return c;
 }
-// Fassade (echte Welt): Geschosse 2,9 m ab dem Sockel (base), Fenster 1,1 x 1,3 m im Abstand 2,6 m mit hellem Rahmen,
-// Sockel dunkler, Putz leicht fleckig. Fenster spiegeln den Himmel je nach Blickwinkel. Weit weg: weich zum Mittelwert.
-vec3 facade(vec3 c, vec3 p, vec3 n, float base, vec3 cam){
+// Fassade (echte Welt) je Nutzung k (aus ALKIS über LoD2): 0 Wohnhaus, 1 Wohnhaus mit Laden, 2 Garage/Überdachung, 3 Gewerbe,
+// 4 Scheune, 5 öffentliches Gebäude, 6 Kirche/Burg/Turm, 7 Fachwerkhaus. Raster aus Feldbreite und Geschosshöhe ab dem Sockel.
+// Fenster mit Rahmen spiegeln den Himmel je nach Blickwinkel. Feine Muster (Rippen, Bretter, Steine, Balken) und Fenster
+// gehen weit weg weich in einen Mittelwert über (kein Flimmern). Maße: Schätzung nach üblichen Bauten.
+vec2 wallInfo(float a){ float k = floor((a - 0.13)/0.04); return vec2(k, (a - 0.132 - k*0.04)/0.035*380.0 - 190.0); }
+float rect(vec2 f, vec4 r, vec2 e){
+  return smoothstep(r.x - e.x, r.x + e.x, f.x)*(1.0 - smoothstep(r.y - e.x, r.y + e.x, f.x))*smoothstep(r.z - e.y, r.z + e.y, f.y)*(1.0 - smoothstep(r.w - e.y, r.w + e.y, f.y));
+}
+vec3 facade(vec3 c, vec3 p, vec3 n, float base, float k, vec3 cam){
   vec2 t = normalize(vec2(-n.z, n.x) + 1e-5);
-  vec2 q = vec2(dot(p.xz, t), p.y - base)/vec2(2.6, 2.9);
-  vec2 f = fract(q), fw = max(fwidth(q), vec2(1e-4)), k = fw*1.5;
-  float storey = floor(q.y);
+  float u = dot(p.xz, t), h = p.y - base;
+  vec2 cell = k == 5.0 ? vec2(3.2, 3.6) : k == 3.0 ? vec2(4.0, 3.6) : k == 4.0 ? vec2(5.0, 4.0) : k == 6.0 ? vec2(4.0, 6.0) : k == 2.0 ? vec2(3.0, 2.9) : vec2(2.6, 2.9);
+  vec2 q = vec2(u, h)/cell, f = fract(q), fw = max(fwidth(q), vec2(1e-4)), e = fw*1.5;
+  float storey = floor(q.y), hs = hash(vec2(floor(q.x), storey) + floor(base));
+  float fu = max(fwidth(u), 1e-4), fine = clamp(1.4 - fu*6.0, 0.0, 1.0);   // feine Muster (ca. 0,25 m) nur nah
   c *= 0.93 + 0.1*vnoise(p.xz*0.7 + p.y*0.9);
-  float win = smoothstep(0.29 - k.x, 0.29 + k.x, f.x)*(1.0 - smoothstep(0.71 - k.x, 0.71 + k.x, f.x))
-            * smoothstep(0.3 - k.y, 0.3 + k.y, f.y)*(1.0 - smoothstep(0.75 - k.y, 0.75 + k.y, f.y));
-  float frame = smoothstep(0.25 - k.x, 0.25 + k.x, f.x)*(1.0 - smoothstep(0.75 - k.x, 0.75 + k.x, f.x))
-              * smoothstep(0.26 - k.y, 0.26 + k.y, f.y)*(1.0 - smoothstep(0.79 - k.y, 0.79 + k.y, f.y));
-  float h = hash(vec2(floor(q.x), storey) + floor(base));
-  float lit = step(0.78, h);   // manche Fenster mit hellem Vorhang
+  vec3 avg = c, pat = c;
+  // Material
+  if (k == 3.0) pat *= mix(1.0, 0.86 + 0.14*smoothstep(0.2, 0.6, abs(fract(u/0.5) - 0.5)*2.0), fine);   // Blech mit Rippen
+  if (k == 4.0) { float bd = fract(u/0.25); pat *= mix(1.0, (0.88 + 0.12*hash(vec2(floor(u/0.25), 3.0)))*mix(0.6, 1.0, smoothstep(0.0, 0.12, bd)*(1.0 - smoothstep(0.88, 1.0, bd))), fine); avg *= 0.93; }   // Bretter
+  if (k == 6.0) {   // Bruchstein: Reihen 0,35 m, Steine 0,7 m versetzt, Fugen hell
+    float row = floor(h/0.35), bx = (u + mod(row, 2.0)*0.35)/0.7, sy = fract(h/0.35), sx = fract(bx);
+    float joint = 1.0 - smoothstep(0.0, 0.08, min(min(sy, 1.0 - sy)*0.35, min(sx, 1.0 - sx)*0.7));
+    pat = mix(pat*(0.82 + 0.3*hash(vec2(floor(bx), row))), vec3(0.72, 0.7, 0.66), joint*0.7);
+    pat = mix(c, pat, fine);
+  }
+  // Öffnungen: Fenster (Glas), Ladenfenster, Tore
+  vec4 w = vec4(0.29, 0.71, 0.3, 0.75);
+  float glassOn = 1.0, door = 0.0;
+  if (k == 1.0 && storey < 0.5) w = vec4(0.08, 0.92, 0.06, 0.8);
+  if (k == 2.0) { glassOn = 0.0; door = storey < 0.5 ? 1.0 : 0.0; w = vec4(0.1, 0.9, 0.0, 0.75); }
+  if (k == 3.0) { w = vec4(0.03, 0.97, 0.45, 0.75); glassOn = step(0.25, hs); }
+  if (k == 4.0) { if (storey < 0.5 && hs < 0.5) { door = 1.0; glassOn = 0.0; w = vec4(0.15, 0.85, 0.0, 0.85); } else { w = vec4(0.42, 0.58, 0.5, 0.7); glassOn = step(0.7, hs); } }
+  if (k == 5.0) w = vec4(0.22, 0.78, 0.22, 0.82);
+  if (k == 6.0) { w = vec4(0.42, 0.58, 0.3, 0.85); glassOn = step(0.4, hs); }
+  float win = rect(f, w, e)*glassOn, frame = (k == 0.0 || k == 1.0 || k == 5.0 || k == 7.0) ? rect(f, w + vec4(-0.04, 0.04, -0.04, 0.04), e)*glassOn : 0.0;
+  float dr = rect(f, w, e)*door;
   vec3 v = normalize(cam - p);
   float fr = pow(1.0 - abs(dot(v, n)), 3.0);
   vec3 glass = mix(vec3(0.10, 0.13, 0.17), vec3(0.55, 0.66, 0.78), 0.25 + 0.6*fr);
-  glass = mix(glass, vec3(0.78, 0.74, 0.62), lit*0.5);
-  float fade = clamp(1.6 - max(fw.x, fw.y)*3.0, 0.0, 1.0);   // ab ~0,5 Fenster je Pixel: Muster aus
-  vec3 pat = mix(mix(c, vec3(0.93, 0.92, 0.9), frame), glass, win);
-  vec3 avg = mix(c, vec3(0.3, 0.34, 0.4), 0.17);
+  glass = mix(glass, vec3(0.78, 0.74, 0.62), step(0.78, hs)*0.5*step(k, 1.5));   // manche Wohnungsfenster mit hellem Vorhang
+  vec3 doorC = k == 4.0 ? c*0.62 : vec3(0.42, 0.43, 0.44)*(0.9 + 0.1*step(0.5, fract(f.y*cell.y/0.3)));   // Scheunentor / Garagentor mit Lamellen
+  // Fachwerk: dunkle Balken auf Geschossen, Brüstung, Pfosten an Feldrand und Fenstern, Streben neben den Fenstern
+  if (k == 7.0) {
+    float bx = 0.035, by = 0.034;
+    float tim = max(1.0 - smoothstep(by, by + e.y, f.y), rect(f, vec4(-1.0, 2.0, 0.24, 0.28), e));
+    tim = max(tim, max(1.0 - smoothstep(bx, bx + e.x, f.x), smoothstep(1.0 - bx - e.x, 1.0 - bx, f.x)));
+    tim = max(tim, max(rect(f, vec4(0.225, 0.26, -1.0, 2.0), e), rect(f, vec4(0.74, 0.775, -1.0, 2.0), e)));
+    float s = hs < 0.5 ? 1.0 : -1.0, gx = (f.x < 0.5 ? f.x - 0.035 : 0.965 - f.x)/0.19, gy = (f.y - 0.28)/0.72;
+    float brace = (f.y > 0.28 && gx > 0.0 && gx < 1.0) ? 1.0 - smoothstep(0.03, 0.03 + e.x*1.5, abs((s > 0.0 ? gx : 1.0 - gx) - gy)*0.19) : 0.0;
+    pat = mix(pat, vec3(0.2, 0.15, 0.11), max(tim, brace)*fine);
+    avg = mix(c, vec3(0.2, 0.15, 0.11), 0.22);
+  }
+  pat = mix(mix(pat, vec3(0.93, 0.92, 0.9), frame), glass, win);
+  pat = mix(pat, doorC, dr);
+  avg = mix(avg, vec3(0.3, 0.34, 0.4), 0.17*(1.0 - step(1.5, k)*step(k, 2.5)));
+  float fade = clamp(1.6 - max(fw.x, fw.y)*3.0, 0.0, 1.0);   // ab ~0,5 Felder je Pixel: Muster aus
   c = mix(avg, pat, fade);
-  float plinth = 1.0 - smoothstep(0.45, 0.55, p.y - base);
-  return mix(c, c*vec3(0.55, 0.53, 0.5), plinth);
+  float plinth = 1.0 - smoothstep(0.45, 0.55, h);
+  return mix(c, c*vec3(0.55, 0.53, 0.5), plinth*step(k, 5.5));
 }
 // Bildmodus (V1): 1 Wärmebild (Szene gedämpftes Grau, warme Objekte hell), 2 Nachtsicht (grün, dunkler)
 vec3 vis(vec3 col){
@@ -161,7 +197,8 @@ void main(){
     }
   }
   bool rwWall = wall && uPhoto > 0.5;
-  if (rwWall && abs(n.y) < 0.6) c = facade(c, vW, n, (vCol.a - 0.3)*2000.0, uCam);
+  vec2 wi = wallInfo(vCol.a);
+  if (rwWall && abs(n.y) < 0.6) c = facade(c, vW, n, wi.y, wi.x, uCam);
   if (uPhoto > 0.5 && !wall && !ground) c *= 0.9 + 0.2*vnoise(vW.xz*vec2(1.3, 4.0) + vW.y*3.0);   // Dach: Ziegelreihen angedeutet
   if (ground && uGfx < 0.5 && uPhoto < 0.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
     vec2 p = vW.xz;
@@ -207,7 +244,7 @@ void main(){
   vec3 amb = mix(bounce, sky, 0.5 + 0.5*n.y);
   float ao = 1.0;
   if (!ground && uPhoto < 0.5) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
-  if (rwWall) ao = mix(0.6, 1.0, smoothstep(0.0, 1.5, vW.y - (vCol.a - 0.3)*2000.0));   // echte Welt: Abdunklung ab dem Sockel
+  if (rwWall) ao = mix(0.6, 1.0, smoothstep(0.0, 1.5, vW.y - wi.y));   // echte Welt: Abdunklung ab dem Sockel
   vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
   float d = length(vW - uCam);
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));

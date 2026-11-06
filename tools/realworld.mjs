@@ -79,6 +79,18 @@ function findTrees(dgm, dom, roofs, a) {
   }
   return trees;
 }
+// Gebäudenutzung (ALKIS-Gebäudefunktion, steht in LoD2 als bldg:function) -> Fassadenklasse. Bedeutung der Codes geprüft
+// gegen den ALKIS-WFS NRW (Feld „funktion“ als Text). 0 Wohnen, 1 Wohnen mit Laden, 2 Garage/Überdachung, 3 Gewerbe,
+// 4 Landwirtschaft, 5 öffentlich, 6 Kirche/Burg/Turm. Unbekannt: Wohnen.
+export function bldClass(fn) {
+  if (/^31001_(1100)$/.test(fn)) return 1;
+  if (/^31001_246\d$|^51009_/.test(fn)) return fn === '31001_2461' || fn === '31001_2462' ? 3 : 2;
+  if (/^31001_2[0-6]\d\d$/.test(fn)) return 3;
+  if (/^31001_27\d\d$/.test(fn)) return 4;
+  if (/^31001_(3041|3043|3038)$|^51001_|^51007_/.test(fn)) return 6;
+  if (/^31001_3\d\d\d$/.test(fn)) return 5;
+  return 0;
+}
 const tile = (a, e, nn) => a.lod2.replace('{E}', e).replace('{N}', nn);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -87,13 +99,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const t = readTiff(tif.buffer.slice(tif.byteOffset, tif.byteOffset + tif.byteLength));
   const dom = readTiff(domTif.buffer.slice(domTif.byteOffset, domTif.byteOffset + domTif.byteLength)).data;
   // Gebäude: alle 1-km-Kacheln, die das Gebiet berühren; Flächen mit Mitte im Gebiet
-  const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3], bld = { roof: [], wall: [], roofId: [], wallId: [] };
+  const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3], bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
   let idBase = 0;
   for (let e = Math.floor(a.bbox[0]/1000); e < Math.ceil(a.bbox[2]/1000); e++) for (let nn = Math.floor(a.bbox[1]/1000); nn < Math.ceil(a.bbox[3]/1000); nn++) {
     const r = await fetch(tile(a, e, nn));
     if (!r.ok) continue;   // Kachel ohne Gebäude
     const o = readLod2(await r.text(), inBox); bld.roof.push(...o.roof); bld.wall.push(...o.wall);
-    const nb = Math.max(-1, ...o.roofId, ...o.wallId) + 1;
+    const nb = o.info.length;   // Gebäude dieser Kachel (Nummern 0 bis nb - 1)
+    bld.info.push(...o.info);
     bld.roofId.push(...o.roofId.map(i => i + idBase)); bld.wallId.push(...o.wallId.map(i => i + idBase)); idBase += nb;
   }
   if (t.w !== a.n || t.h !== a.n) throw new Error('Rastergröße ' + t.w + 'x' + t.h);
@@ -109,10 +122,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     home: home.map(v => +v.toFixed(1)), hHome: +t.data[st.j*a.n + st.i].toFixed(2), startSpan: +st.s.toFixed(2), attribution: a.attribution };
   // Gebäude-Dreiecke als 16 Bit in Dezimetern (Kartenkoordinaten, y über dem Startplatz): erst Dächer, dann Wände
   const ec = (a.bbox[0] + a.bbox[2])/2, nc = (a.bbox[1] + a.bbox[3])/2, hHome = meta.hHome;
-  // dazu je Dreieck die Gebäudenummer (16 Bit), angehängt hinter den Ecken
-  const pts = bld.roof.concat(bld.wall), ids = bld.roofId.concat(bld.wallId), b16 = new Int16Array(pts.length*3 + ids.length);
+  // dazu je Dreieck die Gebäudenummer (16 Bit), angehängt hinter den Ecken, und je Gebäude Klasse + 16 x Flachdach
+  const pts = bld.roof.concat(bld.wall), ids = bld.roofId.concat(bld.wallId), b16 = new Int16Array(pts.length*3 + ids.length + idBase);
   pts.forEach((p, k) => { b16[k*3] = Math.round((p[0] - ec)*10); b16[k*3 + 1] = Math.round((p[2] - hHome)*10); b16[k*3 + 2] = Math.round(-(p[1] - nc)*10); });
   ids.forEach((v, k) => { b16[pts.length*3 + k] = v; });
+  bld.info.forEach((f, k) => { b16[pts.length*3 + ids.length + k] = bldClass(f.fn) + (f.roof === '1000' ? 16 : 0); });
+  const cnt = {}; for (const f of bld.info) { const c = bldClass(f.fn); cnt[c] = (cnt[c] || 0) + 1; }
+  console.log('Gebäude je Klasse', cnt, 'Flachdächer', bld.info.filter(f => f.roof === '1000').length);
   const trees = findTrees(t.data, dom, bld.roof, a), t16 = new Int16Array(trees.length*4);
   trees.forEach((tr, k) => t16.set(tr.map(v => Math.round(v*10)), k*4));
   Object.assign(meta, { roofTris: bld.roof.length/3, wallTris: bld.wall.length/3, buildings: idBase, trees: trees.length });
