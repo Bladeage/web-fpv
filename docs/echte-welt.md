@@ -125,6 +125,24 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Dächer: Farbe aus dem Luftbild an der Stelle (15 % Dachfarbe beigemischt), Licht weich. Befund: Das Luftbild zeigt viele Dächer hell (vermutet: Aufnahme im Winter, Reif oder Sonnenreflex auf Schiefer); am Rand eines Dachs kann Straße oder Fassade aus dem Bild stammen, weil das Luftbild kein echtes Orthofoto ist (vermutet).
 - 384 Wanddreiecke ohne Fläche (aus LoD2) werden weggelassen.
 
+## Live-Quellen: Plan (06.11.2026, Prompt 106)
+
+- Nutzer: NRW als Beispiel mit allen Adressen als Vorlage; andere Länder trägt der Nutzer ein; mehrere Quellen (Landesgrenze); Basiskarte Deutschland; Ausschnitt 1 km² fest (Entscheidung), Reihenfolge wie vorgeschlagen.
+- Kein Globus: alle Daten gelten für Deutschland, eine flache Karte reicht.
+- Erst fester Ausschnitt, später Nachladen: Die Physik braucht Gelände, Häuser und Bäume vor der Drohne (100 km/h = 28 m/s), eine LoD2-Kachel NRW hat 10 bis 14 MB je km² (gesichert, Dateigröße).
+- Etappen: L1 Laden per Koordinate (NRW). L2 Deutschlandkarte zum Auswählen (Ländergrenzen eingebettet, online basemap.de darunter). L3 eigene Quellen (Formular, mehrere Quellen, Grenzen, UTM 33, Prüfen, Import/Export). L4 Speichern im Browser (auch Gewässer und Ortsnamen einmal laden). L5 Nachladen beim Fliegen (Kacheln im Umkreis).
+- CORS (gesichert, 06.11.2026): NRW WCS (DGM, DOM) und WMS (DOP) geben jeden Absender frei, auch `null` (lokal geöffnete Datei). LoD2-Kacheln und Basis-DLM-Paket: `*`, Teilabruf möglich. basemap.de WMS und WMTS: frei für bladeage.github.io.
+- Basis-DLM im Browser (gesichert): Die Shape-Dateien liegen ungepackt im Paket, aber je Thema für ganz NRW (Gewässerflächen 28,5 MB, Ortslagen 31 MB, Straßen 1,1 GB). Für 1 km² zu viel; daher Gewässer und Ortsnamen erst in L4 (einmal laden und speichern).
+
+## L1: Ort per Koordinate laden (erledigt 06.11.2026, Prompt 106)
+
+- Menü „Echte Welt“: „Monschau (eingebaut)“ oder „Ort laden (NRW)“ mit Feld für Breite, Länge (Punkt oder Komma als Dezimalzeichen) und Knopf „Laden“ (nochmal drücken bricht ab). Fortschritt und Fehler stehen darunter. Start ohne geladenen Ort lädt erst; schlägt das fehl, geht es mit Monschau weiter.
+- `src/rwload.js` (ohne DOM): Quellen (NRW als Vorlage), Adressen, Laden und Packen. Das Werkzeug `tools/realworld.mjs` nutzt denselben Code; die Monschau-Dateien sind damit Byte für Byte gleich geblieben (geprüft).
+- Geladen werden Höhen (512², 2 m), Oberfläche (für Bäume), Luftbild (4096², 0,25 m) und die LoD2-Kacheln, die das Gebiet berühren (mit Gebäudenutzung). Ohne Gewässer und Ortsnamen (siehe L4).
+- Test im Browser (gesichert): Aachen, Dom (50.7753, 6.0839): 21 s, 2688 Gebäude, 1430 Bäume, Dom gut erkennbar. Fehler dabei gefunden und behoben: große Innenstadt-Kacheln sprengten mit `push(...liste)` den Aufrufstapel.
+- Fehlermeldungen: keine Quelle für den Ort, keine Verbindung (offline oder gesperrt), Dienst meldet Fehler (Text aus der Antwort), falsche Rastergröße, Abbruch. Das alte Gebiet bleibt dabei erhalten.
+- Grafik: neues Gebiet (rw.ver) gibt Netze und Luftbild frei und baut sie neu.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
@@ -145,7 +163,7 @@ Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io gepr�
 - RW2: LoD2-Gebäude (Darstellung und Kollision), Bäume aus DOM minus DGM (Darstellung, Kollision vereinfacht).
 - M2: Nachladen der scharfen Stufen (bis 17/18) rund um die Drohne aus dem SLPK (Teilabruf im Browser), Grafik und Kollision mit den feinsten geladenen Knoten.
 - M3: Feinschliff (Übergänge, Speicher, Handy, Ladeanzeige, ohne Internet).
-- RW3: Eigene Dienste: Eingabe von Mittelpunkt (Breite/Länge) und Adressen (WMS/WMTS für Luftbild, WCS für Höhen, Gebäude-Kacheln), Laden im Browser, Fehlermeldung bei fehlender CORS-Freigabe.
+- RW3 (jetzt L1 bis L3, siehe „Live-Quellen: Plan“): Eigene Dienste: Eingabe von Mittelpunkt (Breite/Länge) und Adressen (WMS/WMTS für Luftbild, WCS für Höhen, Gebäude-Kacheln), Laden im Browser, Fehlermeldung bei fehlender CORS-Freigabe.
 - RW4 (später): Aufgaben in der echten Welt (Tore, Jagd), Signal durch Gelände verdeckt.
 
 ## Risiken (vermutet)

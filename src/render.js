@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH, RW_DATA } from './realworld.js';
+import { rw, rwMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH } from './realworld.js';
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
@@ -337,7 +337,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, rwGlVer = -1, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -464,23 +464,6 @@ export function initGL() {
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
   birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
   pilotMesh = { body: upload(buildPilotMesh('body')), head: upload(buildPilotMesh('head')) };   // Pilot mit Funke
-  // Luftbild der echten Welt (DOP, 4096² für 1 km = 0,25 m je Pixel) als Textur mit Mipmaps; zu groß fürs Gerät: verkleinert
-  if (!RW_DATA.dop.startsWith('%%')) {
-    const img = new Image();
-    img.onload = () => {
-      const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-      let src = img;
-      if (img.width > max) { src = document.createElement('canvas'); src.width = src.height = max; src.getContext('2d').drawImage(img, 0, 0, max, max); }
-      photoTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, photoTex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      const an = gl.getExtension('EXT_texture_filter_anisotropic');
-      if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    };
-    img.src = 'data:image/jpeg;base64,' + RW_DATA.dop;
-  }
   bladeMesh = upload(buildBlade());
   discMesh = upload(buildDisc());
   skyVao = gl.createVertexArray();
@@ -843,13 +826,40 @@ export function render(dt) {
   drawFlare(vp, eye, asp, GFX, VIS, dt);
   gl.bindVertexArray(null);
 }
+// Luftbild der echten Welt (DOP, 4096² für 1 km = 0,25 m je Pixel) als Textur mit Mipmaps; zu groß fürs Gerät: verkleinert.
+// Kommt als JPEG-Bytes (eingebettet oder live geladen); Entpacken läuft im Hintergrund, bis dahin der gerechnete Boden.
+function loadPhoto(bytes, ver) {
+  createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })).then(img => {
+    if (ver !== rwGlVer) return;   // inzwischen ein anderes Gebiet
+    const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    let src = img;
+    if (img.width > max) { src = document.createElement('canvas'); src.width = src.height = max; src.getContext('2d').drawImage(img, 0, 0, max, max); }
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const an = gl.getExtension('EXT_texture_filter_anisotropic');
+    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    photoTex = t;
+  }).catch(() => {});
+}
+const freeGl = m => { if (m) { gl.deleteVertexArray(m.vao); if (m.buf) gl.deleteBuffer(m.buf); if (m.ib) gl.deleteBuffer(m.ib); } };
 // Echte Welt: Höhenmodell mit Luftbild, Gewässer, Gebäude (LoD2, Fassaden) und Bäume, Kartenebenen. Schreibt Tiefe.
+// Neues Gebiet (rw.ver): alle Netze und das Luftbild frei geben und neu bauen.
 function drawTerrain() {
+  if (rwGlVer !== rw.ver) {
+    [terrain, rwModelGl, waterGl, featGl].forEach(freeGl);
+    if (photoTex) gl.deleteTexture(photoTex);
+    terrain = rwModelGl = waterGl = featGl = photoTex = null;
+    rwGlVer = rw.ver;
+    if (rw.dop) loadPhoto(rw.dop, rw.ver);
+  }
   if (!terrain) {
     const { v, idx } = rwMesh(2, 1500), m = upload(v), ib = gl.createBuffer();
     gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
     gl.bindVertexArray(null);
-    terrain = { vao: m.vao, n: idx.length };
+    terrain = { vao: m.vao, buf: m.buf, ib, n: idx.length };
   }
   gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);

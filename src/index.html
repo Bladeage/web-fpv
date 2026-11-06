@@ -41,6 +41,14 @@
           <input type="range" id="huntX" min="1" max="6" step="1">
         </div>
       </div>
+      <div id="rwOpts">
+        <div class="seg small" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden (NRW)</button></div>
+        <div id="rwLive" class="rwlive">
+          <input type="text" id="rwLL" placeholder="Breite, Länge  z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
+          <button class="secondary" id="rwGo">Laden</button>
+        </div>
+        <p class="hint" id="rwMsg"></p>
+      </div>
       <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
     </section>
 

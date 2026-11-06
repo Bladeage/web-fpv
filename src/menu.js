@@ -5,14 +5,15 @@ import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
 import { audioInit, audioPause } from './audio.js';
-import { fmtTime } from './format.js';
+import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
-import { rw, rwLoadEmbedded } from './realworld.js';
+import { rw, rwLoadEmbedded, rwLoadLive } from './realworld.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
+let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -82,7 +83,13 @@ export function syncMenu() {
   press('#scenList button', b => b.dataset.id === cfg.scen);
   $('courseInfo').textContent = sc.info;
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
-  $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free';
+  $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real';
+  $('rwOpts').hidden = cfg.scen !== 'real';
+  press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
+  $('rwLive').hidden = cfg.rwSrc !== 'live';
+  if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
+  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume.'
+    : 'Mittelpunkt eingeben (Breite, Länge, etwa aus einer Karte kopiert). Lädt je nach Ort 10 bis 50 MB (Schätzung).';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
   const total = cfg.scen === 'hunt2' ? 7 : cfg.scen === 'hunt3' ? 6 : 9;
@@ -163,7 +170,34 @@ export function resume() { keyLearn.fn = null; audioInit(); game.paused = false;
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
+// Echte Welt, Ort laden: Fortschritt im Menü, ein zweiter Klick bricht ab (rwBusy oben)
+async function rwLive() {
+  if (rwBusy) { rwBusy.abort(); return false; }
+  const ll = parseLatLon(cfg.rwLL);
+  if (!ll) { $('rwMsg').textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }
+  rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen';
+  const t0 = performance.now();
+  try {
+    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = 'Lade ' + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal);
+    $('rwMsg').textContent = '';
+    return true;
+  } catch (e) {
+    $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
+    return false;
+  } finally {
+    rwBusy = null; $('rwGo').textContent = 'Laden';
+    if ($('rwMsg').textContent === '') { syncMenu(); $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
+    fitPanel();
+  }
+}
+const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
 async function start() {
+  if (cfg.scen === 'real' && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
+    say('Lade Gebiet …', 30);
+    if (!await rwLive()) { say('Ort nicht geladen, fliege Monschau. ' + $('rwMsg').textContent, 5); await rwLoadEmbedded(); }
+    else say('Gebiet geladen', 1.5);
+  }
+  if (cfg.scen === 'real' && cfg.rwSrc !== 'live' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
   if (cfg.scen === 'real' && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
   if (cfg.scen === 'real' && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
   setScenario(cfg.scen); applyDrone(cfg.drone); saveCfg();
@@ -172,6 +206,10 @@ async function start() {
 }
 
 for (const x of SCENARIOS) addChoice($('scenList'), x.name, '', () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+document.querySelectorAll('#rwSeg button').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); fitPanel(); }));
+$('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
+$('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
+$('rwGo').addEventListener('click', () => rwLive());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DRONES)) {

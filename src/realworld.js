@@ -3,12 +3,13 @@
    Kartenkoordinaten: Mitte des Gebiets = Ursprung, x nach Osten, z nach Süden, y = Höhe über dem Startplatz.
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp } from './math.js';
-import { fromUtm } from './geo.js';
+import { fromUtm, toUtm } from './geo.js';
+import { rwSourceAt, rwAreaAt, rwFetchArea } from './rwload.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [] };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -18,17 +19,51 @@ export function rwInit(meta, q) {
   rw.cell = rw.size/n;
   return rw;
 }
+// Gebiet übernehmen (eingebettet oder live geladen, siehe rwload.js): Höhen, Gebäude, Bäume, Luftbild (JPEG-Bytes).
+// x: { water, features } nur beim eingebetteten Gebiet. rw.ver zählt hoch, damit die Grafik ihre Netze neu baut.
+export function rwApply(p, x = {}) {
+  const on = rw.on;
+  Object.assign(rw, { tris: null, grid: null, bldId: null, bldInfo: null, trees: [], water: x.water || null, features: x.features || null, dop: p.dop || null, live: !!x.live });
+  rwInit(p.meta, p.q);
+  rwModels(p.b16, p.t16);
+  rw.on = on; rw.ver++;
+  return rw;
+}
+// Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (Etappe L1, bisher Quellen für NRW in UTM 32).
+// say(Schritt, Anteil) meldet den Fortschritt; signal bricht ab. Bei Fehler bleibt das alte Gebiet erhalten.
+export async function rwLoadLive(lat, lon, say = () => {}, signal) {
+  const [E, N] = toUtm(lat, lon, 32), src = rwSourceAt(E, N);
+  if (!src) throw new Error('Für diesen Ort ist keine Quelle hinterlegt (bisher nur NRW).');
+  const a = rwAreaAt(E, N, src);
+  a.place = lat.toFixed(5) + ', ' + lon.toFixed(5);
+  const host = u => u.split('/')[2];
+  const go = async u => {
+    try { return await fetch(u, { signal }); }
+    catch (e) { if (e.name === 'AbortError') throw new Error('Abgebrochen'); throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)'); }
+  };
+  const get = async u => {
+    const r = await go(u);
+    if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
+    const b = new Uint8Array(await r.arrayBuffer());
+    if (b[0] === 0x3c) throw new Error(host(u) + ' meldet: ' + new TextDecoder().decode(b.slice(0, 300)).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
+    return b;
+  };
+  const text = async u => { const r = await go(u); if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return r.text(); };
+  const p = await rwFetchArea(a, src, get, text, say);
+  rwApply(p, { live: true });
+  rw.liveAt = [lat, lon];
+  return rw;
+}
 // Eingebettete Daten im Browser entpacken (DecompressionStream, Bordmittel). Werkzeug und Tests nutzen zlib direkt.
 export async function rwLoadEmbedded() {
-  if (rw.ready) return rw;
+  if (rw.ready && !rw.live) return rw;
   try {
     if (RW_DATA.meta.startsWith('%%')) throw new Error('keine eingebetteten Daten');
     const meta = JSON.parse(RW_DATA.meta), bytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const unpack = async b64 => new Response(new Blob([bytes(b64)]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer();
-    rwInit(meta, new Uint16Array(await unpack(RW_DATA.dgm)));
-    if (!RW_DATA.features.startsWith('%%')) rw.features = JSON.parse(RW_DATA.features);
-    if (!RW_DATA.water.startsWith('%%')) rw.water = new Uint8Array(await unpack(RW_DATA.water));
-    if (!RW_DATA.bld.startsWith('%%')) rwModels(new Int16Array(await unpack(RW_DATA.bld)), new Int16Array(await unpack(RW_DATA.trees)));
+    const p = { meta, q: new Uint16Array(await unpack(RW_DATA.dgm)), b16: new Int16Array(await unpack(RW_DATA.bld)), t16: new Int16Array(await unpack(RW_DATA.trees)),
+      dop: RW_DATA.dop.startsWith('%%') ? null : bytes(RW_DATA.dop) };
+    rwApply(p, { features: RW_DATA.features.startsWith('%%') ? null : JSON.parse(RW_DATA.features), water: RW_DATA.water.startsWith('%%') ? null : new Uint8Array(await unpack(RW_DATA.water)) });
     return rw;
   } catch (e) { rw.err = String(e.message || e); return rw; }
 }

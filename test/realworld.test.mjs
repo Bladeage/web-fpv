@@ -291,7 +291,7 @@ test('Echte Welt: Koordinaten (UTM hin und zurück) und nächster Ort für das O
 });
 
 test('Echte Welt: Gebäudenutzung (ALKIS-Code aus LoD2) -> Fassadenklasse', async () => {
-  const { bldClass } = await import('../tools/realworld.mjs');
+  const { bldClass } = await import('../src/rwload.js');
   const want = { '31001_1000': 0, '31001_1100': 1, '31001_2460': 2, '51009_1610': 2, '51009_1611': 2, '31001_2461': 3, '31001_2000': 3, '31001_2500': 3,
     '31001_2700': 4, '31001_3021': 5, '31001_3071': 5, '31001_3041': 6, '31001_3043': 6, '31001_3038': 6, '51001_1012': 6, '51007_1400': 6, '31001_1310': 0, '': 0 };
   for (const [fn, k] of Object.entries(want)) assert.equal(bldClass(fn), k, fn);
