@@ -2,7 +2,7 @@
 import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { cfg, game, tch, inp, ptr, messages } from './state.js';
 import { bf } from './bf.js';
-import { rw, groundH } from './realworld.js';
+import { rw, groundH, rwLatLon, rwPlace } from './realworld.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
 import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
@@ -215,6 +215,10 @@ export function drawHud() {
     kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.foot), homeD: Math.hypot(s.p[0] - game.home[0], s.p[2] - game.home[1]),
     fps: frameStat.fps, res: cfg.autoRes ? frameStat.scale : 1, lite: frameStat.lite, thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
   };
+  if (rw.on && rw.meta) {   // echte Welt: Koordinaten und nächster Ort
+    [d.lat, d.lon] = rwLatLon(s.p[0], s.p[2]);
+    d.place = rwPlace(s.p[0], s.p[2]);
+  }
   const lines = osdLines(cfg.osd, d);
 
   if (cfg.vision === 'night' || cfg.vision === 'thermal') drawVisionGrain(c, W, H, cfg.vision === 'night');   // Sensorrauschen

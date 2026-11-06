@@ -11,7 +11,7 @@ export const OSD_ITEMS = [
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
   ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
   ['motors', 'Motorschaden', true], ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true],
-  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Werte', false], ['goggle', 'Brillenrand', false], ['rec', 'Rec.-Punkt', false], ['mapLayers', 'Kartenebenen (echte Welt)', true]
+  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Werte', false], ['goggle', 'Brillenrand', false], ['rec', 'Rec.-Punkt', false], ['mapLayers', 'Kartenebenen (echte Welt)', true], ['coords', 'Koordinaten (echte Welt)', true], ['place', 'Nächster Ort (echte Welt)', true]
 ];
 const DEFAULT = Object.fromEntries(OSD_ITEMS.map(([id, , on]) => [id, on]));
 // OSD-Stile: setzen alle Häkchen auf einmal (cfg.osd) und die Schrift (cfg.osdStyle). Danach einzeln änderbar.
@@ -26,6 +26,9 @@ export const osdOn = (o, id) => (o && id in o) ? !!o[id] : !!DEFAULT[id];
 
 export const RED = '#ff7a6a', YEL = '#ffd27a', WHITE = '#ffffff';
 const pad = (n, w, ch = ' ') => String(n).padStart(w, ch);
+// Koordinaten wie im GPS-OSD: Grad mit 5 Stellen (etwa 1 m), N/S und E/W (E statt O: O sieht neben Ziffern aus wie 0)
+export const fmtLatLon = (lat, lon) => Math.abs(lat).toFixed(5) + (lat >= 0 ? 'N ' : 'S ') + Math.abs(lon).toFixed(5) + (lon >= 0 ? 'E' : 'W');
+const fmtDist = m => m < 1000 ? Math.round(m/10)*10 + 'M' : (m/1000).toFixed(1) + 'KM';
 
 // d: Messwerte (siehe hud.js). Ergebnis: Zeilen je Ecke, oben nach unten.
 export function osdLines(o, d) {
@@ -34,6 +37,8 @@ export function osdLines(o, d) {
   add('tl', 'lq', 'LQ ' + pad(Math.round(d.lq), 3), d.lq < 50 ? RED : WHITE);
   add('tl', 'mode', d.mode === 'acro' ? 'ACRO' : 'ANGL', d.mode === 'acro' ? '#ffb27a' : '#9be7ff');
   add('tl', 'task', d.label);
+  if (d.place) add('tl', 'place', d.place.d < 1 ? 'ORT ' + d.place.name.toUpperCase() : d.place.name.toUpperCase() + ' ' + fmtDist(d.place.d) + ' ' + d.place.dir, '#dfe6ea');
+  if (d.lat !== undefined) add('tl', 'coords', fmtLatLon(d.lat, d.lon), '#dfe6ea');
   if (d.crashes) add('tl', 'crashes', 'CRASH ' + d.crashes, '#ffd0c8');
   (d.hp || []).forEach((hp, i) => { if (hp < 0.98) add('tl', 'motors', 'M' + (i + 1) + ' ' + (hp > 0 ? pad(Math.round(hp*100), 3) + '%' : 'AUS'), hp < 0.5 ? RED : YEL); });
   add('tr', 'timer', fmtTime(d.cur));

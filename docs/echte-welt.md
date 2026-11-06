@@ -96,6 +96,13 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Das 3D-Mesh ist nicht mehr eingebettet. Werkzeug `tools/mesh.mjs` und die Dateien `realworld/monschau-mesh.*` bleiben für später.
 - Datei: 6,3 MB (vorher 2,8 MB mit Luftbild 2048²).
 
+## Koordinaten und nächster Ort im OSD (erledigt 06.11.2026, Prompt 101)
+
+- OSD oben links (nur echte Welt, beide schaltbar, Vorgabe an): nächster Ort und Koordinaten.
+- Ort: Ortslagen aus dem Basis-DLM (`sie01_f`, AX_Ortslage mit Namen) im Umkreis von 8 km, 23 Orte, Umrisse auf 10 m vereinfacht (64 KB in `monschau.features.json`). Im Ort: „ORT MONSCHAU“. Außerhalb: Name, Abstand zum Ortsrand, Richtung, zum Beispiel „MONSCHAU 210M O“. Läuft offline.
+- Koordinaten: WGS84 in Grad mit 5 Stellen (etwa 1 m), zum Beispiel „50.55769N 6.24517E“. Umrechnung UTM → Breite/Länge in `src/geo.js` (`fromUtm`), im Test auf unter 1e-7 Grad genau gegen `toUtm`.
+- „E“ statt „O“ für Ost, weil O neben Ziffern wie eine Null aussieht.
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.

@@ -95,6 +95,16 @@ export function toUtm(lat, lon, zone = 32) {
   const Nn = k0*(M + N*Math.tan(phi)*(A*A/2 + (5 - T + 9*C + 4*C*C)*A**4/24 + (61 - 58*T + T*T + 600*C - 330*ep2)*A**6/720));
   return [E, Nn];
 }
+// UTM (Ost, Nord in m) -> WGS84 (Breite, Länge in Grad), Umkehrung von toUtm (Reihen nach Snyder, Fehler unter 1 mm)
+export function fromUtm(E, N, zone = 32) {
+  const a = 6378137, f = 1/298.257222101, k0 = 0.9996, e2 = f*(2 - f), ep2 = e2/(1 - e2), d = Math.PI/180;
+  const M = N/k0, mu = M/(a*(1 - e2/4 - 3*e2*e2/64 - 5*e2**3/256)), e1 = (1 - Math.sqrt(1 - e2))/(1 + Math.sqrt(1 - e2));
+  const p1 = mu + (3*e1/2 - 27*e1**3/32)*Math.sin(2*mu) + (21*e1*e1/16 - 55*e1**4/32)*Math.sin(4*mu) + (151*e1**3/96)*Math.sin(6*mu) + (1097*e1**4/512)*Math.sin(8*mu);
+  const C = ep2*Math.cos(p1)**2, T = Math.tan(p1)**2, N1 = a/Math.sqrt(1 - e2*Math.sin(p1)**2), R1 = a*(1 - e2)/(1 - e2*Math.sin(p1)**2)**1.5, D = (E - 500000)/(N1*k0);
+  const lat = p1 - (N1*Math.tan(p1)/R1)*(D*D/2 - (5 + 3*T + 10*C - 4*C*C - 9*ep2)*D**4/24 + (61 + 90*T + 298*C + 45*T*T - 252*ep2 - 3*C*C)*D**6/720);
+  const lon = (D - (1 + 2*T + C)*D**3/6 + (5 - 2*C + 28*T - 3*C*C + 8*ep2 + 24*T*T)*D**5/120)/Math.cos(p1);
+  return [lat/d, (zone*6 - 183) + lon/d];
+}
 
 // Ebenes Vieleck (3D-Punkte) in Dreiecke zerlegen (Ohrenschneiden). Projektion auf die Ebene mit der größten Ausdehnung.
 // Rückgabe: Liste von Index-Tripeln. Funktioniert auch für nicht konvexe Grundrisse.

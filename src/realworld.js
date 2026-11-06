@@ -3,6 +3,7 @@
    Kartenkoordinaten: Mitte des Gebiets = Ursprung, x nach Osten, z nach Süden, y = Höhe über dem Startplatz.
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp } from './math.js';
+import { fromUtm } from './geo.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
@@ -233,4 +234,32 @@ export function rwModelMesh() {
     }
   }
   return new Float32Array(out);
+}
+
+// Kartenpunkt (x, z) -> Breite, Länge in Grad (WGS84). Gebiet in UTM 32, Mitte = Ursprung, z nach Süden.
+export function rwLatLon(x, z) {
+  const b = rw.meta.bbox;
+  return fromUtm((b[0] + b[2])/2 + x, (b[1] + b[3])/2 - z, +(rw.meta.crs.match(/258(\d\d)/) || [0, 32])[1]);
+}
+// Nächster Ort (Ortslagen aus dem Basis-DLM, 8 km Umkreis): { name, d: Abstand in m (0 = im Ort), dir: Himmelsrichtung vom Punkt aus }
+const DIRS = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
+export function rwPlace(x, z) {
+  const pl = rw.features && rw.features.places;
+  if (!pl || !pl.length) return null;
+  let best = null;
+  for (const p of pl) {
+    let inside = false, d2 = Infinity, q = null;
+    for (const r of p.rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [ax, az] = r[j], [bx, bz] = r[i];
+      if ((az > z) !== (bz > z) && x < ax + (z - az)*(bx - ax)/(bz - az)) inside = !inside;
+      const ex = bx - ax, ez = bz - az, t = clamp(((x - ax)*ex + (z - az)*ez)/(ex*ex + ez*ez || 1), 0, 1), cx = ax + ex*t, cz = az + ez*t, dd = (x - cx)**2 + (z - cz)**2;
+      if (dd < d2) { d2 = dd; q = [cx, cz]; }
+    }
+    const d = inside ? 0 : Math.sqrt(d2);
+    if (!best || d < best.d) best = { name: p.name, d, q };
+  }
+  const a = Math.atan2(best.q[0] - x, -(best.q[1] - z));   // 0 = Norden, im Uhrzeigersinn
+  best.dir = DIRS[Math.round(((a/(Math.PI/4)) % 8 + 8)) % 8];
+  delete best.q;
+  return best;
 }

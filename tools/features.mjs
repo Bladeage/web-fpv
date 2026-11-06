@@ -10,11 +10,11 @@ import { AREA } from './realworld.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..'), M = 60;   // Rand in m
 // Shapefile mit Sachdaten (DBF): je Objekt Typ, Teile (Linien, Ringe oder ein Punkt) und Felder
-async function layer(name) {
+async function layer(name, m = M) {
   const shp = await zipFile(DLM.url, name + '.shp'), dbf = await zipFile(DLM.url, name + '.dbf');
   const hlen = dbf.readUInt16LE(8), rlen = dbf.readUInt16LE(10), fields = [];
   for (let o = 32, pos = 1; dbf[o] !== 0x0d; o += 32) { fields.push({ name: dbf.slice(o, o + 11).toString().replace(/\0.*$/, ''), pos, len: dbf[o + 16] }); pos += dbf[o + 16]; }
-  const bb = [AREA.bbox[0] - M, AREA.bbox[1] - M, AREA.bbox[2] + M, AREA.bbox[3] + M], out = [];
+  const bb = [AREA.bbox[0] - m, AREA.bbox[1] - m, AREA.bbox[2] + m, AREA.bbox[3] + m], out = [];
   for (let p = 100, k = 0; p + 8 <= shp.length; k++) {
     const len = shp.readInt32BE(p + 4)*2, c = p + 8, t = shp.readInt32LE(c);
     let parts = null;
@@ -37,6 +37,14 @@ async function layer(name) {
 }
 const ec = (AREA.bbox[0] + AREA.bbox[2])/2, nc = (AREA.bbox[1] + AREA.bbox[3])/2;
 const loc = ([x, y]) => [+(x - ec).toFixed(1), +(-(y - nc)).toFixed(1)];
+// Linie vereinfachen (Douglas-Peucker, Toleranz tol m)
+function simplify(pts, tol) {
+  if (pts.length < 3) return pts;
+  const [a, b] = [pts[0], pts[pts.length - 1]], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+  let k = 0, dmax = 0;
+  for (let i = 1; i < pts.length - 1; i++) { const d = Math.abs((pts[i][0] - a[0])*dy - (pts[i][1] - a[1])*dx)/l; if (d > dmax) { dmax = d; k = i; } }
+  return dmax < tol ? [a, b] : simplify(pts.slice(0, k + 1), tol).slice(0, -1).concat(simplify(pts.slice(k), tol));
+}
 // Linie aufs Rechteck zuschneiden (Punkte außerhalb trennen die Linie)
 function clipLine(pts, bb) {
   const res = []; let cur = [];
@@ -52,6 +60,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   F.roads = await lines('ver01_l', r => ({ name: r.NAM || '' }));
   F.bridges = (await lines('ver06_l', r => ({ kind: r.OBJART_TXT === 'AX_BauwerkImGewaesserbereich' ? 'Wasserbauwerk' : 'Brücke' })));
   F.forest = (await lines('veg02_f', r => ({ kind: r.VEG === '1200' ? 'Nadelwald' : r.VEG === '1100' ? 'Laubwald' : 'Mischwald' })));   // Ränder als Linien
+  // Ortslagen (bebaute Orte mit Namen) im Umkreis von 8 km: Umrisse vereinfacht (10 m), für „nächster Ort“ im OSD
+  F.places = (await layer('sie01_f', 8000)).out.filter(o => o.rec.NAM).map(o => ({ name: o.rec.NAM, rings: o.parts.map(r => simplify(r.slice(0, -1), 10).map(loc)).filter(r => r.length > 3) }));
   F.towers = (await layer('sie05_p')).out.filter(o => o.rec.OBJART_TXT === 'AX_Turm').map(o => { const [x, z] = loc(o.parts[0][0]); return { name: o.rec.NAM || 'Turm', x, z }; });
   writeFileSync(join(ROOT, 'realworld', AREA.name + '.features.json'), JSON.stringify(F));
   console.log(Object.fromEntries(Object.entries(F).filter(([k]) => k !== 'source').map(([k, v]) => [k, v.length])), 'Namen:',

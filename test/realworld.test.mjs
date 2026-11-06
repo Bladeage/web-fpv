@@ -8,11 +8,12 @@ import { buildWorld } from '../src/world.js';
 import { STEP, step, respawn, hoverThrottle } from '../src/physics.js';
 import { setScenario } from '../src/scenario.js';
 import { applyDrone } from '../src/drone.js';
-import { readTiff, toUtm } from '../src/geo.js';
-import { rw, rwInit, rwModels, rwModelMesh, rwWallAlpha, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName } from '../src/realworld.js';
+import { readTiff, toUtm, fromUtm } from '../src/geo.js';
+import { rw, rwInit, rwModels, rwModelMesh, rwWallAlpha, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName, rwLatLon, rwPlace } from '../src/realworld.js';
 import { pilot } from '../src/pilot.js';
 import { qRot } from '../src/math.js';
 import { birds, initBirds, stepBirds } from '../src/birds.js';
+import { osdLines, fmtLatLon } from '../src/osd.js';
 import { rng } from '../src/world.js';
 
 const file = n => new URL('../' + n, import.meta.url);
@@ -246,4 +247,24 @@ test('Echte Welt: Vögel sitzen auf Bäumen, Dächern und Wiese und fliegen übe
     }
   }
   assert.ok(minClear > -0.1, 'im Flug nie unter dem Gelände: ' + minClear.toFixed(2) + ' m');
+});
+
+test('Echte Welt: Koordinaten (UTM hin und zurück) und nächster Ort für das OSD', () => {
+  for (const [la, lo] of [[50.5547, 6.2425], [51.2, 7.1], [48.1, 9.0]]) {
+    const [E, N] = toUtm(la, lo), [la2, lo2] = fromUtm(E, N);
+    assert.ok(Math.abs(la2 - la) < 1e-7 && Math.abs(lo2 - lo) < 1e-7, `zurück: ${la2} ${lo2}`);
+  }
+  const [lat, lon] = rwLatLon(0, 0);   // Gebietsmitte, Monschau: etwa 50,55° N, 6,24° O
+  assert.ok(Math.abs(lat - 50.555) < 0.01 && Math.abs(lon - 6.243) < 0.01, `Mitte ${lat} ${lon}`);
+  const [E, N] = toUtm(lat, lon);
+  assert.ok(Math.abs(E - 304700) < 0.01 && Math.abs(N - 5604000) < 0.01);
+  assert.equal(fmtLatLon(lat, lon).slice(-1), 'E');
+  // Altstadt liegt in der Ortslage Monschau; der Start (Wiese oberhalb) knapp außerhalb, mit Abstand und Richtung
+  assert.deepEqual([rwPlace(-120, 20).name, rwPlace(-120, 20).d], ['Monschau', 0]);
+  const home = rwPlace(meta.home[0], meta.home[1]);
+  assert.ok(home.name === 'Monschau' && home.d > 50 && home.d < 400, JSON.stringify(home));
+  const far = rwPlace(-480, -480);
+  assert.ok(far.name && far.d >= 0 && /^(N|NO|O|SO|S|SW|W|NW)$/.test(far.dir), JSON.stringify(far));
+  const l = osdLines({}, new Proxy({ lq: 99, mode: 'angle', label: 'ECHTE WELT', place: far, lat, lon, hp: [] }, { get: (o, k) => k in o ? o[k] : 0, has: (o, k) => k in o })).tl.map(x => x.t);
+  assert.ok(l.some(t => t.startsWith(far.name.toUpperCase())) && l.some(t => /^50\.\d{5}N 6\.\d{5}E$/.test(t)), l.join(' | '));
 });
