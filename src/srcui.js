@@ -67,6 +67,9 @@ async function srcStoreFill() {
     row('Gewässer und Ortsnamen ' + (s.land || s.name), has ? 'gespeichert (Basis-DLM)' : 'einmalig etwa ' + s.dlm.mb + ' MB, danach auch offline', has ? 'Löschen' : 'Laden',
       has ? async () => { for (const k of keys) await storeDel('land', k); srcStoreFill(); } : k => srcLand(s, k));
   }
+  const st = await storeStats(), l2 = st.lod2.filter(x => x.size);
+  if (st.lod2.length) row('Gebäudekacheln (Zwischenspeicher)', st.lod2.length + ' · ' + (l2.reduce((t, x) => t + x.size, 0)/1e6).toFixed(0) + ' MB, spart erneutes Laden', 'Löschen',
+    async () => { for (const x of st.lod2) await storeDel('lod2', x.key); srcStoreFill(); });
   const infos = await storeAll('info'), tiles = infos.filter(x => x.tile);
   if (tiles.length) row('Nachgeladene Kacheln', tiles.length + ' · ' + (tiles.reduce((t, x) => t + x.size, 0)/1e6).toFixed(0) + ' MB (beim Fliegen gespeichert)', 'Löschen', async () => { for (const x of tiles) await storeAreaDel(x.key); srcStoreFill(); });
   for (const x of infos.filter(x => !x.tile).sort((a, b) => b.date - a.date))

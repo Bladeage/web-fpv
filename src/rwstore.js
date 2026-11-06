@@ -1,14 +1,15 @@
 /* Echte Welt, Etappe L4: Speicher im Browser (IndexedDB). Ohne DOM, braucht aber den Browser (in Node fehlt indexedDB).
    areas: geladene Gebiete (gepackt wie die eingebetteten Daten, mit Luftbild), Schlüssel = Ort und Quellen.
    info: kurze Beschreibung je Gebiet für die Liste (ohne die großen Daten).
-   land: Landesdaten (Basis-DLM-Dateien für Gewässer und Ortsnamen), Schlüssel = Quelle:Datei.
+   land: Landesdaten (Basis-DLM-Dateien für Gewässer und Ortsnamen), Schlüssel = Paket-Adresse:Datei.
+   lod2: zerlegte Gebäudekacheln (rwload.lod2Pack), Schlüssel = Adresse der Kachel; Zwischenspeicher, nicht im Export.
    Alle Funktionen liefern bei fehlendem Speicher (privates Fenster, gesperrt) null bzw. [] statt zu werfen. */
 let dbP = null;
 function db() {
   if (!dbP) dbP = new Promise(res => {
     try {
-      const r = indexedDB.open('fpvsim-echtewelt', 1);
-      r.onupgradeneeded = () => { for (const n of ['areas', 'info', 'land']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
+      const r = indexedDB.open('fpvsim-echtewelt', 2);   // 2: dazu lod2 (zerlegte Gebäudekacheln zum Wiederverwenden)
+      r.onupgradeneeded = () => { for (const n of ['areas', 'info', 'land', 'lod2']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
       r.onsuccess = () => res(r.result);
       r.onerror = () => res(null);
     } catch (e) { res(null); }
@@ -43,7 +44,8 @@ export async function storeArea(key, rec) {
 }
 export async function storeAreaDel(key) { await storeDel('areas', key); await storeDel('info', key); }
 // Anbindung für das Laden (realworld.rwLoadLive, rwLandData): Gebiete und Landesdaten
-export const RW_STORE = { get: k => storeGet('areas', k), put: (k, r) => storeArea(k, r), land: k => storeGet('land', k), landPut: (k, b) => storePut('land', k, b), landHas: k => storeHas('land', k) };
+export const RW_STORE = { get: k => storeGet('areas', k), put: (k, r) => storeArea(k, r), land: k => storeGet('land', k), landPut: (k, b) => storePut('land', k, b), landHas: k => storeHas('land', k),
+  lod2: k => storeGet('lod2', k), lod2Put: (k, t) => storePut('lod2', k, t) };
 
 // ---- Austausch-Datei (L4b): alle gespeicherten Orte und Landesdaten in einer Datei, für einen anderen Rechner ----
 // Aufbau: „FPVGEO1“ + Zeilenumbruch, 4 Bytes Länge (LE), Kopf als JSON, danach die Datenblöcke hintereinander.
@@ -96,6 +98,9 @@ export async function storeStats() {
   const d = await db(), land = [];
   if (d) await new Promise(res => { try { const r = d.transaction('land').objectStore('land').openCursor();
     r.onsuccess = () => { const c = r.result; if (c) { land.push({ key: c.key, size: c.value.byteLength }); c.continue(); } else res(); }; r.onerror = res; } catch (e) { res(); } });
-  return { areas: infos.length, size: infos.reduce((t, x) => t + (x.size || 0), 0), buildings: infos.reduce((t, x) => t + (x.buildings || 0), 0), trees: infos.reduce((t, x) => t + (x.trees || 0), 0),
+  const lod2 = [];
+  if (d) await new Promise(res => { try { const r = d.transaction('lod2').objectStore('lod2').openCursor();
+    r.onsuccess = () => { const c = r.result; if (c) { lod2.push({ key: c.key, size: c.value.pts ? c.value.pts.byteLength + c.value.ids.byteLength : 0 }); c.continue(); } else res(); }; r.onerror = res; } catch (e) { res(); } });
+  return { lod2, areas: infos.length, size: infos.reduce((t, x) => t + (x.size || 0), 0), buildings: infos.reduce((t, x) => t + (x.buildings || 0), 0), trees: infos.reduce((t, x) => t + (x.trees || 0), 0),
     water: infos.filter(x => x.water).length, bytes: { q: sum('q'), b16: sum('b16'), t16: sum('t16'), dop: sum('dop'), water: sum('water'), far: sum('farq') + sum('fardop') }, land };
 }

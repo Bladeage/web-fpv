@@ -177,9 +177,22 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
       const i = (e - a.bbox[0])/(a.bbox[2] - a.bbox[0])*n, j = (a.bbox[3] - nn)/(a.bbox[3] - a.bbox[1])*n, c = cellOf(Math.min(n - 1, i), Math.min(n - 1, j));
       return c === si || (c < 0 && si === 0);
     };
-    const xml = await text(u, mb(step, f));
-    if (!xml) continue;   // Kachel ohne Gebäude
-    const o = opt.async ? await readLod2Async(xml, keep) : readLod2(xml, keep), base = bld.info.length;
+    let o;
+    if (opt.lod2Cache) {   // schon einmal geladen (anderer Ort, Nachbarkachel)? Dann ohne Netz
+      let t = await opt.lod2Cache.get(u);
+      if (!t) {
+        const xml = await text(u, mb(step, f));
+        t = xml ? lod2Pack(opt.async ? await readLod2Async(xml) : readLod2(xml)) : { empty: true };
+        await opt.lod2Cache.put(u, t);
+      } else say(step + ' (aus dem Speicher)', f);
+      if (t.empty) continue;   // Kachel ohne Gebäude
+      o = lod2Filter(lod2Unpack(t), keep);
+    } else {
+      const xml = await text(u, mb(step, f));
+      if (!xml) continue;   // Kachel ohne Gebäude
+      o = opt.async ? await readLod2Async(xml, keep) : readLod2(xml, keep);
+    }
+    const base = bld.info.length;
     // Schleifen statt push(...liste): große Kacheln (Innenstadt) sprengen sonst im Browser den Aufrufstapel
     for (const x of o.roof) bld.roof.push(x);
     for (const x of o.wall) bld.wall.push(x);
@@ -316,4 +329,32 @@ export function rwFillGaps(v, n) {
     }
   }
   return v;
+}
+
+// ---- Zwischenspeicher für LoD2-Kacheln (bereits geladene Gebäude wiederverwenden) ----
+// Eine Gebäudekachel (1 km, bis 70 MB Text) wird einmal zerlegt und kompakt gespeichert: Punkte als 32 Bit relativ zur
+// Kachelecke (Genauigkeit unter 0,1 mm), je Dreieck die Gebäudenummer, je Gebäude Nutzung, Dachform und Mitte. Nachbarorte
+// und Nachladekacheln, die dieselbe Gebäudekachel berühren, holen sie dann aus dem Speicher statt aus dem Netz.
+export function lod2Pack(o) {
+  const all = o.roof.concat(o.wall);
+  let E0 = Infinity, N0 = Infinity; for (const p of all) { if (p[0] < E0) E0 = p[0]; if (p[1] < N0) N0 = p[1]; }
+  if (!all.length) { E0 = 0; N0 = 0; }
+  E0 = Math.floor(E0/1000)*1000; N0 = Math.floor(N0/1000)*1000;
+  const pts = new Float32Array(all.length*3);
+  all.forEach((p, k) => { pts[k*3] = p[0] - E0; pts[k*3 + 1] = p[1] - N0; pts[k*3 + 2] = p[2]; });
+  return { E0, N0, pts, nRoof: o.roof.length, ids: Int32Array.from(o.roofId.concat(o.wallId)), info: o.info };
+}
+export function lod2Unpack(t) {
+  const P = k => [t.pts[k*3] + t.E0, t.pts[k*3 + 1] + t.N0, t.pts[k*3 + 2]], n = t.pts.length/3, nr = t.nRoof;
+  const roof = [], wall = [];
+  for (let k = 0; k < n; k++) (k < nr ? roof : wall).push(P(k));
+  return { roof, wall, roofId: Array.from(t.ids.subarray(0, nr/3)), wallId: Array.from(t.ids.subarray(nr/3)), info: t.info };
+}
+// Nur die Gebäude, deren Mitte keep(cx, cy) erfüllt; Nummern neu ab 0 (wie readLod2 mit keep)
+export function lod2Filter(o, keep) {
+  const map = new Map(), out = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
+  o.info.forEach((f, i) => { if (keep(f.cx, f.cy)) { map.set(i, out.info.length); out.info.push(f); } });
+  const take = (pts, ids, P, I) => { for (let t = 0; t < ids.length; t++) { const m = map.get(ids[t]); if (m === undefined) continue; P.push(pts[t*3], pts[t*3 + 1], pts[t*3 + 2]); I.push(m); } };
+  take(o.roof, o.roofId, out.roof, out.roofId); take(o.wall, o.wallId, out.wall, out.wallId);
+  return out;
 }

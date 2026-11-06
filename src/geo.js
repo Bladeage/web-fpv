@@ -173,7 +173,7 @@ function* lod2Steps(xml, keep) {
       (roof ? out.roof : out.wall).push(pts[a], pts[c2], pts[d]); (roof ? out.roofId : out.wallId).push(id);
     }
     const tag = t => (b[0].match(new RegExp('<bldg:' + t + '>([^<]*)<')) || [0, ''])[1].trim();
-    out.info.push({ fn: tag('function'), roof: tag('roofType') });
+    out.info.push({ fn: tag('function'), roof: tag('roofType'), cx, cy });   // Mitte (UTM) für späteres Auswählen aus dem Zwischenspeicher
     id++;
   }
   return out;

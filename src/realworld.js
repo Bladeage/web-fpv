@@ -129,8 +129,12 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   if (plan.skipped.length) say('Hinweis: ' + plan.skipped.map(s => s.name).join(', ') + ' nutzt ein anderes Koordinatensystem und bleibt außen vor', 0);
   const { get, text } = rwNet(signal);
   const opt = srcs.length > 1 ? { cells: rwCellSources(a, srcs, plan.toLand), mergeImg } : {};
+  if (store && store.lod2) opt.lod2Cache = { get: store.lod2, put: store.lod2Put };   // Gebäudekacheln anderer Orte wiederverwenden
   const p = await rwFetchArea(a, srcs, get, text, say, opt);
   if (signal && signal.aborted) throw new Error('Abgebrochen');   // etwa während des Zusammensetzens der Luftbilder
+  // Gewässer und Ortsnamen: Landesdaten beim ersten Ort automatisch (Nutzer, Prompt 121); schon vorhandene nicht noch einmal
+  if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
+    await rwLandData(srcs[0], store, (t, f) => say('Gewässer und Orte, einmalig: ' + t, 0.97), signal).catch(e => { if (signal && signal.aborted) throw e; rw.landErr = String(e.message || e); });
   const x = await rwExtras(p, srcs[0], store);
   rwApply(p, { live: true, ...x });
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
@@ -614,11 +618,13 @@ export async function rwLoadTile(i, j, store, say = () => {}) {
   if (!srcs.length) throw new Error('anderes Koordinatensystem');
   const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs, startNear: [ec, nc], name: 'kachel', place: lat.toFixed(5) + ', ' + lon.toFixed(5), attribution: '', dopN: RW_STREAM.dop };
   const key = rwAreaKey(lat, lon, srcs) + '|kachel';
-  let p = store ? await store.get(key) : null, x = {};
+  // schon geladen? als Kachel oder als gespeicherter Ort an genau dieser Stelle (der hat sogar das schärfere Luftbild)
+  let p = store ? (await store.get(key)) || (await store.get(rwAreaKey(lat, lon, srcs))) : null, x = {};
   if (p && p.meta) x = p.water || p.features ? { water: p.water, features: p.features } : await rwExtras(p, srcs[0], store);
   else {
     const { get, text } = rwNet();
     const opt = { far: false, async: true };
+    if (store && store.lod2) opt.lod2Cache = { get: store.lod2, put: store.lod2Put };
     if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
     p = await rwFetchArea(a, srcs, get, text, say, opt);
     x = await rwExtras(p, srcs[0], store);

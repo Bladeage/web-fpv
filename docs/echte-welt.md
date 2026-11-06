@@ -232,6 +232,13 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Kamera: Das gezeichnete Gelände (Ecken alle 4 m) liegt am Hang über der berechneten Höhe (gemessen Monschau: bis 4 m, an 32 % der Punkte über 3,5 cm; volle Auflösung hilft nicht genug: 7 %, bis 1,3 m). Die Kamera hält jetzt 3,5 cm Abstand zur gezeichneten Fläche (`rwSurfaceH`, gleich dem Netz auf 1 mm, Test).
 - Brücken: Oberfläche minus Gelände macht Brücken ohne LoD2 zu „Bäumen“ (Hohenzollernbrücke). Eine Form-Regel (Krone fällt ringsum ab) wirkte nicht (Bögen fallen auch ab; 17 vorher und nachher). Jetzt: Baumspitzen über Wasser werden verworfen (wirkt mit Landesdaten). Monschau: kein Baum betroffen.
 
+## Automatisch und wiederverwenden (erledigt 06.11.2026, Prompt 121)
+
+- Landesdaten (Gewässer, Ortsnamen, etwa 60 MB) lädt das Programm beim ersten live geladenen Ort mit Landesdaten-Quelle automatisch, nur wenn sie noch nicht im Browser liegen. Fehlschlag bricht das Laden des Orts nicht ab.
+- LoD2-Gebäudekacheln (1 km, bis 70 MB Text) werden einmal zerlegt und kompakt gespeichert (IndexedDB-Bereich `lod2`, Punkte 32 Bit relativ zur Kachelecke, je Gebäude Nutzung, Dachform und Mitte). Nachbarorte und Nachladekacheln, die dieselbe Gebäudekachel berühren, nehmen sie aus dem Speicher. Auswahl der Gebäude wie bisher nach ihrer Mitte (Test: gleiche Gebäude mit und ohne Zwischenspeicher). Zwischenspeicher, nicht im Export; unter Optionen → Daten löschbar.
+- Nachladekachel: liegt an derselben Stelle schon ein gespeicherter Ort, wird er genommen.
+- Geprüft im Browser mit leerem Speicher: Ort 1 in Monschau 22 s mit Landesdaten (Wasser, 23 Orte, Name „Monschau · …“); Ort 2 600 m daneben 10 s, keine Gebäudekachel aus dem Netz; 4 Gebäudekacheln belegen 2 MB.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

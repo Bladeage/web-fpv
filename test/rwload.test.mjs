@@ -213,3 +213,24 @@ test('Startplatz: gespeicherte Gebiete von vor dem Fix bekommen beim Öffnen ein
   assert.deepEqual(p.meta.home, good, 'gleicher Start wie beim neuen Laden');
   assert.equal(rwFixStart(p), false, 'nur einmal');
 });
+
+test('Gebäudekacheln wiederverwenden: gleiche Gebäude wie ohne Zwischenspeicher, zweiter Ort ohne Netz', async () => {
+  const n = 32, mem = new Map(), cache = { get: async u => mem.get(u) || null, put: async (u, t) => { mem.set(u, t); return true; } };
+  let downloads = 0;
+  const two = gml(305002, 5604002).replace('</core:CityModel>', '') + gml(305400, 5603700).replace('<core:CityModel>', '');   // zwei Häuser in derselben Kachel
+  const get = async u => u.includes('wcs') ? makeTiff(n, 450) : new Uint8Array([0xff, 0xd8]);
+  const text = async u => { downloads++; return u.includes('_305_5603') ? two : null; };
+  const A = { ...rwAreaAt(305000, 5604000, srcA), n, place: 'A' };
+  const plain = await rwFetchArea(A, srcA, get, text, () => {}, { far: false });
+  downloads = 0;
+  const cached = await rwFetchArea(A, srcA, get, text, () => {}, { far: false, lod2Cache: cache });
+  assert.deepEqual([...cached.b16], [...plain.b16], 'gleiche Gebäude, gleiche Reihenfolge');
+  assert.equal(downloads, 4, 'beim ersten Mal alle vier Kacheln geladen');
+  // Zweiter Ort 600 m weiter östlich berührt dieselbe Kachel 305_5603: kein Download mehr dafür
+  downloads = 0;
+  const B = { ...rwAreaAt(305600, 5604000, srcA), n, place: 'B' };
+  const urls = []; const text2 = async u => { downloads++; urls.push(u); return null; };
+  const pB = await rwFetchArea(B, srcA, get, text2, () => {}, { far: false, lod2Cache: cache });
+  assert.ok(!urls.some(u => u.includes('_305_5603')), 'Kachel 305_5603 aus dem Speicher');
+  assert.equal(pB.meta.buildings, 1, 'nur das Haus im Gebiet B');
+});
