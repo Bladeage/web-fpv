@@ -78,6 +78,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Offen: schmale Gewässer sind im Basis-DLM nur Linien (`gew01_l`, 27 Achsen im Gebiet, z. B. die Rur flussaufwärts); mit einer angenommenen Breite ergänzbar.
 - Weitere Daten im Gebiet (Basis-DLM, geprüft): 78 Straßenachsen, 21 Waldflächen, 20 Bauwerke an Gewässer und Verkehr (Brücken, Wehre), 1 Turm, 3 Schutzgebiete (Natur-/Umweltschutz), Hecken und Baumreihen.
 
+## Kartenebenen (erledigt 06.11.2026, Prompt 98, nur Anzeige)
+
+- Nutzer: schmale Gewässer, Straßenachsen, Wald, Brücken und Türme, vorerst nur darstellerisch, ohne Wirkung auf Funk oder Signal.
+- Werkzeug `tools/features.mjs` (Basis-DLM per Teilabruf): `gew01_l` 33 Bachstücke, `ver01_l` 92 Straßenstücke, `ver06_l` 21 Brücken und Wasserbauwerke, `veg02_f` 31 Waldränder (Laub-, Nadel-, Mischwald), `sie05_p` 1 Turm (Eselsturm). Mit Namen, 45 KB, eingebettet.
+- Darstellung: Bänder 0,5 m über dem Gelände (Bäche blau 2,5 m, Straßen gelb 1 m, Brücken orange 3 m, Waldränder grün 1,2 m), Säule 30 m über Türmen, im Bild Turmname mit Entfernung, in der Aufgabenzeile der Name der nächsten Straße oder des nächsten Gewässers (bis 30 m).
+- Schaltbar im OSD-Menü: „Kartenebenen (echte Welt)“, Vorgabe an.
+- Bäche lösen keinen Absturz aus (nur Anzeige); nur die Gewässerflächen (Rur) setzen die Drohne außer Gefecht.
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.

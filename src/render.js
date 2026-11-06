@@ -10,7 +10,8 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwWaterMesh, groundH } from './realworld.js';
+import { rw, rwMesh, rwWaterMesh, rwFeatureMesh, groundH } from './realworld.js';
+import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -273,7 +274,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, PM = null, meshGl = [], waterGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, PM = null, meshGl = [], waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -785,6 +786,13 @@ function drawTerrain(vp, eye, VIS) {
   gl.activeTexture(gl.TEXTURE0);
   for (const m of meshGl) if (m.tex) { gl.bindTexture(gl.TEXTURE_2D, m.tex); gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); }
   gl.useProgram(P.p);
+  // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder, Säule über Türmen; leicht nach vorn gezogen
+  if (rw.features && osdOn(cfg.osd, 'mapLayers')) {
+    if (!featGl) featGl = upload(rwFeatureMesh());
+    gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -400);
+    gl.bindVertexArray(featGl.vao); gl.drawArrays(gl.TRIANGLES, 0, featGl.count);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+  }
 }
 // Ein Mesh-Teil auf die Grafikkarte: Ecken (Ort x y z, Textur u v) und die JPEG-Textur (asynchron entpackt)
 function uploadMesh(part) {

@@ -9,7 +9,7 @@ import { STEP, step, respawn, hoverThrottle } from '../src/physics.js';
 import { setScenario } from '../src/scenario.js';
 import { applyDrone } from '../src/drone.js';
 import { readTiff, toUtm } from '../src/geo.js';
-import { rw, rwInit, rwSetMesh, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh } from '../src/realworld.js';
+import { rw, rwInit, rwSetMesh, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName } from '../src/realworld.js';
 import { pilot } from '../src/pilot.js';
 import { qRot } from '../src/math.js';
 
@@ -18,6 +18,7 @@ const meta = JSON.parse(readFileSync(file('realworld/monschau.json'), 'utf8'));
 const q = inflateSync(readFileSync(file('realworld/monschau.dgm')));
 rwInit(meta, new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2));
 const un = n => { const b = inflateSync(readFileSync(file('realworld/monschau.' + n))); return new Int16Array(b.buffer, b.byteOffset, b.byteLength/2); };
+rw.features = JSON.parse(readFileSync(file('realworld/monschau.features.json'), 'utf8'));
 rw.water = new Uint8Array(inflateSync(readFileSync(file('realworld/monschau.water'))));
 const mg = inflateSync(readFileSync(file('realworld/monschau-mesh.geo')));
 rwSetMesh(JSON.parse(readFileSync(file('realworld/monschau-mesh.json'), 'utf8')), new Int16Array(mg.buffer, mg.byteOffset, mg.byteLength/2), new Uint8Array(readFileSync(file('realworld/monschau-mesh.tex'))));
@@ -192,4 +193,18 @@ test('Echte Welt: tiefer Überflug über dem Wasser bleibt ohne Folgen', () => {
   run(1, () => { game.throttle = hoverThrottle() + 0.05; });
   cfg.ghost = false;
   assert.equal(game.state, 'fly');
+});
+
+test('Echte Welt: Kartenebenen (Basis-DLM) nur zur Anzeige', () => {
+  const F = rw.features;
+  assert.ok(F.streams.length > 10 && F.roads.length > 50 && F.bridges.length > 5 && F.forest.length > 10, 'Ebenen vorhanden');
+  assert.deepEqual(F.towers.map(t => t.name), ['Eselsturm']);
+  assert.ok(rwFeatureMesh().length > 10000, 'Netz der Bänder');
+  rw.on = true;
+  const road = F.roads.find(r => r.name === 'Laufenstraße'), [x, z] = road.pts[0];
+  assert.equal(rwNearName(x + 3, z), 'Laufenstraße', 'Name der nahen Straße');
+  assert.equal(rwNearName(2000, 2000), '', 'weit außerhalb: kein Name');
+  // Bäche lösen keinen Absturz aus (nur Anzeige): ein Punkt auf dem Eschbach ist kein Wasser der Physik
+  const st = F.streams.find(r => r.name === 'Eschbach'), sp = st.pts[Math.floor(st.pts.length/2)];
+  assert.equal(waterAt(sp[0], sp[1]), false, 'Eschbach nur Anzeige');
 });

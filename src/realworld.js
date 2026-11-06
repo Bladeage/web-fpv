@@ -6,8 +6,8 @@ import { clamp } from './math.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen (deflate, Base64),
 // 3D-Mesh: Index aller Knoten (JSON, zum Nachladen), grobe Stufe als Dreiecke (deflate) und ihre Texturen (JPEG hintereinander)
-export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', meshIdx: '%%RW_MESHIDX%%', meshGeo: '%%RW_MESHGEO%%', meshTex: '%%RW_MESHTEX%%', water: '%%RW_WATER%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, mesh: null, grid: null, water: null };
+export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', meshIdx: '%%RW_MESHIDX%%', meshGeo: '%%RW_MESHGEO%%', meshTex: '%%RW_MESHTEX%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%' };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, mesh: null, grid: null, water: null, features: null };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -25,6 +25,7 @@ export async function rwLoadEmbedded() {
     const meta = JSON.parse(RW_DATA.meta), bytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const unpack = async b64 => new Response(new Blob([bytes(b64)]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer();
     rwInit(meta, new Uint16Array(await unpack(RW_DATA.dgm)));
+    if (!RW_DATA.features.startsWith('%%')) rw.features = JSON.parse(RW_DATA.features);
     if (!RW_DATA.water.startsWith('%%')) rw.water = new Uint8Array(await unpack(RW_DATA.water));
     if (!RW_DATA.meshIdx.startsWith('%%')) rwSetMesh(JSON.parse(RW_DATA.meshIdx), new Int16Array(await unpack(RW_DATA.meshGeo)), bytes(RW_DATA.meshTex));
     return rw;
@@ -139,4 +140,54 @@ export function rwWaterMesh() {
   }
   rw.on = on;
   return new Float32Array(out);
+}
+
+// Kartenebenen (Basis-DLM, nur Anzeige): Bänder auf dem Gelände für Bäche, Straßen, Brücken und Waldränder,
+// über Türmen eine Säule. Farben wie auf einer Karte. Höhe 0,5 m über dem Höhenmodell, Punkte alle 3 m (folgt dem Gelände).
+export const RW_LAYERS = {
+  streams: { w: 2.5, col: [0.25, 0.5, 0.9] }, roads: { w: 1.0, col: [0.98, 0.86, 0.4] },
+  bridges: { w: 3.0, col: [1.0, 0.5, 0.15] }, forest: { w: 1.2, col: [0.1, 0.38, 0.16] } };
+export function rwFeatureMesh() {
+  const F = rw.features, out = [];
+  if (!F) return new Float32Array(0);
+  const on = rw.on; rw.on = true;
+  const vtx = (x, z, col) => out.push(x, groundH(x, z) + 0.5, z, 0, 1, 0, col[0], col[1], col[2], 1);
+  for (const [key, st] of Object.entries(RW_LAYERS)) for (const f of F[key] || []) {
+    const pts = [];   // alle 3 m ein Punkt
+    for (let i = 0; i + 1 < f.pts.length; i++) {
+      const [ax, az] = f.pts[i], [bx, bz] = f.pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az)/3));
+      for (let k = 0; k < n; k++) pts.push([ax + (bx - ax)*k/n, az + (bz - az)*k/n]);
+    }
+    pts.push(f.pts[f.pts.length - 1]);
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, az] = pts[i], [bx, bz] = pts[i + 1], l = Math.hypot(bx - ax, bz - az) || 1, px = -(bz - az)/l*st.w/2, pz = (bx - ax)/l*st.w/2;
+      vtx(ax - px, az - pz, st.col); vtx(bx - px, bz - pz, st.col); vtx(bx + px, bz + pz, st.col);
+      vtx(ax - px, az - pz, st.col); vtx(bx + px, bz + pz, st.col); vtx(ax + px, az + pz, st.col);
+    }
+  }
+  for (const t of F.towers || []) {   // Säule 30 m über dem Boden, 0,6 m dick, orange
+    const y0 = groundH(t.x, t.z), y1 = y0 + 30, d = 0.3, c = [1.0, 0.55, 0.1];
+    for (const [ax, az, bx, bz] of [[-d, -d, d, -d], [d, -d, d, d], [d, d, -d, d], [-d, d, -d, -d]]) {
+      const q = [[t.x + ax, y0, t.z + az], [t.x + bx, y0, t.z + bz], [t.x + bx, y1, t.z + bz], [t.x + ax, y1, t.z + az]];
+      const n = [Math.sign(ax + bx), 0, Math.sign(az + bz)];
+      for (const k of [0, 1, 2, 0, 2, 3]) out.push(...q[k], ...n, ...c, 1);
+    }
+  }
+  rw.on = on;
+  return new Float32Array(out);
+}
+// Name der nächsten Straße oder des nächsten Gewässers im Umkreis r (für die Anzeige), sonst ''
+export function rwNearName(x, z, r = 30) {
+  const F = rw.features;
+  if (!F || !rw.on) return '';
+  let best = '', bd = r;
+  for (const key of ['streams', 'roads']) for (const f of F[key]) {
+    if (!f.name) continue;
+    for (let i = 0; i + 1 < f.pts.length; i++) {
+      const [ax, az] = f.pts[i], [bx, bz] = f.pts[i + 1], dx = bx - ax, dz = bz - az, L = dx*dx + dz*dz;
+      const t = L ? clamp(((x - ax)*dx + (z - az)*dz)/L, 0, 1) : 0, d = Math.hypot(x - ax - dx*t, z - az - dz*t);
+      if (d < bd) { bd = d; best = f.name; }
+    }
+  }
+  return best;
 }

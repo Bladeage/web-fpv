@@ -11,7 +11,7 @@ export const OSD_ITEMS = [
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
   ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
   ['motors', 'Motorschaden', true], ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true],
-  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Werte', false], ['goggle', 'Brillenrand', false], ['rec', 'Rec.-Punkt', false]
+  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Werte', false], ['goggle', 'Brillenrand', false], ['rec', 'Rec.-Punkt', false], ['mapLayers', 'Kartenebenen (echte Welt)', true]
 ];
 const DEFAULT = Object.fromEntries(OSD_ITEMS.map(([id, , on]) => [id, on]));
 // OSD-Stile: setzen alle Häkchen auf einmal (cfg.osd) und die Schrift (cfg.osdStyle). Danach einzeln änderbar.

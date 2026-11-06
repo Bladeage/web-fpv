@@ -2,6 +2,7 @@
 import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { cfg, game, tch, inp, ptr, messages } from './state.js';
 import { bf } from './bf.js';
+import { rw, groundH } from './realworld.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
 import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
@@ -261,6 +262,7 @@ export function drawHud() {
   c.restore();
 
   if (on('marker')) drawGateMarker(c, W, H, fs);
+  drawPoiLabels(c, W, H, fs);
   if (touchUI) drawSticks(c, W, H);
 
   const tnow = performance.now();
@@ -369,6 +371,21 @@ function drawBig(c, x, y, fs, FONT, weight, txt, rows) {
   c.font = font;
 }
 
+// Echte Welt, Kartenebenen: Name und Entfernung über Türmen (z. B. Eselsturm), nur wenn im Bild
+function drawPoiLabels(c, W, H, fs) {
+  if (!lastVP || !rw.on || !rw.features || !osdOn(cfg.osd, 'mapLayers')) return;
+  for (const t of rw.features.towers || []) {
+    const p = [t.x, groundH(t.x, t.z) + 31, t.z], cp = mApply(lastVP, p);
+    if (cp[3] < 0.01) continue;
+    const nx = cp[0]/cp[3], ny = cp[1]/cp[3];
+    if (Math.abs(nx) > 0.95 || Math.abs(ny) > 0.95) continue;
+    const d = Math.round(vLen(vSub(p, game.sim.p)));
+    c.font = `600 ${Math.round(fs*0.9)}px system-ui,sans-serif`; c.textAlign = 'center';
+    c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.fillStyle = '#ffc27a';
+    const sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H - 6, txt = `${t.name} ${d} M`;
+    c.strokeText(txt, sx, sy); c.fillText(txt, sx, sy);
+  }
+}
 function drawGateMarker(c, W, H, fs) {
   if (!lastVP) return;
   const tgt = scenTarget();
