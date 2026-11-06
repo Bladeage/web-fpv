@@ -6,7 +6,7 @@ import { readTiff, readLod2 } from './geo.js';
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
 export const RW_SOURCES = [{
-  id: 'nrw', name: 'Nordrhein-Westfalen (Geobasis NRW)', crs: 'EPSG:25832', box: [278000, 5560000, 540000, 5832000],
+  id: 'nrw', name: 'Nordrhein-Westfalen (Geobasis NRW)', land: 'Nordrhein-Westfalen', crs: 'EPSG:25832', box: [278000, 5560000, 540000, 5832000],
   dgm: { url: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dgm', coverage: 'nw_dgm' },
   dom: { url: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dom', coverage: 'nw_dom' },
   dop: { url: 'https://www.wms.nrw.de/geobasis/wms_nw_dop', layer: 'nw_dop_rgb' },
@@ -34,7 +34,12 @@ export function lod2Urls(svc, bbox) {
   return out;
 }
 // Quelle für einen Punkt (UTM): die erste, deren Gebiet ihn enthält
-export function rwSourceAt(E, N, list = RW_SOURCES) { return list.find(s => E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3]) || null; }
+// Quelle für einen Punkt (UTM): die erste, deren Gebiet ihn enthält. landAt(E, N) (Deutschlandkarte, falls vorhanden)
+// prüft genauer: Quellen mit Land gelten nur in diesem Land (das Rechteck allein reicht bis Niedersachsen und Belgien).
+export function rwSourceAt(E, N, list = RW_SOURCES, landAt = null) {
+  const land = landAt ? landAt(E, N) : null;
+  return list.find(s => E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3] && (!landAt || !s.land || s.land === land)) || null;
+}
 
 // Flachste Stelle (Spanne der Höhen in 12 m Umkreis) innerhalb 80 m um den Wunschpunkt
 export function findStart(h, n, bbox, near) {

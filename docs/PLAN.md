@@ -472,4 +472,5 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Neue Gestaltung erledigt (06.11.2026, Prompt 99): Luftbild 0,25 m auf Höhenmodell, LoD2-Gebäude mit Fassaden und Fenstern, Bäume in Luftbildfarbe, Vögel; 3D-Mesh nicht eingebettet. Siehe `docs/echte-welt.md`.
 - OSD Koordinaten und nächster Ort erledigt (06.11.2026, Prompt 101), siehe `docs/echte-welt.md`.
 - Live-Quellen geplant (L1 bis L5) und L1 erledigt (06.11.2026, Prompt 106): Ort in NRW per Koordinate laden. Siehe `docs/echte-welt.md`.
+- L2 erledigt (06.11.2026, Prompt 107/108): Deutschlandkarte zum Auswählen. Siehe `docs/echte-welt.md`.
 - 3D-Mesh M1 erledigt (06.11.2026), siehe `docs/echte-welt.md`. Nächste Etappe M2 (Nachladen).

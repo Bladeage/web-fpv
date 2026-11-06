@@ -5,6 +5,7 @@
 import { clamp } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
 import { rwSourceAt, rwAreaAt, rwFetchArea } from './rwload.js';
+import { deLandAt, deMap } from './demap.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
@@ -32,7 +33,7 @@ export function rwApply(p, x = {}) {
 // Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (Etappe L1, bisher Quellen für NRW in UTM 32).
 // say(Schritt, Anteil) meldet den Fortschritt; signal bricht ab. Bei Fehler bleibt das alte Gebiet erhalten.
 export async function rwLoadLive(lat, lon, say = () => {}, signal) {
-  const [E, N] = toUtm(lat, lon, 32), src = rwSourceAt(E, N);
+  const [E, N] = toUtm(lat, lon, 32), src = rwSourceAt(E, N, undefined, deMap() ? deLandAt : null);
   if (!src) throw new Error('Für diesen Ort ist keine Quelle hinterlegt (bisher nur NRW).');
   const a = rwAreaAt(E, N, src);
   a.place = lat.toFixed(5) + ', ' + lon.toFixed(5);

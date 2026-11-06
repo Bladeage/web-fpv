@@ -143,6 +143,15 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Fehlermeldungen: keine Quelle für den Ort, keine Verbindung (offline oder gesperrt), Dienst meldet Fehler (Text aus der Antwort), falsche Rastergröße, Abbruch. Das alte Gebiet bleibt dabei erhalten.
 - Grafik: neues Gebiet (rw.ver) gibt Netze und Luftbild frei und baut sie neu.
 
+## L2: Deutschlandkarte zum Auswählen (erledigt 06.11.2026, Prompt 107/108)
+
+- Menü „Echte Welt“ → „Ort laden (NRW)“ → „Karte“. Ziehen verschiebt, Mausrad, Knöpfe +/− oder zwei Finger zoomen (1 m bis 3 km je Bildpunkt), „DE“ zeigt ganz Deutschland. Klick oder Tippen setzt den Mittelpunkt, das Quadrat zeigt 1 x 1 km. „Laden“ übernimmt den Punkt und lädt sofort.
+- Am Anfang nur Grenzen (Wunsch Nutzer). Das Land des gewählten Punkts wird rot umrandet, leicht getönt und beschriftet. Länder mit hinterlegter Quelle (bisher NRW) sind grün getönt. Ohne Quelle bleibt „Laden“ gesperrt, mit Hinweis auf L3.
+- Grenzen: BKG VG2500 (Stand 01.01.2026), Datenlizenz Deutschland Namensnennung 2.0, vereinfacht (Douglas-Peucker 400 m, 100 m Raster), 69 KB, eingebettet (geht offline). Quellenvermerk mit Links unter der Karte (Pflicht laut Nutzungsbedingungen, gelesen).
+- Hintergrund online: basemap.de WMS (Farbe, UTM 32), CC BY 4.0, ein Bild je Ansicht (kurz nach der letzten Bewegung). Ohne Netz: Hinweis, nur Grenzen.
+- Quelle gilt nur im eigenen Land (gesichert, Test): Das Rechteck der NRW-Quelle reicht bis Belgien und Niedersachsen; mit Karte prüft rwSourceAt das Land.
+- Geprüft: Logik in Node (Land an bekannten Orten, Ausland, Zoom hält den Punkt), Ablauf im Browser (Klick bei Aachen, Laden 17 bis 20 s), Menü passt auf allen vier Größen, auch nach der Auswahl.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

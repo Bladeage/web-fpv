@@ -45,11 +45,21 @@
         <div class="seg small" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden (NRW)</button></div>
         <div id="rwLive" class="rwlive">
           <input type="text" id="rwLL" placeholder="Breite, Länge  z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
+          <button class="secondary" id="rwMap">Karte</button>
           <button class="secondary" id="rwGo">Laden</button>
         </div>
         <p class="hint" id="rwMsg"></p>
       </div>
       <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
+    </section>
+
+    <section data-screen="map" hidden>
+      <h1>Ort wählen</h1>
+      <div class="mapbox"><canvas id="mapCv" aria-label="Deutschlandkarte"></canvas>
+        <div class="mapzoom"><button id="mapIn" title="Näher">+</button><button id="mapOut" title="Weiter weg">−</button><button id="mapAll" title="Ganz Deutschland">DE</button></div></div>
+      <p class="hint" id="mapInfo"></p>
+      <p class="hint mapattr">Grenzen: <a href="https://www.bkg.bund.de" target="_blank" rel="noopener">BKG</a> 2026, <a href="https://www.govdata.de/dlde/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a>, vereinfacht (<a href="https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf" target="_blank" rel="noopener">Datenquellen</a>). Karte: © GeoBasis-DE / BKG 2026, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
+      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" id="mapOk">Laden</button></div>
     </section>
 
     <section data-screen="drone" hidden>

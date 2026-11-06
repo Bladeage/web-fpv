@@ -197,7 +197,15 @@ details{margin-top:10px}
 #scenList button:last-child:nth-child(odd){grid-column:1/-1}   /* letzter Modus allein in der Zeile: volle Breite */
 
 /* Echte Welt: Ort laden (Koordinate und Knopf in einer Zeile) */
-.rwlive{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:6px}
+.rwlive{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:6px}
 .rwlive button{padding:5px 14px}
 #rwMsg{margin-top:4px}
 .rwlive input{font:inherit;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--panel-text);min-width:0}
+/* Deutschlandkarte (Ort wählen) */
+.mapbox{position:relative;margin-top:6px}
+#mapCv{position:static;inset:auto;display:block;width:100%;height:clamp(150px,34vh,400px);border-radius:10px;border:1px solid var(--line);touch-action:none;cursor:crosshair;background:#dde5e8}
+.mapzoom{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px}
+.mapzoom button{width:34px;height:30px;padding:0;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:#223;font-weight:700}
+.mapattr{font-size:11px;opacity:.8}
+.mapattr a{color:inherit}
+#mapOk:disabled{opacity:.45}

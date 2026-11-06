@@ -18,6 +18,7 @@ import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
 import { stepPilot } from './pilot.js';
+import { mapPagePos } from './mapui.js';
 import { rw, rwLoadEmbedded } from './realworld.js';
 
 fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
@@ -66,4 +67,4 @@ if (!gl) {
   catch (e) { $('glErr').hidden = false; $('glErr').textContent = 'Grafikfehler: ' + e.message; $('go').disabled = true; $('bStart').disabled = true; }
 }
 // Testzugang für automatische Prüfungen
-window.__fpv = { get sim() { return game.sim; }, get state() { return game.state; }, get armed() { return game.armed; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };
+window.__fpv = { mapPagePos, get sim() { return game.sim; }, get state() { return game.state; }, get armed() { return game.armed; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };

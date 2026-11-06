@@ -13,6 +13,7 @@ import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
+import { mapInit, mapOpen } from './mapui.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 
 export const $ = id => document.getElementById(id);
@@ -210,6 +211,9 @@ document.querySelectorAll('#rwSeg button').forEach(b => b.addEventListener('clic
 $('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
 $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
 $('rwGo').addEventListener('click', () => rwLive());
+// Karte (L2): Punkt wählen, übernehmen lädt sofort
+$('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
+mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwLive(); }, () => fitPanel());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DRONES)) {
