@@ -2,7 +2,7 @@
    Ein verbundenes Gamepad überschreibt beides (siehe updTouch). */
 import { clamp } from './math.js';
 import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg, keyOf, keyFns, keyLearn } from './state.js';
-import { respawn, toggleArm, rewind } from './physics.js';
+import { respawn, toggleArm, rewind, toggleFreeze } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam, cycleVision } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
@@ -23,6 +23,7 @@ addEventListener('keydown', e => {
     if (fn === 'mode') { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); }
     if (fn === 'arm') toggleArm();
     if (fn === 'rewind') rewind(5);
+    if (fn === 'freeze') toggleFreeze();
     if (fn === 'tiltUp' || fn === 'tiltDown') {
       cfg.tilt = clamp(cfg.tilt + (fn === 'tiltUp' ? 5 : -5), 0, 60); saveCfg(); say('Kamerawinkel ' + cfg.tilt + '°', 1);
     }

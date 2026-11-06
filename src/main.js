@@ -6,7 +6,7 @@
    ========================================================= */
 import { cfg, game, inp, say } from './state.js';
 import { gates } from './world.js';
-import { STEP, fx, respawn, step, rewind } from './physics.js';
+import { STEP, fx, respawn, step, rewind, freezeOk } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
 import { gl, initGL, render, resize, toggleCam, cycleVision } from './render.js';
@@ -58,7 +58,8 @@ function frame(now) {
       });
     }
     stepPilot(dt, game.sim.p);
-    if (game.state === 'fly') {
+    if (game.frozen && (!freezeOk() || game.state !== 'fly')) game.frozen = false;   // Spielstil gewechselt: wieder frei
+    if (game.state === 'fly' && !game.frozen) {
       acc += dt;
       while (acc >= STEP) {
         step(STEP); acc -= STEP;

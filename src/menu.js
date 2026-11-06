@@ -506,7 +506,7 @@ addEventListener('keydown', e => {
 function buildHelpKeys() {
   const rows = [['thrUp', 'thrDown', 'Gas mehr / weniger'], ['yawL', 'yawR', 'Gieren links / rechts'], ['pitchF', 'pitchB', 'Nase runter / hoch'],
     ['rollL', 'rollR', 'Rollen links / rechts'], ['reset', null, 'Neustart'], ['cam', null, 'Kamera wechseln'], ['mode', null, 'Angle / Acro'],
-    ['arm', null, 'Scharf schalten / aus (nur mit Gas unten)'], ['tiltUp', 'tiltDown', 'Kamerawinkel höher / tiefer'], ['rewind', null, '5 s zurückspulen'], ['vision', null, 'Bild: normal, Wärmebild, Nachtsicht']];
+    ['arm', null, 'Scharf schalten / aus (nur mit Gas unten)'], ['tiltUp', 'tiltDown', 'Kamerawinkel höher / tiefer'], ['rewind', null, '5 s zurückspulen'], ['freeze', null, 'Einfrieren / weiter (Lernen, Gott-Modus)'], ['vision', null, 'Bild: normal, Wärmebild, Nachtsicht']];
   const box = $('helpKeys'); box.textContent = '';
   const add = (k, t) => { const a = document.createElement('kbd'); a.textContent = k; const b = document.createElement('span'); b.textContent = t; box.append(a, b); };
   for (const [a, b, t] of rows) add(keyName(keyOf(a)) + (b ? ' / ' + keyName(keyOf(b)) : ''), t);

@@ -63,7 +63,7 @@ const vol = () => cfg.sound ? clamp(cfg.vol ?? 0.7, 0, 1) : 0;
 export function audioUpd() {
   if (!ac) return;
   const s = game.sim, now = ac.currentTime;
-  const on = !game.paused && game.state === 'fly';
+  const on = !game.paused && game.state === 'fly' && !game.frozen;   // eingefroren: Motoren still
   master.gain.setTargetAtTime(on ? vol() : 0, now, 0.05);
   sfx.gain.setTargetAtTime(game.paused ? 0 : vol(), now, 0.05);
   if (!on || !vol()) return;

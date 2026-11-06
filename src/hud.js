@@ -1,6 +1,6 @@
 /* HUD im Betaflight-OSD-Stil: Werte, Warnungen, Horizont, Tormarker, Touch-Sticks, Analog-Look. */
 import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
-import { cfg, game, tch, inp, ptr, messages } from './state.js';
+import { cfg, game, tch, inp, ptr, messages, keyOf, keyName } from './state.js';
 import { bf } from './bf.js';
 import { rw, groundH, rwLatLon, rwPlace } from './realworld.js';
 import { PHYS, BAT } from './physics.js';
@@ -304,6 +304,7 @@ export function drawHud() {
     const hint = gp.connected ? 'Gasknüppel hoch' : touchUI ? 'Linken Daumen nach oben schieben für Gas' : 'W drücken für Gas, S für weniger';
     txt(hint, W/2, H*0.62, 'center', '#ffffff');
   }
+  if (game.frozen) txt('EINGEFROREN \u00b7 ' + keyName(keyOf('freeze')).toUpperCase() + ' ZUM WEITERFLIEGEN', W/2, H*0.62, 'center', '#9fd8ff');
   if (game.state === 'crashed') {
     c.fillStyle = 'rgba(120,0,0,.25)'; c.fillRect(0, 0, W, H);
     c.font = `800 ${fs*2.2}px ${FONT}`;

@@ -133,6 +133,7 @@ function resetDrone() {
 }
 export function respawn() {
   game.sim = newSim();
+  game.frozen = false;
   history.length = 0;
   resetDrone();
   game.armed = !cfg.needArm;
@@ -414,6 +415,17 @@ export function step(h) {
 
 export const history = [];
 const snapshot = s => ({ p: s.p.slice(), v: s.v.slice(), q: s.q.slice(), w: s.w.slice(), om: s.om.slice(), mot: s.mot.slice(), wi: s.wi.slice(), hp: s.hp.slice(), t: s.t });
+// Einfrieren (Lernhilfe, Nutzer Prompt 126): Taste F hält die Drohne an Ort und Stelle, nochmals F fliegt genau so weiter
+// (Lage, Geschwindigkeit, Drehung bleiben; die Zeit des Flugs ruht). Nur ohne Schaden und mit unendlichem Akku, also in
+// den Spielstilen Lernen und Gott-Modus (auch wenn dort Angle/Acro umgeschaltet wird).
+export const freezeOk = () => cfg.dmg === 'off' && !!cfg.infBat;
+export function toggleFreeze() {
+  if (!game.frozen && !freezeOk()) { say('Einfrieren nur im Spielstil Lernen oder Gott-Modus', 1.6); return false; }
+  if (!game.frozen && game.state !== 'fly') return false;
+  game.frozen = !game.frozen;
+  say(game.frozen ? 'Eingefroren' : 'Weiter', 1);
+  return game.frozen;
+}
 // Zurückspulen (Lernhilfe): Drohne an den Zustand von vor sec Sekunden setzen, auch nach einem Absturz.
 // Zeit, Akku und Fortschritt im Szenario laufen weiter.
 export function rewind(sec = 5) {

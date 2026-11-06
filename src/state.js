@@ -29,6 +29,7 @@ export const KEY_FN = [
   ['rollL', 'Rollen links', 'ArrowLeft'], ['rollR', 'Rollen rechts', 'ArrowRight'],
   ['arm', 'Scharf / aus', 'Space'], ['mode', 'Angle / Acro', 'KeyM'],
   ['reset', 'Neustart', 'KeyR'], ['cam', 'Kamera', 'KeyV'], ['rewind', 'Zurückspulen', 'KeyZ'], ['vision', 'Wärme/Nacht', 'KeyN'],
+  ['freeze', 'Einfrieren', 'KeyF'],
   ['tiltUp', 'Kamera höher', 'PageUp'], ['tiltDown', 'Kamera tiefer', 'PageDown']
 ];
 export const KEY_RESERVED = ['Escape', 'KeyP'];
@@ -74,6 +75,7 @@ export const game = {
   sim: null,
   home: [0, 0], homeYaw: 0,   // Startpunkt x, z (Freiflug: in der kleinen Stadt), Blickrichtung beim Start (0 = Nase nach -z)
   state: 'fly',          // 'fly' | 'crashed'
+  frozen: false,         // Einfrieren (Taste F, nur Lernen und Gott-Modus): Drohne steht in der Luft, die Zeit des Flugs ruht
   paused: true, started: false,
   crashes: 0,
   throttle: 0,

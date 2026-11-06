@@ -294,6 +294,7 @@ Entscheidung des Nutzers vom 02.11.2026.
   - Gott-Modus: Durch Hindernisse fliegen, Schaden aus, Akku unendlich, Flugspur an.
 - Neu: Durch Hindernisse fliegen (Geist-Modus; Boden bleibt fest).
 - Neu: Flugspur der letzten Sekunden und Zurückspulen um 5 s per Taste.
+- Neu (06.11.2026, Prompt 126): Einfrieren mit Taste F (frei belegbar), nur in Lernen und Gott-Modus (genauer: Schaden aus und Akku unendlich, also auch nach Umschalten Angle/Acro). Drohne steht, Motorton aus, Hinweis im Bild; nochmals F fliegt mit derselben Lage und Fahrt weiter. Neustart löst; Wechsel des Spielstils ebenfalls.
 - Später entscheiden: Strecken-Editor (Ideen: Platzieren im Flug, Karte von oben).
 
 ## Demo-Vorgaben und Ton (erledigt 02.11.2026)
@@ -483,3 +484,4 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - L5a erledigt (06.11.2026, Prompt 118): Umgebung 10 x 10 km (grobes Gelände und Luftbild bis zum Horizont). Nächste Etappe L5b: Nachladen von Gebäuden und Bäumen.
 - L5b erledigt (06.11.2026, Prompt 118): Gebäude, Bäume und feines Gelände in 1-km-Kacheln beim Fliegen nachladen; Kamera nie unter der gezeichneten Fläche; Bäume über Wasser verworfen (Prompt 119/120).
 - Landesdaten automatisch, Gebäudekacheln wiederverwenden (06.11.2026, Prompt 121). Siehe `docs/echte-welt.md`.
+- Prüfbericht Schwachstellen (Prompt 122, `docs/schwachstellen-2026-11-06.md`): Etappe 1 Nachladen stabil (Prompt 124), Etappe 2 eine Bodenfläche (Prompt 125) erledigt. Taste F Einfrieren (Prompt 126). Nächste: Etappe 3 Grafik und Speicher robust.
