@@ -1,3 +1,5 @@
 dist/
 node_modules/
 tools/.cache/
+# Herstellerinhalte (z. B. VBS-Modellliste von k5.2) nie ins öffentliche Repo: nur lokal in private/
+private/

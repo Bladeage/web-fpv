@@ -32,24 +32,31 @@
     <section data-screen="mode" hidden>
       <p class="stepno">Schritt 1 von 2</p>
       <h1>Modus</h1>
-      <div class="list grid2" id="scenList"></div>
-      <p class="hint" id="courseInfo"></p>
-      <div id="courseOpts">
-        <div class="seg seg3 small" id="diffSeg"></div>
-        <div id="huntOpts">
-          <label class="row" for="huntX"><span>Nötige Treffer</span><output id="huntXV"></output></label>
-          <input type="range" id="huntX" min="1" max="6" step="1">
+      <div class="tabs tabs2" id="modeTabs" role="tablist"><button data-mtab="std">Modi</button><button data-mtab="spec">Spezial</button></div>
+      <div id="modeStd">
+        <div class="list grid2" id="scenList"></div>
+        <p class="hint" id="courseInfo"></p>
+        <div id="courseOpts">
+          <div class="seg seg3 small" id="diffSeg"></div>
+          <div id="huntOpts">
+            <label class="row" for="huntX"><span>Nötige Treffer</span><output id="huntXV"></output></label>
+            <input type="range" id="huntX" min="1" max="6" step="1">
+          </div>
         </div>
       </div>
-      <div id="rwOpts">
-        <div class="seg small" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button></div>
-        <div id="rwLive" class="rwlive">
-          <input type="text" id="rwLL" placeholder="Breite, Länge  z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
-          <button class="secondary" id="rwMap">Karte</button>
-          <button class="secondary" id="rwGo">Laden</button>
+      <div id="modeSpec" hidden>
+        <div class="list grid2" id="specList"></div>
+        <p class="hint" id="specInfo"></p>
+        <div id="rwOpts">
+          <div class="seg small" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button></div>
+          <div id="rwLive" class="rwlive">
+            <input type="text" id="rwLL" placeholder="Breite, Länge  z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
+            <button class="secondary" id="rwMap">Karte</button>
+            <button class="secondary" id="rwGo">Laden</button>
+          </div>
+          <select id="rwSaved" class="rwsaved" aria-label="Gespeicherte Orte" hidden></select>
+          <p class="hint" id="rwMsg"></p>
         </div>
-        <select id="rwSaved" class="rwsaved" aria-label="Gespeicherte Orte" hidden></select>
-        <p class="hint" id="rwMsg"></p>
       </div>
       <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
     </section>

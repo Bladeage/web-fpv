@@ -43,36 +43,49 @@ export function rwSourceAt(E, N, list = RW_SOURCES, landAt = null) {
   return list.find(s => E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3] && (!landAt || !s.land || s.land === land)) || null;
 }
 
-// Flachste Stelle (Spanne der Höhen in 12 m Umkreis) innerhalb 80 m um den Wunschpunkt
-export function findStart(h, n, bbox, near) {
-  const cell = (bbox[2] - bbox[0])/n, at = (i, j) => h[j*n + i];
-  const ci = Math.round((near[0] - bbox[0])/cell - 0.5), cj = Math.round((bbox[3] - near[1])/cell - 0.5);
-  let best = null;
-  for (let j = cj - 40; j <= cj + 40; j++) for (let i = ci - 40; i <= ci + 40; i++) {
-    if (Math.hypot(i - ci, j - cj)*cell > 80 || i < 6 || j < 6 || i >= n - 6 || j >= n - 6) continue;
-    let lo = 1e9, hi = -1e9;
-    for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) { const v = at(i + x, j + y); lo = Math.min(lo, v); hi = Math.max(hi, v); }
-    if (!(hi - lo >= 0)) continue;   // Fenster mit ungültigen Werten (NaN) nie als Start
-    if (!best || hi - lo < best.s) best = { i, j, s: hi - lo };
-  }
-  return best;
-}
-// Bäume: Oberfläche minus Gelände (nDOM). Baumspitze = höchster Punkt im Umkreis von 6 m, mindestens 3 m hoch,
-// nicht auf einem Gebäude (Dächer werden ins Raster gezeichnet und um 1 Zelle verbreitert). Kronenradius ~ 0,3 x Höhe (Schätzung).
-export function findTrees(dgm, dom, roofs, n, bbox) {
-  const cell = (bbox[2] - bbox[0])/n, mask = new Uint8Array(n*n), half = (bbox[2] - bbox[0])/2;
+// Grundrisse der Gebäude als Raster (Dächer aus LoD2, um dil Zellen verbreitert): 1 = Gebäude
+export function roofMask(roofs, n, bbox, dil = 1) {
+  const cell = (bbox[2] - bbox[0])/n, mask = new Uint8Array(n*n);
   const gi = e => (e - bbox[0])/cell - 0.5, gj = nn => (bbox[3] - nn)/cell - 0.5;
   for (let t = 0; t < roofs.length; t += 3) {
     const P = [roofs[t], roofs[t + 1], roofs[t + 2]].map(p => [gi(p[0]), gj(p[1])]);
-    const i0 = Math.floor(Math.min(...P.map(p => p[0]))) - 1, i1 = Math.ceil(Math.max(...P.map(p => p[0]))) + 1;
-    const j0 = Math.floor(Math.min(...P.map(p => p[1]))) - 1, j1 = Math.ceil(Math.max(...P.map(p => p[1]))) + 1;
+    const i0 = Math.floor(Math.min(P[0][0], P[1][0], P[2][0])) - 1, i1 = Math.ceil(Math.max(P[0][0], P[1][0], P[2][0])) + 1;
+    const j0 = Math.floor(Math.min(P[0][1], P[1][1], P[2][1])) - 1, j1 = Math.ceil(Math.max(P[0][1], P[1][1], P[2][1])) + 1;
     const cr = (p, q, r) => (q[0] - p[0])*(r[1] - p[1]) - (q[1] - p[1])*(r[0] - p[0]);
     for (let j = Math.max(0, j0); j <= Math.min(n - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(n - 1, i1); i++) {
       const c = [i, j], d1 = cr(P[0], P[1], c), d2 = cr(P[1], P[2], c), d3 = cr(P[2], P[0], c);
       const inT = !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
-      if (inT) for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) if (i + x >= 0 && i + x < n && j + y >= 0 && j + y < n) mask[(j + y)*n + i + x] = 1;
+      if (inT) for (let y = -dil; y <= dil; y++) for (let x = -dil; x <= dil; x++) if (i + x >= 0 && i + x < n && j + y >= 0 && j + y < n) mask[(j + y)*n + i + x] = 1;
     }
   }
+  return mask;
+}
+// Startplatz: flachste Stelle (Spanne der Höhen in 12 m Umkreis) nahe dem Wunschpunkt, nicht in oder an einem Gebäude
+// (mask: Grundrisse, 6 m Abstand). Suche erst bis 80 m, sonst 200 m, sonst 480 m (Innenstadt). Ohne freie Stelle: null.
+export function findStart(h, n, bbox, near, mask = null) {
+  const cell = (bbox[2] - bbox[0])/n, at = (i, j) => h[j*n + i], R = Math.ceil(6/cell);
+  const ci = Math.round((near[0] - bbox[0])/cell - 0.5), cj = Math.round((bbox[3] - near[1])/cell - 0.5);
+  const built = (i, j) => { if (!mask) return false; for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) if (mask[(j + y)*n + i + x]) return true; return false; };
+  for (const rad of [80, 200, 480]) {
+    const k = Math.ceil(rad/cell);
+    let best = null;
+    for (let j = cj - k; j <= cj + k; j++) for (let i = ci - k; i <= ci + k; i++) {
+      if (Math.hypot(i - ci, j - cj)*cell > rad || i < 6 || j < 6 || i >= n - 6 || j >= n - 6) continue;
+      let lo = 1e9, hi = -1e9;
+      for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) { const v = at(i + x, j + y); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      if (!(hi - lo >= 0)) continue;   // Fenster mit ungültigen Werten (NaN) nie als Start
+      if (best && hi - lo >= best.s) continue;
+      if (built(i, j)) continue;       // im oder am Gebäude: das Höhenmodell zeigt dort den Boden, die Drohne säße im Haus
+      best = { i, j, s: hi - lo };
+    }
+    if (best) return best;
+  }
+  return null;
+}
+// Bäume: Oberfläche minus Gelände (nDOM). Baumspitze = höchster Punkt im Umkreis von 6 m, mindestens 3 m hoch,
+// nicht auf einem Gebäude (Dächer werden ins Raster gezeichnet und um 1 Zelle verbreitert). Kronenradius ~ 0,3 x Höhe (Schätzung).
+export function findTrees(dgm, dom, roofs, n, bbox) {
+  const cell = (bbox[2] - bbox[0])/n, half = (bbox[2] - bbox[0])/2, mask = roofMask(roofs, n, bbox, 1);
   const nd = new Float32Array(n*n);
   for (let k = 0; k < n*n; k++) { const v = dom[k] - dgm[k]; nd[k] = mask[k] || !isFinite(v) ? 0 : Math.max(0, v); }   // ohne Wert: kein Baum
   const trees = [], R = 3;
@@ -234,10 +247,11 @@ export function rwPack(a, dgm, dom, bld, dop) {
   if (dom) dom = dom.map((v, i) => isFinite(v) && v > -1000 ? v : H[i]);
   dgm = { ...dgm, data: H };
   const near = a.startNear || [(a.bbox[0] + a.bbox[2])/2, (a.bbox[1] + a.bbox[3])/2];
-  const st = findStart(dgm.data, n, a.bbox, near), cell = (a.bbox[2] - a.bbox[0])/n, half = (a.bbox[2] - a.bbox[0])/2;
+  // Start nicht in Gebäuden; ganz ohne freie Stelle (geschlossene Bebauung im ganzen Gebiet) zur Not wie früher, ohne Maske
+  const st = findStart(dgm.data, n, a.bbox, near, roofMask(bld.roof, n, a.bbox, 0)) || findStart(dgm.data, n, a.bbox, near), cell = (a.bbox[2] - a.bbox[0])/n, half = (a.bbox[2] - a.bbox[0])/2;
   const home = [(st.i + 0.5)*cell - half, (st.j + 0.5)*cell - half];
   const meta = { name: a.name, place: a.place, crs: a.crs, bbox: a.bbox, n, hMin: lo, hMax: hi, hScale: 0.1,
-    home: home.map(v => +v.toFixed(1)), hHome: +dgm.data[st.j*n + st.i].toFixed(2), startSpan: +st.s.toFixed(2), attribution: a.attribution };
+    home: home.map(v => +v.toFixed(1)), hHome: +dgm.data[st.j*n + st.i].toFixed(2), startSpan: +st.s.toFixed(2), startV: 2, attribution: a.attribution };
   const ec = (a.bbox[0] + a.bbox[2])/2, nc = (a.bbox[1] + a.bbox[3])/2, hHome = meta.hHome;
   const pts = bld.roof.concat(bld.wall), ids = bld.roofId.concat(bld.wallId), nb = bld.info.length;
   const b16 = new Int16Array(pts.length*3 + ids.length + nb);
@@ -253,4 +267,17 @@ export function rwPack(a, dgm, dom, bld, dop) {
 export function rwAreaAt(E, N, src, size = 1000) {
   const e = Math.round(E), nn = Math.round(N), h = size/2;
   return { bbox: [e - h, nn - h, e + h, nn + h], crs: src.crs, startNear: [e, nn], name: 'live', place: '', attribution: src.attribution };
+}
+// Gespeicherte Gebiete von vor dem Fix „Start nicht im Gebäude“ (ohne meta.startV): Startplatz neu suchen.
+// Nur home ändert sich; die Höhenbezüge (hHome) bleiben, denn Gebäude und Bäume sind relativ dazu gespeichert.
+export function rwFixStart(p) {
+  const m = p.meta;
+  if (m.startV >= 2) return false;
+  const n = m.n, bb = m.bbox, ec = (bb[0] + bb[2])/2, nc = (bb[1] + bb[3])/2, half = (bb[2] - bb[0])/2, cell = (bb[2] - bb[0])/n;
+  const H = new Float32Array(n*n); for (let i = 0; i < n*n; i++) H[i] = m.hMin + p.q[i]*m.hScale;
+  const roofs = []; for (let k = 0; k < m.roofTris*3; k++) roofs.push([ec + p.b16[k*3]/10, nc - p.b16[k*3 + 2]/10]);
+  const st = findStart(H, n, bb, [ec, nc], roofMask(roofs, n, bb, 0));
+  if (st) m.home = [+((st.i + 0.5)*cell - half).toFixed(1), +((st.j + 0.5)*cell - half).toFixed(1)];
+  m.startV = 2;
+  return true;
 }

@@ -190,3 +190,26 @@ test('L3 Polieren: Quellen ohne Bundesland, Oberfläche ohne Coverage oder Luftb
   assert.equal(r.sources.length, 0);
   assert.match(r.errors[0], /Bundesland fehlt/); assert.match(r.errors[1], /Coverage-ID fehlt/); assert.match(r.errors[2], /Layer fehlt/);
 });
+
+test('Startplatz nie in einem Gebäude (Fehlerbericht Nutzer): großes Haus genau am gewählten Punkt', async () => {
+  const n = 128, a = { ...rwAreaAt(305000, 5604000, srcA), n, place: 'Haus' };   // Zelle 7,8 m
+  // Gelände uneben, nur ein Platz von 110 m um die Mitte eben; darauf das Haus (das Höhenmodell zeigt dort den Boden):
+  // die flachste Stelle liegt damit im Haus
+  const big = gml(304970, 5603970).replace(/(\d+(?:\.\d+)?) (\d+(?:\.\d+)?) (45[06])/g, (m, e, nn, z) => `${304970 + (+e - 304970)*6} ${5603970 + (+nn - 5603970)*6} ${z}`);
+  const p = await rwFetchArea(a, srcA, async u => u.includes('wcs') ? makeTiff(n, (i, j) => Math.abs(i - 63.5) <= 7 && Math.abs(j - 63.5) <= 7 ? 450 : 450 + (i*7 + j*13) % 5) : new Uint8Array([0xff, 0xd8]), async u => u.includes('_305_5603') || u.includes('_304_5603') || u.includes('_304_5604') || u.includes('_305_5604') ? big : null, () => {});
+  assert.ok(p.meta.buildings >= 1);
+  const [hx, hz] = p.meta.home, inside = Math.abs(hx) < 36 && Math.abs(hz) < 36;   // Haus ±30 m, dazu 6 m Abstand
+  assert.ok(!inside, 'Start außerhalb des Hauses: ' + hx + ', ' + hz);
+});
+
+test('Startplatz: gespeicherte Gebiete von vor dem Fix bekommen beim Öffnen einen neuen Start', async () => {
+  const { rwFixStart, roofMask } = await import('../src/rwload.js');
+  const n = 128, a = { ...rwAreaAt(305000, 5604000, srcA), n, place: 'Haus' };
+  const big = gml(304970, 5603970).replace(/(\d+(?:\.\d+)?) (\d+(?:\.\d+)?) (45[06])/g, (m, e, nn, z) => `${304970 + (+e - 304970)*6} ${5603970 + (+nn - 5603970)*6} ${z}`);
+  const p = await rwFetchArea(a, srcA, async u => u.includes('wcs') ? makeTiff(n, (i, j) => Math.abs(i - 63.5) <= 7 && Math.abs(j - 63.5) <= 7 ? 450 : 450 + (i*7 + j*13) % 5) : new Uint8Array([0xff, 0xd8]), async () => big, () => {});
+  // wie vor dem Fix gespeichert: Start mitten im Haus, ohne startV
+  const good = p.meta.home.slice(); p.meta.home = [-3.9, -3.9]; delete p.meta.startV;
+  assert.equal(rwFixStart(p), true);
+  assert.deepEqual(p.meta.home, good, 'gleicher Start wie beim neuen Laden');
+  assert.equal(rwFixStart(p), false, 'nur einmal');
+});

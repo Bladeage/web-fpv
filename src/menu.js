@@ -17,6 +17,7 @@ import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
+const SPECIAL = new Set(['real']);   // Modi im Reiter „Spezial“ (später auch DIS)
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -83,12 +84,15 @@ export function syncMenu() {
   press('#fcSeg button', b => b.dataset.fc === (cfg.fc || 'own'));
   setMode(cfg.mode);
   const sc = SCENARIOS.find(x => x.id === cfg.scen);
-  press('#scenList button', b => b.dataset.id === cfg.scen);
-  $('courseInfo').textContent = sc.info;
+  press('#scenList button, #specList button', b => b.dataset.id === cfg.scen);
+  // Reiter: „Spezial“ für echte Welt (später DIS), sonst „Modi“
+  const spec = SPECIAL.has(cfg.scen);
+  document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String((b.dataset.mtab === 'spec') === spec)));
+  $('modeStd').hidden = spec; $('modeSpec').hidden = !spec;
+  $('courseInfo').textContent = sc.info; $('specInfo').textContent = spec ? sc.info : '';
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real';
   $('rwOpts').hidden = cfg.scen !== 'real';
-  $('courseInfo').hidden = cfg.scen === 'real' && cfg.rwSrc === 'live';   // Platz für Ort laden (bei Monschau steht die Beschreibung da)
   press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
@@ -248,7 +252,15 @@ async function start() {
   respawn(); resume();
 }
 
-for (const x of SCENARIOS) addChoice($('scenList'), x.name, '', () => { cfg.scen = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+{ const b = addChoice($('specList'), 'DIS-Anbindung', '', () => {}); b.disabled = true; b.title = 'geplant, siehe docs/dis-bruecke.md'; b.dataset.id = 'dis'; }
+// Reiter wechseln: „Spezial“ wählt die echte Welt, „Modi“ den zuletzt gewählten normalen Modus
+document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('click', () => {
+  const spec = b.dataset.mtab === 'spec';
+  if (spec && !SPECIAL.has(cfg.scen)) { cfg.lastStd = cfg.scen; cfg.scen = 'real'; }
+  if (!spec && SPECIAL.has(cfg.scen)) cfg.scen = cfg.lastStd && !SPECIAL.has(cfg.lastStd) ? cfg.lastStd : 'gates';
+  saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
+}));
 document.querySelectorAll('#rwSeg button').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
 $('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
 $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
