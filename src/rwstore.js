@@ -12,6 +12,8 @@ function db() {
       r.onupgradeneeded = () => { for (const n of ['areas', 'info', 'land', 'lod2']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
       r.onsuccess = () => res(r.result);
       r.onerror = () => res(null);
+      // Anderer Tab hält eine ältere Version offen: nicht ewig warten (Prüfbericht Nr. 13). Ohne Speicher weiter; nächster Zugriff versucht es neu.
+      r.onblocked = () => { dbP = null; res(null); };
     } catch (e) { res(null); }
   });
   return dbP;

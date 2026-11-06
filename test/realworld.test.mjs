@@ -392,3 +392,44 @@ test('Kamera nie unter der gezeichneten Fläche (Fehlerbericht Nutzer): rwSurfac
   rw.on = false;
   R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
 });
+
+test('Prüfbericht Nr. 12: Kollisionsraster nur mit belegten Zellen; Kachel 4 km entfernt kostet nicht mehr als eine nahe', async () => {
+  const R = await import('../src/realworld.js');
+  const farq = inflateSync(readFileSync(file('realworld/monschau.far')));
+  R.rwApply({ meta: JSON.parse(JSON.stringify(meta)), q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees'), farq: new Uint16Array(farq.buffer, farq.byteOffset, farq.byteLength/2) });
+  rw.on = true;
+  const M = rw.main, mk = (i, j) => { const t = Float32Array.from(M.tris); for (let k = 0; k < t.length; k += 3) { t[k] += i*1000; t[k + 2] += j*1000; }
+    return { i, j, dx: i*1000, dz: j*1000, tris: t, trees: [] }; };
+  const cellsFor = set => { rw.tiles = new Map(set.map(([i, j]) => [i + ',' + j, mk(i, j)])); R.rwRebuild(); return rw.grid.cells.size; };
+  const one = cellsFor([[2, 0]]), far = cellsFor([[4, 4]]);   // 2 km statt 1 km: sonst teilen sich Startgebiet und Kachel Randzellen
+  assert.equal(far, one, 'gleich viele Zellen, egal wie weit die Kachel liegt');
+  assert.ok(R.rwNear(4000 + 7, 4000 - 7, 3).tris.length === R.rwNear(7, -7, 3).tris.length, 'Kachel 4 km weg: gleiche Gebäude wie im Startgebiet');
+  rw.on = false;
+  R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
+});
+
+test('Prüfbericht Nr. 5: Abruf ohne Antwort endet nach der Zeitgrenze; Gebietswechsel bricht Nachladen ab', async () => {
+  const R = await import('../src/realworld.js'), old = globalThis.fetch;
+  // nie antwortender Dienst (hört nur auf den Abbruch)
+  const hang = async (u, o) => new Promise((_, rej) => o.signal.addEventListener('abort', () => { const e = new Error('abort'); e.name = 'AbortError'; rej(e); }));
+  try {
+    globalThis.fetch = hang;
+    await assert.rejects(R.rwNet(undefined, 50).get('https://x.test/a'), /x\.test antwortet nicht/);
+    const ac = new AbortController(), p = R.rwNet(ac.signal, 5000).get('https://x.test/a'); ac.abort();
+    await assert.rejects(p, /Abgebrochen/);
+    // Antwort beginnt, dann kommen keine Bytes mehr: ebenfalls Zeitgrenze
+    globalThis.fetch = async (u, o) => new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array([1, 2])); o.signal.addEventListener('abort', () => c.error(Object.assign(new Error('abort'), { name: 'AbortError' }))); } }));
+    await assert.rejects(R.rwNet(undefined, 50).get('https://x.test/b'), /antwortet nicht/);
+    // Nachladen hängt: Gebietswechsel bricht ab, keine Pause für die Kachel, Weg frei
+    const farq = inflateSync(readFileSync(file('realworld/monschau.far'))), main = { meta: JSON.parse(JSON.stringify(meta)), q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees'), farq: new Uint16Array(farq.buffer, farq.byteOffset, farq.byteLength/2) };
+    R.rwApply(main); rw.on = true;
+    globalThis.fetch = hang;
+    const step = R.rwStreamStep(260, 0, { get: async () => null, put: async () => true, land: async () => null });
+    await new Promise(r => setTimeout(r, 20));
+    assert.ok(rw.tileBusy, 'Kachel lädt');
+    R.rwApply(main);
+    assert.equal(await step, false);
+    assert.ok(!rw.tileBusy && rw.tileFail.size === 0 && !rw.tileErr, 'abgebrochen, ohne Fehler und ohne Pause');
+  } finally { globalThis.fetch = old; rw.on = false; }
+  R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
+});

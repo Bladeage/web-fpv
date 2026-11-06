@@ -244,6 +244,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Ursache (gesichert im Code): Nachladen beim Fliegen braucht die Umgebung (`rwStreamStep` prüft `rw.far`). Orte, die vor L5a (Version 1.116) gespeichert wurden, haben keine Umgebung. Ebenso Orte, bei denen die Umgebung beim Laden nicht erreichbar war. Diese Orte luden nie nach.
 - Jetzt: Fehlt einem gespeicherten Ort die Umgebung, holt das Programm sie beim Öffnen nach (etwa 1 MB) und speichert sie dazu. Ohne Netz öffnet der Ort wie bisher; das Menü zeigt dann „Ohne Umgebung, kein Nachladen (offline?)“. Test ohne Netz und mit Testdaten.
 
+## Nachladen stabil (06.11.2026, Prompt 124, Prüfbericht Etappe 1)
+
+- Kollisionsraster: nur belegte Zellen (vorher ein volles Feld bis zur weitesten Kachel). Messung in Node, Monschau als Kachel 4 km entfernt: 23 ms und 16 MB statt 265 ms und 164 MB bei jeder neuen Kachel. Doppelte Dreiecke erkennt ein Feld fester Größe statt einer wachsenden Map.
+- Abrufe: Abbruch nach 30 s ohne Daten (Stillstand, nicht Gesamtdauer; große Gebäudekacheln dürfen lange laden). Ein Gebietswechsel bricht laufendes Nachladen ab. Fehler beim Nachladen erscheinen einmal im Bild („Nachladen gestört: …“), neuer Versuch nach 60 s.
+- Speicher: Hält ein anderer Tab eine ältere Version offen, wartet das Programm nicht mehr ewig.
+- Kartenrand (gesichert im Code): Umgebung 10 x 10 km um den Start, Nachladen bis 4,5 km. Ab 300 m vor dem Rand der Umgebung (5 km) geht das Luftbild in gerechnete Felder über. Mitwandern der Umgebung ist offen (Prüfbericht Nr. 16).
+- Geprüft: Tests ohne Netz (Zeitgrenze, Abbruch, gleiche Zellenzahl nah und fern); im Browser Monschau mit nachgeladener Kachel über die echten Dienste.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

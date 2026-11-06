@@ -22,6 +22,7 @@ import { mapPagePos } from './mapui.js';
 import { rw, rwLoadEmbedded, rwStreamStep } from './realworld.js';
 import { RW_STORE } from './rwstore.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
+let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
 fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
 gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
@@ -49,7 +50,12 @@ function frame(now) {
     if (rw.on && (streamT -= dt) <= 0) {
       streamT = 1; rw.stream = cfg.rwStream !== false;
       const n0 = rw.tiles.size;
-      rwStreamStep(game.sim.p[0], game.sim.p[2], RW_STORE).then(() => { if (rw.tiles.size > n0) say('Umgebung nachgeladen: ' + rw.tiles.size + (rw.tiles.size === 1 ? ' Kachel' : ' Kacheln'), 1.2); });
+      rwStreamStep(game.sim.p[0], game.sim.p[2], RW_STORE).then(() => {
+        if (rw.tiles.size > n0) say('Umgebung nachgeladen: ' + rw.tiles.size + (rw.tiles.size === 1 ? ' Kachel' : ' Kacheln'), 1.2);
+        // Fehler beim Nachladen einmal zeigen (gleicher Text nicht noch einmal; Prüfbericht Nr. 5)
+        if (rw.tileErr && rw.tileErr !== tileErrShown) say('Nachladen gestört: ' + rw.tileErr + '. Neuer Versuch in 60 s.', 3);
+        tileErrShown = rw.tileErr;
+      });
     }
     stepPilot(dt, game.sim.p);
     if (game.state === 'fly') {

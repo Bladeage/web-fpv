@@ -12,7 +12,7 @@ Legende: **G** = gesichert (im Code oder durch Lauf geprüft), **V** = vermutet.
 | 2 | `rwLoadTile` → `rwFetchArea` (TIFF, Bäume, Packen); `render.drawTerrain` | **G.** Ruckler beim Nachladen. Nur LoD2 ist in Häppchen geteilt. | hoch | hoch | L | Später Web Worker (machbar im Einzeldatei-Paket). Vorher billig: `rwMesh` liest Höhen direkt aus dem Raster (V: 3 bis 5 mal schneller). |
 | 3 | `render.loadPhoto`; kein Handler für Grafik-Kontextverlust | **G.** Grafikspeicher grob 280 MB (Schätzung). Verlust des Kontexts gibt ein schwarzes Bild ohne Hinweis. Bilder werden nicht freigegeben. | mittel | mittel (Handy, alte Grafik) | S bis M | Handler mit Hinweis und Neuaufbau; Kacheltextur auf dem Handy 1024²; Bild nach dem Hochladen freigeben. |
 | 4 | `rwstore.storeArea`, `tx` | **G.** Speicher wächst ohne Grenze, nichts wird verdrängt, Fehlschlag fast unsichtbar. | mittel | mittel (nach 10 bis 20 Orten) | M | Platz vor dem Speichern prüfen; alte Kacheln löschen; klare Meldung. |
-| 5 | `rwLoadTile` (`rwNet()` ohne Abbruch), `rwStreamStep` | **G.** Ein hängender Abruf stoppt das Nachladen still. Fehler der Kacheln werden nie gezeigt. | mittel | mittel (Firmennetz, Handy) | S | Zeitgrenze 60 s, Abbruch bei Gebietswechsel, Fehler einmal anzeigen. |
+| 5 | `rwLoadTile` (`rwNet()` ohne Abbruch), `rwStreamStep` | **G.** Ein hängender Abruf stoppt das Nachladen still. Fehler der Kacheln werden nie gezeigt. | mittel | mittel (Firmennetz, Handy) | S | **Erledigt** (1.120): Abbruch nach 30 s ohne Daten, Abbruch bei Gebietswechsel, Fehler einmal im Flug angezeigt. |
 | 6 | `rwLoadTile`, `rwModels` | **G.** Bäume am Kachelrand schweben oder sinken leicht. | niedrig | hoch, kaum sichtbar | S | Baumfuß beim Neuaufbau neu setzen. Folgt aus Nr. 1. |
 | 7 | `render.js` 1065 Zeilen, `render()` 287, `physics.step` 230, `realworld.js` 660 | **G.** Lesbar, aber jede Änderung berührt viel. Kein Fehler. | niedrig | – | M | Nur aufteilen, wenn ohnehin angefasst. |
 | 8 | CI nur mit Node-Tests | **G.** Grafikfehler fallen erst beim Nutzer auf. | mittel | – | M | Browser-Test in CI (Playwright nur als Prüfwerkzeug, nicht im Produkt). Entscheidung des Nutzers. |
@@ -24,14 +24,15 @@ Legende: **G** = gesichert (im Code oder durch Lauf geprüft), **V** = vermutet.
 
 | Nr | Stelle | Problem | Schwere | Wahrsch. | Aufwand | Empfehlung |
 |---|---|---|---|---|---|---|
-| 12 | `realworld.rwSetTris` (ein 8-m-Raster über alle Kacheln) | **G, gemessen:** Kachel 1 km weg: 43 ms, 24 MB. Kachel 4 km weg: 250 ms und 165 MB, bei jeder neuen Kachel. | hoch | hoch (Flug über 2 bis 4 km) | S | Raster je Kachel oder nur belegte Zellen. Ziel unter 20 ms. |
-| 13 | `rwstore.db` ohne `onblocked` | **G.** Zweiter Tab mit alter Speicher-Version: Laden hängt ohne Meldung. | niedrig | niedrig | S | Eine Zeile. |
+| 12 | `realworld.rwSetTris` (ein 8-m-Raster über alle Kacheln) | **G, gemessen:** Kachel 1 km weg: 43 ms, 24 MB. Kachel 4 km weg: 250 ms und 165 MB, bei jeder neuen Kachel. | hoch | hoch (Flug über 2 bis 4 km) | S | **Erledigt** (1.120): nur belegte Zellen. Gemessen: Kachel 4 km weg 23 ms und 16 MB statt 265 ms und 164 MB; Kosten hängen jetzt nur vom Inhalt ab, nicht von der Entfernung. |
+| 13 | `rwstore.db` ohne `onblocked` | **G.** Zweiter Tab mit alter Speicher-Version: Laden hängt ohne Meldung. | niedrig | niedrig | S | **Erledigt** (1.120). |
 | 14 | `rwload.rwFillGaps` | **V.** Umgebung halb außerhalb (Grenze, Küste): bis etwa 1 s blockiert. | niedrig | mittel (Grenzorte) | S | Lücken in einem Durchlauf füllen. |
+| 16 | Umgebung (`RW_FAR`, `RW_STREAM.reach`) | **G.** Fester Kartenrand: Umgebung 10 x 10 km um den Start (±5 km), Nachladen bis 4,5 km. Dahinter gerechnete Felder (Nutzer hat ihn gefunden, Prompt 124). | mittel | mittel (lange Flüge) | M bis L | Umgebung mitwandern lassen: beim Annähern an den Rand neu um die Drohne laden. |
 | 15 | `rwLoadLive` (gespeicherter Ort) | **G.** Gespeicherte Orte ohne Umgebung luden nie nach (Prompt 123). | hoch | hoch | S | **Erledigt** (Version 1.119): Umgebung wird beim Öffnen nachgeholt. |
 
 ## Vorgeschlagene Reihenfolge
 
-1. **Nachladen stabil und flüssig** (Nr. 12, 5, 13). Kleine Eingriffe, großer Effekt. Prüfen: Messung in Node unter 20 ms bei Kachel 4 km; Test mit Abruf, der nie antwortet.
+1. **Nachladen stabil und flüssig** (Nr. 12, 5, 13). **Erledigt** in Version 1.120. Kleine Eingriffe, großer Effekt. Prüfen: Messung in Node unter 20 ms bei Kachel 4 km; Test mit Abruf, der nie antwortet.
 2. **Eine Bodenfläche** (Nr. 1, 6). Physik gleich Bild. Prüfen: Test „Drohne am Hang: Abstand zur gezeichneten Fläche unter 1 cm“.
 3. **Grafik und Speicher robust** (Nr. 3, 4). Prüfen: Kontextverlust im Browser auslösen; vollen Speicher simulieren.
 4. **Startgröße** (Nr. 9). Prüfen: Build-Test unter 5 MB.

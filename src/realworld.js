@@ -11,7 +11,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), stream: true };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -29,7 +29,8 @@ export function rwApply(p, x = {}) {
   rwInit(p.meta, p.q);
   // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far
   const F = p.far || (p.farq && p.meta.far ? { meta: p.meta.far, q: p.farq, dop: p.fardop } : null);
-  rw.far = null; rw.farDop = null; rw.tiles = new Map(); rw.tileFail = new Map(); rw.tileBusy = null; tileByCode = new Map();
+  if (rw.tileBusy) rw.tileBusy.ac.abort();   // laufendes Nachladen gehört zum alten Gebiet
+  rw.far = null; rw.farDop = null; rw.tiles = new Map(); rw.tileFail = new Map(); rw.tileBusy = null; rw.tileErr = ''; tileByCode = new Map();
   if (F) {
     const m = F.meta, h = new Float32Array(m.n*m.n);
     for (let i = 0; i < h.length; i++) h[i] = m.hMin + F.q[i]*m.hScale - p.meta.hHome;
@@ -72,21 +73,35 @@ async function readBody(r, prog) {
   const b = new Uint8Array(n); let o = 0; for (const x of parts) { b.set(x, o); o += x.length; }
   return b;
 }
-export function rwNet(signal) {
+// Zeitgrenze (Prüfbericht Nr. 5): Kommt so lange gar nichts (keine Antwort, keine neuen Bytes), wird der Abruf abgebrochen.
+// Gemessen wird Stillstand, nicht die Gesamtdauer: Große Gebäudekacheln (bis 70 MB) dürfen bei langsamem Netz lange laden.
+export const RW_STALL = 30000;
+export function rwNet(signal, stall = RW_STALL) {
   const host = u => u.split('/')[2];
-  const go = async u => {
-    try { return await fetch(u, { signal }); }
-    catch (e) { if (e.name === 'AbortError') throw new Error('Abgebrochen'); throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)'); }
+  // Je Abruf eigener Abbruch: durch den Aufrufer (signal) oder durch Stillstand. kick() setzt die Uhr zurück.
+  const go = async (u, fn) => {
+    const ac = new AbortController(), onAbort = () => ac.abort();
+    let late = false, timer = 0;
+    const kick = () => { clearTimeout(timer); timer = setTimeout(() => { late = true; ac.abort(); }, stall); };
+    if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener('abort', onAbort); }
+    kick();
+    try { const r = await fetch(u, { signal: ac.signal }); kick(); return await fn(r, n => kick()); }
+    catch (e) {
+      if (late) throw new Error(host(u) + ' antwortet nicht (' + stall/1000 + ' s ohne Daten)');
+      if (e.name === 'AbortError' || ac.signal.aborted) throw new Error('Abgebrochen');
+      if (e instanceof TypeError) throw new Error('Keine Verbindung zu ' + host(u) + ' (offline oder Zugriff gesperrt)');
+      throw e;
+    }
+    finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
   };
-  const body = readBody;
-  const get = async (u, prog) => {
-    const r = await go(u);
+  const both = (prog, kick) => n => { kick(); if (prog) prog(n); };
+  const get = (u, prog) => go(u, async (r, kick) => {
     if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
-    const b = await body(r, prog);
+    const b = await readBody(r, both(prog, kick));
     if (b[0] === 0x3c) throw new Error(host(u) + ' meldet: ' + new TextDecoder().decode(b.slice(0, 300)).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
     return b;
-  };
-  const text = async (u, prog) => { const r = await go(u); if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await body(r, prog)); };
+  });
+  const text = (u, prog) => go(u, async (r, kick) => { if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await readBody(r, both(prog, kick))); });
   return { get, text };
 }
 // Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (L1, mehrere Quellen L3).
@@ -289,31 +304,35 @@ export function rwFarMesh(edge = 15000) {
 // Kollision mit Gebäuden: Dreiecke in einem Raster von 8 m für die schnelle Suche
 export const RW_GRID = 8;
 // Kollisions-Dreiecke (je 9 Werte) und Hindernis-Quader (Bäume) setzen, Suchraster bauen
+// Nur belegte Zellen werden angelegt (Map statt vollem Feld): Vorher wuchs das Feld mit dem Quadrat der Entfernung der
+// weitesten Kachel (Kachel 4 km weg: 1,4 Mio. leere Zellen, 265 ms und 164 MB bei jeder neuen Kachel; Prüfbericht Nr. 12).
+// Feste Lage des Rasters: 4096 Zellen je Achse um den Ursprung (±16 km, mehr als die Umgebung).
+const GRID_M = 4096;
 export function rwSetTris(tris, boxes = []) {
   rw.tris = tris;
-  // Raster über alle geladenen Kacheln (Startgebiet in der Mitte), quadratisch, mit 200 m Rand
-  let ext = rw.size/2;
-  for (const t of rw.tiles.values()) ext = Math.max(ext, Math.abs(t.dx) + rw.size/2, Math.abs(t.dz) + rw.size/2);
-  const G = RW_GRID, half = ext + 200, m = Math.ceil(2*half/G), cells = Array.from({ length: m*m }, () => ({ t: [], b: [] }));
-  const ci = x => clamp(Math.floor((x + half)/G), 0, m - 1), T = tris;
+  const G = RW_GRID, m = GRID_M, half = m*G/2, cells = new Map(), T = tris;
+  const ci = x => clamp(Math.floor((x + half)/G), 0, m - 1);
+  const cell = k => { let c = cells.get(k); if (!c) { c = { t: [], b: [] }; cells.set(k, c); } return c; };
   for (let t = 0; t < T.length/9; t++) {
     const o = t*9, x0 = Math.min(T[o], T[o + 3], T[o + 6]), x1 = Math.max(T[o], T[o + 3], T[o + 6]);
     const z0 = Math.min(T[o + 2], T[o + 5], T[o + 8]), z1 = Math.max(T[o + 2], T[o + 5], T[o + 8]);
-    for (let j = ci(z0); j <= ci(z1); j++) for (let i = ci(x0); i <= ci(x1); i++) cells[j*m + i].t.push(t);
+    for (let j = ci(z0); j <= ci(z1); j++) for (let i = ci(x0); i <= ci(x1); i++) cell(j*m + i).t.push(t);
   }
-  for (const b of boxes) for (let j = ci(b.c[2] - b.h[2]); j <= ci(b.c[2] + b.h[2]); j++) for (let i = ci(b.c[0] - b.h[0]); i <= ci(b.c[0] + b.h[0]); i++) cells[j*m + i].b.push(b);
-  rw.grid = { m, cells, ci };
+  for (const b of boxes) for (let j = ci(b.c[2] - b.h[2]); j <= ci(b.c[2] + b.h[2]); j++) for (let i = ci(b.c[0] - b.h[0]); i <= ci(b.c[0] + b.h[0]); i++) cell(j*m + i).b.push(b);
+  rw.grid = { m, cells, ci, seen: new Uint32Array(T.length/9) };
 }
 // Was liegt in der Nähe von (x, z) im Umkreis R? Dreiecks-Nummern und Hindernis-Quader (Bäume), ohne Doppelte.
+// Doppelte erkennt eine Marke je Dreieck (Feld fester Größe statt einer Map, die mit jedem Dreieck wuchs).
 let stamp = 0;
-const seenT = new Map();
 export function rwNear(x, z, R) {
   const g = rw.grid, tris = [], boxes = [];
   if (!g) return { tris, boxes };
-  stamp++;
+  if (++stamp > 0xfffffff0) { stamp = 1; g.seen.fill(0); }
+  const seen = g.seen;
   for (let j = g.ci(z - R); j <= g.ci(z + R); j++) for (let i = g.ci(x - R); i <= g.ci(x + R); i++) {
-    const c = g.cells[j*g.m + i];
-    for (const t of c.t) if (seenT.get(t) !== stamp) { seenT.set(t, stamp); tris.push(t); }
+    const c = g.cells.get(j*g.m + i);
+    if (!c) continue;
+    for (const t of c.t) if (seen[t] !== stamp) { seen[t] = stamp; tris.push(t); }
     for (const b of c.b) if (b.st !== stamp) { b.st = stamp; boxes.push(b); }
   }
   return { tris, boxes };
@@ -618,7 +637,7 @@ export function rwStreamPlan(x, z, now = Date.now()) {
   return { next: rw.tiles.size - drop.length < RW_STREAM.max ? next : null, drop };
 }
 // Eine Kachel laden (aus dem Speicher oder von den Diensten) und als Kachel-Objekt liefern (Weltkoordinaten des Startgebiets)
-export async function rwLoadTile(i, j, store, say = () => {}) {
+export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + i*S, nc = (m.bbox[1] + m.bbox[3])/2 - j*S;
   const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon);
   if (!plan) throw new Error('keine Quelle');
@@ -630,11 +649,12 @@ export async function rwLoadTile(i, j, store, say = () => {}) {
   let p = store ? (await store.get(key)) || (await store.get(rwAreaKey(lat, lon, srcs))) : null, x = {};
   if (p && p.meta) x = p.water || p.features ? { water: p.water, features: p.features } : await rwExtras(p, srcs[0], store);
   else {
-    const { get, text } = rwNet();
+    const { get, text } = rwNet(signal);
     const opt = { far: false, async: true };
     if (store && store.lod2) opt.lod2Cache = { get: store.lod2, put: store.lod2Put };
     if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
     p = await rwFetchArea(a, srcs, get, text, say, opt);
+    if (signal && signal.aborted) throw new Error('Abgebrochen');
     x = await rwExtras(p, srcs[0], store);
     if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });
   }
@@ -657,12 +677,15 @@ export async function rwStreamStep(x, z, store, say = () => {}) {
   if (changed) rwRebuild();
   if (!plan.next) return changed;
   const [i, j] = plan.next, k = i + ',' + j, ver = rw.ver;
-  rw.tileBusy = k;
+  // Laufender Auftrag mit eigenem Abbruch (Gebietswechsel bricht ab, siehe rwApply). Hängt ein Abruf, beendet ihn die Zeitgrenze
+  // von rwNet; danach ist der Weg für die nächste Kachel frei (Prüfbericht Nr. 5).
+  const job = { k, ac: new AbortController() };
+  rw.tileBusy = job;
   try {
-    const T = await rwLoadTile(i, j, store, say);
+    const T = await rwLoadTile(i, j, store, say, job.ac.signal);
     if (rw.ver !== ver) return changed;
-    rw.tiles.set(k, T); rwRebuild();
+    rw.tiles.set(k, T); rwRebuild(); rw.tileErr = '';
     return true;
-  } catch (e) { rw.tileFail.set(k, Date.now()); rw.tileErr = String(e.message || e); return changed; }
-  finally { rw.tileBusy = null; }
+  } catch (e) { if (rw.ver === ver) { rw.tileFail.set(k, Date.now()); rw.tileErr = String(e.message || e); } return changed; }
+  finally { if (rw.tileBusy === job) rw.tileBusy = null; }
 }
