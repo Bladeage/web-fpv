@@ -36,17 +36,59 @@ export async function storeHas(store, key) { const k = await tx(store, 'readonly
 export async function storeAll(store) { return (await tx(store, 'readonly', s => s.getAll())) || []; }
 // Belegter und freier Platz (Schätzung des Browsers), in Bytes
 export async function storeUsage() { try { return await navigator.storage.estimate(); } catch (e) { return null; } }
-// Gebiet speichern (Daten und Kurzbeschreibung) und wieder löschen
+// Platz (Prüfbericht Nr. 4): Nachgeladene Kacheln sind ein Zwischenspeicher und dürfen höchstens RW_TILE_MB belegen
+// (Schätzung: 400 MB, etwa 100 bis 200 Kacheln je nach Gegend); darüber gehen die am längsten nicht genutzten.
+// Wird der Platz im Browser knapp (über 90 % der Grenze, die der Browser meldet) oder schlägt das Schreiben fehl, gehen
+// zuerst alte Kacheln, dann zerlegte Gebäudekacheln (lod2). Selbst gespeicherte Orte und Landesdaten löscht nur der Nutzer.
+export const RW_TILE_MB = 400;
+const recSize = rec => ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].reduce((t, k) => t + (rec[k] ? rec[k].byteLength : 0), 0);
+// Alte Kacheln löschen, bis need Bytes frei sind (oder keine mehr da); keep wird nie gelöscht. Liefert die freigegebenen Bytes.
+export async function storeEvictTiles(need, keep = null) {
+  const tiles = (await storeAll('info')).filter(x => x.tile && x.key !== keep).sort((a, b) => (a.date || 0) - (b.date || 0));
+  let freed = 0;
+  for (const x of tiles) { if (freed >= need) break; await storeAreaDel(x.key); freed += x.size || 0; }
+  return freed;
+}
+async function storeEvictLod2(need) {
+  const d = await db();
+  if (!d) return 0;
+  const keys = (await tx('lod2', 'readonly', s => s.getAllKeys())) || [];
+  let freed = 0;
+  for (const k of keys) { if (freed >= need) break; const v = await storeGet('lod2', k); freed += v && v.pts ? v.pts.byteLength + v.ids.byteLength : 0; await storeDel('lod2', k); }
+  return freed;
+}
+// Vor dem Schreiben von size Bytes: Kachel-Grenze einhalten und Platz im Browser schaffen
+async function storeRoom(size, rec, key) {
+  if (rec.tile) {
+    const used = (await storeAll('info')).filter(x => x.tile && x.key !== key).reduce((t, x) => t + (x.size || 0), 0);
+    if (used + size > RW_TILE_MB*1e6) await storeEvictTiles(used + size - RW_TILE_MB*1e6, key);
+  }
+  const u = await storeUsage();
+  if (u && u.quota && u.usage + size > u.quota*0.9) {
+    const need = u.usage + size - u.quota*0.9;
+    const got = await storeEvictTiles(need, key);
+    if (got < need) await storeEvictLod2(need - got);
+  }
+}
+// Gebiet speichern (Daten und Kurzbeschreibung) und wieder löschen. Klappt es nicht (Speicher voll), einmal Platz schaffen
+// und erneut versuchen; danach false (Meldung im Menü, siehe menu.js).
 export async function storeArea(key, rec) {
-  const size = ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].reduce((t, k) => t + (rec[k] ? rec[k].byteLength : 0), 0);
-  if (!await storePut('areas', key, rec)) return false;
+  const size = recSize(rec);
+  await storeRoom(size, rec, key);
+  if (!await storePut('areas', key, rec)) {
+    const got = await storeEvictTiles(size*2, key);
+    if (got < size*2) await storeEvictLod2(size*2 - got);
+    if (!await storePut('areas', key, rec)) return false;
+  }
   await storePut('info', key, { key, lat: rec.lat, lon: rec.lon, place: rec.meta.place, srcs: rec.srcs, size, date: rec.date || Date.now(), water: !!rec.water, buildings: rec.meta.buildings, trees: rec.meta.trees, tile: !!rec.tile,
     parts: Object.fromEntries(['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].map(k => [k, rec[k] ? rec[k].byteLength : 0])) });
   return true;
 }
 export async function storeAreaDel(key) { await storeDel('areas', key); await storeDel('info', key); }
 // Anbindung für das Laden (realworld.rwLoadLive, rwLandData): Gebiete und Landesdaten
-export const RW_STORE = { get: k => storeGet('areas', k), put: (k, r) => storeArea(k, r), land: k => storeGet('land', k), landPut: (k, b) => storePut('land', k, b), landHas: k => storeHas('land', k),
+// Kachel wieder genutzt: Datum auffrischen (die am längsten nicht genutzten gehen zuerst)
+export async function storeTouch(key) { const x = await storeGet('info', key); if (x) { x.date = Date.now(); await storePut('info', key, x); } }
+export const RW_STORE = { get: k => storeGet('areas', k), put: (k, r) => storeArea(k, r), touch: k => storeTouch(k), land: k => storeGet('land', k), landPut: (k, b) => storePut('land', k, b), landHas: k => storeHas('land', k),
   lod2: k => storeGet('lod2', k), lod2Put: (k, t) => storePut('lod2', k, t) };
 
 // ---- Austausch-Datei (L4b): alle gespeicherten Orte und Landesdaten in einer Datei, für einen anderen Rechner ----

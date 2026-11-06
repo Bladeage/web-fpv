@@ -484,4 +484,4 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - L5a erledigt (06.11.2026, Prompt 118): Umgebung 10 x 10 km (grobes Gelände und Luftbild bis zum Horizont). Nächste Etappe L5b: Nachladen von Gebäuden und Bäumen.
 - L5b erledigt (06.11.2026, Prompt 118): Gebäude, Bäume und feines Gelände in 1-km-Kacheln beim Fliegen nachladen; Kamera nie unter der gezeichneten Fläche; Bäume über Wasser verworfen (Prompt 119/120).
 - Landesdaten automatisch, Gebäudekacheln wiederverwenden (06.11.2026, Prompt 121). Siehe `docs/echte-welt.md`.
-- Prüfbericht Schwachstellen (Prompt 122, `docs/schwachstellen-2026-11-06.md`): Etappe 1 Nachladen stabil (Prompt 124), Etappe 2 eine Bodenfläche (Prompt 125) erledigt. Taste F Einfrieren (Prompt 126). Nächste: Etappe 3 Grafik und Speicher robust.
+- Prüfbericht Schwachstellen (Prompt 122, `docs/schwachstellen-2026-11-06.md`): Etappe 1 Nachladen stabil (Prompt 124), Etappe 2 eine Bodenfläche (Prompt 125) erledigt. Taste F Einfrieren (Prompt 126). Etappe 3 Grafik und Speicher robust (Prompt 127) erledigt. Nächste: Etappe 4 Startgröße.

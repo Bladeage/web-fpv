@@ -5,7 +5,7 @@ import { bf } from './bf.js';
 import { rw, groundH, rwLatLon, rwPlace } from './realworld.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
-import { glc, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
+import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
 import { scenLabel, scenTarget, scen, diff } from './scenario.js';
@@ -303,6 +303,11 @@ export function drawHud() {
   else if (game.state === 'fly' && s.t < 6 && s.grounded && game.throttle < 0.2) {
     const hint = gp.connected ? 'Gasknüppel hoch' : touchUI ? 'Linken Daumen nach oben schieben für Gas' : 'W drücken für Gas, S für weniger';
     txt(hint, W/2, H*0.62, 'center', '#ffffff');
+  }
+  if (glLost.on) {   // Grafik verloren: Bild bleibt stehen, Flug ruht; meist kommt sie nach Sekunden zurück
+    c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, H);
+    txt('GRAFIK UNTERBROCHEN, WIRD NEU GESTARTET', W/2, H/2, 'center', '#ffd27a');
+    if (performance.now() - glLost.since > 8000) txt('Kommt sie nicht zurück: Seite neu laden', W/2, H/2 + fs*1.6, 'center', '#ffffff');
   }
   if (game.frozen) txt('EINGEFROREN \u00b7 ' + keyName(keyOf('freeze')).toUpperCase() + ' ZUM WEITERFLIEGEN', W/2, H*0.62, 'center', '#9fd8ff');
   if (game.state === 'crashed') {

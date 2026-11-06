@@ -144,7 +144,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
       if (signal && signal.aborted) throw new Error('Abgebrochen');
       if (far) { saved.farq = far.q; saved.fardop = far.dop; saved.meta.far = far.meta; }
     }
-    rwApply(saved, { live: true, ...x });
+    rwApply(saved, { live: true, ...x }); rw.stored = null;
     if ((x.water && !saved.water) || moved || far) rw.stored = await store.put(key, { ...saved, ...x });   // Landesdaten oder Umgebung kamen später dazu oder Start neu
     rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = true; rw.liveDlm = !!srcs[0].dlm;
     return rw;
@@ -159,7 +159,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
     await rwLandData(srcs[0], store, (t, f) => say('Gewässer und Orte, einmalig: ' + t, 0.97), signal).catch(e => { if (signal && signal.aborted) throw e; rw.landErr = String(e.message || e); });
   const x = await rwExtras(p, srcs[0], store);
-  rwApply(p, { live: true, ...x });
+  rwApply(p, { live: true, ...x }); rw.stored = null;
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
   if (store) {
     say('speichern', 0.98);
@@ -663,7 +663,10 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const key = rwAreaKey(lat, lon, srcs) + '|kachel';
   // schon geladen? als Kachel oder als gespeicherter Ort an genau dieser Stelle (der hat sogar das schärfere Luftbild)
   let p = store ? (await store.get(key)) || (await store.get(rwAreaKey(lat, lon, srcs))) : null, x = {};
-  if (p && p.meta) x = p.water || p.features ? { water: p.water, features: p.features } : await rwExtras(p, srcs[0], store);
+  if (p && p.meta) {
+    x = p.water || p.features ? { water: p.water, features: p.features } : await rwExtras(p, srcs[0], store);
+    if (p.tile && store.touch) store.touch(key);   // wieder genutzt: bleibt länger im Zwischenspeicher
+  }
   else {
     const { get, text } = rwNet(signal);
     const opt = { far: false, async: true };

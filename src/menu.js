@@ -97,7 +97,7 @@ export function syncMenu() {
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
   if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
-      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
+      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
     : 'Breite, Länge oder Karte. 15 bis 200 MB, danach gespeichert.';
   press('#diffSeg button', b => b.dataset.id === cfg.diff);

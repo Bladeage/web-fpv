@@ -261,6 +261,13 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Bekannt: Am Rand Gebiet/Umgebung treffen sich verschieden dichte Netze, Stufe bis 0,12 m (Prüfbericht Nr. 17).
 - Geprüft: Test „Drohne am steilsten Unterschied von Netz und Messwerten liegt auf dem Netz“ (unabhängig aus dem Netz nachgerechnet), Wasser-Test gegen die gezeichnete Fläche, Browser mit Nachladen über die echten Dienste.
 
+## Grafik und Speicher robust (06.11.2026, Prompt 127, Prüfbericht Etappe 3)
+
+- Grafikverlust (Treiber, voller Grafikspeicher, Handy im Hintergrund): Hinweis „Grafik unterbrochen, wird neu gestartet“, der Flug ruht, bei Rückkehr wird alles neu aufgebaut (Welt, echte Welt, Kacheln, Luftbilder). Nach 8 s zusätzlich „Seite neu laden“. Dabei behoben: Der Neuaufbau hätte die Tore doppelt angelegt.
+- Luftbilder im Grafikspeicher: Auf Handys und Geräten mit höchstens 4 GB Hauptspeicher (Angabe des Browsers) Startgebiet 2048², Umgebung und Kacheln 1024². Schätzung: etwa 70 statt 280 MB (RGBA mit Mipmaps). Die Bilder werden nach dem Hochladen freigegeben.
+- Speicher im Browser: Nachgeladene Kacheln höchstens 400 MB (Schätzung, etwa 100 bis 200 Kacheln); die am längsten nicht genutzten gehen zuerst, wieder genutzte Kacheln werden aufgefrischt. Meldet der Browser über 90 % belegt, gehen zuerst alte Kacheln, dann zerlegte Gebäudekacheln. Schlägt das Schreiben fehl: Platz schaffen und nochmals versuchen, sonst im Menü „nicht gespeichert: Speicher im Browser voll oder gesperrt“. Eigene Orte und Landesdaten löscht nur der Nutzer. Optionen → Daten zeigt den freien Platz.
+- Geprüft im Browser: Kontextverlust auslösen und zurückholen (Spielkarte und Monschau zeichnen wieder, Tore 8, Flugzeit ruht); Speicher mit knapp gemeldetem Platz (die zwei ältesten Kacheln gelöscht, die wieder genutzte bleibt); Monschau auf einem nachgebildeten Handy.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

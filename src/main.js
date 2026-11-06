@@ -9,7 +9,7 @@ import { gates } from './world.js';
 import { STEP, fx, respawn, step, rewind, freezeOk } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
-import { gl, initGL, render, resize, toggleCam, cycleVision } from './render.js';
+import { gl, glLost, initGL, render, resize, toggleCam, cycleVision } from './render.js';
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
@@ -59,7 +59,7 @@ function frame(now) {
     }
     stepPilot(dt, game.sim.p);
     if (game.frozen && (!freezeOk() || game.state !== 'fly')) game.frozen = false;   // Spielstil gewechselt: wieder frei
-    if (game.state === 'fly' && !game.frozen) {
+    if (game.state === 'fly' && !game.frozen && !glLost.on) {   // ohne Grafik nicht blind weiterfliegen
       acc += dt;
       while (acc >= STEP) {
         step(STEP); acc -= STEP;

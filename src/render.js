@@ -22,6 +22,16 @@ export const glc = document.getElementById('gl');
 export const hud = document.getElementById('hud');
 export const hctx = hud.getContext('2d');
 export const gl = glc.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' });
+// Grafik verloren (Treiber neu gestartet, Grafikspeicher voll, Handy lange im Hintergrund; Prüfbericht Nr. 3): Ohne
+// preventDefault bliebe das Bild für immer schwarz. So meldet der Browser die Rückkehr, und alles wird neu aufgebaut.
+// Solange ruht der Flug (main.js), das OSD zeigt einen Hinweis (hud.js).
+export const glLost = { on: false, since: 0 };
+glc.addEventListener('webglcontextlost', e => { e.preventDefault(); glLost.on = true; glLost.since = performance.now(); });
+glc.addEventListener('webglcontextrestored', () => {
+  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear();
+  terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null; rwGlVer = -1; tileGlVer = -1;
+  initGL(); resize(); glLost.on = false;
+});
 
 const VS = `#version 300 es
 layout(location=0) in vec3 aPos;
@@ -384,6 +394,7 @@ function upload(data) {
 // Danach liest der Boden pro Pixel nur noch einen Wert, statt Rauschen und Wege jedes Bild neu zu rechnen.
 const GROUND = { origin: [-170, -190], size: 400, res: 2048 };
 let groundTex = null;
+let worldData = null;
 // Konvexe Hülle von 2D-Punkten (Monotone-Chain), gegen den Uhrzeigersinn
 function hull(pts) {
   pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -462,7 +473,7 @@ export function initGL() {
   P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
-  const w = buildWorld();
+  const w = worldData || (worldData = buildWorld());   // buildWorld füllt Hindernisse und Tore und darf nur einmal laufen (Neuaufbau nach Grafikverlust)
   staticCount = w.staticCount; groundCount = w.groundCount;
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
@@ -553,6 +564,7 @@ export function cycleVision() {
 export function toggleCam() { cfg.cam = cfg.cam === 'fpv' ? 'chase' : 'fpv'; saveCfg(); say(cfg.cam === 'fpv' ? 'Drohnenkamera' : 'Verfolgerkamera', 1); }
 
 export function render(dt) {
+  if (glLost.on || gl.isContextLost()) return;
   const sim = game.sim;
   adaptRes();
   const W = glc.width, H = glc.height, asp = W/H;
@@ -841,14 +853,19 @@ export function render(dt) {
 }
 // Luftbild der echten Welt (DOP, 4096² für 1 km = 0,25 m je Pixel) als Textur mit Mipmaps; zu groß fürs Gerät: verkleinert.
 // Kommt als JPEG-Bytes (eingebettet oder live geladen); Entpacken läuft im Hintergrund, bis dahin der gerechnete Boden.
-function loadPhoto(bytes, ver, set = t => { photoTex = t; }) {
-  createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })).then(img => {
-    if (ver !== rwGlVer) return;   // inzwischen ein anderes Gebiet
-    const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-    let src = img;
-    if (img.width > max) { src = document.createElement('canvas'); src.width = src.height = max; src.getContext('2d').drawImage(img, 0, 0, max, max); }
+// Obergrenze der Luftbilder im Grafikspeicher (Prüfbericht Nr. 3). Ein Bild 4096² mit Mipmaps belegt 85 MB, 2048² 21 MB,
+// 1024² 5,6 MB. Auf Handys und Geräten mit wenig Speicher (Browser meldet höchstens 4 GB) Startgebiet 2048², Umgebung und
+// Kacheln 1024². Schätzung danach: etwa 70 statt 280 MB. Sonst wie geliefert (Startgebiet 4096², Kacheln 2048²).
+const LOW_MEM = COARSE || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4);
+export const RW_TEX = { main: LOW_MEM ? 2048 : 4096, other: LOW_MEM ? 1024 : 2048 };
+function loadPhoto(bytes, ver, set = t => { photoTex = t; }, cap = RW_TEX.other) {
+  createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })).then(async img => {
+    const max = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), cap);
+    if (img.width > max) { const big = img; img = await createImageBitmap(big, { resizeWidth: max, resizeHeight: max, resizeQuality: 'high' }); big.close(); }
+    if (ver !== rwGlVer || glLost.on) { img.close(); return; }   // inzwischen ein anderes Gebiet oder Grafik weg
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    img.close();   // Kopie liegt jetzt in der Grafik; das Bild im Hauptspeicher freigeben
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -866,7 +883,7 @@ function drawTerrain() {
     for (const t of [photoTex, farTex]) if (t) gl.deleteTexture(t);
     terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null;
     rwGlVer = rw.ver; tileGlVer = -1;
-    if (rw.dop) loadPhoto(rw.dop, rw.ver);
+    if (rw.dop) loadPhoto(rw.dop, rw.ver, undefined, RW_TEX.main);
     if (rw.farDop) loadPhoto(rw.farDop, rw.ver, t => { farTex = t; });
   }
   const indexed = ({ v, idx }) => { const m = upload(v), ib = gl.createBuffer();

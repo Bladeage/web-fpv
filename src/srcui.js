@@ -48,7 +48,7 @@ async function srcStats() {
   const box = srcEl('geoStats'); box.textContent = '';
   const add = (t, cls) => { const e = document.createElement('span'); e.textContent = t; if (cls) e.className = cls; box.append(e); };
   for (const r of rows) r.forEach((t, i) => add(t, i ? '' : ''));
-  if (u && u.usage) { add('Speicher im Browser gesamt', 'sum'); add('', 'sum'); add(MB(u.usage), 'sum'); }
+  if (u && u.usage) { add('Speicher im Browser gesamt', 'sum'); add(u.quota ? 'frei ' + MB(Math.max(0, u.quota - u.usage)) : '', 'sum'); add(MB(u.usage), 'sum'); }
   return st;
 }
 // Speicher (L4): Landesdaten je Quelle mit Basis-DLM (einmal laden oder löschen), gespeicherte Orte (löschen), belegter Platz
