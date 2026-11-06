@@ -9,7 +9,7 @@ import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
-import { rw, groundH, groundN } from './realworld.js';
+import { rw, groundH, groundN, rwNear } from './realworld.js';
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -342,6 +342,10 @@ export function step(h) {
     const kf = s.grounded ? Math.max(0, 1 - 40*h) : k; w[1] *= kf;
     if (s.grounded) { s.v[0] *= kf; s.v[2] *= kf; }
   }
+  // Drehrate begrenzen (Schätzung 80 rad/s, gut 4 500 °/s, mehr als jede echte Drohne): Nach sehr harten Stößen
+  // wird die Rechnung für die Kreiselkräfte sonst instabil und schaukelt sich auf (SimITL begrenzt ebenso).
+  const wl = vLen(w);
+  if (wl > 80) for (let i = 0; i < 3; i++) w[i] *= 80/wl;
   s.q = qNorm(qMul(s.q, qFromRotVec(vScale(w, h))));
   s.wq = w.slice();   // nur für Betaflight: Drehrate, mit der die Lage gedreht wurde (Kreisel), siehe bf.js
 
@@ -392,7 +396,8 @@ export function step(h) {
   // Umgedreht liegen geblieben: startet den Turtle-Modus (siehe oben), sonst Hinweis im OSD
   s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < 0.5 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;   // auf dem Kopf oder auf der Seite
   // 7. Hindernisse
-  if (!cfg.ghost && !rw.on) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest. Echte Welt: eigene Hindernisse (RW2)
+  if (!cfg.ghost && rw.on && rwCollide(prev, h)) return;   // echte Welt: Gebäude (Dreiecke) und Bäume
+  if (!cfg.ghost && !rw.on) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest
     for (const c of colliders) if (collide(c, h)) return;
     for (const c of town) if (collide(c, h)) return;   // kleine Stadt mit Testecken
     if (task.collide && task.collide(h)) return;
@@ -478,6 +483,8 @@ function resolve(hits, limit, why) {
     n = vAdd(n, k.n); r = vAdd(r, vScale(k.r, wk)); ws += wk;
     if (k.pen > pen) { pen = k.pen; rot = k.rot; }
   }
+  // Heben sich die Richtungen auf (zwei gegenüberliegende Wände, enge Gasse): Richtung der tiefsten Berührung
+  if (vLen(n) < 1e-6*hits.length) n = hits.reduce((x, k) => k.pen > x.pen ? k : x).n;
   return impact(vNorm(n), pen, vScale(r, 1/ws), rot, limit, why);
 }
 // Kugel (Mitte pc, Radius R) gegen gedrehten Quader c: Normale (vom Quader weg) und Eindringtiefe, oder null
@@ -517,6 +524,72 @@ export function collide(c, h) {
   return resolve(hits, PHYS.crashV*dmgMode().crashK, 'Hindernis getroffen');
 }
 
+// Nächster Punkt auf dem Dreieck a, b, c zum Punkt p (Ericson, Real-Time Collision Detection 5.1.5)
+function closestOnTri(p, a, b, c) {
+  const ab = vSub(b, a), ac = vSub(c, a), ap = vSub(p, a), d1 = vDot(ab, ap), d2 = vDot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return a;
+  const bp = vSub(p, b), d3 = vDot(ab, bp), d4 = vDot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return b;
+  const vc = d1*d4 - d3*d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return vAdd(a, vScale(ab, d1/(d1 - d3)));
+  const cp = vSub(p, c), d5 = vDot(ab, cp), d6 = vDot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return c;
+  const vb = d5*d2 - d1*d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return vAdd(a, vScale(ac, d2/(d2 - d6)));
+  const va = d3*d6 - d5*d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) return vAdd(b, vScale(vSub(c, b), (d4 - d3)/((d4 - d3) + (d5 - d6))));
+  const den = 1/(va + vb + vc);
+  return vAdd(a, vAdd(vScale(ab, vb*den), vScale(ac, vc*den)));
+}
+// Echte Welt: Hitbox gegen Gebäude-Dreiecke (genau an Wand und Dach) und Bäume (Quader für Stamm und Krone).
+// Schnelle Flüge: Schneidet der Weg des Schwerpunkts im letzten Schritt eine Fläche, zurück vor die Fläche (kein Durchtunneln).
+const triPt = (T, o) => [T[o], T[o + 1], T[o + 2]];
+function rwCollide(prev, h) {
+  const s = game.sim, T = rw.tris, near = rwNear(s.p[0], s.p[2], Math.max(PHYS.radius, PHYS.arm + PHYS.m.R) + vLen(vSub(s.p, prev)) + 0.3);
+  for (const b of near.boxes) if (collide(b, h)) return true;
+  if (!T || !near.tris.length) return false;
+  // Durchtunneln: Strecke prev -> s.p gegen jedes nahe Dreieck (Möller-Trumbore)
+  const dseg = vSub(s.p, prev), L = vLen(dseg);
+  if (L > 0.05) for (const t of near.tris) {
+    const a = triPt(T, t*9), b = triPt(T, t*9 + 3), c = triPt(T, t*9 + 6), e1 = vSub(b, a), e2 = vSub(c, a);
+    const pv = vCross(dseg, e2), det = vDot(e1, pv);
+    if (Math.abs(det) < 1e-12) continue;
+    const tv = vSub(prev, a), u = vDot(tv, pv)/det;
+    if (u < 0 || u > 1) continue;
+    const qv = vCross(tv, e1), v = vDot(dseg, qv)/det;
+    if (v < 0 || u + v > 1) continue;
+    const k = vDot(e2, qv)/det;
+    if (k < 0 || k > 1) continue;
+    let n = vNorm(vCross(e1, e2));
+    if (vDot(n, dseg) > 0) n = vScale(n, -1);   // Normale zur Seite, von der die Drohne kam
+    s.p = vAdd(vAdd(prev, vScale(dseg, Math.max(0, k - 0.02))), vScale(n, 0.05));
+    if (impact(n, 0, vScale(n, -0.05), -1, PHYS.crashV*dmgMode().crashK, 'Gebäude getroffen')) return true;
+    break;
+  }
+  // Flächen sind dünn (ohne Dicke). Damit ein Teil, das schon hinter der Fläche steckt, nicht weiter hindurch
+  // geschoben wird, wirkt der Stoß immer zu der Seite, auf der der Schwerpunkt im letzten Schritt war.
+  const hits = [], parts = hitbox().map(([x, y, z, rad, rot, thick]) => { const r = qRot(s.q, [x, y, z]); return { pc: vAdd(s.p, r), R: rad + thick, rot }; });
+  for (const t of near.tris) {
+    const a = triPt(T, t*9), b = triPt(T, t*9 + 3), c = triPt(T, t*9 + 6);
+    let nf = vCross(vSub(b, a), vSub(c, a));
+    const nl = vLen(nf);
+    if (nl < 1e-9) continue;
+    nf = vScale(nf, 1/nl);
+    if (vDot(vSub(prev, a), nf) < 0) nf = vScale(nf, -1);   // zur Seite des Schwerpunkts
+    for (const { pc, R, rot } of parts) {
+      const q = closestOnTri(pc, a, b, c), d = vSub(pc, q), l = vLen(d), sd = vDot(vSub(pc, a), nf);
+      if (sd >= 0 && l >= R) continue;                            // davor und weit genug weg
+      if (sd < 0 && l > 1e-6 && Math.abs(sd) < l - 1e-6) continue;   // dahinter, aber neben der Fläche (an der Kante vorbei)
+      if (sd < -0.5) continue;                                    // weit dahinter: gehört zur anderen Seite eines Gebäudes
+      const n = sd >= 0 && l > 1e-9 && vDot(d, nf) > 0 ? vScale(d, 1/l) : nf;
+      hits.push({ n, pen: sd >= 0 ? R - l : R - sd, r: vSub(q, s.p), rot });
+    }
+  }
+  const crashed = resolve(hits, PHYS.crashV*dmgMode().crashK, 'Gebäude getroffen');
+  const wl = vLen(s.w);
+  if (wl > 80) for (let i = 0; i < 3; i++) s.w[i] *= 80/wl;   // auch nach dem Stoß begrenzen (siehe oben)
+  return crashed;
+}
 // Stoß am Kontaktpunkt (P2): Drohne als starrer Körper mit Masse und Trägheit. Rückprall und Reibung sind Schätzwerte.
 // n: Normale (vom Hindernis weg), pen: Eindringtiefe, r: Kontaktpunkt relativ zur Mitte (Welt), rotor: getroffener Rotor oder -1.
 export const RESTITUTION = 0.3, FRICTION = 0.5;

@@ -95,3 +95,50 @@ export function toUtm(lat, lon, zone = 32) {
   const Nn = k0*(M + N*Math.tan(phi)*(A*A/2 + (5 - T + 9*C + 4*C*C)*A**4/24 + (61 - 58*T + T*T + 600*C - 330*ep2)*A**6/720));
   return [E, Nn];
 }
+
+// Ebenes Vieleck (3D-Punkte) in Dreiecke zerlegen (Ohrenschneiden). Projektion auf die Ebene mit der größten Ausdehnung.
+// Rückgabe: Liste von Index-Tripeln. Funktioniert auch für nicht konvexe Grundrisse.
+export function triangulate(pts) {
+  let n = pts.length;
+  if (n > 3 && pts[0][0] === pts[n - 1][0] && pts[0][1] === pts[n - 1][1] && pts[0][2] === pts[n - 1][2]) n--;   // geschlossener Ring
+  if (n < 3) return [];
+  let nx = 0, ny = 0, nz = 0;   // Normale nach Newell
+  for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; nx += (a[1] - b[1])*(a[2] + b[2]); ny += (a[2] - b[2])*(a[0] + b[0]); nz += (a[0] - b[0])*(a[1] + b[1]); }
+  const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+  const [u, v, s] = az >= ax && az >= ay ? [0, 1, nz] : ax >= ay ? [1, 2, nx] : [2, 0, ny];
+  const P = pts.slice(0, n).map(p => [p[u], p[v]]), idx = [...Array(n).keys()], out = [];
+  const sign = s >= 0 ? 1 : -1, cross = (a, b, c) => ((b[0] - a[0])*(c[1] - a[1]) - (b[1] - a[1])*(c[0] - a[0]))*sign;
+  const inside = (p, a, b, c) => cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0;
+  let guard = 0;
+  while (idx.length > 3 && guard++ < 5000) {
+    let cut = false;
+    for (let i = 0; i < idx.length; i++) {
+      const i0 = idx[(i + idx.length - 1) % idx.length], i1 = idx[i], i2 = idx[(i + 1) % idx.length];
+      if (cross(P[i0], P[i1], P[i2]) <= 1e-9) continue;   // keine konvexe Ecke
+      if (idx.some(k => k !== i0 && k !== i1 && k !== i2 && inside(P[k], P[i0], P[i1], P[i2]))) continue;
+      out.push([i0, i1, i2]); idx.splice(i, 1); cut = true; break;
+    }
+    if (!cut) break;   // entartet: Rest als Fächer
+  }
+  for (let i = 1; i + 1 < idx.length; i++) out.push([idx[0], idx[i], idx[i + 1]]);
+  return out;
+}
+// CityGML (LoD2): Dach- und Wandflächen als Dreiecke. keep(x, y) wählt Flächen nach ihrer Mitte (UTM).
+// Rückgabe: { roof: [[x,y,z]...] in Dreiergruppen, wall: [...] } in UTM-Koordinaten und Höhe über NHN.
+export function readLod2(xml, keep = () => true) {
+  const out = { roof: [], wall: [] };
+  const re = /<bldg:(RoofSurface|WallSurface)\b[\s\S]*?<\/bldg:\1>/g;
+  for (let m; (m = re.exec(xml)); ) {
+    const list = m[1] === 'RoofSurface' ? out.roof : out.wall;
+    const ext = /<gml:exterior>[\s\S]*?<gml:posList[^>]*>([^<]*)<\/gml:posList>/g;
+    for (let e; (e = ext.exec(m[0])); ) {
+      const v = e[1].trim().split(/\s+/).map(Number), pts = [];
+      for (let i = 0; i + 2 < v.length; i += 3) pts.push([v[i], v[i + 1], v[i + 2]]);
+      if (pts.length < 3) continue;
+      const cx = pts.reduce((t, p) => t + p[0], 0)/pts.length, cy = pts.reduce((t, p) => t + p[1], 0)/pts.length;
+      if (!keep(cx, cy)) continue;
+      for (const [a, b, c] of triangulate(pts)) list.push(pts[a], pts[b], pts[c]);
+    }
+  }
+  return out;
+}

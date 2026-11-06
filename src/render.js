@@ -10,7 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, groundH, RW_DATA } from './realworld.js';
+import { rw, rwMesh, rwModelMesh, groundH, RW_DATA } from './realworld.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
@@ -128,6 +128,7 @@ void main(){
     float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
     c = groundProc(vW.xz, 0.0);
     if (e > -1.0) c = mix(c, texture(uGround, clamp(uv, 0.0, 1.0)).rgb, smoothstep(-1.0, 25.0, e));
+    if (vCol.a > 0.07) c = mix(c*0.75, vec3(0.20, 0.30, 0.15), 0.25);   // Baumkrone: dunkler, etwas grüner als das Winterbild
   }
   if (ground && uGfx < 0.5 && uPhoto < 0.5) {   // einfacher Boden: Schachbrett, Raster, leichte Wellen
     vec2 p = vW.xz;
@@ -248,7 +249,7 @@ void main(){
 
 let bladeMesh = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, photoTex = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, rwModelGl = null, photoTex = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -764,6 +765,9 @@ function drawTerrain() {
   gl.uniform1f(P.u.uPhoto, photoTex ? 1 : 0);
   gl.bindVertexArray(terrain.vao);
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
+  // Gebäude (LoD2) und Bäume, ein Netz; Dächer und Kronen mit Luftbildfarbe
+  if (!rwModelGl && rw.tris) rwModelGl = upload(rwModelMesh());
+  if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
 }
 // Lens-Flare: nur ab „Mittel“, im normalen Bild, wenn die Sonne im Bild steht und kein Hindernis davor ist.
 // Je näher die Sonne an der Bildmitte, desto stärker. Weiches Ein- und Ausblenden (0,15 s), damit es nicht flackert.

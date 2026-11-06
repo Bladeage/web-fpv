@@ -40,6 +40,16 @@ NRW als eingebettetes Beispiel (1 x 1 km). Weitere Bundesländer: Nutzer tragen 
 - Modus „Echte Welt“ im Menü (Freiflug), Start auf der Wiese über der Altstadt mit Blick zur Altstadt, Pilot auf dem Gelände.
 - Tests: `test/realworld.test.mjs` (TIFF-Probe aus NRW, UTM, Gelände, Start, Abheben, Hang mit und ohne Schaden).
 
+## Stand RW2 (erledigt 06.11.2026, Prompt 94)
+
+- Gebäude: LoD2-Kacheln (CityGML, 4 Kacheln, 31 MB) im Werkzeug gelesen (`readLod2`, Dach- und Wandflächen, Ohrenschneiden `triangulate`), 6 323 Dach- und 14 444 Wand-Dreiecke, 16 Bit in dm, gepackt 145 KB.
+- Bäume: Oberfläche (DOM, WCS `nw_dom`) minus Gelände; Spitze = höchster Punkt in 6 m Umkreis, mindestens 3 m, nicht auf Dächern (Dächer ins Raster gezeichnet). 3 033 Bäume (17 KB). Kronenradius 0,3 x Höhe (1,5 bis 5 m, Schätzung).
+- Kollision: Jedes Teil der Hitbox gegen die nahen Gebäude-Dreiecke (Raster 8 m), Stoß immer zur Seite, auf der der Schwerpunkt war (Flächen sind dünn). Zusätzlich Strecken-Test gegen Durchtunneln bei schnellem Flug. Bäume: Quader für Stamm und Krone über die vorhandene Kollision. Absturz nach Schadensstufe wie bei anderen Hindernissen.
+- Drehrate auf 80 rad/s begrenzt (Schätzung, nach sehr harten Stößen sonst instabil; SimITL begrenzt ebenso). Gemittelte Stoßrichtung null (enge Gasse): Richtung der tiefsten Berührung.
+- Darstellung: Dächer und Baumkronen nehmen die Farbe aus dem Luftbild (Kronen etwas dunkler und grüner), Wände hell. Kronen rund (sechs Seiten).
+- Tests: Wand langsam, Wand mit 40 m/s (kein Durchtunneln), Absturz mit Schaden, Landung auf dem Dach, Baumkrone, Rechenzeit (unter 60 ms je Sekunde Flug).
+- Korrigiert: Tests nutzten die Schadensstufe „hard“, die es nicht gibt (es gilt dann „mild“); jetzt „real“.
+
 ## Etappen
 
 - RW1: Werkzeug, eingebettetes NRW-Gelände mit Luftbild, Darstellung, Physik auf echtem Gelände, Modus „Echte Welt“ (Freiflug) im Menü, Quellenangabe.

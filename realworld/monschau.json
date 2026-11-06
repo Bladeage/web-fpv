@@ -18,5 +18,8 @@
  ],
  "hHome": 510.16,
  "startSpan": 0.33,
- "attribution": "Geobasis NRW, Datenlizenz Deutschland – Zero 2.0"
+ "attribution": "Geobasis NRW, Datenlizenz Deutschland – Zero 2.0",
+ "roofTris": 6323,
+ "wallTris": 14444,
+ "trees": 3033
 }
