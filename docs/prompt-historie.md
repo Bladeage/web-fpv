@@ -96,3 +96,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 88 | 05.11.2026 | Antwort: Pilot bleibt ohne Kollision. | Keine Änderung, im Plan vermerkt |
 | 89 | 06.11.2026 | Frage: HLA/DIS-Verbindung, reale Karten, VBS4-Anbindung möglich? Aufwand? Möglichkeiten der Umsetzung? | Einschätzung mit Wegen und Aufwand (Bericht), keine Code-Änderung |
 | 90 | 06.11.2026 | Wie könnte eine HLA/DIS-Verbindung mit VBS aussehen? FPV-Projekt klein lassen, separates Brückenprogramm ist okay, keine Lizenzen beziehen. | Entwurf: Brücke (Node, nur Bordmittel) mit DIS zu VBS4, im FPV nur ein kleines Verbindungsmodul; HLA ohne Lizenz nur über das Gateway des Übungsverbunds |
+| 91 | 06.11.2026 | Weiter planen für ein klares Bild: Welche Assets werden in der jeweils anderen Simulation dargestellt? | Planungsdokument `docs/dis-bruecke.md` mit Tabellen beider Richtungen und offenen Entscheidungen |
