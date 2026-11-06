@@ -105,6 +105,31 @@ test('L4: geladener Ort wird gespeichert und beim zweiten Mal ohne Netz geöffne
   } finally { globalThis.fetch = old; }
 });
 
+test('Prompt 123: gespeicherter Ort ohne Umgebung holt sie online nach (sonst kein Nachladen beim Fliegen)', async () => {
+  const store = mem(), old = globalThis.fetch, [lat, lon] = [50.5553, 6.2428], key = rwAreaKey(lat, lon, [RW_SOURCES[0]]);
+  const p = { meta: { name: 'live', place: 'Alt', crs: 'EPSG:25832', bbox: [304200, 5603500, 305200, 5604500], n: 2, hMin: 500, hMax: 500, hScale: 0.1, home: [0, 0], hHome: 500, roofTris: 0, wallTris: 0, buildings: 0, trees: 0, attribution: 'Test' },
+    q: new Uint16Array(4), b16: new Int16Array(0), t16: new Int16Array(0), dop: null, water: new Uint8Array(1), features: { places: [] } };
+  await store.put(key, p);
+  // Umgebung 401² als TIFF ohne Kompression (Gleitkomma, überall 480 m)
+  const n = 401, tags = [[256, 4, n], [257, 4, n], [258, 3, 32], [259, 3, 1], [262, 3, 1], [273, 4, 0], [277, 3, 1], [278, 4, n], [279, 4, n*n*4], [339, 3, 3]];
+  const dataOff = 8 + 2 + tags.length*12 + 4, b = Buffer.alloc(dataOff + n*n*4);
+  b.write('II', 0); b.writeUInt16LE(42, 2); b.writeUInt32LE(8, 4); b.writeUInt16LE(tags.length, 8);
+  tags.forEach(([t, ty, v], k) => { const o = 10 + k*12; b.writeUInt16LE(t, o); b.writeUInt16LE(ty, o + 2); b.writeUInt32LE(1, o + 4); if (t === 273) b.writeUInt32LE(dataOff, o + 8); else if (ty === 3) b.writeUInt16LE(v, o + 8); else b.writeUInt32LE(v, o + 8); });
+  for (let k = 0; k < n*n; k++) b.writeFloatLE(480, dataOff + k*4);
+  try {
+    globalThis.fetch = async () => { throw new TypeError('offline'); };
+    await rwLoadLive(lat, lon, () => {}, undefined, null, store);
+    assert.ok(rw.fromStore && !rw.far && !store.a.get(key).farq, 'ohne Netz: Ort öffnet, Umgebung fehlt weiter');
+    globalThis.fetch = async u => String(u).includes('wcs') ? new Response(new Uint8Array(b)) : new Response(new Uint8Array([0xff, 0xd8]));
+    await rwLoadLive(lat, lon, () => {}, undefined, null, store);
+    assert.ok(rw.fromStore && rw.far && rw.far.n === n, 'mit Netz: Umgebung da, Nachladen möglich');
+    assert.equal(store.a.get(key).farq.length, n*n, 'Umgebung gespeichert');
+    globalThis.fetch = async () => { throw new TypeError('offline'); };
+    await rwLoadLive(lat, lon, () => {}, undefined, null, store);
+    assert.ok(rw.far, 'danach auch ohne Netz mit Umgebung');
+  } finally { globalThis.fetch = old; }
+});
+
 test('L4 Housekeeping: Ort mit Landesdaten (nur Ortsnamen): Straßenname, Kartenlinien und nächster Ort laufen ohne Fehler', async () => {
   const { rwNearName, rwFeatureMesh, rwPlace } = await import('../src/realworld.js');
   const p = { meta: { name: 'live', place: 'x', crs: 'EPSG:25832', bbox: bb, n: 2, hMin: 0, hMax: 0, hScale: 0.1, home: [0, 0], hHome: 0, roofTris: 0, wallTris: 0, buildings: 0, trees: 0 },

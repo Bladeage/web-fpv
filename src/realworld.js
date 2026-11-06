@@ -4,7 +4,7 @@
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
-import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwCellSources, rwFixStart } from './rwload.js';
+import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart } from './rwload.js';
 import { deLandAt, deMap, deLandBox } from './demap.js';
 import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 
@@ -121,8 +121,16 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
     say('aus dem Speicher', 0.5);
     const moved = rwFixStart(saved);   // gespeichert vor dem Fix „Start nicht im Gebäude“
     const x = saved.water || saved.features ? { water: saved.water, features: saved.features } : await rwExtras(saved, srcs[0], store);
+    // Ohne Umgebung (gespeichert vor L5a oder damals nicht erreichbar) gibt es kein Nachladen beim Fliegen (rwStreamStep braucht rw.far):
+    // Umgebung jetzt nachholen, wenn das Netz da ist; ohne Netz öffnet der Ort wie bisher (Nutzer, Prompt 123)
+    let far = null;
+    if (!saved.farq && srcs[0].dgm) {
+      far = await rwFetchFar(plan.area, srcs[0], rwNet(signal).get, say).catch(() => null);
+      if (signal && signal.aborted) throw new Error('Abgebrochen');
+      if (far) { saved.farq = far.q; saved.fardop = far.dop; saved.meta.far = far.meta; }
+    }
     rwApply(saved, { live: true, ...x });
-    if ((x.water && !saved.water) || moved) await store.put(key, { ...saved, ...x });   // Landesdaten kamen später dazu oder Start neu
+    if ((x.water && !saved.water) || moved || far) rw.stored = await store.put(key, { ...saved, ...x });   // Landesdaten oder Umgebung kamen später dazu oder Start neu
     rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = true; rw.liveDlm = !!srcs[0].dlm;
     return rw;
   }

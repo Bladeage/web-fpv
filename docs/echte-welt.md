@@ -239,6 +239,11 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Nachladekachel: liegt an derselben Stelle schon ein gespeicherter Ort, wird er genommen.
 - Geprüft im Browser mit leerem Speicher: Ort 1 in Monschau 22 s mit Landesdaten (Wasser, 23 Orte, Name „Monschau · …“); Ort 2 600 m daneben 10 s, keine Gebäudekachel aus dem Netz; 4 Gebäudekacheln belegen 2 MB.
 
+## Gespeicherter Ort ohne Nachladen (06.11.2026, Prompt 123)
+
+- Ursache (gesichert im Code): Nachladen beim Fliegen braucht die Umgebung (`rwStreamStep` prüft `rw.far`). Orte, die vor L5a (Version 1.116) gespeichert wurden, haben keine Umgebung. Ebenso Orte, bei denen die Umgebung beim Laden nicht erreichbar war. Diese Orte luden nie nach.
+- Jetzt: Fehlt einem gespeicherten Ort die Umgebung, holt das Programm sie beim Öffnen nach (etwa 1 MB) und speichert sie dazu. Ohne Netz öffnet der Ort wie bisher; das Menü zeigt dann „Ohne Umgebung, kein Nachladen (offline?)“. Test ohne Netz und mit Testdaten.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
