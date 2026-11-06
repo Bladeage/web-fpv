@@ -83,7 +83,7 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Nutzer: schmale Gewässer, Straßenachsen, Wald, Brücken und Türme, vorerst nur darstellerisch, ohne Wirkung auf Funk oder Signal.
 - Werkzeug `tools/features.mjs` (Basis-DLM per Teilabruf): `gew01_l` 33 Bachstücke, `ver01_l` 92 Straßenstücke, `ver06_l` 21 Brücken und Wasserbauwerke, `veg02_f` 31 Waldränder (Laub-, Nadel-, Mischwald), `sie05_p` 1 Turm (Eselsturm). Mit Namen, 45 KB, eingebettet.
 - Darstellung: Bänder 0,5 m über dem Gelände (Bäche blau 2,5 m, Straßen gelb 1 m, Brücken orange 3 m, Waldränder grün 1,2 m), Säule 30 m über Türmen, im Bild Turmname mit Entfernung, in der Aufgabenzeile der Name der nächsten Straße oder des nächsten Gewässers (bis 30 m).
-- Schaltbar im OSD-Menü: „Kartenebenen (echte Welt)“, Vorgabe an.
+- Schaltbar im OSD-Menü: „Kartenlinien (echte Welt)“, seit Prompt 102 Vorgabe aus (Linien brechen die Immersion). Straßenname und Turmname hängen an „Nächster Ort“.
 - Bäche lösen keinen Absturz aus (nur Anzeige); nur die Gewässerflächen (Rur) setzen die Drohne außer Gefecht.
 
 ## Neue Gestaltung (erledigt 06.11.2026, Prompt 99)
@@ -102,6 +102,13 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Ort: Ortslagen aus dem Basis-DLM (`sie01_f`, AX_Ortslage mit Namen) im Umkreis von 8 km, 23 Orte, Umrisse auf 10 m vereinfacht (64 KB in `monschau.features.json`). Im Ort: „ORT MONSCHAU“. Außerhalb: Name, Abstand zum Ortsrand, Richtung, zum Beispiel „MONSCHAU 210M O“. Läuft offline.
 - Koordinaten: WGS84 in Grad mit 5 Stellen (etwa 1 m), zum Beispiel „50.55769N 6.24517E“. Umrechnung UTM → Breite/Länge in `src/geo.js` (`fromUtm`), im Test auf unter 1e-7 Grad genau gegen `toUtm`.
 - „E“ statt „O“ für Ost, weil O neben Ziffern wie eine Null aussieht.
+
+## Fehlerbild Altstadt (erledigt 06.11.2026, Prompt 102)
+
+- Ursache „fragmentierte Fehler“ (gesichert): Die Wasserfläche bestand aus langen Streifen je Rasterzeile; deren Ecken lagen auf Uferhöhe, dazwischen tauchte der Streifen unter das Gelände (15 % der Ecken mitten im Fluss). Dazu grobe Tiefe in der Ferne (nahe Bildebene 0,02 m).
+- Geprüft und unschuldig: Die Zerlegung der LoD2-Flächen (2 von 19.791 Flächen weichen ab, beide unter 10 m²).
+- Lösung: Wasser als Raster 2 m, Spiegel über Wasser auf dem Flussbett, am Ufer auf dem tiefsten Wert der Umgebung; das Gelände bildet das Ufer. Leicht nach vorn gezogen. Nahe Bildebene in der echten Welt 0,06 m.
+- Kartenlinien (bunte Bänder) standardmäßig aus.
 
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 

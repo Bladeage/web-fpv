@@ -97,7 +97,7 @@ export function rwNear(x, z, R) {
 }
 
 // Gewässer (Basis-DLM): Bitmaske meta.water.n x n (1 m), Zeile 0 = Norden. Die Wasseroberfläche liegt auf dem
-// Höhenmodell (dort ist es die Wasserlinie) plus WATER_UP, damit sie sicher über dem Gelände liegt.
+// Höhenmodell (dort ist es die Wasserlinie) plus WATER_UP; als flacher Spiegel, das Ufer bildet das Gelände.
 export const WATER_UP = 0.25;
 export function waterAt(x, z) {
   if (!rw.on || !rw.water) return false;
@@ -111,15 +111,32 @@ export function rwWaterMesh() {
   const out = [], w = rw.meta && rw.meta.water;
   if (!rw.water || !w) return new Float32Array(0);
   const on = rw.on; rw.on = true;
-  const col = [0.24, 0.38, 0.5], wet = (i, j) => { const b = j*w.n + i; return (rw.water[b >> 3] >> (b & 7) & 1) === 1; };
-  const P = (x, z) => [x, groundH(x, z) + WATER_UP, z], h = rw.size/2;
-  for (let j = 0; j < w.n; j++) for (let i = 0; i < w.n; i++) {
-    if (!wet(i, j)) continue;
-    let k = i; while (k + 1 < w.n && wet(k + 1, j)) k++;
-    const x0 = i*w.res - h, x1 = (k + 1)*w.res - h, z0 = j*w.res - h, z1 = (j + 1)*w.res - h;
-    const a = P(x0, z0), b = P(x1, z0), c = P(x1, z1), d = P(x0, z1);
+  // Raster 2 m über allen nassen Zellen, 3 m nach außen erweitert. Wasserspiegel je Ecke: über Wasser das Flussbett (Wasserlinie
+  // im Höhenmodell), am Ufer der tiefste Boden der nassen Zellen im Umkreis von 5 m; dazu WATER_UP. Das Ufer entsteht dort, wo
+  // das Gelände den Spiegel überragt: keine Treppen am Rand, kein Streifen, der unter das Gelände taucht.
+  const n = w.n, res = w.res, h = rw.size/2, G = 2, m = Math.round(n*res/G) + 1;
+  const wet = (i, j) => { if (i < 0 || j < 0 || i >= n || j >= n) return false; const b = j*n + i; return (rw.water[b >> 3] >> (b & 7) & 1) === 1; };
+  const near = new Uint8Array(m*m);   // Ecke liegt höchstens 3 m von nassen Zellen
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (wet(i, j)) {
+    const gi = Math.round((i + 0.5)*res/G), gj = Math.round((j + 0.5)*res/G);
+    for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) if (gi + x >= 0 && gj + y >= 0 && gi + x < m && gj + y < m) near[(gj + y)*m + gi + x] = 1;
+  }
+  const lvl = new Float32Array(m*m).fill(NaN);
+  for (let gj = 0; gj < m; gj++) for (let gi = 0; gi < m; gi++) {
+    if (!near[gj*m + gi]) continue;
+    const ci = Math.round(gi*G/res), cj = Math.round(gj*G/res);
+    let lo = Infinity;
+    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) lo = Math.min(lo, groundH((ci + x + 0.5)*res - h, (cj + y + 0.5)*res - h));
+    const x = gi*G - h, z = gj*G - h;   // über Wasser: dem Flussbett folgen (Wehre, Gefälle); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
+    if (lo < Infinity) lvl[gj*m + gi] = (wet(ci, cj) ? Math.max(lo, groundH(x, z)) : lo) + WATER_UP;
+  }
+  const col = [0.24, 0.38, 0.5];
+  for (let gj = 0; gj + 1 < m; gj++) for (let gi = 0; gi + 1 < m; gi++) {
+    const k = [gj*m + gi, gj*m + gi + 1, (gj + 1)*m + gi + 1, (gj + 1)*m + gi];
+    if (k.some(q => Number.isNaN(lvl[q]))) continue;
+    const P = q => [(q % m)*G - h, lvl[q], Math.floor(q/m)*G - h];
+    const [a, b, c, d] = k.map(P);
     for (const p of [a, d, c, a, c, b]) out.push(p[0], p[1], p[2], 0, 1, 0, col[0], col[1], col[2], 1);
-    i = k;
   }
   rw.on = on;
   return new Float32Array(out);

@@ -338,7 +338,7 @@ export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
   if (scen.id === 'free') return 'FREIFLUG';
-  if (scen.id === 'real') { const n = osdOn(cfg.osd, 'mapLayers') ? rwNearName(s.p[0], s.p[2]) : ''; return n ? 'ECHTE WELT · ' + n.toUpperCase() : 'ECHTE WELT'; }
+  if (scen.id === 'real') { const n = osdOn(cfg.osd, 'place') ? rwNearName(s.p[0], s.p[2]) : ''; return n ? 'ECHTE WELT · ' + n.toUpperCase() : 'ECHTE WELT'; }
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
   if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');

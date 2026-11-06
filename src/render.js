@@ -509,7 +509,7 @@ export function render(dt) {
   const W = glc.width, H = glc.height, asp = W/H;
   const hf = (cfg.fov || 110)*DEG;   // horizontales Blickfeld
   const vf = clamp(2*Math.atan(Math.tan(hf/2)/asp), 55*DEG, 120*DEG);
-  const proj = mPersp(vf, asp, cfg.cam === 'fpv' ? 0.02 : 0.05, 1500);   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an
+  const proj = mPersp(vf, asp, rw.on ? 0.06 : cfg.cam === 'fpv' ? 0.02 : 0.05, 1500);   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an. Echte Welt: 0,06 m, dreifach feinere Tiefe in der Ferne (Dächer, Wasser)
   let view, eye;
   if (cfg.cam === 'fpv') {
     let qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
@@ -804,7 +804,11 @@ function drawTerrain() {
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
   // Gewässer: schlichte Fläche über dem Flussbett (Basis-DLM)
   if (!waterGl && rw.water) waterGl = upload(rwWaterMesh());
-  if (waterGl && waterGl.count) { gl.bindVertexArray(waterGl.vao); gl.drawArrays(gl.TRIANGLES, 0, waterGl.count); }
+  if (waterGl && waterGl.count) {   // leicht nach vorn gezogen, damit der Spiegel in der Ferne nicht mit dem Flussbett flackert
+    gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
+    gl.bindVertexArray(waterGl.vao); gl.drawArrays(gl.TRIANGLES, 0, waterGl.count);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+  }
   // Gebäude und Bäume, ein Netz
   if (!rwModelGl && rw.tris) rwModelGl = upload(rwModelMesh());
   if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }

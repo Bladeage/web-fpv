@@ -375,9 +375,9 @@ function drawBig(c, x, y, fs, FONT, weight, txt, rows) {
   c.font = font;
 }
 
-// Echte Welt, Kartenebenen: Name und Entfernung über Türmen (z. B. Eselsturm), nur wenn im Bild
+// Echte Welt (mit „Nächster Ort“): Name und Entfernung über Türmen (z. B. Eselsturm), nur wenn im Bild
 function drawPoiLabels(c, W, H, fs) {
-  if (!lastVP || !rw.on || !rw.features || !osdOn(cfg.osd, 'mapLayers')) return;
+  if (!lastVP || !rw.on || !rw.features || !osdOn(cfg.osd, 'place')) return;
   for (const t of rw.features.towers || []) {
     const p = [t.x, groundH(t.x, t.z) + 31, t.z], cp = mApply(lastVP, p);
     if (cp[3] < 0.01) continue;

@@ -198,7 +198,13 @@ function dropAt(xz, h, dmg) {
 test('Echte Welt: Gewässer aus dem Basis-DLM, Netz zum Zeichnen', () => {
   assert.ok(meta.water && meta.water.area > 5000, 'Rur im Gebiet: ' + (meta.water && meta.water.area) + ' m²');
   const p = wetDry(); assert.ok(p, 'nasse und trockene Stelle gefunden');
-  assert.ok(rwWaterMesh().length > 1000);
+  const v = rwWaterMesh(); assert.ok(v.length > 1000);
+  // Flacher Spiegel: mitten im Fluss liegt er über dem Gelände (vorher tauchten lange Streifen stellenweise darunter)
+  rw.on = true;
+  const lv = new Map(); for (let i = 0; i < v.length; i += 10) lv.set(Math.round(v[i]) + ',' + Math.round(v[i + 2]), v[i + 1]);
+  let n = 0, under = 0;
+  for (const [k, y] of lv) { const [x, z] = k.split(',').map(Number); if (![-3, 0, 3].every(d => waterAt(x + d, z) && waterAt(x, z + d))) continue; n++; if (y < groundH(x, z) - 0.02) under++; }
+  assert.ok(n > 500 && under/n < 0.01, `Ecken mitten im Fluss ${n}, davon unter dem Gelände ${under}`);
   rw.on = false; assert.equal(waterAt(p.wet[0], p.wet[1]), false, 'normaler Modus: kein Wasser');
 });
 test('Echte Welt: Landung im Wasser setzt die Drohne außer Gefecht, auch ohne Schadensmodell', () => {
