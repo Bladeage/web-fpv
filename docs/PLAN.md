@@ -464,3 +464,6 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 ## Idee: Anbindung an Simulationsverbünde und reale Karten (Einschätzung 06.11.2026, Prompt 89, nicht begonnen)
 - Browser kann kein UDP (DIS) und keine RTI-Bibliothek (HLA). Nötig ist eine Brücke: entweder eigenes kleines Node-Programm (DIS über UDP <-> WebSocket) oder ein WebLVC-Server (JSON über WebSocket, Brücke zu DIS und HLA; z. B. MÄK, kostenpflichtig).
 - Vorschlag Reihenfolge: (1) DIS senden (eigene Drohne als Entity State PDU, Georeferenz Lat/Lon), (2) DIS empfangen (fremde Einheiten anzeigen), (3) VBS4 über DIS testen (Lizenz und Windows-Rechner beim Nutzer), (4) HLA über WebLVC oder DIS-HLA-Gateway, (5) reale Karte: erst flach aus OSM-Gebäuden und Landnutzung (Umwandlung vorab, eingebettet), danach Gelände mit Höhen (Physik braucht Bodenhöhe).
+
+## Modus „Echte Welt“ (Planung 06.11.2026, Prompt 92)
+- Plan und geprüfte Quellen: `docs/echte-welt.md`. Nächste Etappe RW1.
