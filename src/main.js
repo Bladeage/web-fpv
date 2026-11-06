@@ -19,7 +19,9 @@ import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
 import { stepPilot } from './pilot.js';
 import { mapPagePos } from './mapui.js';
-import { rw, rwLoadEmbedded } from './realworld.js';
+import { rw, rwLoadEmbedded, rwStreamStep } from './realworld.js';
+import { RW_STORE } from './rwstore.js';
+let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 
 fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
 gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
@@ -43,6 +45,12 @@ function frame(now) {
     updTouch();
     updSignal(dt);
     stepBirds(dt, game.sim.p);
+    // Echte Welt (L5b): etwa jede Sekunde prüfen, ob eine Kachel nachzuladen oder zu entladen ist
+    if (rw.on && (streamT -= dt) <= 0) {
+      streamT = 1; rw.stream = cfg.rwStream !== false;
+      const n0 = rw.tiles.size;
+      rwStreamStep(game.sim.p[0], game.sim.p[2], RW_STORE).then(() => { if (rw.tiles.size > n0) say('Umgebung nachgeladen: ' + rw.tiles.size + (rw.tiles.size === 1 ? ' Kachel' : ' Kacheln'), 1.2); });
+    }
     stepPilot(dt, game.sim.p);
     if (game.state === 'fly') {
       acc += dt;

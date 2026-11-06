@@ -10,7 +10,8 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, groundH, rwSurfaceH } from './realworld.js';
+const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
@@ -92,6 +93,7 @@ uniform vec2 uOrigin;
 uniform sampler2D uGround, uFar;
 uniform float uVision, uHeat, uPhoto, uFarOn, uFarSize;
 uniform vec2 uFarOrigin;
+uniform vec4 uEdgeOpen;   // echte Welt: Ränder der Kachel ohne Nachbarn (W, O, N, S), nur dort weich ins Umgebungsbild
 out vec4 o;
 ${NOISE}
 // Boden ohne Textur (Mittel überall, Schön außerhalb des vorberechneten Bereichs): Gras wie im Bodenmuster,
@@ -201,7 +203,8 @@ void main(){
   bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5;
   if (ground && uPhoto > 0.5) {   // echte Welt: Luftbild im Gebiet (25 m weicher Rand), außen das Luftbild der Umgebung (L5a), ganz außen gerechneter Boden
     vec2 uv = (vW.xz - uOrigin)/uSize;
-    float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
+    vec4 dd = mix(vec4(1e5), vec4(uv.x, 1.0 - uv.x, uv.y, 1.0 - uv.y)*uSize, uEdgeOpen);
+    float e = all(lessThanEqual(abs(uv - 0.5), vec2(0.5))) ? min(min(dd.x, dd.y), min(dd.z, dd.w)) : min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))*uSize;
     vec3 far = groundProc(vW.xz, 0.0);
     if (uFarOn > 0.5) {
       vec2 fv = (vW.xz - uFarOrigin)/uFarSize;
@@ -344,7 +347,7 @@ void main(){
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
@@ -456,7 +459,7 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = buildWorld();
@@ -567,7 +570,7 @@ export function render(dt) {
     // Mindestens 3,5 cm über dem Boden, sonst sieht man am Boden durch die Karte (Bildebene 2 cm vor dem Auge).
     const sz = PHYS.size;
     eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), 0.015*sz)));
-    eye[1] = Math.max(eye[1], groundH(eye[0], eye[2]) + 0.035);
+    eye[1] = Math.max(eye[1], Math.max(groundH(eye[0], eye[2]), rwSurfaceH(eye[0], eye[2])) + 0.035);   // auch über der gezeichneten Fläche (echte Welt)
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {
@@ -862,16 +865,38 @@ function drawTerrain() {
     [terrain, farGl, rwModelGl, waterGl, featGl].forEach(freeGl);
     for (const t of [photoTex, farTex]) if (t) gl.deleteTexture(t);
     terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null;
-    rwGlVer = rw.ver;
+    rwGlVer = rw.ver; tileGlVer = -1;
     if (rw.dop) loadPhoto(rw.dop, rw.ver);
     if (rw.farDop) loadPhoto(rw.farDop, rw.ver, t => { farTex = t; });
   }
   const indexed = ({ v, idx }) => { const m = upload(v), ib = gl.createBuffer();
     gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
     gl.bindVertexArray(null); return { vao: m.vao, buf: m.buf, ib, n: idx.length }; };
+  // Kacheln (L5b) geändert: Netz der Umgebung (Löcher) und des Startgebiets (Ränder) neu bauen, Kacheln ohne Bestand frei geben.
+  // Gegen Ruckler höchstens ein großer Aufbau je Bild (je 130 bis 260 ms gemessen): Kachel-Gelände, dann Gebäude, dann
+  // Umgebung, dann Startgebiet. Eine neue Kachel erscheint erst, wenn die Umgebung ihr Loch hat.
+  if (tileGlVer !== rw.tileVer) {
+    tileGlVer = rw.tileVer;
+    if (farGl) { farDirty = true; mainDirty = true; }
+    for (const [T, g] of tileGl) if (rw.tiles.get(T.i + ',' + T.j) !== T) { [g.terrain, g.model, g.water].forEach(freeGl); if (g.tex) gl.deleteTexture(g.tex); tileGl.delete(T); }
+  }
+  let budget = 1;
+  for (const T of rw.tiles.values()) {
+    const g = tileGl.get(T);
+    if (!budget) break;
+    if (!g) {
+      const n = { terrain: indexed(rwMesh(2, rw.size/2, T)), model: null, water: null, tex: null, born: ++tileGen };
+      tileGl.set(T, n); budget--;
+      if (T.dop) loadPhoto(T.dop, rw.ver, t => { if (tileGl.get(T) === n) n.tex = t; else gl.deleteTexture(t); });
+    } else if (!g.model) { g.model = upload(rwModelMesh(T)); g.water = T.water ? upload(rwWaterMesh(T)) : null; budget--; }
+  }
+  if (farDirty && budget && [...tileGl.values()].every(g => g.model)) { freeGl(farGl); farGl = indexed(rwFarMesh()); farGen = tileGen; farDirty = false; budget--; }
+  if (mainDirty && !farDirty && budget) { freeGl(terrain); terrain = null; mainDirty = false; }
+  const open = (I, J) => [[I - 1, J], [I + 1, J], [I, J - 1], [I, J + 1]].map(([a, b]) => (a === 0 && b === 0) || rw.tiles.has(a + ',' + b) ? 0 : 1);
   // Gebiet fein (mit Umgebung bis genau an den Rand, sonst mit Rand bis 1,5 km); Umgebung grob mit Loch für das Gebiet
   if (!terrain) terrain = indexed(rwMesh(2, rw.far ? rw.size/2 : 1500));
-  if (!farGl && rw.far) farGl = indexed(rwFarMesh());
+  gl.uniform4fv(P.u.uEdgeOpen, open(0, 0));
+  if (!farGl && rw.far) { farGl = indexed(rwFarMesh()); farGen = tileGen; farDirty = false; }
   gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
   gl.uniform1f(P.u.uPhoto, photoTex || farTex ? 1 : 0);
@@ -890,8 +915,19 @@ function drawTerrain() {
     gl.disable(gl.POLYGON_OFFSET_FILL);
   }
   // Gebäude und Bäume, ein Netz
-  if (!rwModelGl && rw.tris) rwModelGl = upload(rwModelMesh());
+  if (!rwModelGl && rw.main) rwModelGl = upload(rwModelMesh());
   if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
+  // Nachgeladene Kacheln: je Kachel Gelände, Wasser, Gebäude und Bäume mit eigenem Luftbild
+  for (const T of rw.tiles.values()) {
+    const g = tileGl.get(T);
+    if (!g || !g.model || g.born > farGen) continue;   // noch im Aufbau
+    gl.uniform2f(P.u.uOrigin, T.dx - rw.size/2, T.dz - rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(T.i, T.j));
+    gl.bindTexture(gl.TEXTURE_2D, g.tex || groundTex);
+    gl.bindVertexArray(g.terrain.vao); gl.drawElements(gl.TRIANGLES, g.terrain.n, gl.UNSIGNED_INT, 0);
+    if (g.water && g.water.count) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4); gl.bindVertexArray(g.water.vao); gl.drawArrays(gl.TRIANGLES, 0, g.water.count); gl.disable(gl.POLYGON_OFFSET_FILL); }
+    gl.bindVertexArray(g.model.vao); gl.drawArrays(gl.TRIANGLES, 0, g.model.count);
+  }
+  gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(0, 0)); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
   // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder, Säule über Türmen; leicht nach vorn gezogen
   if (rw.features && osdOn(cfg.osd, 'mapLayers')) {
     if (!featGl) featGl = upload(rwFeatureMesh());

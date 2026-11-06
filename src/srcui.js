@@ -67,7 +67,9 @@ async function srcStoreFill() {
     row('Gewässer und Ortsnamen ' + (s.land || s.name), has ? 'gespeichert (Basis-DLM)' : 'einmalig etwa ' + s.dlm.mb + ' MB, danach auch offline', has ? 'Löschen' : 'Laden',
       has ? async () => { for (const k of keys) await storeDel('land', k); srcStoreFill(); } : k => srcLand(s, k));
   }
-  for (const x of (await storeAll('info')).sort((a, b) => b.date - a.date))
+  const infos = await storeAll('info'), tiles = infos.filter(x => x.tile);
+  if (tiles.length) row('Nachgeladene Kacheln', tiles.length + ' · ' + (tiles.reduce((t, x) => t + x.size, 0)/1e6).toFixed(0) + ' MB (beim Fliegen gespeichert)', 'Löschen', async () => { for (const x of tiles) await storeAreaDel(x.key); srcStoreFill(); });
+  for (const x of infos.filter(x => !x.tile).sort((a, b) => b.date - a.date))
     row(x.place, (x.size/1e6).toFixed(0) + ' MB · ' + new Date(x.date).toLocaleDateString('de-DE') + (x.water ? ' · mit Gewässern' : ''), 'Löschen', async () => { await storeAreaDel(x.key); srcStoreFill(); });
   box.textContent = ''; box.append(...rows);
   await srcStats();
@@ -177,6 +179,8 @@ export function srcInit(show, fit, onData) {
   SRC.show = show; SRC.fit = fit || SRC.fit; SRC.onData = onData || SRC.onData; srcApply();
   document.querySelectorAll('#geoTabs button').forEach(b => b.addEventListener('click', () => srcTab(b.dataset.gtab)));
   srcEl('geoExp').addEventListener('click', geoExport);
+  srcEl('geoStream').checked = cfg.rwStream !== false;
+  srcEl('geoStream').addEventListener('change', e => { cfg.rwStream = e.target.checked; saveCfg(); });
   srcEl('geoImp').addEventListener('click', () => srcEl('geoFile').click());
   srcEl('geoFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) geoImport(f); e.target.value = ''; });
   srcEl('srcNew').addEventListener('click', () => srcForm(-1));

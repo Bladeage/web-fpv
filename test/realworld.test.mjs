@@ -328,3 +328,67 @@ test('L5a: Umgebung 10 km: Bodenhöhe ohne Sprung am Rand, außen echtes Geländ
   // wieder ohne Umgebung wie die übrigen Tests
   rwApply({ meta: { ...meta, far: undefined }, q: p.q, b16: p.b16, t16: p.t16 });
 });
+
+test('L5b: Kacheln nachladen: Planung, Laden aus dem Speicher, stetiger Rand, Kollision, Entladen', async () => {
+  const R = await import('../src/realworld.js'), L = await import('../src/rwload.js'), { fromUtm } = await import('../src/geo.js');
+  const farq = inflateSync(readFileSync(file('realworld/monschau.far')));
+  const main = { meta: JSON.parse(JSON.stringify(meta)), q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees'), farq: new Uint16Array(farq.buffer, farq.byteOffset, farq.byteLength/2) };
+  R.rwApply(main);
+  rw.on = true;
+  // Kachel östlich (1, 0): flache Höhe aus der Probe-Datei, ein Haus 10 x 10 x 6 m in der Mitte; liegt fertig im Speicher
+  const nrw = L.RW_SOURCES[0], ec = (meta.bbox[0] + meta.bbox[2])/2 + 1000, nc = (meta.bbox[1] + meta.bbox[3])/2;
+  const tif = new Uint8Array(readFileSync(new URL('./fixtures/nrw-dgm-32.tif', import.meta.url)));
+  const P = (x, y, z) => `${ec + x} ${nc + y} ${z}`, ring = pts => `<gml:exterior><gml:LinearRing><gml:posList>${pts.join(' ')}</gml:posList></gml:LinearRing></gml:exterior>`;
+  const wall = (a, b) => `<bldg:WallSurface>${ring([P(...a, 460), P(...b, 460), P(...b, 466), P(...a, 466), P(...a, 460)])}</bldg:WallSurface>`;
+  const house = `<bldg:Building><bldg:function>31001_1000</bldg:function><bldg:RoofSurface>${ring([P(-5, -5, 466), P(5, -5, 466), P(5, 5, 466), P(-5, 5, 466), P(-5, -5, 466)])}</bldg:RoofSurface>${wall([-5, -5], [5, -5])}${wall([5, -5], [5, 5])}${wall([5, 5], [-5, 5])}${wall([-5, 5], [-5, -5])}</bldg:Building>`;
+  const a = { bbox: [ec - 500, nc - 500, ec + 500, nc + 500], crs: meta.crs, startNear: [ec, nc], name: 'kachel', place: '', attribution: '', n: 32, dopN: 64 };
+  const p = await L.rwFetchArea(a, nrw, async u => u.includes('WMS') ? new Uint8Array([0xff, 0xd8]) : tif, async u => u.includes('_305_5604') ? `<core:CityModel>${house}</core:CityModel>` : null, () => {}, { far: false });
+  const [lat, lon] = fromUtm(ec, nc, 32), key = R.rwAreaKey(lat, lon, [nrw]) + '|kachel';
+  const store = { get: async k => k === key ? p : null, put: async () => true, land: async () => null };
+  // Planung: in der Mitte nichts, 250 m vor dem Ostrand die Kachel (1, 0)
+  assert.equal(R.rwStreamPlan(0, 0).next, null);
+  assert.deepEqual(R.rwStreamPlan(260, 0).next, [1, 0]);
+  const old = globalThis.fetch; globalThis.fetch = async () => { throw new TypeError('offline'); };
+  try { assert.equal(await R.rwStreamStep(260, 0, store), true); } finally { globalThis.fetch = old; }
+  const T = rw.tiles.get('1,0');
+  assert.ok(T && T.dx === 1000 && T.dz === 0, 'Kachel eingefügt');
+  assert.equal(R.rwTileAt(1000, 0), T);
+  // Rand zwischen Startgebiet und Kachel: kein Sprung über 1 m (beide aus dem DGM; Probe-Datei ist ein anderer Ort, daher grob)
+  const yA = groundH(499.99, 0), yB = groundH(500.01, 0);
+  assert.ok(Number.isFinite(yA) && Number.isFinite(yB));
+  assert.ok(Math.abs(groundH(1000, 0) - (452.7 - meta.hHome)) < 30, 'Kachel trägt ihre eigenen Höhen');
+  // Haus der Kachel in Weltkoordinaten: Mitte bei x = 1000, Dach 6 m über dem Fuß
+  assert.ok(R.rwNear(1000, 0, 3).tris.length > 0, 'Haus im Kollisionsraster');
+  const ys = [...T.tris].filter((_, k) => k % 3 === 1);
+  assert.ok(Math.abs(Math.max(...ys) - Math.min(...ys) - 6) < 0.2, 'Haushöhe 6 m');
+  // Umgebung hat jetzt ein Loch auch über der Kachel
+  const fm = R.rwFarMesh();
+  for (let i = 0; i < fm.idx.length; i += 3) { const o = fm.idx[i]*10, o2 = fm.idx[i + 1]*10, o3 = fm.idx[i + 2]*10, mx = (fm.v[o] + fm.v[o2] + fm.v[o3])/3, mz = (fm.v[o + 2] + fm.v[o2 + 2] + fm.v[o3 + 2])/3;
+    assert.ok(!(mx > 500 && mx < 1500 && Math.abs(mz) < 500), 'Umgebung über der Kachel bei ' + mx + ', ' + mz); }
+  // Weit weg geflogen: Kachel wird entladen
+  assert.deepEqual(R.rwStreamPlan(-2500, 0).drop, ['1,0']);
+  globalThis.fetch = async () => { throw new TypeError('offline'); };
+  try { await R.rwStreamStep(-2500, 0, store); } finally { globalThis.fetch = old; }
+  assert.ok(!rw.tiles.has('1,0'), 'alte Kachel entladen');
+  assert.equal(rw.tileFail.size, 1, 'neue Kachel offline nicht ladbar, 60 s Pause gemerkt');
+  rw.on = false;
+  R.rwApply({ meta: { ...meta, far: undefined }, q: main.q, b16: main.b16, t16: main.t16 });
+});
+
+test('Kamera nie unter der gezeichneten Fläche (Fehlerbericht Nutzer): rwSurfaceH gleich dem Netz, auch mit Umgebung', async () => {
+  const R = await import('../src/realworld.js');
+  const farq = inflateSync(readFileSync(file('realworld/monschau.far')));
+  R.rwApply({ meta: JSON.parse(JSON.stringify(meta)), q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees'), farq: new Uint16Array(farq.buffer, farq.byteOffset, farq.byteLength/2) });
+  rw.on = true;
+  const m = R.rwMesh(2, 500), k = Math.round(Math.sqrt(m.v.length/10)), xs = Array.from({ length: k }, (_, i) => m.v[i*10]), Y = (i, j) => m.v[(j*k + i)*10 + 1];
+  const surf = (x, z) => { const i = xs.findIndex((v, n) => n + 1 < k && x >= v && x <= xs[n + 1]), j = xs.findIndex((v, n) => n + 1 < k && z >= v && z <= xs[n + 1]);
+    const fx = (x - xs[i])/(xs[i + 1] - xs[i]), fz = (z - xs[j])/(xs[j + 1] - xs[j]), a = Y(i, j), b = Y(i + 1, j), c = Y(i, j + 1), d = Y(i + 1, j + 1);
+    return fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz); };
+  let worst = 0, above = 0;
+  for (let n = 0; n < 4000; n++) { const x = (Math.random() - 0.5)*990, z = (Math.random() - 0.5)*990, s = surf(x, z);
+    worst = Math.max(worst, Math.abs(s - R.rwSurfaceH(x, z))); above = Math.max(above, s - groundH(x, z)); }
+  assert.ok(worst < 1e-3, 'rwSurfaceH weicht vom Netz ab: ' + worst);
+  assert.ok(above > 0.035, 'ohne die Korrektur läge die Kamera teils unter der Fläche (Netz bis ' + above.toFixed(2) + ' m über groundH)');
+  rw.on = false;
+  R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
+});

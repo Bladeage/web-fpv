@@ -37,7 +37,7 @@ export async function storeUsage() { try { return await navigator.storage.estima
 export async function storeArea(key, rec) {
   const size = ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].reduce((t, k) => t + (rec[k] ? rec[k].byteLength : 0), 0);
   if (!await storePut('areas', key, rec)) return false;
-  await storePut('info', key, { key, lat: rec.lat, lon: rec.lon, place: rec.meta.place, srcs: rec.srcs, size, date: rec.date || Date.now(), water: !!rec.water, buildings: rec.meta.buildings, trees: rec.meta.trees,
+  await storePut('info', key, { key, lat: rec.lat, lon: rec.lon, place: rec.meta.place, srcs: rec.srcs, size, date: rec.date || Date.now(), water: !!rec.water, buildings: rec.meta.buildings, trees: rec.meta.trees, tile: !!rec.tile,
     parts: Object.fromEntries(['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].map(k => [k, rec[k] ? rec[k].byteLength : 0])) });
   return true;
 }

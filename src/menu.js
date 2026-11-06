@@ -232,7 +232,7 @@ async function mergeImg(imgs, cells) {
 }
 // Gespeicherte Orte (L4): Auswahl lädt sofort aus dem Speicher
 async function rwSavedFill() {
-  const list = (await storeAll('info')).sort((a, b) => b.date - a.date), sel = $('rwSaved');
+  const list = (await storeAll('info')).filter(x => !x.tile).sort((a, b) => b.date - a.date), sel = $('rwSaved');   // ohne nachgeladene Kacheln
   sel.textContent = '';
   const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); };
   add('', 'Gespeicherte Orte (' + list.length + ')');

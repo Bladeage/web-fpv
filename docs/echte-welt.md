@@ -8,7 +8,8 @@ Ziel: Fliegen in einem echten Gebiet aus amtlichen offenen Geodaten (wie ein Flu
 - **Live laden (L1 bis L4):** Modus „Echte Welt“ → „Ort laden“: Koordinate oder „Karte“. NRW als Vorlage; andere Länder unter Karte → „Quellen“. Mehrere Quellen an Landesgrenzen. Geladene Orte im Browser gespeichert („Gespeicherte Orte“, offline). Gewässer und Ortsnamen NRW einmal laden (60 MB).
 - **Daten:** Optionen → Daten: Übersicht, Export und Import aller Geodaten als Datei (L4b).
 - **Umgebung:** 10 x 10 km grobes Gelände mit Luftbild um jedes Gebiet (L5a).
-- **Offen:** L5b Nachladen von Gebäuden und Bäumen beim Fliegen; Mischen von UTM 32 und 33; Dienste anderer Länder ungeprüft.
+- **Nachladen:** Gebäude, Bäume und feines Gelände in 1-km-Kacheln beim Fliegen (L5b).
+- **Offen:** Mischen von UTM 32 und 33; Dienste anderer Länder ungeprüft.
 - **Code:** `src/realworld.js` (Laufzeit), `src/rwload.js` (Laden, Quellen), `src/rwdlm.js` (Basis-DLM), `src/rwstore.js` (Speicher), `src/demap.js` und `src/mapui.js` (Karte), `src/srcui.js` (Quellen), `src/geo.js` (GeoTIFF, UTM, CityGML). Werkzeuge in `tools/`.
 - Die Abschnitte unten sind das Protokoll in zeitlicher Reihenfolge; ältere Abschnitte beschreiben Zwischenstände (etwa das 3D-Mesh, „Ort laden (NRW)“).
 
@@ -217,6 +218,19 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Bild: Luftbild der Umgebung als zweite Textur, am Rand des Gebiets weich ins feine Bild, am Rand der Umgebung über 300 m in den gerechneten Boden. Sicht in der echten Welt bis 9 km, leichter Dunst (Nebel 1/2200).
 - Gespeichert und exportiert mit dem Ort (farq, fardop). Monschau eingebaut: `realworld/monschau.far` (198 KB) und `monschau.far.jpg` (912 KB); die Datei wächst auf 8,0 MB.
 - Noch nicht: Gebäude und Bäume außerhalb des Gebiets (L5b).
+
+## L5b: Gebäude und Bäume beim Fliegen nachladen (erledigt 06.11.2026, Prompt 118)
+
+- Kacheln von 1 km im Raster des Startgebiets (höchstens 4 Kacheln weit, also innerhalb der Umgebung). Laden, sobald die Drohne näher als 300 m an eine fehlende Kachel kommt; entladen ab 1,6 km; höchstens 8 Kacheln. Eine nach der anderen; ohne Netz 60 s Pause je Kachel. Schalter: Optionen → Daten → „Beim Fliegen nachladen“ (Vorgabe an).
+- Je Kachel: feines Gelände (512²), Luftbild 2048² (spart Grafikspeicher), LoD2-Gebäude mit Nutzung, Bäume, Wasser (mit Landesdaten). Aus dem Speicher, sonst von den Diensten; danach gespeichert (in der Liste als „Nachgeladene Kacheln“, nicht als Orte).
+- Bodenhöhe: Kachel am Punkt; weich in die Umgebung nur an Rändern ohne geladenen Nachbarn. Kollision: Gebäude und Bäume aller Kacheln in einem Raster. Umgebung bekommt Löcher für alle Kacheln.
+- Ruckeln: LoD2 wird in Häppchen von 5 ms gelesen. Netzaufbau höchstens ein großer Schritt je Bild; Messung in Node (Monschau als Kachel): Kachel-Gelände 69 ms, Gebäude und Bäume 158 ms, Startgebiet 50 ms, Umgebung 84 ms (vorher 180, 263, 182, 128 ms, alles in einem Bild). Kachel-Suche über Zahlen statt Text. In der Software-Grafik der Testumgebung stockt das Bild auch ohne Nachladen bis 10 s; dort nicht messbar.
+- Geprüft: Test ohne Netz (Planung, Laden aus dem Speicher, Rand, Kollision, Entladen); im Browser Monschau mit nachgeladener Kachel östlich (19 s).
+
+## Kamera unter dem Gelände, Bäume auf Brücken (06.11.2026, Prompt 119/120)
+
+- Kamera: Das gezeichnete Gelände (Ecken alle 4 m) liegt am Hang über der berechneten Höhe (gemessen Monschau: bis 4 m, an 32 % der Punkte über 3,5 cm; volle Auflösung hilft nicht genug: 7 %, bis 1,3 m). Die Kamera hält jetzt 3,5 cm Abstand zur gezeichneten Fläche (`rwSurfaceH`, gleich dem Netz auf 1 mm, Test).
+- Brücken: Oberfläche minus Gelände macht Brücken ohne LoD2 zu „Bäumen“ (Hohenzollernbrücke). Eine Form-Regel (Krone fällt ringsum ab) wirkte nicht (Bögen fallen auch ab; 17 vorher und nachher). Jetzt: Baumspitzen über Wasser werden verworfen (wirkt mit Landesdaten). Monschau: kein Baum betroffen.
 
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 

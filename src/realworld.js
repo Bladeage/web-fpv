@@ -11,7 +11,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null };
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), stream: true };
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -29,7 +29,7 @@ export function rwApply(p, x = {}) {
   rwInit(p.meta, p.q);
   // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far
   const F = p.far || (p.farq && p.meta.far ? { meta: p.meta.far, q: p.farq, dop: p.fardop } : null);
-  rw.far = null; rw.farDop = null;
+  rw.far = null; rw.farDop = null; rw.tiles = new Map(); rw.tileFail = new Map(); rw.tileBusy = null; tileByCode = new Map();
   if (F) {
     const m = F.meta, h = new Float32Array(m.n*m.n);
     for (let i = 0; i < h.length; i++) h[i] = m.hMin + F.q[i]*m.hScale - p.meta.hHome;
@@ -170,12 +170,41 @@ function farH(x, z) {
   return (h[j*n + i]*(1 - fu) + h[j*n + i + 1]*fu)*(1 - fv) + (h[(j + 1)*n + i]*(1 - fu) + h[(j + 1)*n + i + 1]*fu)*fv;
 }
 export const RW_SEAM = 30;   // m: innen am Rand des Gebiets weich von der Umgebung zum feinen Gelände
+// Kachel an (x, z): das Startgebiet (0, 0) oder eine nachgeladene Kachel (L5b, Raster der Gebietsgröße), sonst null
+// Schneller Zugriff über Zahlen statt Text (groundH läuft beim Netzaufbau hunderttausendfach): Code = (i + 64)*128 + (j + 64)
+const tileCode = (i, j) => (i + 64)*128 + (j + 64);
+let tileByCode = new Map();
+export function rwTileAt(x, z) {
+  const S = rw.size, i = Math.round(x/S), j = Math.round(z/S);
+  return i === 0 && j === 0 ? rw.main : tileByCode.get(tileCode(i, j)) || null;
+}
+const rwHasTile = (i, j) => (i === 0 && j === 0) || tileByCode.has(tileCode(i, j));
+// Höhe aus dem feinen Raster einer Kachel (bilinear, Punktmitten, am Rand gehalten)
+function tileH(T, x, z) {
+  if (T === rw.main) return mainH(x, z);
+  const n = T.n, u = (x - T.dx + rw.size/2)/T.cell - 0.5, v = (z - T.dz + rw.size/2)/T.cell - 0.5, h = T.h;
+  const i = clamp(Math.floor(u), 0, n - 2), j = clamp(Math.floor(v), 0, n - 2), fu = clamp(u - i, 0, 1), fv = clamp(v - j, 0, 1);
+  return (h[j*n + i]*(1 - fu) + h[j*n + i + 1]*fu)*(1 - fv) + (h[(j + 1)*n + i]*(1 - fu) + h[(j + 1)*n + i + 1]*fu)*fv;
+}
 export function groundH(x, z) {
   if (!rw.on) return 0;
   if (!rw.far) return mainH(x, z);
-  const t = (rw.size/2 - Math.max(Math.abs(x), Math.abs(z)))/RW_SEAM;
+  const T = rwTileAt(x, z);
+  if (!T) return farH(x, z);
+  // Abstand zu Rändern ohne geladenen Nachbarn (dort weich in die Umgebung), Ecken eingeschlossen
+  const h = rw.size/2, lx = x - T.dx, lz = z - T.dz, dW = h + lx, dE = h - lx, dN = h + lz, dS = h - lz, I = T.i, J = T.j;
+  let d = Infinity;
+  if (!rwHasTile(I - 1, J)) d = Math.min(d, dW);
+  if (!rwHasTile(I + 1, J)) d = Math.min(d, dE);
+  if (!rwHasTile(I, J - 1)) d = Math.min(d, dN);
+  if (!rwHasTile(I, J + 1)) d = Math.min(d, dS);
+  if (!rwHasTile(I - 1, J - 1)) d = Math.min(d, Math.max(dW, dN));
+  if (!rwHasTile(I - 1, J + 1)) d = Math.min(d, Math.max(dW, dS));
+  if (!rwHasTile(I + 1, J - 1)) d = Math.min(d, Math.max(dE, dN));
+  if (!rwHasTile(I + 1, J + 1)) d = Math.min(d, Math.max(dE, dS));
+  const t = d/RW_SEAM;
   if (t <= 0) return farH(x, z);
-  return t >= 1 ? mainH(x, z) : farH(x, z)*(1 - t) + mainH(x, z)*t;
+  return t >= 1 ? tileH(T, x, z) : farH(x, z)*(1 - t) + tileH(T, x, z)*t;
 }
 // Bodenrichtung (Normale, Einheitsvektor nach oben) aus dem Höhenverlauf
 export function groundN(x, z) {
@@ -184,15 +213,36 @@ export function groundN(x, z) {
   const l = Math.hypot(dx, 1, dz);
   return [-dx/l, 1/l, -dz/l];
 }
+// Höhe der gezeichneten Geländefläche an (x, z): dieselben Ecken und Dreiecke wie rwMesh (Abstand RW_STEP Rasterpunkte) bzw.
+// rwFarMesh. Die Fläche liegt am Hang bis einige Meter über groundH (gemessen: Monschau bis 4 m, an 32 % der Punkte über
+// 3,5 cm). Die Kamera hält Abstand zu dieser Fläche, sonst sieht sie das Gelände von unten (Fehlerbericht Nutzer).
+export const RW_STEP = 2;
+export function rwSurfaceH(x, z) {
+  if (!rw.on) return 0;
+  const T = rwTileAt(x, z), tri = (a, b, c, d, fx, fz) => fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz);
+  if (!T) {
+    if (!rw.far) return groundH(x, z);
+    const F = rw.far, o = -F.size/2 + F.cell/2, u = clamp((x - o)/F.cell, 0, F.n - 1.001), v = clamp((z - o)/F.cell, 0, F.n - 1.001);
+    const i = Math.floor(u), j = Math.floor(v), X = o + i*F.cell, Z = o + j*F.cell, c = F.cell;
+    return tri(groundH(X, Z), groundH(X + c, Z), groundH(X, Z + c), groundH(X + c, Z + c), u - i, v - j);
+  }
+  const N = T.n, C = T.cell, m = Math.floor(N/RW_STEP), edge = rw.far ? rw.size/2 : (T === rw.main ? 1500 : rw.size/2);
+  const pos = k => k <= 0 ? -edge : k > m ? edge : (((k - 1)*RW_STEP + RW_STEP/2) - N/2)*C;
+  const idx = l => { if (l < pos(1)) return 0; if (l >= pos(m)) return m; return clamp(1 + Math.floor((l/C + N/2 - RW_STEP/2)/RW_STEP), 1, m - 1); };
+  const lx = x - T.dx, lz = z - T.dz, i = idx(lx), j = idx(lz), x0 = pos(i), x1 = pos(i + 1), z0 = pos(j), z1 = pos(j + 1);
+  const W = (a, b) => groundH(a + T.dx, b + T.dz);
+  return tri(W(x0, z0), W(x1, z0), W(x0, z1), W(x1, z1), (lx - x0)/(x1 - x0), (lz - z0)/(z1 - z0));
+}
 // Netz fürs Gelände: Raster mit Abstand step Rasterpunkte (2 = 4 m), außen ein Rand bis „far“ m in Randhöhe.
 // Rückgabe: Ecken (wie MeshBuilder: Ort, Normale, Farbe, Alpha 0 = Boden) und Dreiecks-Indizes.
-export function rwMesh(step = 2, far = 1500) {
-  const m = Math.floor(rw.n/step), pos = [-far];
-  for (let i = 0; i < m; i++) pos.push(((i*step + step/2) - rw.n/2)*rw.cell);
+export function rwMesh(step = 2, far = 1500, T = null) {
+  const N = T ? T.n : rw.n, C = T ? T.cell : rw.cell, ox = T ? T.dx : 0, oz = T ? T.dz : 0;
+  const m = Math.floor(N/step), pos = [-far];
+  for (let i = 0; i < m; i++) pos.push(((i*step + step/2) - N/2)*C);
   pos.push(far);
   const k = pos.length, v = new Float32Array(k*k*10), idx = new Uint32Array((k - 1)*(k - 1)*6);
   for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
-    const x = pos[i], z = pos[j], n = groundN(x, z), o = (j*k + i)*10;
+    const x = pos[i] + ox, z = pos[j] + oz, n = groundN(x, z), o = (j*k + i)*10;
     v.set([x, groundH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], o);
   }
   let t = 0;
@@ -217,7 +267,8 @@ export function rwFarMesh(edge = 15000) {
     v.set([x, groundH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], (j*k + i)*10);
   }
   for (let j = 0; j < k - 1; j++) for (let i = 0; i < k - 1; i++) {
-    if (pos[i] >= -half - 0.01 && pos[i + 1] <= half + 0.01 && pos[j] >= -half - 0.01 && pos[j + 1] <= half + 0.01) continue;   // Loch für das Gebiet
+    const T = rwTileAt((pos[i] + pos[i + 1])/2, (pos[j] + pos[j + 1])/2);   // Loch für das Gebiet und jede geladene Kachel
+    if (T && pos[i] >= T.dx - half - 0.01 && pos[i + 1] <= T.dx + half + 0.01 && pos[j] >= T.dz - half - 0.01 && pos[j + 1] <= T.dz + half + 0.01) continue;
     const a = j*k + i, b = a + 1, c = a + k, d = c + 1;
     idx.push(a, c, b, b, c, d);
   }
@@ -228,7 +279,10 @@ export const RW_GRID = 8;
 // Kollisions-Dreiecke (je 9 Werte) und Hindernis-Quader (Bäume) setzen, Suchraster bauen
 export function rwSetTris(tris, boxes = []) {
   rw.tris = tris;
-  const G = RW_GRID, half = rw.size/2 + 200, m = Math.ceil(2*half/G), cells = Array.from({ length: m*m }, () => ({ t: [], b: [] }));
+  // Raster über alle geladenen Kacheln (Startgebiet in der Mitte), quadratisch, mit 200 m Rand
+  let ext = rw.size/2;
+  for (const t of rw.tiles.values()) ext = Math.max(ext, Math.abs(t.dx) + rw.size/2, Math.abs(t.dz) + rw.size/2);
+  const G = RW_GRID, half = ext + 200, m = Math.ceil(2*half/G), cells = Array.from({ length: m*m }, () => ({ t: [], b: [] }));
   const ci = x => clamp(Math.floor((x + half)/G), 0, m - 1), T = tris;
   for (let t = 0; t < T.length/9; t++) {
     const o = t*9, x0 = Math.min(T[o], T[o + 3], T[o + 6]), x1 = Math.max(T[o], T[o + 3], T[o + 6]);
@@ -257,22 +311,24 @@ export function rwNear(x, z, R) {
 // Höhenmodell (dort ist es die Wasserlinie) plus WATER_UP; als flacher Spiegel, das Ufer bildet das Gelände.
 export const WATER_UP = 0.25;
 export function waterAt(x, z) {
-  if (!rw.on || !rw.water) return false;
-  const w = rw.meta.water, i = Math.floor((x + rw.size/2)/w.res), j = Math.floor((z + rw.size/2)/w.res);
+  if (!rw.on) return false;
+  const T = rwTileAt(x, z) || rw.main, bits = T ? T.water : rw.water, w = T ? T.wmeta : rw.meta && rw.meta.water;
+  if (!bits || !w) return false;
+  const ox = T ? T.dx : 0, oz = T ? T.dz : 0, i = Math.floor((x - ox + rw.size/2)/w.res), j = Math.floor((z - oz + rw.size/2)/w.res);
   if (i < 0 || j < 0 || i >= w.n || j >= w.n) return false;
   const b = j*w.n + i;
-  return (rw.water[b >> 3] >> (b & 7) & 1) === 1;
+  return (bits[b >> 3] >> (b & 7) & 1) === 1;
 }
 // Netz für das Wasser: je Rasterzeile zusammenhängende Strecken als Vierecke, Höhe aus dem Gelände. Schlicht blaugrau.
-export function rwWaterMesh() {
-  const out = [], w = rw.meta && rw.meta.water;
-  if (!rw.water || !w) return new Float32Array(0);
+export function rwWaterMesh(T = rw.main) {
+  const out = [], w = T ? T.wmeta : rw.meta && rw.meta.water, bits = T ? T.water : rw.water, ox = T ? T.dx : 0, oz = T ? T.dz : 0;
+  if (!bits || !w) return new Float32Array(0);
   const on = rw.on; rw.on = true;
   // Raster 2 m über allen nassen Zellen, 3 m nach außen erweitert. Wasserspiegel je Ecke: über Wasser das Flussbett (Wasserlinie
   // im Höhenmodell), am Ufer der tiefste Boden der nassen Zellen im Umkreis von 5 m; dazu WATER_UP. Das Ufer entsteht dort, wo
   // das Gelände den Spiegel überragt: keine Treppen am Rand, kein Streifen, der unter das Gelände taucht.
   const n = w.n, res = w.res, h = rw.size/2, G = 2, m = Math.round(n*res/G) + 1;
-  const wet = (i, j) => { if (i < 0 || j < 0 || i >= n || j >= n) return false; const b = j*n + i; return (rw.water[b >> 3] >> (b & 7) & 1) === 1; };
+  const wet = (i, j) => { if (i < 0 || j < 0 || i >= n || j >= n) return false; const b = j*n + i; return (bits[b >> 3] >> (b & 7) & 1) === 1; };
   const near = new Uint8Array(m*m);   // Ecke liegt höchstens 3 m von nassen Zellen
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (wet(i, j)) {
     const gi = Math.round((i + 0.5)*res/G), gj = Math.round((j + 0.5)*res/G);
@@ -283,15 +339,15 @@ export function rwWaterMesh() {
     if (!near[gj*m + gi]) continue;
     const ci = Math.round(gi*G/res), cj = Math.round(gj*G/res);
     let lo = Infinity;
-    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) lo = Math.min(lo, groundH((ci + x + 0.5)*res - h, (cj + y + 0.5)*res - h));
-    const x = gi*G - h, z = gj*G - h;   // über Wasser: dem Flussbett folgen (Wehre, Gefälle); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
+    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) lo = Math.min(lo, groundH((ci + x + 0.5)*res - h + ox, (cj + y + 0.5)*res - h + oz));
+    const x = gi*G - h + ox, z = gj*G - h + oz;   // über Wasser: dem Flussbett folgen (Wehre, Gefälle); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
     if (lo < Infinity) lvl[gj*m + gi] = (wet(ci, cj) ? Math.max(lo, groundH(x, z)) : lo) + WATER_UP;
   }
   const col = [0.24, 0.38, 0.5];
   for (let gj = 0; gj + 1 < m; gj++) for (let gi = 0; gi + 1 < m; gi++) {
     const k = [gj*m + gi, gj*m + gi + 1, (gj + 1)*m + gi + 1, (gj + 1)*m + gi];
     if (k.some(q => Number.isNaN(lvl[q]))) continue;
-    const P = q => [(q % m)*G - h, lvl[q], Math.floor(q/m)*G - h];
+    const P = q => [(q % m)*G - h + ox, lvl[q], Math.floor(q/m)*G - h + oz];
     const [a, b, c, d] = k.map(P);
     for (const p of [a, d, c, a, c, b]) out.push(p[0], p[1], p[2], 0, 1, 0, col[0], col[1], col[2], 1);
   }
@@ -352,22 +408,40 @@ export function rwNearName(x, z, r = 30) {
 // Gebäude (LoD2) und Bäume übernehmen. b16: Ecken in dm (Karte), erst meta.roofTris Dächer, dann Wände, dahinter je Dreieck
 // die Gebäudenummer. t16: Bäume x, z, Höhe, Kronenradius in dm, Fuß auf dem Gelände.
 export function rwModels(b16, t16) {
-  const nt = rw.meta.roofTris + rw.meta.wallTris, tris = new Float32Array(nt*9);
-  for (let i = 0; i < nt*9; i++) tris[i] = b16[i]/10;
-  rw.bldId = b16.slice(nt*9, nt*9 + nt);
-  const nb = rw.meta.buildings || 0;   // je Gebäude: Fassadenklasse (0 bis 6) + 16 x Flachdach
-  rw.bldInfo = b16.length >= nt*10 + nb && nb ? b16.slice(nt*10, nt*10 + nb) : null;
   const on = rw.on; rw.on = true;   // Bodenhöhe der Bäume braucht das Gelände
-  rw.trees = [];
+  rw.main = { i: 0, j: 0, dx: 0, dz: 0, n: rw.n, cell: rw.cell, h: rw.h, water: rw.water, wmeta: rw.meta.water, dop: rw.dop,
+    ...rwTileModels(b16, t16, rw.meta, 0, 0, 0, groundH, waterAt) };
+  rw.bldId = rw.main.bldId; rw.bldInfo = rw.main.bldInfo;
+  rw.on = on;
+  rwRebuild();
+}
+// Gebäude und Bäume einer Kachel aus den gepackten Daten (wie realworld/<name>.bld/.trees), verschoben um (dx, dy, dz) in die Welt.
+// hAt(x, z) liefert die Bodenhöhe für den Fuß der Bäume (Weltkoordinaten). wet(x, z): Wasser dort? Dann ist die „Baumspitze“
+// kein Baum, sondern meist eine Brücke (Oberfläche minus Gelände über dem Fluss, z. B. Hohenzollernbrücke Köln).
+export function rwTileModels(b16, t16, meta, dx, dy, dz, hAt, wet = () => false) {
+  const nt = meta.roofTris + meta.wallTris, tris = new Float32Array(nt*9);
+  for (let i = 0; i < nt*9; i += 3) { tris[i] = b16[i]/10 + dx; tris[i + 1] = b16[i + 1]/10 + dy; tris[i + 2] = b16[i + 2]/10 + dz; }
+  const bldId = b16.slice(nt*9, nt*9 + nt), nb = meta.buildings || 0;   // je Gebäude: Fassadenklasse (0 bis 6) + 16 x Flachdach
+  const bldInfo = b16.length >= nt*10 + nb && nb ? b16.slice(nt*10, nt*10 + nb) : null, trees = [];
   for (let k = 0; k + 3 < t16.length; k += 4) {
-    const x = t16[k]/10, z = t16[k + 1]/10, h = t16[k + 2]/10, r = t16[k + 3]/10, y0 = groundH(x, z);
+    const x = t16[k]/10 + dx, z = t16[k + 1]/10 + dz, h = t16[k + 2]/10, r = t16[k + 3]/10;
+    if (wet(x, z)) continue;
+    const y0 = hAt(x, z);
     const ch = Math.min(h*0.65, Math.max(2, h - 1.5));   // Krone: obere zwei Drittel, Stamm darunter (Schätzung)
-    rw.trees.push({ x, z, y0, h, r, boxes: [
+    trees.push({ x, z, y0, h, r, boxes: [
       { c: [x, y0 + (h - ch)/2, z], h: [0.15 + h*0.006, (h - ch)/2, 0.15 + h*0.006], cs: 1, sn: 0 },   // Stamm
       { c: [x, y0 + h - ch/2, z], h: [r*0.8, ch/2, r*0.8], cs: 1, sn: 0 } ] });                     // Krone
   }
-  rw.on = on;
+  return { tris, nr: meta.roofTris, bldId, bldInfo, trees };
+}
+// Kollision und Listen aus Startgebiet und Kacheln neu zusammensetzen (nach Laden oder Entladen einer Kachel)
+export function rwRebuild() {
+  tileByCode = new Map([...rw.tiles.values()].map(T => [tileCode(T.i, T.j), T]));
+  const all = [rw.main, ...rw.tiles.values()].filter(Boolean), n = all.reduce((t, T) => t + T.tris.length, 0), tris = new Float32Array(n);
+  let o = 0; for (const T of all) { tris.set(T.tris, o); o += T.tris.length; }
+  rw.trees = all.flatMap(T => T.trees);
   rwSetTris(tris, rw.trees.flatMap(t => t.boxes));
+  rw.tileVer++;
 }
 // Netz der Gebäude und Bäume. Je Gebäude Farben nach Nutzung (ALKIS-Gebäudefunktion aus LoD2): Putz, Metall, Holz,
 // Naturstein; Dächer Schiefer, Ziegel, Grau, Flachdächer Kies/Bitumen (Farbtöne: Schätzung für die Eifel).
@@ -384,19 +458,22 @@ const WALL_BY = { 3: [[0.66, 0.68, 0.7], [0.52, 0.58, 0.64], [0.76, 0.74, 0.68],
 // Wand-Alpha: Klasse k (0 bis 7, 7 = Fachwerk) und Sockelhöhe y (-190 bis 190 m). Der Shader rechnet zurück.
 export const rwWallNl = e => 2 + clamp(e, 0, 99)/100;
 export const rwWallAlpha = (y, k = 0) => 0.132 + k*0.04 + (clamp(y, -190, 190) + 190)/380*0.035;
-export function rwModelMesh() {
-  const T = rw.tris, nr = rw.meta.roofTris, nt = T ? T.length/9 : 0, out = [];
+export function rwModelMesh(S = rw.main) {
+  const T = S.tris, nr = S.nr, nt = T ? T.length/9 : 0;
+  // vorab reserviert (je Dreieck 30 Werte; Baum: 8 Stamm- und 48 Kronendreiecke): ohne wachsende Liste, 2- bis 3-mal schneller
+  const out = new Float32Array((nt + S.trees.length*56)*30);
+  let w = 0;
   const tri = (a, b, c, col, al, up, nl = 1) => {
     let n = [(b[1] - a[1])*(c[2] - a[2]) - (b[2] - a[2])*(c[1] - a[1]), (b[2] - a[2])*(c[0] - a[0]) - (b[0] - a[0])*(c[2] - a[2]), (b[0] - a[0])*(c[1] - a[1]) - (b[1] - a[1])*(c[0] - a[0])];
     const l = Math.hypot(...n);
     if (l < 1e-9) return;   // Dreieck ohne Fläche (kommt in LoD2 vor): unsichtbar, weglassen
     n = n.map(v => v/l);
     if (up && n[1] < 0) n = n.map(v => -v);
-    for (const p of [a, b, c]) out.push(p[0], p[1], p[2], n[0]*nl, n[1]*nl, n[2]*nl, col[0], col[1], col[2], al);
+    for (const p of [a, b, c]) { out[w] = p[0]; out[w + 1] = p[1]; out[w + 2] = p[2]; out[w + 3] = n[0]*nl; out[w + 4] = n[1]*nl; out[w + 5] = n[2]*nl; out[w + 6] = col[0]; out[w + 7] = col[1]; out[w + 8] = col[2]; out[w + 9] = al; w += 10; }
   };
   const hash = i => { const k = Math.sin(i*12.9898 + 4.1)*43758.5453; return k - Math.floor(k); };
   const base = new Map();   // tiefster Punkt je Gebäude (Sockel)
-  for (let t = nr; t < nt; t++) { const id = rw.bldId ? rw.bldId[t] : 0, y = Math.min(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); base.set(id, Math.min(base.get(id) ?? 1e9, y)); }
+  for (let t = nr; t < nt; t++) { const id = S.bldId ? S.bldId[t] : 0, y = Math.min(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); base.set(id, Math.min(base.get(id) ?? 1e9, y)); }
   // Traufhöhe je Wandfläche: Dreiecke eines Gebäudes in derselben Ebene bilden eine Wand. Traufe = höchster der Punkte an
   // den beiden seitlichen Enden der Wand (beim Giebel die Schultern, sonst die Oberkante). Darüber zeichnet der Shader keine Fenster.
   const eave = new Float32Array(nt), groups = new Map();
@@ -404,7 +481,7 @@ export function rwModelMesh() {
     const o = t*9, ux = T[o + 3] - T[o], uy = T[o + 4] - T[o + 1], uz = T[o + 5] - T[o + 2], vx = T[o + 6] - T[o], vy = T[o + 7] - T[o + 1], vz = T[o + 8] - T[o + 2];
     let nx = uy*vz - uz*vy, nz = ux*vy - uy*vx; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
     if (nx < -1e-6 || (Math.abs(nx) <= 1e-6 && nz < 0)) { nx = -nx; nz = -nz; }
-    const key = (rw.bldId ? rw.bldId[t] : 0) + ':' + Math.round(Math.atan2(nz, nx)*30) + ':' + Math.round((nx*T[o] + nz*T[o + 2])*4);
+    const key = (S.bldId ? S.bldId[t] : 0) + ':' + Math.round(Math.atan2(nz, nx)*30) + ':' + Math.round((nx*T[o] + nz*T[o + 2])*4);
     if (!groups.has(key)) groups.set(key, { tx: -nz, tz: nx, t: [] });
     groups.get(key).t.push(t);
   }
@@ -415,14 +492,14 @@ export function rwModelMesh() {
     for (const t of g.t) eave[t] = e;
   }
   const top = new Map();   // höchster Punkt je Gebäude (für Fachwerk nur bei niedrigen Häusern)
-  for (let t = 0; t < nt; t++) { const id = rw.bldId ? rw.bldId[t] : 0, y = Math.max(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); top.set(id, Math.max(top.get(id) ?? -1e9, y)); }
+  for (let t = 0; t < nt; t++) { const id = S.bldId ? S.bldId[t] : 0, y = Math.max(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); top.set(id, Math.max(top.get(id) ?? -1e9, y)); }
   const kind = id => {   // Fassadenklasse; Fachwerk (7) für etwa ein Drittel der niedrigen Wohnhäuser (Annahme: typisch für Monschau, nicht aus den Daten)
-    const k = rw.bldInfo ? rw.bldInfo[id] & 15 : 0;
+    const k = S.bldInfo ? S.bldInfo[id] & 15 : 0;
     return (k === 0 || k === 1) && (top.get(id) - (base.get(id) ?? 0)) < 13 && hash(id + 311) < 0.35 ? 7 : k;
   };
   for (let t = 0; t < nt; t++) {
-    const o = t*9, a = [T[o], T[o + 1], T[o + 2]], b = [T[o + 3], T[o + 4], T[o + 5]], c = [T[o + 6], T[o + 7], T[o + 8]], id = rw.bldId ? rw.bldId[t] : 0;
-    const flat = rw.bldInfo && rw.bldInfo[id] & 16, k = kind(id), pal = WALL_BY[k] || WALLS;
+    const o = t*9, a = [T[o], T[o + 1], T[o + 2]], b = [T[o + 3], T[o + 4], T[o + 5]], c = [T[o + 6], T[o + 7], T[o + 8]], id = S.bldId ? S.bldId[t] : 0;
+    const flat = S.bldInfo && S.bldInfo[id] & 16, k = kind(id), pal = WALL_BY[k] || WALLS;
     // Dach: Alpha 0,6 = Dachfläche aus dem Luftbild; die Farbe hier gilt nur außerhalb des Bildes und als leichte Beimischung
     if (t < nr) tri(a, b, c, flat || k === 2 ? FLAT[Math.floor(hash(id)*FLAT.length)] : ROOFS[Math.floor(hash(id)*ROOFS.length)], 0.6, true);
     else {   // Wand: Länge der Normale = 2 + Traufhöhe über dem Sockel / 100 (der Shader liest sie zurück)
@@ -431,7 +508,7 @@ export function rwModelMesh() {
     }
   }
   const bark = [0.32, 0.24, 0.17];
-  for (const tr of rw.trees) {
+  for (const tr of S.trees) {
     const [st, cr] = tr.boxes, w = st.h[0], y1 = st.c[1] + st.h[1], y0 = tr.y0 - 0.3;
     for (const [dx, dz, ex, ez] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) {
       const p = [tr.x + dx*w, y0, tr.z + dz*w], q = [tr.x + ex*w, y0, tr.z + ez*w];
@@ -448,7 +525,7 @@ export function rwModelMesh() {
       tri(R[2][i], R[2][j], top, col, 0.08, true);
     }
   }
-  return new Float32Array(out);
+  return out.slice(0, w);
 }
 
 // Kartenpunkt (x, z) -> Breite, Länge in Grad (WGS84). Gebiet in UTM 32, Mitte = Ursprung, z nach Süden.
@@ -508,4 +585,70 @@ export async function rwLandHas(src, store) {
   if (!src.dlm || !store) return false;
   for (const f of [src.dlm.water, ...src.dlm.places]) if (!await store.landHas(src.dlm.url + ':' + f)) return false;
   return true;
+}
+
+// ---- L5b: Kacheln beim Fliegen nachladen ----
+// Raster der Gebietsgröße (1 km) um das Startgebiet, höchstens 4 Kacheln weit (Umgebung 10 km). Laden, sobald die Drohne
+// näher als near an eine fehlende Kachel kommt; entladen ab drop. Eine Kachel nach der anderen; Fehler: 60 s Pause für diese Kachel.
+export const RW_STREAM = { near: 300, drop: 1600, max: 8, reach: 4, retry: 60000, dop: 2048 };
+const tileDist = (i, j, x, z) => { const S = rw.size, dx = Math.max(0, Math.abs(x - i*S) - S/2), dz = Math.max(0, Math.abs(z - j*S) - S/2); return Math.hypot(dx, dz); };
+// Welche Kachel als Nächstes? (nächste fehlende im Umkreis near) und welche können weg? Ohne Netz und Speicher testbar.
+export function rwStreamPlan(x, z, now = Date.now()) {
+  const drop = [...rw.tiles.values()].filter(T => tileDist(T.i, T.j, x, z) > RW_STREAM.drop).map(T => T.i + ',' + T.j);
+  let next = null, best = Infinity;
+  const ci = Math.round(x/rw.size), cj = Math.round(z/rw.size);
+  for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) {
+    if (Math.abs(i) > RW_STREAM.reach || Math.abs(j) > RW_STREAM.reach || rwHasTile(i, j)) continue;
+    const k = i + ',' + j, d = tileDist(i, j, x, z), f = rw.tileFail.get(k);
+    if (d > RW_STREAM.near || (f && now - f < RW_STREAM.retry)) continue;
+    if (d < best) { best = d; next = [i, j]; }
+  }
+  return { next: rw.tiles.size - drop.length < RW_STREAM.max ? next : null, drop };
+}
+// Eine Kachel laden (aus dem Speicher oder von den Diensten) und als Kachel-Objekt liefern (Weltkoordinaten des Startgebiets)
+export async function rwLoadTile(i, j, store, say = () => {}) {
+  const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + i*S, nc = (m.bbox[1] + m.bbox[3])/2 - j*S;
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon);
+  if (!plan) throw new Error('keine Quelle');
+  const srcs = plan.srcs.filter(s => s.crs === m.crs);
+  if (!srcs.length) throw new Error('anderes Koordinatensystem');
+  const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs, startNear: [ec, nc], name: 'kachel', place: lat.toFixed(5) + ', ' + lon.toFixed(5), attribution: '', dopN: RW_STREAM.dop };
+  const key = rwAreaKey(lat, lon, srcs) + '|kachel';
+  let p = store ? await store.get(key) : null, x = {};
+  if (p && p.meta) x = p.water || p.features ? { water: p.water, features: p.features } : await rwExtras(p, srcs[0], store);
+  else {
+    const { get, text } = rwNet();
+    const opt = { far: false, async: true };
+    if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
+    p = await rwFetchArea(a, srcs, get, text, say, opt);
+    x = await rwExtras(p, srcs[0], store);
+    if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });
+  }
+  // Höhen relativ zum Startplatz des Startgebiets; Gebäude sind relativ zum eigenen Startplatz gepackt (dy gleicht aus)
+  const n = p.meta.n, h = new Float32Array(n*n);
+  for (let k = 0; k < n*n; k++) h[k] = p.meta.hMin + p.q[k]*p.meta.hScale - m.hHome;
+  const T = { i, j, dx: i*S, dz: j*S, n, cell: S/n, h, water: x.water || null, wmeta: p.meta.water || null, dop: p.dop, key, place: p.meta.place };
+  const own = (wx, wz) => tileH(T, wx, wz), w = T.wmeta;
+  const wet = (wx, wz) => { if (!T.water || !w) return false; const i = Math.floor((wx - T.dx + S/2)/w.res), j = Math.floor((wz - T.dz + S/2)/w.res), b = j*w.n + i;
+    return i >= 0 && j >= 0 && i < w.n && j < w.n && (T.water[b >> 3] >> (b & 7) & 1) === 1; };
+  return Object.assign(T, rwTileModels(p.b16, p.t16, p.meta, T.dx, p.meta.hHome - m.hHome, T.dz, own, wet));
+}
+// Ein Schritt (etwa jede Sekunde aus der Hauptschleife): entladen, was weit weg ist, und die nächste nötige Kachel laden.
+// Liefert true, wenn sich etwas geändert hat. Ändert sich das Gebiet währenddessen (rw.ver), wird das Ergebnis verworfen.
+export async function rwStreamStep(x, z, store, say = () => {}) {
+  if (!rw.on || !rw.ready || !rw.far || !rw.stream || rw.tileBusy) return false;
+  const plan = rwStreamPlan(x, z);
+  let changed = false;
+  for (const k of plan.drop) { rw.tiles.delete(k); changed = true; }
+  if (changed) rwRebuild();
+  if (!plan.next) return changed;
+  const [i, j] = plan.next, k = i + ',' + j, ver = rw.ver;
+  rw.tileBusy = k;
+  try {
+    const T = await rwLoadTile(i, j, store, say);
+    if (rw.ver !== ver) return changed;
+    rw.tiles.set(k, T); rwRebuild();
+    return true;
+  } catch (e) { rw.tileFail.set(k, Date.now()); rw.tileErr = String(e.message || e); return changed; }
+  finally { rw.tileBusy = null; }
 }

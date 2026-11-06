@@ -137,10 +137,25 @@ export function triangulate(pts) {
 // Rückgabe: { roof: [[x,y,z]...] in Dreiergruppen, wall: [...], roofId: [Gebäude je Dreieck], wallId: [...],
 // info: je Gebäude { fn: ALKIS-Gebäudefunktion (z. B. '31001_1000'), roof: Dachform (z. B. '3100') } }, UTM und Höhe über NHN.
 export function readLod2(xml, keep = () => true) {
+  const g = lod2Steps(xml, keep);
+  for (let r = g.next(); ; r = g.next()) if (r.done) return r.value;
+}
+// Wie readLod2, gibt aber alle 5 ms die Kontrolle ab (Nachladen im Flug, L5b): große Kacheln (bis 70 MB) lassen das Bild weiterlaufen
+export async function readLod2Async(xml, keep = () => true, slice = 5) {
+  const g = lod2Steps(xml, keep);
+  let t0 = Date.now();
+  for (let r = g.next(); ; r = g.next()) {
+    if (r.done) return r.value;
+    if (Date.now() - t0 > slice) { await new Promise(res => setTimeout(res, 0)); t0 = Date.now(); }
+  }
+}
+// Gemeinsamer Kern: je Gebäude ein Schritt (yield), am Ende das Ergebnis
+function* lod2Steps(xml, keep) {
   const out = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
   const bre = /<bldg:Building\b[\s\S]*?<\/bldg:Building>/g;
   let id = 0;
   for (let b; (b = bre.exec(xml)); ) {
+    yield;
     const polys = [];
     const re = /<bldg:(RoofSurface|WallSurface)\b[\s\S]*?<\/bldg:\1>/g;
     for (let m; (m = re.exec(b[0])); ) {

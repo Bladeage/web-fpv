@@ -1,7 +1,7 @@
 /* Echte Welt: Gebiet aus offenen Geodiensten laden (Etappe L1). Ohne DOM: läuft im Browser (Laden per Koordinate)
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
-import { readTiff, readLod2 } from './geo.js';
+import { readTiff, readLod2, readLod2Async } from './geo.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
@@ -179,7 +179,7 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     };
     const xml = await text(u, mb(step, f));
     if (!xml) continue;   // Kachel ohne Gebäude
-    const o = readLod2(xml, keep), base = bld.info.length;
+    const o = opt.async ? await readLod2Async(xml, keep) : readLod2(xml, keep), base = bld.info.length;
     // Schleifen statt push(...liste): große Kacheln (Innenstadt) sprengen sonst im Browser den Aufrufstapel
     for (const x of o.roof) bld.roof.push(x);
     for (const x of o.wall) bld.wall.push(x);
