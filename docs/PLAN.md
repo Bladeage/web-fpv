@@ -460,3 +460,7 @@ Vorschlag Reihenfolge: J0, O2, V1, J1. J0 ist klein und macht die einfachen Modi
 - Signal: geht von der Funke des Piloten aus (1,35 m hoch). Abstand im Raum (Höhe zählt). Logarithmisch: je doppelte Entfernung Video -38 Punkte ab 90 m, Steuerung -25 Punkte ab 180 m (Schätzungen). Hindernisse und Bodennähe wie bisher. Schwanken wächst mit dem Abstand zum Piloten (vorher fälschlich zur Kartenmitte).
 - Digital: bleibt bis etwa 45 % sauber, darunter Einbruch. Keine Verpixelung mehr. Stattdessen 16-px-Blöcke mit altem Inhalt, einfarbige Blöcke, verschobene Blöcke, Fehler laufen in der Zeile nach rechts, verschobene Streifen, Ruckler (einzelne Bilder fallen aus) und Standbilder; unter 4 % Standbild, das dunkel wird. Analog unverändert (wird nach und nach verrauscht).
 - Tests: `test/pilot.test.mjs`.
+
+## Idee: Anbindung an Simulationsverbünde und reale Karten (Einschätzung 06.11.2026, Prompt 89, nicht begonnen)
+- Browser kann kein UDP (DIS) und keine RTI-Bibliothek (HLA). Nötig ist eine Brücke: entweder eigenes kleines Node-Programm (DIS über UDP <-> WebSocket) oder ein WebLVC-Server (JSON über WebSocket, Brücke zu DIS und HLA; z. B. MÄK, kostenpflichtig).
+- Vorschlag Reihenfolge: (1) DIS senden (eigene Drohne als Entity State PDU, Georeferenz Lat/Lon), (2) DIS empfangen (fremde Einheiten anzeigen), (3) VBS4 über DIS testen (Lizenz und Windows-Rechner beim Nutzer), (4) HLA über WebLVC oder DIS-HLA-Gateway, (5) reale Karte: erst flach aus OSM-Gebäuden und Landnutzung (Umwandlung vorab, eingebettet), danach Gelände mit Höhen (Physik braucht Bodenhöhe).
