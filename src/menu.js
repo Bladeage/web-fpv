@@ -16,6 +16,7 @@ import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
+import { vb, vbProbe, VB_BRUECKE } from './verbund.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 const SPECIAL = new Set(['real', 'vbs']);   // Modi im Reiter „Spezial“: echte Welt, Vorschau der VBS-Grundtypen
 
@@ -84,12 +85,15 @@ export function syncMenu() {
   press('#fcSeg button', b => b.dataset.fc === (cfg.fc || 'own'));
   setMode(cfg.mode);
   const sc = SCENARIOS.find(x => x.id === cfg.scen);
-  press('#scenList button, #specList button', b => b.dataset.id === cfg.scen);
+  // DIS-Modus = echte Welt im Verbund mit VBS (cfg.verbund); eigener Knopf unter Spezial
+  const dis = cfg.scen === 'real' && !!cfg.verbund;
+  press('#scenList button, #specList button', b => b.dataset.id === 'dis' ? dis : b.dataset.id === cfg.scen && !(b.dataset.id === 'real' && dis));
   // Reiter: „Spezial“ für echte Welt (später DIS), sonst „Modi“
   const spec = SPECIAL.has(cfg.scen);
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String((b.dataset.mtab === 'spec') === spec)));
   $('modeStd').hidden = spec; $('modeSpec').hidden = !spec;
-  $('courseInfo').textContent = sc.info; $('specInfo').textContent = spec ? sc.info : '';
+  $('courseInfo').textContent = sc.info; $('specInfo').textContent = !spec ? '' : dis ? DIS_INFO : sc.info;
+  $('disOpts').hidden = !dis; syncDis();
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real' || cfg.scen === 'vbs';
   $('rwOpts').hidden = cfg.scen !== 'real';
@@ -268,7 +272,26 @@ async function start() {
   respawn(); resume();
 }
 
-for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (x.id === 'real') cfg.verbund = false; if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+// DIS-Modus (Nutzer, Prompt 143): echte Welt im Verbund mit VBS. Prüft, ob die Brücke läuft; sonst Download der Windows-Brücke.
+// Ein Browser sieht nur, ob die Brücke läuft, nicht ob sie installiert ist.
+const DIS_INFO = 'Echte Welt im Verbund mit VBS: Die Drohne erscheint in VBS, VBS-Einheiten hier. Brücke und Browser laufen auf dem VBS-Rechner.';
+{ const b = addChoice($('specList'), 'DIS (VBS)', '', () => { cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); disCheck(); }); b.dataset.id = 'dis';
+  $('specList').insertBefore(b, $('specList').querySelector('[data-id=vbs]')); }
+function syncDis() {
+  const st = vb.state === 'verbunden' ? 'läuft' : vb.probe;
+  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. Ort wählen und starten.' : st === 'nicht gefunden'
+    ? 'Brücke nicht gefunden. Herunterladen und auf dem VBS-Rechner doppelklicken (Windows fragt nach: „Weitere Informationen“, „Trotzdem ausführen“).'
+    : 'Suche Brücke …';
+  $('disGet').hidden = st !== 'nicht gefunden';
+}
+function disCheck() { vbProbe(() => { syncDis(); fitPanel(); }); }
+setInterval(() => { if (!menu.hidden && screen === 'mode' && cfg.scen === 'real' && cfg.verbund) disCheck(); }, 3000);   // alle 3 s, solange der DIS-Modus im Menü gewählt ist
+$('disGet').addEventListener('click', () => {
+  if (VB_BRUECKE.startsWith('%%')) { $('disSt').textContent = 'Brücke nur in der fertigen Datei enthalten (npm run build).'; return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([VB_BRUECKE], { type: 'application/octet-stream' })); a.download = 'fpv-vbs-bruecke.cmd';
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
 // Reiter wechseln: „Spezial“ wählt die echte Welt, „Modi“ den zuletzt gewählten normalen Modus
 document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('click', () => {
   const spec = b.dataset.mtab === 'spec';

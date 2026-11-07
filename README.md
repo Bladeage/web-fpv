@@ -68,8 +68,9 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/rwworker.js` | Echte Welt: Aufträge im Hintergrund-Thread (Gebiet laden, Netz der Gebäude), läuft im Worker |
 | `src/dis.js` | DIS-Kodierer für die VBS-Anbindung: WGS84/ECEF, Lage, Entity State PDU (DIS 6/7), Vorhersage, Senderegel (noch nicht im Spiel) |
 | `src/distypes.js` | VBS-Grundtypen: 18 einfache Modelle, Zuordnung nach DIS-Entitätsart, Aufstellung der Vorschau (Modus „VBS-Grundtypen“) |
-| `src/verbund.js` | Verbund mit VBS im Simulator: Verbindung zur Brücke, eigener Zustand, VBS-Einheiten in Kartenkoordinaten |
-| `tools/dis-bruecke.mjs` | DIS-Brücke zu VBS (Node, nur Bordmittel): WebSocket zum Simulator, DIS über UDP, Lagebild-Datei; läuft auf dem VBS-Rechner |
+| `src/verbund.js` | DIS-Modus: eigene PDU bauen, DIS und Lagebild lesen, VBS-Einheiten in Kartenkoordinaten, Suche nach der Brücke |
+| `bruecke/fpv-vbs-bruecke.cmd` | Brücke für Windows (PowerShell, Doppelklick): reicht DIS-PDUs zwischen Simulator und UDP durch, schickt das Lagebild; der Simulator bietet sie im DIS-Modus zum Download an |
+| `tools/dis-bruecke.mjs` | Dieselbe Brücke in Node für Entwicklung und Tests |
 | `src/rwthread.js` | Echte Welt: Hintergrund-Thread aus dem eigenen Script anlegen, Aufträge abgeben; ohne ihn rechnet das Hauptprogramm |
 | `src/demap.js`, `src/mapui.js`, `src/srcui.js` | Deutschlandkarte (Daten und Bedienung), Seiten „Quellen“ und „Quelle bearbeiten“ |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |

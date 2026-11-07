@@ -250,3 +250,5 @@ body.menuopen .topbar{visibility:hidden}   /* Neustart und Kamera nur im Flug */
 .osdgrp{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--muted);margin-top:8px;text-transform:uppercase;letter-spacing:.04em}   /* Gruppen im OSD-Reiter */
 .osdgrp:first-child{margin-top:2px}
 @media (max-height:620px){ .osdgrp{grid-column:auto;margin-top:2px;font-size:11px;align-self:center} .osdgrp:first-child{margin-top:2px} }   /* niedrige Fenster: Überschrift belegt nur eine Zelle */
+.disopts{margin-top:6px}
+.disopts .secondary{margin-top:6px}

@@ -105,6 +105,17 @@ Optionen: `--ws 8642` (WebSocket), `--dis-port 3000`, `--dis-ziel 255.255.255.25
 - **Geprüft:** Tests in Node (Zustand, Umrechnung, Boden, Umkreis, Gesamtlauf Simulator ↔ Brücke ↔ UDP: Drohne am richtigen Ort, Panzer an der richtigen Kartenstelle). Im Browser mit laufender Brücke und einem VBS-Ersatz: vier Einheiten vor der Drohne sichtbar (Kampfpanzer Feind, Lkw und Hubschrauber Freund, Person neutral), „VBS 4“ im OSD, unsere Drohne gesendet.
 - **Noch nicht geprüft:** mit VBS selbst. Für die Probe auf dem VBS-Rechner: Brücke starten (siehe D2), im Testprofil AllowLoopback 1, Lagebild-Modul laufen lassen.
 
+## Windows-Brücke und DIS-Modus (07.11.2026, Prompt 143)
+
+Ersetzt den Aufbau aus D2 und D3. Die Abschnitte oben bleiben als Verlauf.
+- **Logik im Simulator:** `src/verbund.js` baut die eigene PDU (`src/dis.js`), liest die DIS-PDUs von VBS und das Lagebild und verbindet beides über die Entity-Nummer. Die Brücke rechnet nichts mehr.
+- **Brücke als Relais:** WebSocket auf `localhost:8642`. Binär sind DIS-PDUs in beide Richtungen (UDP Port 3000, Ziel 255.255.255.255). Text: `{"t":"info","name":"fpv-vbs-bruecke",...}` beim Verbinden, `{"t":"lagebild","text":...}`, wenn sich die Datei ändert. Herzschlag: letzte PDU erneut nach 5 s Stille. Beim Trennen einmal „deaktiviert“ (Byte 85 Bit 7, Byte 88 = 1). Nur erlaubte Seiten (GitHub Pages, lokale Datei, localhost).
+- **Windows:** `bruecke/fpv-vbs-bruecke.cmd`, reines ASCII. Eine Datei, die cmd und PowerShell beide lesen. Doppelklick startet Windows PowerShell 5.1, keine Installation, kein Node. Fenster offen lassen. Lagebild-Suche: `Dokumente\VBS4\sqfkit_lagebild\lagebild.txt`, dann `Dokumente\VBS\...`, dann Suche in den Dokumenten (Tiefe 3). Für Tests: Umgebungsvariablen `FPVB_PORT`, `FPVB_DISPORT`, `FPVB_TARGET`, `FPVB_TARGETPORT`, `FPVB_LAGEBILD`, `FPVB_HEARTBEAT`.
+- **Entwicklung:** `tools/dis-bruecke.mjs` ist dasselbe Relais in Node.
+- **DIS-Modus:** Spezial → „DIS (VBS)“ = echte Welt mit Verbund. Der Simulator fragt alle 3 s nach der Brücke. Läuft sie, kein Download. Läuft sie nicht, Knopf „Brücke für Windows herunterladen“. Die Datei ist beim Bauen in das Programm eingebettet (`tools/build.mjs`), also immer passend zur Version.
+- **Grenze:** Ein Browser kann nur prüfen, ob die Brücke läuft, nicht, ob sie installiert ist. Windows SmartScreen fragt beim ersten Start einer heruntergeladenen Datei nach („Weitere Informationen“, „Trotzdem ausführen“).
+- **Geprüft:** Node-Tests (Relais, Gesamtlauf Simulator ↔ Brücke ↔ UDP mit Lagebild, Suche). Die `.cmd` mit PowerShell 7 unter Linux im Gesamtlauf (WebSocket, UDP, Lagebild, Herzschlag, deaktiviert); auf Windows 5.1 noch nicht. Im Browser: ohne Brücke Download (Datei gleich der im Repo), mit Brücke kein Download, Flug sendet FPV1, VBS-Ersatz-Panzer sichtbar.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
@@ -116,7 +127,8 @@ Optionen: `--ws 8642` (WebSocket), `--dis-port 3000`, `--dis-ziel 255.255.255.25
 1. **D1 Kodierer:** Modul ohne DOM (`dis.js`): Entity State bauen und lesen, ECEF und Lage hin und zurück, Zustände. Tests in Node, ohne Netz. **Erledigt** (07.11.2026, Prompt 135), siehe unten.
 2. **D2 Brücke:** `tools/dis-bruecke.mjs` mit Node-Bordmitteln (UDP über `dgram`, WebSocket selbst, nur 127.0.0.1). Test mit einem eigenen UDP-Empfänger. **Erledigt** (Prompt 140), siehe unten.
 3. **D3 Simulator:** Schalter „Verbund“ (Vorgabe aus), Senden der eigenen Drohne, fremde Einheiten als Grundtypen. **Erledigt** (Prompt 142), siehe unten.
-4. **D4 Probe mit VBS:** über k5.2 (Modul `bruecke` listet unsere Drohne in VBS), erst nach Fabians Entscheidungen.
+4. **Windows-Brücke und DIS-Modus:** **Erledigt** (Prompt 143), siehe oben.
+5. **D4 Probe mit VBS:** über k5.2 (Modul `bruecke` listet unsere Drohne in VBS), erst nach Fabians Entscheidungen.
 
 ## D1 Kodierer (erledigt 07.11.2026)
 
