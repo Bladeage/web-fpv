@@ -65,6 +65,18 @@ Wichtig (gesichert, k5.2): Eine Drohne erscheint in VBS nur, wenn ihr 7er-Wert *
 - **Genauer (optional, nur lokal):** Die Brücke kann zur Laufzeit eine Tabelle aus Land, Kategorie und Unterkategorie → Kette oder Rad lesen, erzeugt aus der privaten Modellliste. Sie liegt nur in `private/` und kommt nie ins Repo. Ohne Tabelle gilt die Regel oben.
 - Was nicht passt, wird ein Quader nach Domain.
 
+## Bewegung der VBS-Einheiten über „lagebild“ (07.11.2026, k5.2, von Fabian freigegeben)
+
+Weil das Gateway Ort und Bewegung eingefroren sendet (Ursache in VBS offen), hat k5.2 ein eigenes VBS-Modul „lagebild“ gebaut (Repo vbs-tools, PR #313; in VBS 26.1.3 erprobt).
+- VBS schreibt je Takt (Vorgabe 1 s) die Datei `<VBS-Benutzerordner>\sqfkit_lagebild\lagebild.txt` komplett neu. Zeilen (gültiges JSON):
+  - `["KOPF", 1, Spielzeit, Takt, Mission, Anzahl]`
+  - `["E", Gateway-ID, Klasse, Seite, [x,y,z] ASL, [X,Y,Z] ECEF (DIS-Reihenfolge), [vx,vy,vz] m/s, vectorDir, vectorUp, lebt, Schaden, Besatzung]`
+- Erfasst: alle Fahrzeuge und Soldaten zu Fuß. Die Gateway-ID ist die DIS-Entity-Nummer (gesichert: Boxer 13, Soldaten 1 und 4); ohne Gateway 0. Ein fahrender Boxer bekam jede Sekunde neuen Ort und neues Tempo (gesichert).
+- **Plan für die Brücke (D2):** zwei Quellen über die Entity-Nummer verbinden. DIS liefert Art und Seite (für unsere Grundtypen), „lagebild“ Ort, Tempo und Lage. Die Brücke läuft auf dem VBS-Rechner und liest die Datei jede Sekunde. Einheiten ohne DIS-Nummer (zum Beispiel ohne Gateway) zeigen wir nach Seite als Quader, bis die Art bekannt ist.
+- Die Klassennamen in der Datei sind Herstellerinhalt: Die Brücke nutzt sie nur zur Laufzeit, speichert und überträgt sie nicht ins Repo.
+- Dazu von k5.2: modelle.csv (9 819 Zeilen, 4 293 mit SISO) und bedienung.csv (1 795 Zeilen), lokal bei Fabian (Herstellerinhalt); Doku `docs/wissen-vbs4-dis-praxis.md` im Repo vbs-tools.
+- **Wichtig für Tests:** Das Testprofil steht wieder im Ausgangsstand (AllowLoopback 0, LightweightMode 1, ShowUnknownEntities 0). Für Proben mit der Brücke auf demselben Rechner stellt k5.2 AllowLoopback im Testmodus wieder auf 1.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
