@@ -13,7 +13,7 @@ Browser (FPV)  --WebSocket, JSON, 20-30/s-->  Brücke (Node, nur Bordmittel)  --
 ```
 
 - FPV: Modul „Verbund“ (Schalter, Vorgabe Aus). Sendet Ort, Lage, Tempo in Kartenkoordinaten, zeigt fremde Einheiten.
-- Brücke: WebSocket nur auf 127.0.0.1, Herkunft geprüft. Kartenkoordinaten <-> Erdkoordinaten (Kartenmitte als Breite/Länge, Nordrichtung), DIS Entity State PDU senden und empfangen, Bewegung vorhersagen (Dead Reckoning), Einheiten ohne Meldung entfernen (Zeitlimit je Art: Luft 12 s, Land 132 s; siehe `docs/dis-drohne.md`).
+- Brücke: WebSocket nur auf 127.0.0.1, Herkunft geprüft. Kartenkoordinaten <-> Erdkoordinaten (Kartenmitte als Breite/Länge, Nordrichtung), DIS Entity State PDU senden und empfangen, Bewegung vorhersagen (Dead Reckoning), Einheiten ohne Meldung nach 13 s entfernen (wie das Gateway: Herzschlag 5 s, Löschen 13 s; siehe `docs/dis-drohne.md`).
 - VBS4: DIS mit gleicher Übungsnummer und Port, unsere Drohnenart einem VBS4-Modell zuordnen (Menüs beim Nutzer prüfen).
 
 ## Was wird wo dargestellt
