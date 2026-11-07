@@ -154,7 +154,7 @@ G1 und G2 ändern nur das Aussehen. Hindernisse und Kollision bleiben gleich.
   - Freiflug: ohne Aufgabe.
 - **Menü:** Szenario-Auswahl. Bestzeit je Szenario in `localStorage`.
 - **OSD:** Fortschritt passend zum Szenario (Tor 3/8, Ring 2/10, Treffer 1/5).
-- **Später:** Szenarien aus der SharePoint-Bibliothek laden. Das setzt ein positives Ergebnis der Technik-Probe für `.json` voraus.
+- ~~**Später:** Szenarien aus der SharePoint-Bibliothek laden.~~ Entfällt: SharePoint ist kein Ziel mehr (Nutzer, 07.11.2026, Prompt 131).
 - **Nicht in E5:** Tunnel. Er bräuchte neue Geometrie in der Karte. Kann später als eigenes Element kommen.
 
 **Abnahme:**
