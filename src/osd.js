@@ -40,6 +40,7 @@ export function osdLines(o, d) {
   if (d.place) add('tl', 'place', d.place.d < 1 ? 'ORT ' + d.place.name.toUpperCase() : d.place.name.toUpperCase() + ' ' + fmtDist(d.place.d) + ' ' + d.place.dir, '#dfe6ea');
   if (d.lat !== undefined) add('tl', 'coords', fmtLatLon(d.lat, d.lon), '#dfe6ea');
   if (d.crashes) add('tl', 'crashes', 'CRASH ' + d.crashes, '#ffd0c8');
+  if (d.vbs) out.tl.push({ id: 'vbs', t: d.vbs, col: d.vbs.endsWith('--') ? YEL : '#9be7ff' });   // Verbund mit VBS, nur wenn eingeschaltet
   (d.hp || []).forEach((hp, i) => { if (hp < 0.98) add('tl', 'motors', 'M' + (i + 1) + ' ' + (hp > 0 ? pad(Math.round(hp*100), 3) + '%' : 'AUS'), hp < 0.5 ? RED : YEL); });
   add('tr', 'timer', fmtTime(d.cur));
   if (d.last !== null && d.last !== undefined) add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');   // erst nach der ersten Runde

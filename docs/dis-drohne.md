@@ -94,6 +94,17 @@ Optionen: `--ws 8642` (WebSocket), `--dis-port 3000`, `--dis-ziel 255.255.255.25
 - Geprüft ohne VBS: Schlüssel aus dem Beispiel der Norm, Rahmen mit Maske und Teilstücken; Gesamtlauf mit echtem WebSocket als Browser und UDP-Empfänger als VBS (erste PDU mit unseren Werten und richtigem Ort, Herzschlag, fremde Einheit aus DIS plus Lagebild verbunden, eigenes Echo übergangen, Absturz, deaktiviert); fremde Webseite abgelehnt.
 - Noch nicht geprüft: mit VBS selbst (Testprofil braucht dafür AllowLoopback 1). Der Simulator spricht die Brücke noch nicht an (D3).
 
+## D3 Simulator im Verbund (erledigt 07.11.2026, Prompt 142)
+
+`src/verbund.js` (ohne DOM, nutzt WebSocket), Tests `test/verbund.test.mjs`.
+- **Einschalten:** Echte Welt → Optionen → Daten → „Mit VBS verbinden (DIS-Brücke auf diesem Rechner)“, Vorgabe aus. Daneben der Zustand (verbunden mit Zahl der Einheiten, getrennt, Fehler). Nur in der echten Welt; die Spielkarte hat keine Erdkoordinaten.
+- **Ablauf:** Der Simulator verbindet sich mit `ws://127.0.0.1:8642` (neuer Versuch alle 5 s) und schickt etwa 20-mal je Sekunde seinen Zustand (Breite, Länge, Höhe über NHN, Zone, Lage, Tempo, Drehraten, Zustand fliegt, Absturz oder eingefroren), auch in der Pause. Die Brücke entscheidet, wann eine DIS-PDU hinausgeht.
+- **VBS-Einheiten:** Umrechnung in Kartenkoordinaten (UTM-Gitter, Kurs und Tempo um die Meridiankonvergenz gedreht), im Umkreis 5 km, die nächsten 50. Zwischen den Meldungen mit ihrem Tempo weitergeschoben. Boden, Wasser und Personen stehen auf unserem Boden (das VBS-Gelände ist ein anderes), Luftfahrzeuge mit ihrer Höhe, nie unter dem Boden. Gezeichnet als Grundtypen in Seitenfarbe, zerstörte dunkel und schief; Name und Entfernung bis 200 m.
+- **OSD:** „VBS 4“ (verbunden, 4 Einheiten) oder „VBS --“ (nicht verbunden), nur wenn eingeschaltet.
+- **Dabei behoben:** Die Brücke sendete beim Beenden noch an einen geschlossenen UDP-Kanal und stürzte ab; neue Einheiten standen für ein Bild auf Höhe 0 statt auf dem Boden.
+- **Geprüft:** Tests in Node (Zustand, Umrechnung, Boden, Umkreis, Gesamtlauf Simulator ↔ Brücke ↔ UDP: Drohne am richtigen Ort, Panzer an der richtigen Kartenstelle). Im Browser mit laufender Brücke und einem VBS-Ersatz: vier Einheiten vor der Drohne sichtbar (Kampfpanzer Feind, Lkw und Hubschrauber Freund, Person neutral), „VBS 4“ im OSD, unsere Drohne gesendet.
+- **Noch nicht geprüft:** mit VBS selbst. Für die Probe auf dem VBS-Rechner: Brücke starten (siehe D2), im Testprofil AllowLoopback 1, Lagebild-Modul laufen lassen.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
@@ -104,7 +115,7 @@ Optionen: `--ws 8642` (WebSocket), `--dis-port 3000`, `--dis-ziel 255.255.255.25
 
 1. **D1 Kodierer:** Modul ohne DOM (`dis.js`): Entity State bauen und lesen, ECEF und Lage hin und zurück, Zustände. Tests in Node, ohne Netz. **Erledigt** (07.11.2026, Prompt 135), siehe unten.
 2. **D2 Brücke:** `tools/dis-bruecke.mjs` mit Node-Bordmitteln (UDP über `dgram`, WebSocket selbst, nur 127.0.0.1). Test mit einem eigenen UDP-Empfänger. **Erledigt** (Prompt 140), siehe unten.
-3. **D3 Simulator:** Schalter „Verbund“ (Vorgabe aus), Senden der eigenen Drohne, fremde Einheiten als Grundtypen.
+3. **D3 Simulator:** Schalter „Verbund“ (Vorgabe aus), Senden der eigenen Drohne, fremde Einheiten als Grundtypen. **Erledigt** (Prompt 142), siehe unten.
 4. **D4 Probe mit VBS:** über k5.2 (Modul `bruecke` listet unsere Drohne in VBS), erst nach Fabians Entscheidungen.
 
 ## D1 Kodierer (erledigt 07.11.2026)

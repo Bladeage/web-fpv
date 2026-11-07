@@ -10,6 +10,7 @@ import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
 import { scenLabel, scenTarget, scen, diff } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
+import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';
 
 
@@ -219,6 +220,7 @@ export function drawHud() {
   if (rw.on && rw.meta) {   // echte Welt: Koordinaten und nächster Ort
     [d.lat, d.lon] = rwLatLon(s.p[0], s.p[2]);
     d.place = rwPlace(s.p[0], s.p[2]);
+    d.vbs = vbLabel(cfg.verbund);
   }
   const lines = osdLines(cfg.osd, d);
 
@@ -269,6 +271,7 @@ export function drawHud() {
   if (on('marker')) drawGateMarker(c, W, H, fs);
   drawPoiLabels(c, W, H, fs);
   drawBaseLabels(c, W, H, fs);
+  drawVbsLabels(c, W, H, fs);
   if (touchUI) drawSticks(c, W, H);
 
   const tnow = performance.now();
@@ -413,6 +416,24 @@ function drawBaseLabels(c, W, H, fs) {
     if (used.some(r => Math.abs(r[0] - sx) < r[2] + hw && Math.abs(r[1] - sy) < r[3] + hh)) continue;
     used.push([sx, sy, hw, hh]);
     c.fillStyle = '#ffffff'; c.strokeText(t, sx, sy); c.fillText(t, sx, sy);
+  }
+}
+// Verbund mit VBS: Grundtyp und Entfernung über den Einheiten bis 200 m (nahe zuerst, überdeckte entfallen)
+function drawVbsLabels(c, W, H, fs) {
+  if (!lastVP || !rw.on || !vb.units.length) return;
+  c.font = `600 ${Math.round(fs*0.8)}px system-ui,sans-serif`; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)';
+  const used = [], col = { 0: '#ffe27a', 1: '#9cc2ff', 2: '#ff9a8a', 3: '#9be7a8' };
+  for (const u of vb.units) {
+    const b = disBaseInfo(u.base), p = [u.x, u.y + b.size[2] + 1, u.z], d = vLen(vSub(p, game.sim.p));
+    if (d > 200) continue;
+    const cp = mApply(lastVP, p);
+    if (cp[3] < 0.01) continue;
+    const nx = cp[0]/cp[3], ny = cp[1]/cp[3];
+    if (Math.abs(nx) > 0.95 || Math.abs(ny) > 0.95) continue;
+    const t = b.name + (u.dead ? ' (zerstört)' : '') + ' ' + Math.round(d) + ' M', sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H, hw = c.measureText(t).width/2 + 4, hh = fs*0.55;
+    if (used.some(r => Math.abs(r[0] - sx) < r[2] + hw && Math.abs(r[1] - sy) < r[3] + hh)) continue;
+    used.push([sx, sy, hw, hh]);
+    c.fillStyle = col[u.force] || '#ffffff'; c.strokeText(t, sx, sy); c.fillText(t, sx, sy);
   }
 }
 function drawGateMarker(c, W, H, fs) {

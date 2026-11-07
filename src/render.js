@@ -20,6 +20,7 @@ import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
 import { disBaseMesh, disPreviewLayout, DIS_SIDE } from './distypes.js';
+import { vb } from './verbund.js';
 const baseGl = new Map();   // VBS-Grundtypen: Netz je Typ, beim ersten Zeichnen hochgeladen
 
 /* ---------- WebGL ---------- */
@@ -857,6 +858,21 @@ export function render(dt) {
       gl.uniform1f(P.u.uHeat, it.dead ? 0.4 : it.id === 'person' ? 0.8 : 0.6);
       gl.uniform4f(P.u.uOver, c[0], c[1], c[2], it.dead ? 0.75 : 0.45);
       gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(it.dead ? qAxis([0, 0, 1], 0.12) : [0, 0, 0, 1], [it.x, it.dead ? 0.3 : 0, it.z]));
+      gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
+    }
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
+  }
+  // Verbund mit VBS (D3): Einheiten aus VBS als Grundtypen, Lage aus Kurs, Nicken, Rollen; zerstörte dunkel und schief
+  if (rw.on && vb.units.length) {
+    for (const u of vb.units) {
+      let g = baseGl.get(u.base);
+      if (!g) { g = upload(disBaseMesh(u.base)); baseGl.set(u.base, g); }
+      const c = u.dead ? DIS_SIDE.dead : DIS_SIDE[u.force] || DIS_SIDE[0];
+      let q = qMul(qAxis([0, 1, 0], u.yaw), qMul(qAxis([1, 0, 0], u.pitch), qAxis([0, 0, 1], -u.roll)));
+      if (u.dead) q = qMul(q, qAxis([0, 0, 1], 0.12));
+      gl.uniform1f(P.u.uHeat, u.dead ? 0.4 : 0.75);
+      gl.uniform4f(P.u.uOver, c[0], c[1], c[2], u.dead ? 0.75 : 0.45);
+      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, [u.x, u.y, u.z]));
       gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniformMatrix4fv(P.u.uModel, false, mIdent());

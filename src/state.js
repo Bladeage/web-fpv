@@ -13,7 +13,8 @@ export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: t
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
   ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal',
-  rwSrc: 'emb', rwLL: '', rwSources: [], rwStream: true,   // echte Welt: eingebettetes Monschau oder Ort per Koordinate laden; eigene Quellen (L3)
+  rwSrc: 'emb', rwLL: '', rwSources: [], rwStream: true, verbund: false,   // verbund: mit VBS über die DIS-Brücke (D3)
+    // echte Welt: eingebettetes Monschau oder Ort per Koordinate laden; eigene Quellen (L3)
   // Raten wie Betaflight „Actual“: [Mitte °/s, Maximum °/s, Expo %], für Rollen/Nicken und Gieren. Gelten für beide Regler.
   // Vorgabe nahe der früheren Kurve (max. 450 °/s), nicht die Betaflight-Vorgabe 70/670/0 (für Einsteiger zu steil).
   rates: { rp: [250, 450, 45], yaw: [190, 290, 30] } };   // vision: Bildmodus normal, thermal (Wärmebild), night (Nachtsicht)   // fc: Regler 'own' (eigener) oder 'bf' (Betaflight)

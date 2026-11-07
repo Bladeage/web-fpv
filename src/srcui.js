@@ -7,6 +7,7 @@ import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { deMap } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
+import { vb } from './verbund.js';
 
 const srcEl = id => document.getElementById(id);
 const SRC = { show: null, fit: () => {}, onData: () => {}, edit: -1, busy: null, tab: 'data' };
@@ -32,7 +33,9 @@ function srcList() {
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
 // Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen)
-export function srcOpen(tab = SRC.tab) { srcEl('srcMsg').textContent = ''; srcEl('geoMsg').textContent = 'Lade Übersicht …';   // Liste kommt gleich aus dem Speicher
+// Zustand der Verbindung zu VBS neben dem Schalter (verbunden, getrennt, ...)
+function srcVbsState() { srcEl('geoVbsSt').textContent = cfg.verbund ? '· ' + (vb.state === 'verbunden' ? 'verbunden, ' + vb.units.length + ' Einheiten' : vb.err || vb.state) : ''; }
+export function srcOpen(tab = SRC.tab) { srcVbsState(); srcEl('srcMsg').textContent = ''; srcEl('geoMsg').textContent = 'Lade Übersicht …';   // Liste kommt gleich aus dem Speicher
   srcTab(tab); srcList(); srcStoreFill(); SRC.show('sources'); }
 function srcTab(tab) {
   SRC.tab = tab;
@@ -186,6 +189,8 @@ export function srcInit(show, fit, onData) {
   srcEl('geoExp').addEventListener('click', geoExport);
   srcEl('geoStream').checked = cfg.rwStream !== false;
   srcEl('geoStream').addEventListener('change', e => { cfg.rwStream = e.target.checked; saveCfg(); });
+  srcEl('geoVbs').checked = !!cfg.verbund;
+  srcEl('geoVbs').addEventListener('change', e => { cfg.verbund = e.target.checked; saveCfg(); srcVbsState(); });
   srcEl('geoImp').addEventListener('click', () => srcEl('geoFile').click());
   srcEl('geoFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) geoImport(f); e.target.value = ''; });
   srcEl('srcNew').addEventListener('click', () => srcForm(-1));

@@ -24,6 +24,7 @@ import { RW_STORE } from './rwstore.js';
 import { bfPrepare } from './bf.js';
 import { dePrepare } from './demap.js';
 import { rwThreadInit } from './rwthread.js';
+import { vbStep } from './verbund.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
@@ -70,6 +71,8 @@ function frame(now) {
       }
     }
   }
+  // Verbund mit VBS (D3): auch in der Pause, damit die Drohne in VBS bleibt; die Brücke hält den Herzschlag
+  vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', !!cfg.verbund);
   render(dt);
   drawHud();
   audioUpd();

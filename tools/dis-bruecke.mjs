@@ -103,7 +103,7 @@ export function createBridge(o = {}) {
   const cfg = { wsPort: 8642, disPort: 3000, disTarget: '255.255.255.255', exercise: 1, site: DIS_FPV.site, app: DIS_FPV.app, undulation: 47,
     heartbeat: DIS_SEND.heartbeat, timeout: 13, lbEvery: 1000, pushEvery: 200, origins: ['null', 'https://bladeage.github.io', 'http://localhost', 'http://127.0.0.1'], log: () => {}, ...o };
   const dis = new Map(), clients = new Set(), t0 = Date.now(), now = () => (Date.now() - t0)/1000;
-  let lb = null, nextEntity = 1;
+  let lb = null, nextEntity = 1, closed = false;
   const udp = createSocket({ type: 'udp4', reuseAddr: true });
   udp.on('message', msg => {
     const d = disDecode(msg);
@@ -112,7 +112,7 @@ export function createBridge(o = {}) {
     dis.set(d.site + ':' + d.app + ':' + d.entity, { ...d, t: now() });
   });
   const ready = new Promise(res => udp.bind(cfg.disPort, () => { try { udp.setBroadcast(true); } catch (e) {} res(); }));
-  const send = pdu => udp.send(pdu, cfg.disTargetPort || cfg.disPort, cfg.disTarget);   // Zielport: wie der eigene (VBS: beide 3000); Tests geben ihn vor
+  const send = pdu => { if (closed) return; try { udp.send(pdu, cfg.disTargetPort || cfg.disPort, cfg.disTarget); } catch (e) { cfg.log('Senden fehlgeschlagen: ' + e.message); } };   // nach dem Beenden nichts mehr senden   // Zielport: wie der eigene (VBS: beide 3000); Tests geben ihn vor
 
   // eigene Drohne je Verbindung (mehrere Simulatoren möglich: Entity 1, 2, ...)
   function sendOwn(c, force = false) {
@@ -164,7 +164,7 @@ export function createBridge(o = {}) {
   return {
     ready: Promise.all([ready, httpReady]), dis, clients, cfg,
     get udpPort() { return udp.address().port; }, get wsPort() { return http.address().port; },
-    close() { clearInterval(tick); clearInterval(push); if (lbTimer) clearInterval(lbTimer); for (const c of clients) c.sock.destroy(); udp.close(); http.close(); }
+    close() { closed = true; clearInterval(tick); clearInterval(push); if (lbTimer) clearInterval(lbTimer); for (const c of clients) c.sock.destroy(); udp.close(); http.close(); }
   };
 }
 
