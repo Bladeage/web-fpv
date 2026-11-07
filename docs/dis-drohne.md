@@ -77,6 +77,23 @@ Weil das Gateway Ort und Bewegung eingefroren sendet (Ursache in VBS offen), hat
 - Dazu von k5.2: modelle.csv (9 819 Zeilen, 4 293 mit SISO) und bedienung.csv (1 795 Zeilen), lokal bei Fabian (Herstellerinhalt); Doku `docs/wissen-vbs4-dis-praxis.md` im Repo vbs-tools.
 - **Wichtig für Tests:** Das Testprofil steht wieder im Ausgangsstand (AllowLoopback 0, LightweightMode 1, ShowUnknownEntities 0). Für Proben mit der Brücke auf demselben Rechner stellt k5.2 AllowLoopback im Testmodus wieder auf 1.
 
+## D2 Brücke (erledigt 07.11.2026, Prompt 140)
+
+`tools/dis-bruecke.mjs`, nur Node-Bordmittel. Tests: `test/bruecke.test.mjs`. Läuft auf dem VBS-Rechner:
+
+```
+node tools/dis-bruecke.mjs --lagebild "<VBS-Benutzerordner>\sqfkit_lagebild\lagebild.txt"
+```
+
+Optionen: `--ws 8642` (WebSocket), `--dis-port 3000`, `--dis-ziel 255.255.255.255`, `--uebung 1`, `--site 1`, `--app 200`, `--quasigeoid 47`, `--tabelle <Datei>` (lokale Tabelle Land.Kategorie.Unterkategorie=Grundtyp, nur `private/`).
+- **Zum Browser:** WebSocket nach RFC 6455, selbst geschrieben, nur auf 127.0.0.1, nur für erlaubte Seiten (GitHub Pages, lokal geöffnete Datei, localhost); andere bekommen 403. Je Verbindung eine eigene Drohne (Entity 1, 2, …).
+- **Senden:** Der Browser schickt seinen Zustand (`{ t: 'own', lat, lon, h (NHN), q, v, w, state }`). Die Brücke rechnet mit `src/dis.js` um und sendet nach der Senderegel, spätestens alle 5 s, auch wenn der Browser pausiert. Absturz sofort als „zerstört“, Trennen einmal als „deaktiviert“.
+- **Empfangen:** DIS Entity State der Übung, eigene Pakete (Site/App) werden übergangen, Löschen nach 13 s. Lagebild jede Sekunde gelesen und über die Entity-Nummer mit DIS verbunden: Art und Seite aus DIS, Ort, Tempo und Lage aus dem Lagebild. Ohne DIS-Gegenstück: Seite aus dem Lagebild (WEST Freund, EAST Feind, GUER neutral, CIV sonstige), Form Quader.
+- **An den Browser** 5-mal je Sekunde: `{ t: 'units', units: [{ id, base, force, lat, lon, h, hdg, pitch, roll, vn, dead, src }] }`.
+- Klassennamen aus dem Lagebild bleiben im Speicher (Herstellerinhalt), werden weder gespeichert noch an den Browser gegeben.
+- Geprüft ohne VBS: Schlüssel aus dem Beispiel der Norm, Rahmen mit Maske und Teilstücken; Gesamtlauf mit echtem WebSocket als Browser und UDP-Empfänger als VBS (erste PDU mit unseren Werten und richtigem Ort, Herzschlag, fremde Einheit aus DIS plus Lagebild verbunden, eigenes Echo übergangen, Absturz, deaktiviert); fremde Webseite abgelehnt.
+- Noch nicht geprüft: mit VBS selbst (Testprofil braucht dafür AllowLoopback 1). Der Simulator spricht die Brücke noch nicht an (D3).
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
@@ -86,7 +103,7 @@ Weil das Gateway Ort und Bewegung eingefroren sendet (Ursache in VBS offen), hat
 ## Etappen (Vorschlag)
 
 1. **D1 Kodierer:** Modul ohne DOM (`dis.js`): Entity State bauen und lesen, ECEF und Lage hin und zurück, Zustände. Tests in Node, ohne Netz. **Erledigt** (07.11.2026, Prompt 135), siehe unten.
-2. **D2 Brücke:** `tools/dis-bruecke.mjs` mit Node-Bordmitteln (UDP über `dgram`, WebSocket selbst, nur 127.0.0.1). Test mit einem eigenen UDP-Empfänger.
+2. **D2 Brücke:** `tools/dis-bruecke.mjs` mit Node-Bordmitteln (UDP über `dgram`, WebSocket selbst, nur 127.0.0.1). Test mit einem eigenen UDP-Empfänger. **Erledigt** (Prompt 140), siehe unten.
 3. **D3 Simulator:** Schalter „Verbund“ (Vorgabe aus), Senden der eigenen Drohne, fremde Einheiten als Grundtypen.
 4. **D4 Probe mit VBS:** über k5.2 (Modul `bruecke` listet unsere Drohne in VBS), erst nach Fabians Entscheidungen.
 

@@ -68,6 +68,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/rwworker.js` | Echte Welt: Aufträge im Hintergrund-Thread (Gebiet laden, Netz der Gebäude), läuft im Worker |
 | `src/dis.js` | DIS-Kodierer für die VBS-Anbindung: WGS84/ECEF, Lage, Entity State PDU (DIS 6/7), Vorhersage, Senderegel (noch nicht im Spiel) |
 | `src/distypes.js` | VBS-Grundtypen: 18 einfache Modelle, Zuordnung nach DIS-Entitätsart, Aufstellung der Vorschau (Modus „VBS-Grundtypen“) |
+| `tools/dis-bruecke.mjs` | DIS-Brücke zu VBS (Node, nur Bordmittel): WebSocket zum Simulator, DIS über UDP, Lagebild-Datei; läuft auf dem VBS-Rechner |
 | `src/rwthread.js` | Echte Welt: Hintergrund-Thread aus dem eigenen Script anlegen, Aufträge abgeben; ohne ihn rechnet das Hauptprogramm |
 | `src/demap.js`, `src/mapui.js`, `src/srcui.js` | Deutschlandkarte (Daten und Bedienung), Seiten „Quellen“ und „Quelle bearbeiten“ |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |
