@@ -575,7 +575,8 @@ export function render(dt) {
   const W = glc.width, H = glc.height, asp = W/H;
   const hf = (cfg.fov || 110)*DEG;   // horizontales Blickfeld
   const vf = clamp(2*Math.atan(Math.tan(hf/2)/asp), 55*DEG, 120*DEG);
-  const proj = mPersp(vf, asp, rw.on ? (rw.far ? 0.1 : 0.06) : cfg.cam === 'fpv' ? 0.02 : 0.05, rw.on && rw.far ? 9000 : 1500);   // echte Welt mit Umgebung (L5a): Sicht bis 9 km, nahe Ebene 0,1 m (Tiefe bleibt fein)   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an. Echte Welt: 0,06 m, dreifach feinere Tiefe in der Ferne (Dächer, Wasser)
+  const near = rw.on ? (rw.far ? 0.1 : 0.06) : cfg.cam === 'fpv' ? 0.02 : 0.05;
+  const proj = mPersp(vf, asp, near, rw.on && rw.far ? 9000 : 1500);   // echte Welt mit Umgebung (L5a): Sicht bis 9 km, nahe Ebene 0,1 m (Tiefe bleibt fein)   // FPV: nahe Bildebene, sonst schneidet sie am Boden den Boden an. Echte Welt: 0,06 m, dreifach feinere Tiefe in der Ferne (Dächer, Wasser)
   let view, eye;
   if (cfg.cam === 'fpv') {
     let qc = qMul(sim.q, qAxis([1,0,0], cfg.tilt*DEG));
@@ -587,7 +588,10 @@ export function render(dt) {
     // Mindestens 3,5 cm über dem Boden, sonst sieht man am Boden durch die Karte (Bildebene 2 cm vor dem Auge).
     const sz = PHYS.size;
     eye = vAdd(sim.p, vAdd(vScale(qRot(sim.q, [0,0,-1]), 0.09*sz), vScale(qRot(sim.q, [0,1,0]), 0.015*sz)));
-    eye[1] = Math.max(eye[1], groundH(eye[0], eye[2]) + 0.035);   // groundH ist die gezeichnete Fläche (echte Welt)
+    // Abstand zum Boden mindestens 1,4 x nahe Bildebene: Sonst trifft der unterste Sichtstrahl den Boden näher als die
+    // Bildebene, das Bild schneidet ihn weg und man sieht von unten ins Gelände (Fehlerbericht Nutzer, Prompt 138: Start in der
+    // echten Welt). Gerechnet für Blickfeld bis 120° hoch und Kamera 20° nach oben: nötig sind bis 1,3 x nahe Ebene.
+    eye[1] = Math.max(eye[1], groundH(eye[0], eye[2]) + Math.max(0.035, near*1.4));   // groundH ist die gezeichnete Fläche (echte Welt)
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {
@@ -736,8 +740,11 @@ export function render(dt) {
   // Weiche Schatten unter bewegten Objekten (Mittel und Schön), entlang der Sonne versetzt, schwächer mit der Höhe
   if (cfg.gfx !== 'simple') {
     const blobs = [];
-    const add = (p, rx, rz, yaw) => { if (p[1] < 40) blobs.push([p[0] - SUN[0]/SUN[1]*p[1], p[2] - SUN[2]/SUN[1]*p[1], rx*(1 + p[1]*0.03), rz*(1 + p[1]*0.03), yaw, 0.5*Math.max(0, 1 - p[1]/30)]); };
-    if (cfg.cam !== 'fpv' || sim.p[1] < 20) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0);
+    // Höhe über dem Boden: Spielkarte y = 0, echte Welt die Bodenhöhe darunter (sonst lag der Schatten flach auf Höhe 0, Prompt 138)
+    const add = (p, rx, rz, yaw) => { const g = rw.on ? groundH(p[0], p[2]) : 0, h = p[1] - g;
+      if (h < 40) blobs.push([p[0] - SUN[0]/SUN[1]*h, p[2] - SUN[2]/SUN[1]*h, rx*(1 + h*0.03), rz*(1 + h*0.03), yaw, 0.5*Math.max(0, 1 - h/30), g]); };
+    { const hg = sim.p[1] - (rw.on ? groundH(sim.p[0], sim.p[2]) : 0);   // eigener Schatten; im Kamerabild erst ab 0,5 m (am Boden deckte er den unteren Rand zu)
+      if (cfg.cam !== 'fpv' || (hg > 0.5 && hg < 20)) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0); }
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
     if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, 0, v.z], 1.15, 2.3, v.yaw);
@@ -747,8 +754,8 @@ export function render(dt) {
     gl.uniform4f(P.u.uOver, 0, 0, 0, 1);
     gl.bindVertexArray(discMesh.vao);
     const dr = 0.063*PROP_S;   // Radius der Scheibe im Modell
-    for (const [x, z, rx, rz, yaw, a] of blobs) for (const [k, al] of [[1.4, 0.45], [0.9, 1]]) {   // außen weich, innen dunkler
-      const m = mFromQT(qAxis([0,1,0], yaw), [x, 0.02, z]);
+    for (const [x, z, rx, rz, yaw, a, g0] of blobs) for (const [k, al] of [[1.4, 0.45], [0.9, 1]]) {   // außen weich, innen dunkler
+      const m = mFromQT(qAxis([0,1,0], yaw), [x, (rw.on ? groundH(x, z) : g0) + 0.02, z]);
       for (const i of [0, 1, 2]) m[i] *= rx*k/dr;
       for (const i of [8, 9, 10]) m[i] *= rz*k/dr;
       gl.uniformMatrix4fv(P.u.uModel, false, m); gl.uniform1f(P.u.uAlpha, a*al*0.6);

@@ -285,6 +285,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Zeichnen: Die alte Umgebung bleibt, bis Netz und Luftbild der neuen fertig sind; dann tauschen beide zusammen (kein Versatz des Bildes). Physik nutzt die neue sofort; nahe der Drohne decken sich beide.
 - Geprüft: Test in Node (keine Bewegung nahe der Mitte, neue Mitte aus dem Speicher und von den Diensten, Kachel 6 km weg erst danach erlaubt, Fläche gleich dem Netz, ohne Netz bleibt die alte); im Browser mit den echten Diensten von Monschau 7 km nach Osten (Mitte 2, 4, 6 km, Kacheln 6 und 7 geladen, Luftbild bis zum Horizont, keine Fehler).
 
+## Kamera am Boden (07.11.2026, Prompt 138)
+
+- Fehlerbild: Start in der echten Welt, hinter dem Menü sah man das Gelände von unten.
+- Ursache (gesichert, im Browser nachgestellt und nachgerechnet): Die Kamera stand 3,5 cm über dem Boden, die nahe Bildebene liegt in der echten Welt bei 10 cm. Der unterste Sichtstrahl traf den Boden näher als die Bildebene; dort wurde der Boden weggeschnitten. 1 m höher war das Bild richtig.
+- Jetzt: Abstand der Kamera zum Boden mindestens 1,4 x nahe Bildebene (echte Welt 14 cm, Spielkarte unverändert 3,5 cm). Gerechnet für Blickfeld bis 120° hoch (Handy hochkant) und Kamera 20° nach oben: nötig sind bis 1,3 x.
+- Dazu: Der weiche Schatten der Drohne lag in der echten Welt flach auf Höhe 0 statt auf dem Boden; jetzt auf dem Boden. Im Kamerabild erscheint der eigene Schatten erst ab 0,5 m Höhe (am Boden deckte er den unteren Bildrand zu).
+- Geprüft im Browser: Start mit zuletzt gewählter echter Welt, PC und Handy hochkant.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
