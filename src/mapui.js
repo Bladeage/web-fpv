@@ -73,7 +73,7 @@ function wantBasemap(w, h, dpr) {
 }
 function info() {
   const off = M.bmErr ? ' Hintergrundkarte nicht erreichbar, nur Grenzen.' : '';
-  if (!M.sel) { el('mapInfo').textContent = 'Klicke auf die Karte, um den Mittelpunkt zu setzen. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
+  if (!M.sel) { el('mapInfo').textContent = 'Auf die Karte tippen, um den Mittelpunkt zu setzen. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
   const [lat, lon] = fromUtm(M.sel[0], M.sel[1]), land = deLandAt(M.sel[0], M.sel[1]), plan = rwPlan(lat, lon);
   el('mapInfo').textContent = lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
     + (plan ? 'Quelle: ' + plan.srcs.map(x => x.name).join(' + ') + (plan.skipped.length ? ' (ohne ' + plan.skipped.map(x => x.name).join(', ') + ': anderes Koordinatensystem)' : '')

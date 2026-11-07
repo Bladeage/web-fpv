@@ -28,11 +28,12 @@ function srcList() {
     r.append(t, k); box.append(r);
   };
   (cfg.rwSources || []).forEach((s, i) => row(s, (s.land || 'ohne Land') + ' · eigene', 'Bearbeiten', () => srcForm(i)));
-  for (const s of RW_SOURCES) row(s, s.land + ' · Vorlage', 'Kopie', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
+  for (const s of RW_SOURCES) row(s, s.land + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
 // Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen)
-export function srcOpen(tab = SRC.tab) { srcEl('srcMsg').textContent = ''; srcTab(tab); srcList(); srcStoreFill(); SRC.show('sources'); }
+export function srcOpen(tab = SRC.tab) { srcEl('srcMsg').textContent = ''; srcEl('geoMsg').textContent = 'Lade Übersicht …';   // Liste kommt gleich aus dem Speicher
+  srcTab(tab); srcList(); srcStoreFill(); SRC.show('sources'); }
 function srcTab(tab) {
   SRC.tab = tab;
   document.querySelectorAll('#geoTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.gtab === tab)));
@@ -76,6 +77,7 @@ async function srcStoreFill() {
     row(x.place, (x.size/1e6).toFixed(0) + ' MB · ' + new Date(x.date).toLocaleDateString('de-DE') + (x.water ? ' · mit Gewässern' : ''), 'Löschen', async () => { await storeAreaDel(x.key); srcStoreFill(); });
   box.textContent = ''; box.append(...rows);
   await srcStats();
+  if (srcEl('geoMsg').textContent === 'Lade Übersicht …') srcEl('geoMsg').textContent = '';
   if (!rows.length) srcEl('geoMsg').textContent ||= 'Noch leer. Geladene Orte werden automatisch gespeichert.';
   SRC.onData();
   SRC.fit();   // Zeilen kamen nach dem Einpassen dazu

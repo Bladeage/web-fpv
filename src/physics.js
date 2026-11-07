@@ -155,7 +155,7 @@ export function respawnDrone() {
 // Scharf schalten oder aus (wie der Arm-Schalter an der Funke). Scharf nur mit Gas unten, wie bei Betaflight.
 export function toggleArm() {
   if (game.armed) { game.armed = false; say('Disarmed', 1.2); return false; }
-  if (game.throttle > 0.05) { say('Gas runter zum Scharfschalten', 1.6); return false; }
+  if (game.throttle > 0.05) { say('Gas runter zum scharf schalten', 1.6); return false; }
   game.armed = true; say('Armed', 1.2); fx.beep(660, 0.12);
   return true;
 }

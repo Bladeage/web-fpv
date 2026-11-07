@@ -299,10 +299,10 @@ export function drawHud() {
   if (!game.armed && game.state === 'fly') txt('DISARMED', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   // Betaflight schaltet nur mit Gas unten scharf (Sicherheit). Stand das Gas beim Start oben, bleibt es aus: Hinweis wie im Betaflight-OSD.
   else if (game.state === 'fly' && cfg.fc === 'bf' && bf.ready && bf.x && !bf.x.bf_flag(0) && blink) txt('BETAFLIGHT AUS: GAS GANZ RUNTER', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
-  if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.62, 'center', '#ffffff');
+  if (!game.armed && game.state === 'fly' && s.grounded) txt('Leertaste: scharf schalten', W/2, H*0.8, 'center', '#ffffff');
   else if (game.state === 'fly' && s.t < 6 && s.grounded && game.throttle < 0.2) {
     const hint = gp.connected ? 'Gasknüppel hoch' : touchUI ? 'Linken Daumen nach oben schieben für Gas' : 'W drücken für Gas, S für weniger';
-    txt(hint, W/2, H*0.62, 'center', '#ffffff');
+    txt(hint, W/2, H*0.8, 'center', '#ffffff');   // unter Horizont und Zielmarker, über der Knüppel-Anzeige
   }
   if (glLost.on) {   // Grafik verloren: Bild bleibt stehen, Flug ruht; meist kommt sie nach Sekunden zurück
     c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, H);

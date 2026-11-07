@@ -20,13 +20,13 @@ export const SCENARIOS = [
   { id: 'rings',   name: 'Ringparcours',       info: '8 Ringe in der Luft, geneigt. Bei jedem Start neu angeordnet.' },
   { id: 'slalom',  name: 'Slalom',             info: '5 Stangen, bei jedem Start neu. Blau: rechts vorbei, rot: links vorbei.' },
   { id: 'landing', name: 'Präzisionslandung',  info: 'Abheben, zur Plattform fliegen, sanft landen und 1 s ruhig stehen.' },
-  { id: 'hunt',    name: 'Jagd Luft',          info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.' },
-  { id: 'hunt3',   name: 'Jagd Flugzeuge',     info: '6 Luftziele: Starrflügler (3 Punkte, fliegen schnell Kreise und Achten), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).' },
-  { id: 'hunt2',   name: 'Jagd Boden',         info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Berühre die geforderte Anzahl.' },
+  { id: 'hunt',    name: 'Jagd: Drohnen',      info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.' },
+  { id: 'hunt3',   name: 'Jagd: Flugzeuge',    info: '6 Luftziele: Starrflügler (3 Punkte, fliegen schnell Kreise und Achten), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).' },
+  { id: 'hunt2',   name: 'Jagd: Fahrzeuge',    info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl berühren.' },
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
-  { id: 'follow',  name: 'Verfolgung',         info: 'Folge dem orangen Auto: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
+  { id: 'follow',  name: 'Verfolgung',         info: 'Dem orangen Auto folgen: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
-  { id: 'real',    name: 'Echte Welt',         info: '1 x 1 km echtes Gelände mit Luftbild, Häusern und Bäumen. Daten: Geobasis NRW, dl-de/zero-2.0.' }
+  { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: Monschau eingebaut oder ein Ort per Karte. Beim Fliegen lädt die Umgebung nach. Daten: Geobasis NRW, dl-de/zero-2.0.' }
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
 

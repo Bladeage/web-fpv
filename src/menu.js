@@ -64,7 +64,7 @@ function setCapIcon() { const sp = droneSpec(cfg.drone), b = $('capIco'); b.text
 const STYLES = {
   learn:  { name: 'Lernen',      info: 'Angle, kein Schaden, Akku unendlich, Flugspur.', set: { mode: 'angle', dmg: 'off', infBat: true, trail: true, ghost: false, needArm: false } },
   normal: { name: 'Normal',      info: 'Angle, kein Schaden, Akku normal.', set: { mode: 'angle', dmg: 'off', infBat: false, trail: false, ghost: false, needArm: false } },
-  real:   { name: 'Realistisch', info: 'Acro, Schaden realistisch, Akku normal, Scharfschalten nötig.', set: { mode: 'acro', dmg: 'real', infBat: false, trail: false, ghost: false, needArm: true } },
+  real:   { name: 'Realistisch', info: 'Acro, Schaden realistisch, Akku normal, scharf schalten nötig.', set: { mode: 'acro', dmg: 'real', infBat: false, trail: false, ghost: false, needArm: true } },
   god:    { name: 'Gott-Modus',  info: 'Durch Hindernisse fliegen, kein Schaden, Akku unendlich, Flugspur.', set: { mode: 'angle', dmg: 'off', infBat: true, trail: true, ghost: true, needArm: false } }
 };
 const currentStyle = () => Object.keys(STYLES).find(k => Object.entries(STYLES[k].set).every(([key, v]) => cfg[key] === v)) || null;
@@ -140,7 +140,14 @@ export function syncMenu() {
   $('gpPreset').value = cfg.gpPreset;
   syncGpRows();
   $('bResume').hidden = !game.started;
-  $('bBack').textContent = from === null && game.started ? 'Weiterfliegen' : 'Zurück';
+  $('go').className = game.started ? 'secondary' : 'primary';   // nach dem ersten Flug ist „Weiterfliegen“ der Hauptknopf
+  // Einstellungen: im Flug „Pause“ mit „Weiterfliegen“; aus dem Hauptmenü nur „Fertig“; aus einem anderen Schritt „Fertig“ (zurück dorthin) und „Hauptmenü“
+  const inFlight = from === null && game.started;
+  $('setTitle').textContent = inFlight ? 'Pause' : 'Einstellungen';
+  $('bBack').textContent = inFlight ? 'Weiterfliegen' : 'Fertig';
+  $('bMain').hidden = !inFlight && (from === null || from === 'main');
+  $('setNav').style.gridTemplateColumns = $('bMain').hidden ? '1fr' : '';
+  $('firstHint').hidden = game.started || game.best !== null;
   const cur = SCENARIOS.find(x => x.id === (game.started ? game.scenRun : cfg.scen)) || sc;
   $('bestTxt').textContent = game.best !== null ? 'Bestzeit ' + cur.name + ': ' + fmtTime(game.best) : '';
 }
@@ -153,16 +160,19 @@ export function fitPanel() {
   const cs = getComputedStyle(menu);
   const aw = menu.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const ah = menu.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  let z = Math.floor(clamp(Math.min(ah/pn.scrollHeight, aw/pn.offsetWidth, 1.35), 0.72, 1.35)*100)/100;
+  let z = Math.floor(clamp(Math.min(ah/pn.scrollHeight, aw/pn.offsetWidth, 1.15), 0.72, 1.15)*100)/100;   // höchstens 1,15: Seiten springen weniger in der Größe
   const set = () => { pn.style.zoom = String(z); pn.style.maxHeight = Math.floor(ah/z) + 'px'; };
   set();
   // Nachmessen: Mit anderer Größe brechen Zeilen anders um. In 3-%-Schritten verkleinern, bis nichts mehr scrollt.
   for (let i = 0; i < 10 && z > 0.72 && pn.scrollHeight > pn.clientHeight + 1; i++) { z = Math.round((z - 0.03)*100)/100; set(); }
 }
 addEventListener('resize', () => fitPanel());
-$('verTxt').textContent = VERSION.startsWith('%%') ? 'Version dev' : VERSION;
+// Version ohne Kurz-Hash anzeigen (der steht in der Konsole)
+$('verTxt').textContent = VERSION.startsWith('%%') ? 'Version dev' : VERSION.replace(/, [0-9a-f]{6,}\)$/, ')');
+if (!VERSION.startsWith('%%')) console.info('FPV-Simulator', VERSION);
 export function show(name) {
   screen = name;
+  document.body.classList.toggle('menuopen', !menu.hidden);   // Flug-Knöpfe oben nur ohne Menü
   if (name === 'drone') showFine(false);
   document.querySelectorAll('#menu section').forEach(s => { s.hidden = s.dataset.screen !== name; });
   syncMenu();
@@ -174,10 +184,11 @@ export function show(name) {
 }
 export function openMenu(name = 'settings') {
   if (menu.hidden) from = null; else if (name === 'settings' && screen !== 'settings') from = screen;
-  game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; show(name);
+  if (menu.hidden && name === 'settings') showTab('general');   // Pause beginnt immer bei „Allgemein“
+  game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; document.body.classList.add('menuopen'); show(name);
   audioPause();
 }
-export function resume() { keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; game.last = performance.now(); }
+export function resume() { keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; document.body.classList.remove('menuopen'); game.last = performance.now(); }
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
@@ -206,7 +217,7 @@ async function rwLiveDo() {
     $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
     if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
       const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Geodaten importieren';
-      b.addEventListener('click', () => srcOpen('data')); $('rwMsg').append(' ', b);
+      b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); }); $('rwMsg').append(' ', b);
     }
     return false;
   } finally {
@@ -258,7 +269,6 @@ async function start() {
 }
 
 for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
-{ const b = addChoice($('specList'), 'DIS-Anbindung', '', () => {}); b.disabled = true; b.title = 'geplant, siehe docs/dis-bruecke.md'; b.dataset.id = 'dis'; }
 // Reiter wechseln: „Spezial“ wählt die echte Welt, „Modi“ den zuletzt gewählten normalen Modus
 document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('click', () => {
   const spec = b.dataset.mtab === 'spec';
@@ -267,7 +277,9 @@ document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('c
   saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
 document.querySelectorAll('#rwSeg button[data-src]').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
-$('rwOpt').addEventListener('click', () => srcOpen('data'));   // Optionen der echten Welt (Daten, Quellen)
+let srcFrom = 'mode';   // Optionen der echten Welt: „Fertig“ führt dorthin zurück, woher man kam
+$('rwOpt').addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); });   // Optionen der echten Welt (Daten, Quellen)
+$('srcDone').addEventListener('click', () => show(srcFrom));
 $('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
 $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
 $('rwGo').addEventListener('click', () => rwLive());
@@ -276,7 +288,7 @@ rwSavedFill();
 // Karte (L2): Punkt wählen, übernehmen lädt sofort
 $('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
 srcInit(show, () => fitPanel(), () => rwSavedFill());
-$('mapSrc').addEventListener('click', () => srcOpen('src'));
+$('mapSrc').addEventListener('click', () => { srcFrom = 'map'; srcOpen('src'); });
 mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwReplace(); }, () => fitPanel());
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
@@ -325,7 +337,10 @@ for (const [id, st] of Object.entries(OSD_STYLES)) {
   const b = addChoice($('osdStyleSeg'), st.name, '', () => { cfg.osdStyle = id; cfg.osd = { ...st.osd }; saveCfg(); syncMenu(); });
   b.dataset.style = id;
 }
+// Gruppen im OSD-Reiter: Überschrift vor dem ersten Eintrag jeder Gruppe (Reihenfolge wie OSD_ITEMS)
+const OSD_GROUPS = { lq: 'Allgemein', volt: 'Akku', flytime: 'Flug', ahi: 'Anzeige', mapLayers: 'Echte Welt' };
 for (const [id, name] of OSD_ITEMS) {
+  if (OSD_GROUPS[id]) { const h = document.createElement('span'); h.className = 'osdgrp'; h.textContent = OSD_GROUPS[id]; $('osdList').appendChild(h); }
   const lab = document.createElement('label'), cb = document.createElement('input');
   lab.className = 'check'; cb.type = 'checkbox'; cb.dataset.osd = id;
   cb.addEventListener('change', () => { cfg.osd[id] = cb.checked; saveCfg(); });

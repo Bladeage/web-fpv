@@ -9,9 +9,9 @@ export const OSD_ITEMS = [
   ['timer', 'Rundenzeiten', true], ['clock', 'Uhrzeit', false], ['fps', 'Bildrate', false],
   ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['vmin', 'Tiefste Spannung', true], ['eff', 'mAh pro Minute', false],
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
-  ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Stick-Anzeige', true],
+  ['thr', 'Gas', true], ['tilt', 'Neigung', false], ['sticks', 'Knüppel-Anzeige', true],
   ['motors', 'Motorschaden', true], ['ahi', 'Künstlicher Horizont', true], ['cross', 'Fadenkreuz', true], ['marker', 'Zielmarker', true], ['warn', 'Warnungen', true],
-  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Werte', false], ['goggle', 'Brillenrand', false], ['rec', 'Rec.-Punkt', false], ['mapLayers', 'Kartenlinien (echte Welt)', false], ['coords', 'Koordinaten (echte Welt)', true], ['place', 'Nächster Ort (echte Welt)', true]
+  ['compass', 'Kompassband', false], ['finder', 'Sucher-Rahmen', false], ['big', 'Große Zahlen (Höhe, Tempo)', false], ['goggle', 'Brillenrand', false], ['rec', 'Aufnahme-Punkt', false], ['mapLayers', 'Kartenlinien', false], ['coords', 'Koordinaten', true], ['place', 'Nächster Ort', true]
 ];
 const DEFAULT = Object.fromEntries(OSD_ITEMS.map(([id, , on]) => [id, on]));
 // OSD-Stile: setzen alle Häkchen auf einmal (cfg.osd) und die Schrift (cfg.osdStyle). Danach einzeln änderbar.
@@ -42,8 +42,8 @@ export function osdLines(o, d) {
   if (d.crashes) add('tl', 'crashes', 'CRASH ' + d.crashes, '#ffd0c8');
   (d.hp || []).forEach((hp, i) => { if (hp < 0.98) add('tl', 'motors', 'M' + (i + 1) + ' ' + (hp > 0 ? pad(Math.round(hp*100), 3) + '%' : 'AUS'), hp < 0.5 ? RED : YEL); });
   add('tr', 'timer', fmtTime(d.cur));
-  add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');
-  add('tr', 'timer', 'BESTE ' + fmtTime(d.best), '#c8ffd4');
+  if (d.last !== null && d.last !== undefined) add('tr', 'timer', 'LETZTE ' + fmtTime(d.last), '#dfe6ea');   // erst nach der ersten Runde
+  if (d.best !== null && d.best !== undefined) add('tr', 'timer', 'BESTE ' + fmtTime(d.best), '#c8ffd4');
   add('tr', 'clock', d.clock);
   add('tr', 'fps', Math.round(d.fps || 0) + ' FPS ' + Math.round((d.res ?? 1)*100) + '%' + (d.lite ? ' L' : ''), (d.fps || 0) < 40 ? YEL : WHITE);   // L = Sparmodus
   const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;

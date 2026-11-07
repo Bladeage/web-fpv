@@ -12,7 +12,7 @@ export const GP_PRESETS = {
 };
 // Schalter-Funktionen: frei belegbar mit einer Achse (Schalter an der Funke, an ab 0,3) oder einer Taste.
 // Quelle: '' aus, 'a4' Achse 4, 'b0' Taste 0. cfg.gpSw = { arm: { src, inv }, ... }
-export const GP_SW = [['arm', 'Arm-Schalter'], ['mode', 'Angle/Acro'], ['reset', 'Neustart'], ['cam', 'Kamera'], ['rewind', 'Rückspulen'], ['vision', 'Wärme/Nacht']];
+export const GP_SW = [['arm', 'Scharfschalter'], ['mode', 'Angle/Acro'], ['reset', 'Neustart'], ['cam', 'Kamera'], ['rewind', 'Zurückspulen'], ['vision', 'Wärme/Nacht']];
 // Aktionen, die das Browser-Modul (main.js) einsetzt: Kamera, Zurückspulen, Flugmodus
 export const gpAct = { cam() {}, rewind() {}, mode() {}, vision() {} };
 export const gp = { connected: false, id: '', mapping: '', axes: [], buttons: [], throttle: 0, yaw: 0, pitch: 0, roll: 0, btn: false, sw: {}, swPrev: {} };

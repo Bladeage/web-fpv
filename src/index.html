@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>FPV-Simulator – Stufe 1</title>
+<title>FPV-Simulator</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,19 +20,20 @@
 <div id="menu" class="overlay">
   <div class="panel" role="dialog" aria-labelledby="mt">
     <section data-screen="main">
-      <h1 id="mt">FPV-Simulator<small>Parcours wählen, Drohne wählen, fliegen</small></h1>
+      <h1 id="mt">FPV-Simulator<small>Modus wählen, Drohne wählen, fliegen</small></h1>
       <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
       <button id="bResume" class="primary" hidden>Weiterfliegen</button>
       <button id="go" class="primary">Neuer Flug</button>
       <button class="secondary" data-go="settings">Einstellungen</button>
       <p class="best" id="bestTxt"></p>
+      <p class="hint firsthint" id="firstHint">Steuerung: Tastatur (W A S D und Pfeile), Touch oder Funke. Mehr unter Einstellungen → Hilfe.</p>
       <p class="ver" id="verTxt"></p>
     </section>
 
     <section data-screen="mode" hidden>
       <p class="stepno">Schritt 1 von 2</p>
       <h1>Modus</h1>
-      <div class="tabs tabs2" id="modeTabs" role="tablist"><button data-mtab="std">Modi</button><button data-mtab="spec">Spezial</button></div>
+      <div class="tabs tabs2" id="modeTabs" role="tablist"><button data-mtab="std">Standard</button><button data-mtab="spec">Spezial</button></div>
       <div id="modeStd">
         <div class="list grid2" id="scenList"></div>
         <p class="hint" id="courseInfo"></p>
@@ -50,7 +51,7 @@
         <div id="rwOpts">
           <div class="seg small seg3" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button><button id="rwOpt" title="Daten, Export und Import, Quellen">Optionen</button></div>
           <div id="rwLive" class="rwlive">
-            <input type="text" id="rwLL" placeholder="Breite, Länge  z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
+            <input type="text" id="rwLL" placeholder="z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
             <button class="secondary" id="rwMap">Karte</button>
             <button class="secondary" id="rwGo">Laden</button>
           </div>
@@ -77,7 +78,7 @@
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
         <div class="geostats" id="geoStats"></div>
         <div class="srclist" id="srcStore"></div>
-        <div class="seg small"><button id="geoExp">Exportieren</button><button id="geoImp">Importieren</button></div>
+        <div class="seg small"><button id="geoImp">Importieren</button><button id="geoExp">Exportieren</button></div>
         <input type="file" id="geoFile" accept=".fpvgeo,application/octet-stream,application/gzip" hidden>
         <p class="hint" id="geoMsg"></p>
       </div>
@@ -88,7 +89,7 @@
         <input type="file" id="srcFile" accept=".json,application/json" hidden>
         <p class="hint" id="srcMsg"></p>
       </div>
-      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" data-go="map">Zur Karte</button></div>
+      <div class="nav"><button class="secondary" data-go="map">Zur Karte</button><button class="primary" id="srcDone">Fertig</button></div>
     </section>
 
     <section data-screen="source" hidden>
@@ -162,7 +163,7 @@
     </section>
 
     <section data-screen="settings" hidden>
-      <h1>Einstellungen</h1>
+      <h1 id="setTitle">Einstellungen</h1>
       <div class="tabs" role="tablist">
         <button data-tab="general">Allgemein</button><button data-tab="radio">Steuerung</button><button data-tab="switch">Schalter</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
       </div>
@@ -178,24 +179,25 @@
         <div class="checks">
           <label class="check"><input type="checkbox" id="sound"> Ton</label>
           <label class="check"><input type="checkbox" id="propsView"> Propeller im Bild</label>
-          <label class="check"><input type="checkbox" id="needArm"> Scharfschalten nötig</label>
+          <label class="check"><input type="checkbox" id="needArm"> Scharf schalten nötig</label>
           <label class="check"><input type="checkbox" id="autoRes"> Auflösung automatisch</label>
           <label class="check"><input type="checkbox" id="infBat"> Akku unendlich</label>
           <label class="check"><input type="checkbox" id="ghost"> Durch Hindernisse</label>
           <label class="check"><input type="checkbox" id="trail"> Flugspur</label>
         </div>
-        <h2>Bild</h2>
         <div class="segpair">
+        <div><h2>Videobild</h2>
         <div class="seg seg3 small" id="videoSeg">
           <button data-video="analog"><b>Analog</b></button>
           <button data-video="digital"><b>Digital</b></button>
           <button data-video="clean"><b>Ohne</b></button>
-        </div>
+        </div></div>
+        <div><h2>Sicht</h2>
         <div class="seg seg3 small" id="visionSeg">
           <button data-vision="normal"><b>Normal</b></button>
           <button data-vision="thermal" title="Wärmebild (Taste N)"><b>Wärme</b></button>
           <button data-vision="night" title="Nachtsicht (Taste N)"><b>Nacht</b></button>
-        </div>
+        </div></div>
         </div>
         <h2>Grafik</h2>
         <div class="seg seg3 small" id="gfxSeg">
@@ -225,7 +227,7 @@
         </select>
         <div id="gpRows"></div>
         <div class="nav"><button class="secondary" id="bCal">Kalibrieren</button><button class="secondary" id="bCalReset">Kalibrierung löschen</button></div>
-        <p class="hint" id="gpHint">Funke oder Gamepad per USB oder Bluetooth verbinden, Knüppel bewegen. A0 bis A7 sind die Achsen. „Lernen“: Knüppel nach oben bzw. rechts bewegen, die Achse wird erkannt.</p>
+        <p class="hint" id="gpHint">A0 bis A7 sind die Achsen. „Lernen“: Knüppel nach oben bzw. rechts bewegen, die Achse wird erkannt.</p>
         </div>
       </div>
       <div class="tabpane" data-pane="switch" hidden>
@@ -239,9 +241,9 @@
       <div class="tabpane" data-pane="help" hidden>
         <div class="keys" id="helpKeys"></div>
         <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
-        <p class="hint"><b>Echte Welt:</b> Monschau ist eingebaut. Andere Orte unter Modus → Echte Welt → Ort laden, per Koordinate oder Karte. Quellen für weitere Länder: Karte → Quellen. In Monschau ist Wasser ein Absturz.</p>
+        <p class="hint"><b>Echte Welt:</b> Monschau ist eingebaut. Andere Orte unter Modus → Spezial → Ort laden, per Koordinate oder Karte. Beim Fliegen lädt die Umgebung nach. Quellen für weitere Länder: Karte → Quellen. In Monschau ist Wasser ein Absturz.</p>
       </div>
-      <div class="nav"><button class="secondary" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Zurück</button></div>
+      <div class="nav" id="setNav"><button class="secondary" id="bMain" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Fertig</button></div>
     </section>
   </div>
 </div>
