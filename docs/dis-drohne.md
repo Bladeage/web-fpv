@@ -73,10 +73,22 @@ Wichtig (gesichert, k5.2): Eine Drohne erscheint in VBS nur, wenn ihr 7er-Wert *
 
 ## Etappen (Vorschlag)
 
-1. **D1 Kodierer:** Modul ohne DOM (`dis.js`): Entity State bauen und lesen, ECEF und Lage hin und zurück, Zustände. Tests in Node, ohne Netz.
+1. **D1 Kodierer:** Modul ohne DOM (`dis.js`): Entity State bauen und lesen, ECEF und Lage hin und zurück, Zustände. Tests in Node, ohne Netz. **Erledigt** (07.11.2026, Prompt 135), siehe unten.
 2. **D2 Brücke:** `tools/dis-bruecke.mjs` mit Node-Bordmitteln (UDP über `dgram`, WebSocket selbst, nur 127.0.0.1). Test mit einem eigenen UDP-Empfänger.
 3. **D3 Simulator:** Schalter „Verbund“ (Vorgabe aus), Senden der eigenen Drohne, fremde Einheiten als Grundtypen.
 4. **D4 Probe mit VBS:** über k5.2 (Modul `bruecke` listet unsere Drohne in VBS), erst nach Fabians Entscheidungen.
+
+## D1 Kodierer (erledigt 07.11.2026)
+
+`src/dis.js`, ohne DOM, nicht im Bundle (die Brücke und später der Simulator binden ihn ein). Tests: `test/dis.test.mjs`.
+- WGS84 <-> ECEF (Hin und zurück unter 1 mm), Achsen Nord-Ost-Unten, Vektoren umrechnen.
+- Lage: Kurs/Nicken/Rollen <-> DIS-Winkel psi/theta/phi. Geprüft am bekannten Beispiel (Äquator, Nase Nord, waagrecht: theta −90°) und gegen die Formel aus open-dis.
+- **Meridiankonvergenz:** Unsere Karte liegt im UTM-Gitter, nicht nach geografisch Nord. In Monschau weicht Gitter-Nord etwa 2,1° von geografisch Nord ab (gerechnet, gegen `geo.toUtm` geprüft). Kurs und Tempo werden darum gedreht, sonst stünde die Drohne in VBS 2° schief.
+- Entity State PDU 144 Byte bauen und lesen, DIS 6 (Vorgabe) und 7. Andere PDU-Typen: nur der Kopf.
+- Erscheinungsbild: Schaden, Antrieb aus, eingefroren, Triebwerk an, deaktiviert. Zustände fliegt, Absturz, eingefroren, aus.
+- Vorhersage Static, FPW, RPW, RVW, FVW (mit Drehung über die Drehraten in Körperachsen). Senderegel: erstes Mal, Zustand geändert, 5 s Herzschlag, mehr als 1 m oder 3° Abweichung.
+- Aus dem Simulator: Kartenkoordinate, Quaternion, Drehraten (Simulator x rechts, y oben, z hinten -> DIS x vorn, y rechts, z unten), Höhe NHN plus Quasigeoidhöhe.
+- Noch nicht geprüft: gegen echte PDUs von VBS (Mitschnitt angefragt).
 
 ## Offene Fragen (an Fabian oder k5.2)
 
@@ -88,7 +100,15 @@ Am 07.11.2026 als 14 Fragen an k5.2 geschickt (Prompt 134), am selben Tag beantw
 
 **Testmaterial:** Das Modul `bruecke` von k5.2 empfängt keine PDUs. Es führt Befehle im laufenden VBS aus und kann unsere Drohne dort als VBS-Objekt auflisten (Klasse, Ort, Seite), sobald sie ankommt (vermutet). Ein Mitschnitt (pcap) ist nicht freigegeben.
 
-**Entscheidungen bei Fabian (offen):**
+**Entscheidungen von Fabian (07.11.2026, Prompt 135):**
+- VBS ist lizenziert, ein Gateway gehört dazu (so weit er weiß).
+- Die Brücke läuft vorerst lokal auf dem VBS-Rechner, später auf zwei oder mehr Rechnern.
+- Das Netz bleibt (Broadcast, Port 3000, Exercise 1). DIS 6 bleibt. Am Gateway ändert sich nichts.
+- Für Tests zeigt VBS unbekannte Einheiten (Show Unknown Entities an).
+- Testort entscheiden wir und k5.2. Vorschlag an k5.2: Monschau (bei uns eingebaut, gleiche offene NRW-Daten) oder ein schon vorhandenes georeferenziertes VBS-Gelände in NRW.
+- Mitschnitt des Netzverkehrs freigegeben. Bei k5.2 angefragt (Text mit Hex je PDU), dazu eine Port-Probe: Kann ein zweites Programm auf demselben Rechner Port 3000 binden und die Broadcasts von VBS empfangen, und kommen seine eigenen Broadcasts trotz AllowLoopback 0 im Gateway an? Davon hängt „Brücke lokal und Netz bleibt“ ab. Der Mitschnitt bleibt nur lokal (`private/`), die Tests im Repo nutzen selbst gebaute PDUs.
+
+**Vorher offen (jetzt entschieden, siehe oben):**
 - Gateway lizenziert? (nur Fabian weiß es)
 - DIS 6 lassen (Vorschlag) oder auf 7 umstellen?
 - Netz für den Test umstellen (Unicast, getrennte Ports, eigene Application)?
