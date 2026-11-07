@@ -77,6 +77,9 @@ Wichtig: Eine Drohne erscheint in VBS nur, wenn ihr 7er-Wert in der Zuordnung de
 
 ## Offene Fragen (an Fabian oder k5.2)
 
+Am 07.11.2026 als 14 Fragen direkt an k5.2 geschickt (Prompt 134): Zuordnung unserer Drohne (sisocheck), unbekannte Einheiten, DIS-Version, Ports, Exercise/Site/Application, Herzschlag und Zeitlimit, Lizenz des Gateways, Ort der Brücke und Firewall, Dead Reckoning 4, Appearance-Bits, Höhenbezug, Testgelände Monschau, Regel Kette/Rad je Kategorie (nur Zahlen), Testclient und Mitschnitt. Antwort steht aus.
+
+
 - Hat VBS ein Modell für 1.2.78.50.7 oder 1.2.0.50.1? (`sisocheck`)
 - Ports, Übungsnummer, Site und Application, DIS 6 oder 7, Herzschlag am Gateway.
 - Ist das Gateway lizenziert? Darf die Brücke auf dem Rechner laufen (Firewall)?
