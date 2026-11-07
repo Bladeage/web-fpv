@@ -116,6 +116,14 @@ Ersetzt den Aufbau aus D2 und D3. Die Abschnitte oben bleiben als Verlauf.
 - **Grenze:** Ein Browser kann nur prüfen, ob die Brücke läuft, nicht, ob sie installiert ist. Windows SmartScreen fragt beim ersten Start einer heruntergeladenen Datei nach („Weitere Informationen“, „Trotzdem ausführen“).
 - **Geprüft:** Node-Tests (Relais, Gesamtlauf Simulator ↔ Brücke ↔ UDP mit Lagebild, Suche). Die `.cmd` mit PowerShell 7 unter Linux im Gesamtlauf (WebSocket, UDP, Lagebild, Herzschlag, deaktiviert); auf Windows 5.1 noch nicht. Im Browser: ohne Brücke Download (Datei gleich der im Repo), mit Brücke kein Download, Flug sendet FPV1, VBS-Ersatz-Panzer sichtbar.
 
+## D4 Probe mit VBS (07.11.2026, k5.2, VBS 26.1.3)
+
+- **Geht:** `.cmd` auf Windows 11 mit PowerShell 5.1 ohne Fehler. Chrome verbindet nach der Frage „Zugriff auf Geräte im lokalen Netz“. VBS legt FPV1 an (DIS_1_1_200_1, FRIENDLY; Warnung: Symbol 4:303 nicht gesetzt). PDUs alle 0,1 bis 0,3 s im Flug, alle 5 s am Boden. Tab schließen: VBS löscht FPV1 nach 0,6 s. Brücke hart beendet: VBS löscht nach 11,3 s.
+- **Geht nicht:** Lagebild nicht gefunden, weil VBS mit `-profiles=X` nach `X\User\sqfkit_lagebild\lagebild.txt` schreibt (Suche nur unter Dokumente). Mit `FPVB_LAGEBILD` ging es. VBS-Einheiten nicht im Bild: Testgelände bei 50,352 N, 16,640 E, rund 700 km von Monschau. FPV1 in VBS im Bild nicht geprüft.
+- **Browser:** Solange Chrome die Frage nach dem lokalen Netz nicht beantwortet hat, hängt die Verbindung ohne Fehler und das Menü zeigt „nicht gefunden“. Der eingebettete Browser der Claude-App blockiert localhost von https-Seiten ganz.
+- **Nicht geprüft:** SmartScreen (Download ohne Internet-Merkmal), Fensterschließen in Windows Terminal.
+- **Neue Vorgabe Fabian (über k5.2):** Das DIS-Plugin soll universell sein, ohne VBS-Bezug. Umsetzung offen.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
