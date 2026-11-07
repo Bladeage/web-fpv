@@ -11,7 +11,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0 };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -30,16 +30,20 @@ export function rwApply(p, x = {}) {
   // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far
   const F = p.far || (p.farq && p.meta.far ? { meta: p.meta.far, q: p.farq, dop: p.fardop } : null);
   if (rw.tileBusy) rw.tileBusy.ac.abort();   // laufendes Nachladen gehört zum alten Gebiet
+  if (rw.farBusy) rw.farBusy.ac.abort();
   rw.far = null; rw.farDop = null; rw.tiles = new Map(); rw.tileFail = new Map(); rw.tileBusy = null; rw.tileErr = ''; tileByCode = new Map();
-  if (F) {
-    const m = F.meta, h = new Float32Array(m.n*m.n);
-    for (let i = 0; i < h.length; i++) h[i] = m.hMin + F.q[i]*m.hScale - p.meta.hHome;
-    rw.far = { n: m.n, size: m.size, cell: m.size/m.n, h };
-    rw.farDop = F.dop || null;
-  }
+  rw.farBusy = null; rw.farFail = new Map(); rw.farVer++;
+  if (F) { rw.far = rwFarGrid(F, p.meta.hHome, 0, 0); rw.farDop = F.dop || null; }
   rwModels(p.b16, p.t16);
   rw.on = on; rw.ver++;
   return rw;
+}
+// Umgebung als Raster in Weltkoordinaten: Mitte (cx, cz) im Raster der Gebietsgröße (Prüfbericht Nr. 16: sie wandert mit
+// der Drohne), Messpunkte bei ox + k*cell. Höhen relativ zum Startplatz des Startgebiets (hHome).
+function rwFarGrid(F, hHome, cx, cz) {
+  const m = F.meta, h = new Float32Array(m.n*m.n), cell = m.size/m.n;
+  for (let i = 0; i < h.length; i++) h[i] = m.hMin + F.q[i]*m.hScale - hHome;
+  return { n: m.n, size: m.size, cell, h, cx, cz, ox: cx - m.size/2 + cell/2, oz: cz - m.size/2 + cell/2 };
 }
 // Alle Quellen: eigene (rw.userSources, aus den Einstellungen) zuerst, dann die Vorlagen. Rechteck aus dem Land, falls keins da ist.
 export function rwSources() {
@@ -204,7 +208,7 @@ function mainH(x, z) {
 }
 // Umgebung: Messpunkte bei -size/2 + (k + 0,5)*cell (k = 0..n-1), außen fortgesetzt
 function farH(x, z) {
-  const F = rw.far, o = -F.size/2 + F.cell/2, u = clamp((x - o)/F.cell, 0, F.n - 1), v = clamp((z - o)/F.cell, 0, F.n - 1);
+  const F = rw.far, u = clamp((x - F.ox)/F.cell, 0, F.n - 1), v = clamp((z - F.oz)/F.cell, 0, F.n - 1);
   const i = Math.min(F.n - 2, Math.floor(u)), j = Math.min(F.n - 2, Math.floor(v)), fu = u - i, fv = v - j, h = F.h, n = F.n;
   return (h[j*n + i]*(1 - fu) + h[j*n + i + 1]*fu)*(1 - fv) + (h[(j + 1)*n + i]*(1 - fu) + h[(j + 1)*n + i + 1]*fu)*fv;
 }
@@ -263,10 +267,11 @@ export function groundH(x, z) {
   if (!rw.on) return 0;
   const T = rwTileAt(x, z);
   if (!T && rw.far) {   // Umgebung: Dreiecke über den Messpunkten (25 m), außen der Rand bis 15 km wie rwFarMesh
-    const F = rw.far, o = -F.size/2 + F.cell/2, E = RW_FAR_EDGE;
-    const fp = k => k < 0 ? -E : k >= F.n ? E : o + k*F.cell, fi = l => l < o ? -1 : Math.min(F.n - 1, Math.floor((l - o)/F.cell));
-    const cx = clamp(x, -E, E), cz = clamp(z, -E, E), i = fi(cx), j = fi(cz), x0 = fp(i), x1 = fp(i + 1), z0 = fp(j), z1 = fp(j + 1);
-    return tri(rwSampleH(x0, z0), rwSampleH(x1, z0), rwSampleH(x0, z1), rwSampleH(x1, z1), (cx - x0)/(x1 - x0), (cz - z0)/(z1 - z0));
+    const F = rw.far, E = RW_FAR_EDGE;
+    const fp = (k, o, c) => k < 0 ? c - E : k >= F.n ? c + E : o + k*F.cell, fi = (l, o) => l < o ? -1 : Math.min(F.n - 1, Math.floor((l - o)/F.cell));
+    const px = clamp(x, F.cx - E, F.cx + E), pz = clamp(z, F.cz - E, F.cz + E), i = fi(px, F.ox), j = fi(pz, F.oz);
+    const x0 = fp(i, F.ox, F.cx), x1 = fp(i + 1, F.ox, F.cx), z0 = fp(j, F.oz, F.cz), z1 = fp(j + 1, F.oz, F.cz);
+    return tri(rwSampleH(x0, z0), rwSampleH(x1, z0), rwSampleH(x0, z1), rwSampleH(x1, z1), (px - x0)/(x1 - x0), (pz - z0)/(z1 - z0));
   }
   // Startgebiet ohne Umgebung: dessen Netz mit Rand bis 1,5 km (auch außerhalb des Gebiets)
   const main = !T || T === rw.main, N = main ? rw.n : T.n, C = main ? rw.size/rw.n : T.cell, ox = main ? 0 : T.dx, oz = main ? 0 : T.dz;
@@ -311,17 +316,16 @@ export const RW_FAR_EDGE = 15000;   // m: Rand des Umgebungsnetzes (bis zum Hori
 export function rwFarMesh(edge = RW_FAR_EDGE) {
   const F = rw.far;
   if (!F) return { v: new Float32Array(0), idx: new Uint32Array(0) };
-  const o = -F.size/2 + F.cell/2, pos = [-edge];
-  for (let k = 0; k < F.n; k++) pos.push(o + k*F.cell);
-  pos.push(edge);
+  const line = (o, c) => { const p = [c - edge]; for (let k = 0; k < F.n; k++) p.push(o + k*F.cell); p.push(c + edge); return p; };
+  const pos = line(F.ox, F.cx), posZ = line(F.oz, F.cz);   // um die Mitte der Umgebung (wandert mit)
   const k = pos.length, half = rw.size/2, v = new Float32Array(k*k*10), idx = [];
   for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
-    const x = pos[i], z = pos[j], n = sampleN(x, z);
+    const x = pos[i], z = posZ[j], n = sampleN(x, z);
     v.set([x, rwSampleH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], (j*k + i)*10);
   }
   for (let j = 0; j < k - 1; j++) for (let i = 0; i < k - 1; i++) {
-    const T = rwTileAt((pos[i] + pos[i + 1])/2, (pos[j] + pos[j + 1])/2);   // Loch für das Gebiet und jede geladene Kachel
-    if (T && pos[i] >= T.dx - half - 0.01 && pos[i + 1] <= T.dx + half + 0.01 && pos[j] >= T.dz - half - 0.01 && pos[j + 1] <= T.dz + half + 0.01) continue;
+    const T = rwTileAt((pos[i] + pos[i + 1])/2, (posZ[j] + posZ[j + 1])/2);   // Loch für das Gebiet und jede geladene Kachel
+    if (T && pos[i] >= T.dx - half - 0.01 && pos[i + 1] <= T.dx + half + 0.01 && posZ[j] >= T.dz - half - 0.01 && posZ[j + 1] <= T.dz + half + 0.01) continue;
     const a = j*k + i, b = a + 1, c = a + k, d = c + 1;
     idx.push(a, c, b, b, c, d);
   }
@@ -657,7 +661,8 @@ export function rwStreamPlan(x, z, now = Date.now()) {
   let next = null, best = Infinity;
   const ci = Math.round(x/rw.size), cj = Math.round(z/rw.size);
   for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) {
-    if (Math.abs(i) > RW_STREAM.reach || Math.abs(j) > RW_STREAM.reach || rwHasTile(i, j)) continue;
+    const F = rw.far, fi = F ? F.cx/rw.size : 0, fj = F ? F.cz/rw.size : 0;   // Reichweite um die Mitte der Umgebung (wandert mit)
+    if (Math.abs(i - fi) > RW_STREAM.reach || Math.abs(j - fj) > RW_STREAM.reach || Math.abs(i) > 60 || Math.abs(j) > 60 || rwHasTile(i, j)) continue;
     const k = i + ',' + j, d = tileDist(i, j, x, z), f = rw.tileFail.get(k);
     if (d > RW_STREAM.near || (f && now - f < RW_STREAM.retry)) continue;
     if (d < best) { best = d; next = [i, j]; }
@@ -704,6 +709,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
 // Ein Schritt (etwa jede Sekunde aus der Hauptschleife): entladen, was weit weg ist, und die nächste nötige Kachel laden.
 // Liefert true, wenn sich etwas geändert hat. Ändert sich das Gebiet währenddessen (rw.ver), wird das Ergebnis verworfen.
 export async function rwStreamStep(x, z, store, say = () => {}) {
+  if (rw.on && rw.ready && rw.far && rw.stream && !rw.farBusy) rwFarStep(x, z, store);   // Umgebung mitwandern lassen (eigener Auftrag)
   if (!rw.on || !rw.ready || !rw.far || !rw.stream || rw.tileBusy) return false;
   const plan = rwStreamPlan(x, z);
   let changed = false;
@@ -722,4 +728,47 @@ export async function rwStreamStep(x, z, store, say = () => {}) {
     return true;
   } catch (e) { if (rw.ver === ver) { rw.tileFail.set(k, Date.now()); rw.tileErr = String(e.message || e); } return changed; }
   finally { if (rw.tileBusy === job) rw.tileBusy = null; }
+}
+
+// ---- Umgebung wandert mit (Prüfbericht Nr. 16) ----
+// Die Umgebung (10 x 10 km grob) lag fest um den Start; ab 5 km kamen gerechnete Felder (Nutzer, Prompt 124). Jetzt: Ist die
+// Drohne mehr als RW_FAR_MOVE von der Mitte der Umgebung entfernt (größerer der beiden Abstände), wird eine neue Umgebung um
+// die Drohne geladen (Mitte im Raster der Gebietsgröße, so liegen Messpunkte und Kachelränder wie vorher aufeinander).
+// Aus dem Speicher, sonst von den Diensten (im Hintergrund-Thread, wenn es ihn gibt); danach gespeichert wie eine Kachel
+// (Zwischenspeicher, zählt zur Grenze für Kacheln). Fehler: 60 s Pause für diese Mitte, die alte Umgebung bleibt.
+export const RW_FAR_MOVE = 1500;
+export async function rwLoadFar(cx, cz, store, signal) {
+  const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + cx, nc = (m.bbox[1] + m.bbox[3])/2 - cz;
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon);
+  const src = plan && plan.srcs.find(s => s.crs === m.crs && s.dgm);
+  if (!src) throw new Error(plan ? 'anderes Koordinatensystem' : 'keine Quelle');
+  const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs }, key = rwAreaKey(lat, lon, [src]) + '|umgebung';
+  const saved = store ? await store.get(key) : null;
+  let F = saved && saved.farq ? { meta: saved.meta.far, q: saved.farq, dop: saved.fardop } : null;
+  if (F && store.touch) store.touch(key);
+  if (!F) {
+    F = null;
+    if (rw.work) try { F = await rw.work('far', { a, src }, () => {}, signal); } catch (e) { if (!e.noWorker) throw e; }
+    if (!F) F = await rwFetchFar(a, src, rwNet(signal).get);
+    if (signal && signal.aborted) throw new Error('Abgebrochen');
+    if (store) await store.put(key, { meta: { place: 'Umgebung ' + lat.toFixed(3) + ', ' + lon.toFixed(3), buildings: 0, trees: 0, far: F.meta }, farq: F.q, fardop: F.dop || null,
+      q: null, b16: null, t16: null, dop: null, lat, lon, srcs: [src.name], tile: true });
+  }
+  return { grid: rwFarGrid(F, m.hHome, cx, cz), dop: F.dop || null };
+}
+export async function rwFarStep(x, z, store) {
+  const F = rw.far;
+  if (!F || rw.farBusy) return false;
+  const S = rw.size, cx = Math.round(x/S)*S, cz = Math.round(z/S)*S, k = cx + ',' + cz, f = rw.farFail.get(k);
+  if (Math.max(Math.abs(x - F.cx), Math.abs(z - F.cz)) < RW_FAR_MOVE || (cx === F.cx && cz === F.cz)) return false;
+  if (f && Date.now() - f < RW_STREAM.retry) return false;
+  const job = { ac: new AbortController() }, ver = rw.ver;
+  rw.farBusy = job;
+  try {
+    const G = await rwLoadFar(cx, cz, store, job.ac.signal);
+    if (rw.ver !== ver) return false;
+    rw.far = G.grid; rw.farDop = G.dop; rw.farVer++;   // Bild tauscht, sobald Netz und Luftbild fertig sind (render.js)
+    return true;
+  } catch (e) { if (rw.ver === ver) { rw.farFail.set(k, Date.now()); rw.tileErr = 'Umgebung: ' + String(e.message || e); } return false; }
+  finally { if (rw.farBusy === job) rw.farBusy = null; }
 }

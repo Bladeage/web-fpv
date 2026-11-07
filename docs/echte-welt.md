@@ -277,6 +277,14 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Noch im Hauptprogramm: Neuaufbau von Umgebung und Startgebiet nach jeder neuen Kachel (in Node etwa 100 und 80 ms), Kachel-Gelände (37 ms), Wasser, Kollisionsraster (20 bis 50 ms).
 - Geprüft: Node-Test führt den Worker-Quelltext aus dem echten Build abgeschottet aus (gleiches Netz wie direkt, gleiches Gebiet, Fehlertexte); im Browser als lokale Datei: Worker startet, Kachel lädt.
 
+## Umgebung wandert mit (07.11.2026, Prompt 132, Prüfbericht Nr. 16)
+
+- Vorher lag die Umgebung (10 x 10 km grob) fest um den Start; ab 5 km kamen gerechnete Felder, Kacheln nur bis 4,5 km.
+- Jetzt hat die Umgebung eine eigene Mitte. Ist die Drohne mehr als 1,5 km davon entfernt (größerer der beiden Abstände), wird eine neue Umgebung um sie geladen. Die Mitte liegt im 1-km-Raster, so bleiben Messpunkte (25 m) und Kachelränder deckungsgleich. Nachladen der Kacheln bis 4 km um die jeweilige Mitte, höchstens 60 km vom Start.
+- Laden: aus dem Speicher (Schlüssel Ort und Quelle mit „|umgebung“, Zwischenspeicher wie Kacheln, zählt zur 400-MB-Grenze), sonst von den Diensten im Hintergrund-Thread (Höhen 401², Luftbild 2048², etwa 2 MB). Fehler: alte Umgebung bleibt, 60 s Pause für diese Mitte, Hinweis im Bild.
+- Zeichnen: Die alte Umgebung bleibt, bis Netz und Luftbild der neuen fertig sind; dann tauschen beide zusammen (kein Versatz des Bildes). Physik nutzt die neue sofort; nahe der Drohne decken sich beide.
+- Geprüft: Test in Node (keine Bewegung nahe der Mitte, neue Mitte aus dem Speicher und von den Diensten, Kachel 6 km weg erst danach erlaubt, Fläche gleich dem Netz, ohne Netz bleibt die alte); im Browser mit den echten Diensten von Monschau 7 km nach Osten (Mitte 2, 4, 6 km, Kacheln 6 und 7 geladen, Luftbild bis zum Horizont, keine Fehler).
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.

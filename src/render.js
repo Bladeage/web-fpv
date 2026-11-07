@@ -12,6 +12,9 @@ import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
+// Umgebung, die mitwandert (Prüfbericht Nr. 16): gezeichneter Stand (Mitte, Größe, Version) und der nächste im Aufbau
+const farAt = { cx: 0, cz: 0, size: 1, ver: -1 };
+let farNext = null;
 import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
@@ -28,7 +31,7 @@ export const gl = glc.getContext('webgl2', { antialias: true, powerPreference: '
 export const glLost = { on: false, since: 0 };
 glc.addEventListener('webglcontextlost', e => { e.preventDefault(); glLost.on = true; glLost.since = performance.now(); });
 glc.addEventListener('webglcontextrestored', () => {
-  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear();
+  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null;
   terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null; rwGlVer = -1; tileGlVer = -1;
   initGL(); resize(); glLost.on = false;
 });
@@ -885,6 +888,8 @@ function drawTerrain() {
     rwGlVer = rw.ver; tileGlVer = -1;
     if (rw.dop) loadPhoto(rw.dop, rw.ver, undefined, RW_TEX.main);
     if (rw.farDop) loadPhoto(rw.farDop, rw.ver, t => { farTex = t; });
+    if (farNext) { freeGl(farNext.gl); if (farNext.tex) gl.deleteTexture(farNext.tex); farNext = null; }
+    if (rw.far) Object.assign(farAt, { cx: rw.far.cx, cz: rw.far.cz, size: rw.far.size, ver: rw.farVer });
   }
   const indexed = ({ v, idx }) => { const m = upload(v), ib = gl.createBuffer();
     gl.bindVertexArray(m.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
@@ -911,7 +916,20 @@ function drawTerrain() {
       if (g.data) { g.model = upload(g.data); g.data = null; g.water = T.water ? upload(rwWaterMesh(T)) : null; budget--; }
     }
   }
-  if (farDirty && budget && [...tileGl.values()].every(g => g.model)) { freeGl(farGl); farGl = indexed(rwFarMesh()); farGen = tileGen; farDirty = false; budget--; }
+  // Umgebung ist mitgewandert: Luftbild laden und Netz bauen (ein Aufbau je Bild), dann beides zusammen tauschen. Bis dahin
+  // bleibt die alte gezeichnet; nahe der Drohne decken sich beide (gleiche Messpunkte, gleiche Daten).
+  if (rw.far && farAt.ver !== rw.farVer && (!farNext || farNext.ver !== rw.farVer)) {
+    if (farNext) { freeGl(farNext.gl); if (farNext.tex) gl.deleteTexture(farNext.tex); }
+    const n = farNext = { ver: rw.farVer, cx: rw.far.cx, cz: rw.far.cz, size: rw.far.size, gl: null, tex: null, img: !rw.farDop, tiles: -1 };
+    if (rw.farDop) loadPhoto(rw.farDop, rw.ver, t => { if (farNext === n) { n.tex = t; n.img = true; } else gl.deleteTexture(t); });
+  }
+  if (farNext && !farNext.gl && budget) { farNext.gl = indexed(rwFarMesh()); farNext.tiles = rw.tileVer; budget--; }
+  if (farNext && farNext.gl && farNext.img) {
+    freeGl(farGl); if (farTex) gl.deleteTexture(farTex);
+    farGl = farNext.gl; farTex = farNext.tex; Object.assign(farAt, { cx: farNext.cx, cz: farNext.cz, size: farNext.size, ver: farNext.ver });
+    farGen = tileGen; farDirty = farNext.tiles !== rw.tileVer; farNext = null;   // Kacheln kamen inzwischen dazu: Löcher neu
+  }
+  if (farDirty && !farNext && budget && [...tileGl.values()].every(g => g.model)) { freeGl(farGl); farGl = indexed(rwFarMesh()); farGen = tileGen; farDirty = false; budget--; }
   if (mainDirty && !farDirty && budget) { freeGl(terrain); terrain = null; mainDirty = false; }
   const open = (I, J) => [[I - 1, J], [I + 1, J], [I, J - 1], [I, J + 1]].map(([a, b]) => (a === 0 && b === 0) || rw.tiles.has(a + ',' + b) ? 0 : 1);
   // Gebiet fein (mit Umgebung bis genau an den Rand, sonst mit Rand bis 1,5 km); Umgebung grob mit Loch für das Gebiet
@@ -923,7 +941,7 @@ function drawTerrain() {
   gl.uniform1f(P.u.uPhoto, photoTex || farTex ? 1 : 0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, farTex || groundTex); gl.uniform1i(P.u.uFar, 1);
   gl.uniform1f(P.u.uFarOn, farTex ? 1 : 0);
-  if (rw.far) { gl.uniform1f(P.u.uFarSize, rw.far.size); gl.uniform2f(P.u.uFarOrigin, -rw.far.size/2, -rw.far.size/2); }
+  if (rw.far) { gl.uniform1f(P.u.uFarSize, farAt.size); gl.uniform2f(P.u.uFarOrigin, farAt.cx - farAt.size/2, farAt.cz - farAt.size/2); }   // Luftbild der gezeichneten Umgebung
   gl.activeTexture(gl.TEXTURE0);
   gl.bindVertexArray(terrain.vao);
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);

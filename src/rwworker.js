@@ -5,9 +5,10 @@
    - 'area': rwload.rwFetchArea im Worker, mit eigenen Abrufen (rwNet mit Zeitgrenze) und eigenem Zugriff auf den
      Zwischenspeicher der Gebäudekacheln (rwstore, IndexedDB gibt es auch im Worker). Die großen Texte der Gebäudekacheln
      (bis 70 MB je km²) bleiben so ganz im Worker; zurück kommen nur die gepackten Felder.
+   - 'far': rwload.rwFetchFar (Umgebung 10 x 10 km um eine neue Mitte, wandert mit der Drohne).
    - 'modelMesh': realworld.rwModelMesh für eine Kachel (Gebäude und Bäume, bis 160 ms in der Innenstadt).
    Abbruch: Nachricht { cancel: id }. */
-import { rwFetchArea } from './rwload.js';
+import { rwFetchArea, rwFetchFar } from './rwload.js';
 import { rwNet, rwModelMesh } from './realworld.js';
 import { RW_STORE } from './rwstore.js';
 
@@ -25,6 +26,7 @@ export async function wkRun(m, signal, post) {
     if (signal.aborted) throw new Error('Abgebrochen');
     return { out: p, tr: wkTransfer(p.q, p.b16, p.t16, p.dop, p.far && p.far.q, p.far && p.far.dop) };
   }
+  if (m.job === 'far') { const f = await rwFetchFar(m.a, m.src, rwNet(signal).get); return { out: f, tr: wkTransfer(f.q, f.dop) }; }   // Umgebung, die mitwandert
   if (m.job === 'modelMesh') { const v = rwModelMesh(m.S); return { out: v, tr: [v.buffer] }; }
   throw new Error('Unbekannter Auftrag ' + m.job);
 }

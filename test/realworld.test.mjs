@@ -458,3 +458,49 @@ test('Prüfbericht Nr. 1: Drohne liegt am Hang auf der gezeichneten Fläche, nic
   assert.ok(low > -0.03, 'Unterseite nie unter der gezeichneten Fläche: ' + low.toFixed(3) + ' m');
   cfg.ghost = false;
 });
+
+test('Prüfbericht Nr. 16: Umgebung wandert mit (neue Mitte, Kacheln dahinter, Fläche gleich dem Netz, ohne Netz bleibt die alte)', async () => {
+  const R = await import('../src/realworld.js');
+  const farq = inflateSync(readFileSync(file('realworld/monschau.far'))), fq = new Uint16Array(farq.buffer, farq.byteOffset, farq.byteLength/2);
+  R.rwApply({ meta: JSON.parse(JSON.stringify(meta)), q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees'), farq: fq });
+  rw.on = true;
+  const old = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => { throw new TypeError('offline'); };
+    // nahe der Mitte: nichts; Kachel 6 km östlich liegt außerhalb der Reichweite
+    assert.equal(await R.rwFarStep(1000, 0, null), false);
+    assert.equal(R.rwStreamPlan(5600, 0).next, null, 'vorher: Kachel 6 km weg nicht erlaubt');
+    // ohne Netz und ohne Speicher: alte Umgebung bleibt, 60 s Pause für diese Mitte
+    const v0 = rw.farVer;
+    assert.equal(await R.rwFarStep(1600, 0, null), false);
+    assert.ok(rw.far.cx === 0 && rw.farVer === v0 && rw.farFail.has('2000,0') && /Umgebung: Keine Verbindung/.test(rw.tileErr));
+    rw.farFail.clear();
+    // aus dem Speicher (Testdaten: dieselbe Umgebung, als käme sie von der neuen Mitte)
+    const saved = new Map(), store = { get: async k => saved.get(k) || (k.endsWith('|umgebung') ? { meta: { far: meta.far }, farq: fq, fardop: null } : null), put: async (k, r) => (saved.set(k, r), true) };
+    assert.equal(await R.rwFarStep(1600, 0, store), true);
+    assert.ok(rw.far.cx === 2000 && rw.far.cz === 0 && rw.farVer === v0 + 1, 'neue Mitte 2 km östlich');
+    assert.deepEqual(R.rwStreamPlan(5600, 0).next, [6, 0], 'jetzt: Kachel 6 km weg erlaubt');
+    // Netz der Umgebung um die neue Mitte; Bodenhöhe gleich dem Netz (Stichprobe, Mitte eines Dreiecks)
+    const fm = R.rwFarMesh(), k = Math.round(Math.sqrt(fm.v.length/10));
+    assert.equal(fm.v[10], 2000 - 5000, 'erster Messpunkt bei Mitte − 5 km');
+    for (const [i, j] of [[50, 60], [300, 200], [390, 10]]) {
+      const P = (a, b) => [fm.v[(b*k + a)*10], fm.v[(b*k + a)*10 + 1], fm.v[(b*k + a)*10 + 2]], A = P(i, j), B = P(i + 1, j), C = P(i, j + 1);
+      const x = A[0] + (B[0] - A[0])*0.3, z = A[2] + (C[2] - A[2])*0.3, y = A[1] + (B[1] - A[1])*0.3 + (C[1] - A[1])*0.3;
+      if (!R.rwTileAt(x, z)) assert.ok(Math.abs(groundH(x, z) - y) < 1e-3, 'Fläche gleich dem Netz bei ' + x + ', ' + z);
+    }
+    // von den Diensten geladen: danach gespeichert (als Zwischenspeicher wie eine Kachel)
+    const n = 401, tags = [[256, 4, n], [257, 4, n], [258, 3, 32], [259, 3, 1], [262, 3, 1], [273, 4, 0], [277, 3, 1], [278, 4, n], [279, 4, n*n*4], [339, 3, 3]];
+    const dataOff = 8 + 2 + tags.length*12 + 4, b = Buffer.alloc(dataOff + n*n*4);
+    b.write('II', 0); b.writeUInt16LE(42, 2); b.writeUInt32LE(8, 4); b.writeUInt16LE(tags.length, 8);
+    tags.forEach(([t, ty, v], kk) => { const o = 10 + kk*12; b.writeUInt16LE(t, o); b.writeUInt16LE(ty, o + 2); b.writeUInt32LE(1, o + 4); if (t === 273) b.writeUInt32LE(dataOff, o + 8); else if (ty === 3) b.writeUInt16LE(v, o + 8); else b.writeUInt32LE(v, o + 8); });
+    for (let kk = 0; kk < n*n; kk++) b.writeFloatLE(480, dataOff + kk*4);
+    globalThis.fetch = async u => String(u).includes('wcs') ? new Response(new Uint8Array(b)) : new Response(new Uint8Array([0xff, 0xd8]));
+    const net = { get: async kk => saved.get(kk) || null, put: store.put };
+    assert.equal(await R.rwFarStep(3700, 0, net), true);
+    assert.equal(rw.far.cx, 4000);
+    const rec = [...saved.entries()].find(([kk]) => kk.endsWith('|umgebung'));
+    assert.ok(rec && rec[1].tile && rec[1].farq.length === n*n, 'gespeichert, zählt als Kachel');
+    assert.ok(Math.abs(groundH(4000, 2000) - (480 - meta.hHome)) < 0.01, 'neue Höhen gelten');
+  } finally { globalThis.fetch = old; rw.on = false; }
+  R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
+});
