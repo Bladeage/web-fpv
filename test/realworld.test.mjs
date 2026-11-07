@@ -504,3 +504,25 @@ test('Prüfbericht Nr. 16: Umgebung wandert mit (neue Mitte, Kacheln dahinter, F
   } finally { globalThis.fetch = old; rw.on = false; }
   R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
 });
+
+test('Fehlerbericht Nutzer (Prompt 140): Start nicht im Wasser, kein Absturz in Schleife', async () => {
+  const R = await import('../src/realworld.js'), m = JSON.parse(JSON.stringify(meta));
+  // Teich 50 x 50 m genau um den Startplatz (Bitmaske 1 m, Zeile 0 = Norden)
+  const n = 1000, bits = new Uint8Array(n*n/8), [hx, hz] = m.home;
+  for (let j = Math.floor(hz + 500) - 25; j < Math.floor(hz + 500) + 25; j++) for (let i = Math.floor(hx + 500) - 25; i < Math.floor(hx + 500) + 25; i++) { const b = j*n + i; bits[b >> 3] |= 1 << (b & 7); }
+  m.water = { n, res: 1, area: 2500, source: 'Test' };
+  R.rwApply({ meta: m, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') }, { water: bits });
+  const [x, z] = rw.meta.home;
+  assert.ok(Math.hypot(x - hx, z - hz) >= 25, 'Start verlegt: ' + x + ', ' + z);
+  rw.on = true;
+  for (const [dx, dz] of [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]]) assert.equal(R.waterAt(x + dx, z + dz), false, 'trocken bei ' + dx + ', ' + dz);
+  assert.equal(R.rwNear(x, z, 6).tris.length, 0, 'kein Gebäude in 6 m');
+  // Flug in der echten Welt: Start dort, 2 s stehen, kein Absturz; Neustart wieder dort
+  cfg.dmg = 'off'; setScenario('real'); respawn(); game.throttle = 0;
+  run(2);
+  assert.equal(game.state, 'fly', 'kein Absturz ins Wasser');
+  respawn(); assert.ok(Math.hypot(game.sim.p[0] - x, game.sim.p[2] - z) < 0.01, 'Neustart am trockenen Platz');
+  rw.on = false;
+  R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
+  assert.deepEqual(rw.meta.home, meta.home, 'ohne Wasser bleibt der Start, wo er war');
+});

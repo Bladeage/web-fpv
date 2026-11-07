@@ -35,8 +35,33 @@ export function rwApply(p, x = {}) {
   rw.farBusy = null; rw.farFail = new Map(); rw.farVer++;
   if (F) { rw.far = rwFarGrid(F, p.meta.hHome, 0, 0); rw.farDop = F.dop || null; }
   rwModels(p.b16, p.t16);
+  rwDryHome();
   rw.on = on; rw.ver++;
   return rw;
+}
+// Startplatz nicht im Wasser (Fehlerbericht Nutzer, Prompt 140): Die Startsuche (rwload.findStart) kennt nur Dächer; die
+// Gewässer kommen erst mit den Landesdaten dazu. Lag der Start im Fluss, stürzte die Drohne sofort ab, und Neustart setzte
+// sie wieder dorthin. Jetzt: Liegt Wasser im Umkreis von 4 m, in Ringen (4 m Abstand) den nächsten Punkt suchen, der
+// 4 m Abstand zum Wasser und 6 m zu Gebäuden hat und nicht steiler als etwa 30° ist; innerhalb des Gebiets, bis 400 m.
+// Setzt rw.meta.home neu (Höhenbezug hHome bleibt). Liefert true, wenn der Start verlegt wurde.
+export function rwDryHome() {
+  if (!rw.water || !rw.meta || !rw.meta.water) return false;
+  const on = rw.on; rw.on = true;
+  const wet = (x, z) => { for (const [dx, dz] of [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4], [3, 3], [-3, 3], [3, -3], [-3, -3]]) if (waterAt(x + dx, z + dz)) return true; return false; };
+  const ok = (x, z) => Math.abs(x) < rw.size/2 - 20 && Math.abs(z) < rw.size/2 - 20 && !wet(x, z) && !rwNear(x, z, 6).tris.length && groundN(x, z)[1] > 0.86;
+  const [hx, hz] = rw.meta.home;
+  let moved = false;
+  if (wet(hx, hz)) {
+    search: for (let r = 4; r <= 400; r += 4) {
+      const n = Math.max(8, Math.round(2*Math.PI*r/4));
+      for (let k = 0; k < n; k++) {
+        const a = k/n*2*Math.PI, x = hx + Math.cos(a)*r, z = hz + Math.sin(a)*r;
+        if (ok(x, z)) { rw.meta.home = [Math.round(x*10)/10, Math.round(z*10)/10]; moved = true; break search; }
+      }
+    }
+  }
+  rw.on = on;
+  return moved;
 }
 // Umgebung als Raster in Weltkoordinaten: Mitte (cx, cz) im Raster der Gebietsgröße (Prüfbericht Nr. 16: sie wandert mit
 // der Drohne), Messpunkte bei ox + k*cell. Höhen relativ zum Startplatz des Startgebiets (hHome).

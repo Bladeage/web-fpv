@@ -293,6 +293,13 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Dazu: Der weiche Schatten der Drohne lag in der echten Welt flach auf Höhe 0 statt auf dem Boden; jetzt auf dem Boden. Im Kamerabild erscheint der eigene Schatten erst ab 0,5 m Höhe (am Boden deckte er den unteren Bildrand zu).
 - Geprüft im Browser: Start mit zuletzt gewählter echter Welt, PC und Handy hochkant.
 
+## Start nicht im Wasser (07.11.2026, Prompt 141)
+
+- Fehlerbild: Die Drohne startete im Wasser, stürzte sofort ab, und „R“ setzte sie wieder dorthin (Schleife).
+- Ursache (gesichert im Code): Die Startsuche (`rwload.findStart`) meidet nur Dächer. Die Gewässer kommen erst danach mit den Landesdaten. Lag der Mittelpunkt eines Orts in einem Fluss (zum Beispiel im Rhein), lag auch der Start dort.
+- Jetzt: Nach dem Laden (`rwApply`, auch für gespeicherte Orte) prüft `rwDryHome`, ob im Umkreis von 4 m Wasser liegt. Wenn ja, wird der Start in Ringen von 4 m auf den nächsten Punkt verlegt, der 4 m Abstand zum Wasser, 6 m zu Gebäuden hat und nicht steiler als etwa 30° ist (bis 400 m, im Gebiet). Der Höhenbezug bleibt.
+- Geprüft: Test mit einem Teich 50 x 50 m genau um den Start von Monschau: Start verlegt, trocken, kein Gebäude, 2 s Stehen ohne Absturz, Neustart am trockenen Platz; ohne Wasser bleibt der Start unverändert.
+
 ## Recherche 3D-Dienste und Werkzeuge (06.11.2026, Prompt 101)
 
 Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io geprüft. Vermutet = nicht geprüft.
