@@ -14,6 +14,7 @@ import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
 import { rw, rwNearName } from './realworld.js';
 import { osdOn } from './osd.js';
+import { DIS_PREVIEW } from './distypes.js';
 
 export const SCENARIOS = [
   { id: 'gates',   name: 'Torkurs',            info: '8 Tore am Boden der Reihe nach, Runde für Runde.' },
@@ -26,7 +27,8 @@ export const SCENARIOS = [
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Dem orangen Auto folgen: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
-  { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: Monschau eingebaut oder ein Ort per Karte. Beim Fliegen lädt die Umgebung nach. Daten: Geobasis NRW, dl-de/zero-2.0.' }
+  { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: Monschau eingebaut oder ein Ort per Karte. Beim Fliegen lädt die Umgebung nach. Daten: Geobasis NRW, dl-de/zero-2.0.' },
+  { id: 'vbs',     name: 'VBS-Grundtypen',     info: 'Vorschau: 18 einfache Modelle für Einheiten aus VBS. Blau Freund, rot Feind, grün neutral, gelb sonstige, dunkel zerstört. Noch nicht mit VBS verbunden.' },
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)
 
@@ -315,6 +317,7 @@ const TASKS = {
   deliver: { check: checkDeliver, collide: null },
   follow:  { check: checkFollow, collide: null },
   free:    { check() {}, collide: null },
+  vbs:     { check() {}, collide: null },
   real:    { check() {}, collide: null }
 };
 task.reset = reset;
@@ -325,7 +328,7 @@ export function setScenario(id) {
   scen.id = id; scen.version++;
   // Echte Welt nur mit geladenem Gelände; Start auf der flachsten Stelle (Werkzeug), Nase zur Mitte des Gebiets (Altstadt)
   rw.on = id === 'real' && rw.ready;
-  game.home = rw.on ? rw.meta.home.slice() : id === 'free' ? TOWN.start.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
+  game.home = rw.on ? rw.meta.home.slice() : id === 'free' ? TOWN.start.slice() : id === 'vbs' ? DIS_PREVIEW.home.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
   game.homeYaw = rw.on ? Math.atan2(game.home[0], game.home[1]) : 0;
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   cfg.scen = id;
@@ -338,6 +341,7 @@ export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
   if (scen.id === 'free') return 'FREIFLUG';
+  if (scen.id === 'vbs') return 'VBS-GRUNDTYPEN';
   if (scen.id === 'real') { const n = osdOn(cfg.osd, 'place') ? rwNearName(s.p[0], s.p[2]) : ''; return n ? 'ECHTE WELT · ' + n.toUpperCase() : 'ECHTE WELT'; }
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
@@ -351,7 +355,7 @@ export function scenLabel() {
 export function scenTarget() {
   const s = game.sim;
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
-  if (st.done || scen.id === 'free') return null;
+  if (st.done || scen.id === 'free' || scen.id === 'vbs') return null;
   if (scen.id === 'deliver') { const t = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP; return [t[0], 0.6, t[2]]; }
   if (scen.id === 'follow') return [lead.x, 1.5, lead.z];
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
@@ -375,7 +379,7 @@ export function scenTarget() {
 }
 // Welches Teil des Szenario-Modells grün leuchtet, oder -1.
 export function scenHighlight() {
-  if (st.done || scen.id === 'gates' || scen.id === 'free') return -1;
+  if (st.done || scen.id === 'gates' || scen.id === 'free' || scen.id === 'vbs') return -1;
   if (scen.id === 'deliver') return st.carry ? 1 + st.deliv : 0;
   if (scen.id === 'follow') return -1;
   return scen.id === 'landing' ? 0 : game.sim.next;

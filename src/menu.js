@@ -17,7 +17,7 @@ import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
-const SPECIAL = new Set(['real']);   // Modi im Reiter „Spezial“ (später auch DIS)
+const SPECIAL = new Set(['real', 'vbs']);   // Modi im Reiter „Spezial“: echte Welt, Vorschau der VBS-Grundtypen
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -91,7 +91,7 @@ export function syncMenu() {
   $('modeStd').hidden = spec; $('modeSpec').hidden = !spec;
   $('courseInfo').textContent = sc.info; $('specInfo').textContent = spec ? sc.info : '';
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
-  $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real';
+  $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real' || cfg.scen === 'vbs';
   $('rwOpts').hidden = cfg.scen !== 'real';
   press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
   $('rwLive').hidden = cfg.rwSrc !== 'live';

@@ -19,6 +19,8 @@ import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
+import { disBaseMesh, disPreviewLayout, DIS_SIDE } from './distypes.js';
+const baseGl = new Map();   // VBS-Grundtypen: Netz je Typ, beim ersten Zeichnen hochgeladen
 
 /* ---------- WebGL ---------- */
 export const glc = document.getElementById('gl');
@@ -31,7 +33,7 @@ export const gl = glc.getContext('webgl2', { antialias: true, powerPreference: '
 export const glLost = { on: false, since: 0 };
 glc.addEventListener('webglcontextlost', e => { e.preventDefault(); glLost.on = true; glLost.since = performance.now(); });
 glc.addEventListener('webglcontextrestored', () => {
-  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null;
+  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null; baseGl.clear();
   terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null; rwGlVer = -1; tileGlVer = -1;
   initGL(); resize(); glLost.on = false;
 });
@@ -838,6 +840,19 @@ export function render(dt) {
       gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Vorschau VBS-Grundtypen (Modus unter Spezial): Modelle nach Seite eingefärbt, zerstörte dunkel und schief
+  if (scen.id === 'vbs') {
+    for (const it of disPreviewLayout()) {
+      let g = baseGl.get(it.id);
+      if (!g) { g = upload(disBaseMesh(it.id)); baseGl.set(it.id, g); }
+      const c = it.dead ? DIS_SIDE.dead : DIS_SIDE[it.force];
+      gl.uniform1f(P.u.uHeat, it.dead ? 0.4 : it.id === 'person' ? 0.8 : 0.6);
+      gl.uniform4f(P.u.uOver, c[0], c[1], c[2], it.dead ? 0.75 : 0.45);
+      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(it.dead ? qAxis([0, 0, 1], 0.12) : [0, 0, 0, 1], [it.x, it.dead ? 0.3 : 0, it.z]));
+      gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
+    }
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   }
   // Drohne (Rumpf nur in der Verfolgerkamera, Propeller auch im Kamerabild)
   gl.uniform1f(P.u.uHeat, 0.7);

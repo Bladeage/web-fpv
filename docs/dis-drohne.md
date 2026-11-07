@@ -90,6 +90,22 @@ Wichtig (gesichert, k5.2): Eine Drohne erscheint in VBS nur, wenn ihr 7er-Wert *
 - Aus dem Simulator: Kartenkoordinate, Quaternion, Drehraten (Simulator x rechts, y oben, z hinten -> DIS x vorn, y rechts, z unten), Höhe NHN plus Quasigeoidhöhe.
 - Noch nicht geprüft: gegen echte PDUs von VBS (Mitschnitt angefragt).
 
+## VBS-Grundtypen (vorgebaut 07.11.2026, Prompt 136)
+
+`src/distypes.js`, ohne DOM. Tests: `test/distypes.test.mjs`.
+- 18 Grundtypen mit Namen und geschätzten Maßen (Annahme je Typ im Code): Kampfpanzer, Schützenpanzer Kette und Rad, Transportpanzer Rad, Aufklärung, Pionier/Bergepanzer, Lkw, Pkw, Artillerie, Raketenwerfer, Flugabwehr, Kampf- und Transporthubschrauber, Flugzeug, Drohne Fläche und Multikopter, Boot, Person. Dazu „Unbekannt“ als Quader.
+- Zuordnung nach Kind, Domain, Kategorie (Regeln im Code, vermutete Zuordnungen gekennzeichnet). Schützen- und Transportpanzer standardmäßig Rad (nach den Mengen von k5.2). Aufklärung, Pionier/Berge (Kategorie 3) und Raketenwerfer haben keine eigene SISO-Kategorie: nur über eine lokale Tabelle „Land.Kategorie.Unterkategorie=Grundtyp“ aus der privaten Modellliste (nie im Repo).
+- Einfache Modelle (60 bis 440 Dreiecke), Farbe nach Seite: blau Freund, rot Feind, grün neutral, gelb sonstige, dunkel und schief zerstört.
+- Vorschau: Modus „VBS-Grundtypen“ unter Spezial. Alle Modelle auf einer freien Fläche der Spielkarte (nordwestlich vom Start), Namen im Bild bis 50 m. Noch nicht mit VBS verbunden, nichts fest verbaut.
+
+## Mitschnitt und Port-Probe von k5.2 (07.11.2026)
+
+k5.2 hat im eigenen Testprofil geprüft (VWS unverändert; einzige Änderung im Testprofil: Show Unknown Entities an). Gelände DefaultWorld (georeferenziert, etwa 50,2 N, 16,6 E).
+- **Empfangen auf demselben Rechner geht** (gesichert): Ein Node-Programm bindet mit reuseAddr Port 3000 neben dem Gateway und empfängt alle Broadcasts von VBS.
+- **Senden an das Gateway auf demselben Rechner geht mit den heutigen Einstellungen nicht** (gesichert): 20 eigene Entity-State-PDUs (unsere Werte) per Broadcast, in VBS erschien nichts, auch kein roter Pfeil. Vermutete Ursachen, nicht getrennt: AllowLoopback 0 (Pakete vom eigenen Rechner verworfen, laut Handbuch nur für mehrere Clients auf einem Rechner nötig), der Eingangsfilter des Gateways (FilterType editorObject ohne Geofilter-Objekt). Trennen geht nur mit einer weiteren Änderung im Testprofil (AllowLoopback 1 oder FilterType none) oder mit der Brücke auf einem zweiten Rechner. **Entscheidung bei Fabian.**
+- **Mitschnitt** (60 s, nur lokal in `private/`): nur Entity State, DIS 6, je Einheit eine PDU alle 5 s, 240 Byte (6 Zusatzparameter). Unser Kodierer liest sie richtig (gesichert für die drei Beispiele: Version, Kennungen, Typ, Ort in Erdkoordinaten, Lage, Erscheinungsbild). Die Grundtypen passen: Hubschrauber 1.2.78.21 → Transporthubschrauber, Radpanzer 1.1.78.3 → Transportpanzer Rad, Person → Person. VBS sendet kein Marking.
+- **Auffällig:** Ort, Tempo und Lage blieben in allen PDUs auf dem Stand beim Anlegen, Tempo immer 0, obwohl ein Fahrzeug fuhr (k5.2 vermutet LightweightMode oder per Skript angelegte Einheiten). Für Bewegung gibt es noch keine Probe. Eine Person liegt laut PDU auf 48,9 m über dem Ellipsoid, ein Fahrzeug 400 m daneben auf 359 m (bei k5.2 nachgefragt). Nicht gesendet wurden Besatzungen und Klassen ohne Zuordnung im Gateway.
+
 ## Offene Fragen (an Fabian oder k5.2)
 
 Am 07.11.2026 als 14 Fragen an k5.2 geschickt (Prompt 134), am selben Tag beantwortet. k5.2 hat nur gelesen (Gateway_Settings.xml im VWS-Profil, Stand 05.11.2026; Zusammenfassung des Gateway-Handbuchs 24.2.2; Configs aus dem Katalog 26.1), nichts geändert.

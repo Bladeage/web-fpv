@@ -9,6 +9,7 @@ import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat }
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
 import { scenLabel, scenTarget, scen, diff } from './scenario.js';
+import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { signal } from './signal.js';
 
 
@@ -267,6 +268,7 @@ export function drawHud() {
 
   if (on('marker')) drawGateMarker(c, W, H, fs);
   drawPoiLabels(c, W, H, fs);
+  drawBaseLabels(c, W, H, fs);
   if (touchUI) drawSticks(c, W, H);
 
   const tnow = performance.now();
@@ -394,6 +396,23 @@ function drawPoiLabels(c, W, H, fs) {
     c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.fillStyle = '#ffc27a';
     const sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H - 6, txt = `${t.name} ${d} M`;
     c.strokeText(txt, sx, sy); c.fillText(txt, sx, sy);
+  }
+}
+// Vorschau VBS-Grundtypen: Name über jedem Modell (bis 50 m, nur wenn im Bild; nahe zuerst, überdeckte Namen entfallen)
+function drawBaseLabels(c, W, H, fs) {
+  if (!lastVP || scen.id !== 'vbs') return;
+  c.font = `600 ${Math.round(fs*0.85)}px system-ui,sans-serif`; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)';
+  const list = disPreviewLayout().map(it => { const b = disBaseInfo(it.id), p = [it.x, b.size[2] + (b.dom === 2 && it.id !== 'uavm' ? 1.5 : 0.8), it.z]; return { it, b, p, d: vLen(vSub(p, game.sim.p)) }; })
+    .filter(x => x.d <= 50).sort((a, b) => a.d - b.d), used = [];
+  for (const { it, b, p } of list) {
+    const cp = mApply(lastVP, p);
+    if (cp[3] < 0.01) continue;
+    const nx = cp[0]/cp[3], ny = cp[1]/cp[3];
+    if (Math.abs(nx) > 0.95 || Math.abs(ny) > 0.95) continue;
+    const t = b.name + (it.note ? ' (' + it.note + ')' : ''), sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H, hw = c.measureText(t).width/2 + 4, hh = fs*0.6;
+    if (used.some(r => Math.abs(r[0] - sx) < r[2] + hw && Math.abs(r[1] - sy) < r[3] + hh)) continue;
+    used.push([sx, sy, hw, hh]);
+    c.fillStyle = '#ffffff'; c.strokeText(t, sx, sy); c.fillText(t, sx, sy);
   }
 }
 function drawGateMarker(c, W, H, fs) {
