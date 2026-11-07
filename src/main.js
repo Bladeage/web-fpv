@@ -71,8 +71,10 @@ function frame(now) {
       }
     }
   }
-  // Verbund mit VBS (D3): auch in der Pause, damit die Drohne in VBS bleibt; die Brücke hält den Herzschlag
-  vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', !!cfg.verbund);
+  // DIS-Modus: Verbindung halten, solange er gewählt ist (auch im Menü: Brücke und Einheiten der Übung anzeigen); die eigene
+  // Drohne nur im Flug der echten Welt senden, auch in der Pause (die Brücke hält den Herzschlag)
+  const disOn = !!cfg.verbund && cfg.scen === 'real';
+  vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && game.scenRun === 'real');
   render(dt);
   drawHud();
   audioUpd();

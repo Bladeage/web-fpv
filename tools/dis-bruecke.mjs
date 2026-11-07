@@ -1,18 +1,18 @@
 // DIS-Brücke für Entwicklung und Tests (Node, nur Bordmittel). Gleiches Protokoll wie die Windows-Brücke
-// bruecke/fpv-vbs-bruecke.cmd (PowerShell), die der Simulator im DIS-Modus zum Download anbietet.
+// bruecke/fpv-dis-bruecke.cmd (PowerShell), die der Simulator im DIS-Modus zum Download anbietet.
 //
-//   Simulator --WebSocket (binär: DIS-PDU)--> Brücke --UDP :3000 (Broadcast)--> VBS Gateway
-//   Simulator <--(binär: DIS-PDU) / (Text: {"t":"info"}, {"t":"lagebild","text":...})-- Brücke <--UDP / Datei lagebild.txt
+//   Simulator --WebSocket (binär: DIS-PDU)--> Brücke --UDP :3000 (Broadcast)--> DIS-Netz
+//   Simulator <--(binär: DIS-PDU) / (Text: {"t":"info",...})-- Brücke <--UDP :3000
 //
 // Die Brücke rechnet nichts: Der Simulator baut und liest die DIS-PDUs selbst (src/dis.js, src/verbund.js). Sie hält
 // nur den Herzschlag (letzte PDU erneut, wenn der Simulator schweigt, zum Beispiel Tab im Hintergrund) und meldet die
-// Drohne beim Trennen einmal als „deaktiviert“ (Appearance Bit 23, Vorhersage Static).
+// Drohne beim Trennen einmal als „deaktiviert“ (Appearance Bit 23, Vorhersage Static). Der Simulator kann den DIS-Port
+// wechseln: Text {"t":"config","port":3000}.
 //
-// Aufruf: node tools/dis-bruecke.mjs [--lagebild <Datei>] [--ws 8642] [--dis-port 3000] [--dis-ziel 255.255.255.255]
+// Aufruf: node tools/dis-bruecke.mjs [--ws 8642] [--dis-port 3000] [--dis-ziel 255.255.255.255]
 import { createServer } from 'node:http';
 import { createSocket } from 'node:dgram';
 import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 // ---- WebSocket nach RFC 6455 (Text, Binär, Ping, Schließen) ----
@@ -45,31 +45,45 @@ export function wsParse(buf) {
 // Letzte PDU als „deaktiviert“: Appearance Bit 23 (Byte 85, Bit 7), Vorhersage Static (Byte 88 = 1)
 export function offPdu(p) { const q = Buffer.from(p); if (q.length >= 144) { q[85] |= 0x80; q[88] = 1; } return q; }
 
-// o: { wsPort, disPort, disTarget, disTargetPort (nur Tests), lagebild, heartbeat (s), origins, log }
+// o: { wsPort, disPort, disTarget, disTargetPort (fester Zielport, nur Tests), heartbeat (s), origins, log }
 export function createBridge(o = {}) {
-  const cfg = { wsPort: 8642, disPort: 3000, disTarget: '255.255.255.255', heartbeat: 5, lbEvery: 1000,
+  const cfg = { wsPort: 8642, disPort: 3000, disTarget: '255.255.255.255', heartbeat: 5,
     origins: ['null', 'https://bladeage.github.io', 'http://localhost', 'http://127.0.0.1'], log: () => {}, ...o };
   const clients = new Set();
-  let closed = false, lbTime = 0;
-  const udp = createSocket({ type: 'udp4', reuseAddr: true });
+  let closed = false, udp = null;
+  const info = () => wsFrame(JSON.stringify({ t: 'info', name: 'fpv-dis-bruecke', version: 2, disPort: cfg.disPort }));
   const send = pdu => { if (closed) return; try { udp.send(pdu, cfg.disTargetPort || cfg.disPort, cfg.disTarget); } catch (e) { cfg.log('Senden fehlgeschlagen: ' + e.message); } };
-  udp.on('message', msg => { const f = wsFrame(msg, 2); for (const c of clients) c.sock.write(f); });   // alles an die Simulatoren, die filtern selbst
-  const ready = new Promise(res => udp.bind(cfg.disPort, () => { try { udp.setBroadcast(true); } catch (e) {} res(); }));
-  const http = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }); res.end('FPV-VBS-Bruecke laeuft\n'); });
+  // UDP-Kanal (Port mit anderen DIS-Programmen geteilt); alles Empfangene an die Simulatoren, die filtern selbst
+  const openUdp = port => new Promise((res, rej) => {
+    const u = createSocket({ type: 'udp4', reuseAddr: true });
+    u.on('message', msg => { if (u !== udp) return; const f = wsFrame(msg, 2); for (const c of clients) c.sock.write(f); });
+    u.once('error', rej);
+    u.bind(port, () => { try { u.setBroadcast(true); } catch (e) {} u.off('error', rej); u.on('error', e => cfg.log('UDP: ' + e.message)); res(u); });
+  });
+  // DIS-Port wechseln (Wunsch des Simulators)
+  let switching = Promise.resolve();
+  const setPort = port => { switching = switching.then(async () => {
+    if (closed || !(port > 0 && port < 65536) || port === cfg.disPort) return;
+    try { const u = await openUdp(port), old = udp; udp = u; cfg.disPort = port; old.close(); cfg.log('DIS-Port jetzt ' + port); for (const c of clients) c.sock.write(info()); }
+    catch (e) { cfg.log('DIS-Port ' + port + ' nicht möglich: ' + e.message); }
+  }); return switching; };
+  const ready = openUdp(cfg.disPort).then(u => { udp = u; if (!cfg.disPort) cfg.disPort = u.address().port; });
+  const http = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }); res.end('FPV-DIS-Bruecke laeuft\n'); });
   http.on('upgrade', (req, sock) => {
     const key = req.headers['sec-websocket-key'], origin = req.headers.origin || 'null';
     const ok = key && /websocket/i.test(req.headers.upgrade || '') && cfg.origins.some(x => origin === x || origin.startsWith(x + ':'));
     if (!ok) { sock.end('HTTP/1.1 403 Forbidden\r\n\r\n'); cfg.log('abgelehnt: ' + origin); return; }
     sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + wsAccept(key) + '\r\n\r\n');
     const c = { sock, last: null, lastT: 0, buf: Buffer.alloc(0) };
-    clients.add(c); lbTime = 0; cfg.log('Simulator verbunden (' + clients.size + ')');
-    sock.write(wsFrame(JSON.stringify({ t: 'info', name: 'fpv-vbs-bruecke', version: 1, disPort: cfg.disPort, lagebild: !!cfg.lagebild })));
+    clients.add(c); cfg.log('Simulator verbunden (' + clients.size + ')');
+    sock.write(info());
     sock.on('data', chunk => {
       const r = wsParse(Buffer.concat([c.buf, chunk])); c.buf = Buffer.from(r.rest);
       for (const f of r.frames) {
         if (f.op === 8) { sock.end(wsFrame('', 8)); continue; }
         if (f.op === 9) { sock.write(wsFrame(f.data, 10)); continue; }
         if (f.op === 2 && f.data.length >= 12) { send(f.data); c.last = f.data; c.lastT = Date.now(); }
+        if (f.op === 1) { let m = null; try { m = JSON.parse(f.data.toString()); } catch (e) {} if (m && m.t === 'config') setPort(+m.port); }
       }
     });
     const bye = () => { if (!clients.delete(c)) return; if (c.last) send(offPdu(c.last)); cfg.log('Simulator getrennt (' + clients.size + ')'); };
@@ -77,22 +91,17 @@ export function createBridge(o = {}) {
   });
   const httpReady = new Promise(res => http.listen(cfg.wsPort, '127.0.0.1', res));
   const tick = setInterval(() => { for (const c of clients) if (c.last && Date.now() - c.lastT >= cfg.heartbeat*1000) { send(c.last); c.lastT = Date.now(); } }, Math.min(250, cfg.heartbeat*500));
-  const lbTimer = cfg.lagebild ? setInterval(async () => {
-    if (!clients.size) return;
-    try { const st = await stat(cfg.lagebild); if (st.mtimeMs === lbTime) return; lbTime = st.mtimeMs;
-      const f = wsFrame(JSON.stringify({ t: 'lagebild', text: await readFile(cfg.lagebild, 'utf8') })); for (const c of clients) c.sock.write(f); } catch (e) {}
-  }, cfg.lbEvery) : null;
   return {
-    ready: Promise.all([ready, httpReady]), clients, cfg,
+    ready: Promise.all([ready, httpReady]), clients, cfg, setPort,
     get udpPort() { return udp.address().port; }, get wsPort() { return http.address().port; },
     // close: zweiter Aufruf ohne Wirkung
-    close() { if (closed) return; closed = true; clearInterval(tick); if (lbTimer) clearInterval(lbTimer); for (const c of clients) c.sock.destroy(); udp.close(); http.close(); }
+    close() { if (closed) return; closed = true; clearInterval(tick); for (const c of clients) c.sock.destroy(); if (udp) udp.close(); http.close(); }
   };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const a = process.argv.slice(2), arg = (n, d) => { const i = a.indexOf('--' + n); return i >= 0 ? a[i + 1] : d; };
-  const b = createBridge({ wsPort: +arg('ws', 8642), disPort: +arg('dis-port', 3000), disTarget: arg('dis-ziel', '255.255.255.255'), lagebild: arg('lagebild'),
+  const b = createBridge({ wsPort: +arg('ws', 8642), disPort: +arg('dis-port', 3000), disTarget: arg('dis-ziel', '255.255.255.255'),
     log: s => console.log(new Date().toISOString().slice(11, 19) + ' ' + s) });
-  b.ready.then(() => console.log('FPV-VBS-Bruecke (Node): ws://127.0.0.1:' + b.wsPort + ', DIS UDP ' + b.cfg.disPort + ' an ' + b.cfg.disTarget + (b.cfg.lagebild ? ', Lagebild ' + b.cfg.lagebild : '')));
+  b.ready.then(() => console.log('FPV-DIS-Bruecke (Node): ws://127.0.0.1:' + b.wsPort + ', DIS UDP ' + b.cfg.disPort + ' an ' + b.cfg.disTarget));
 }

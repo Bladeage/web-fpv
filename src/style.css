@@ -252,3 +252,7 @@ body.menuopen .topbar{visibility:hidden}   /* Neustart und Kamera nur im Flug */
 @media (max-height:620px){ .osdgrp{grid-column:auto;margin-top:2px;font-size:11px;align-self:center} .osdgrp:first-child{margin-top:2px} }   /* niedrige Fenster: Überschrift belegt nur eine Zelle */
 .disopts{margin-top:6px}
 .disopts .secondary{margin-top:6px}
+.dissets{display:flex;gap:8px;align-items:center;margin:6px 0 8px}
+.dissets label{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);white-space:nowrap}
+.dissets input{font:inherit;width:4.6em;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--panel-text);min-width:0}
+.dissets .secondary{flex:1;margin-top:0;padding:10px 12px;min-width:0}

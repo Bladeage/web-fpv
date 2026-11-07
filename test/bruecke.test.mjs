@@ -1,11 +1,8 @@
-// DIS-Brücke (Node, tools/dis-bruecke.mjs): reicht DIS-PDUs durch, Lagebild, Herzschlag, „deaktiviert“, Herkunft.
+// DIS-Brücke (Node, tools/dis-bruecke.mjs): reicht DIS-PDUs durch, Herzschlag, „deaktiviert“, Port wechseln, Herkunft.
 // Gleiches Protokoll wie die Windows-Brücke (test/bruecke-ps.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSocket } from 'node:dgram';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { wsAccept, wsFrame, wsParse, offPdu, createBridge } from '../tools/dis-bruecke.mjs';
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -24,14 +21,12 @@ test('Brücke: WebSocket nach RFC 6455 (Schlüssel aus der Norm, Maske, Längen,
   const off = offPdu(pduSample()); assert.ok(off[85] & 0x80); assert.equal(off[88], 1);
 });
 
-test('Brücke: Gesamtlauf (WebSocket <-> UDP, Lagebild, Herzschlag, deaktiviert)', async t => {
-  const dir = mkdtempSync(join(tmpdir(), 'bruecke-')), lb = join(dir, 'lagebild.txt');
-  writeFileSync(lb, '["KOPF",1,1,1,"t",0]\n');
+test('Brücke: Gesamtlauf (WebSocket <-> UDP, Herzschlag, Port wechseln, deaktiviert)', async t => {
   const vbs = createSocket('udp4'), got = [];
   vbs.on('message', m => got.push(new Uint8Array(m)));
   await new Promise(r => vbs.bind(0, '127.0.0.1', r));
-  const b = createBridge({ wsPort: 0, disPort: 0, disTarget: '127.0.0.1', disTargetPort: vbs.address().port, heartbeat: 0.3, lbEvery: 50, lagebild: lb });
-  t.after(() => { b.close(); vbs.close(); rmSync(dir, { recursive: true, force: true }); });
+  const b = createBridge({ wsPort: 0, disPort: 0, disTarget: '127.0.0.1', disTargetPort: vbs.address().port, heartbeat: 0.3 });
+  t.after(() => { b.close(); vbs.close(); });
   await b.ready;
   const ws = new WebSocket('ws://127.0.0.1:' + b.wsPort), rx = [];
   ws.binaryType = 'arraybuffer';
@@ -39,8 +34,7 @@ test('Brücke: Gesamtlauf (WebSocket <-> UDP, Lagebild, Herzschlag, deaktiviert)
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
   await wait(150);
   const info = rx.find(x => typeof x === 'string' && x.includes('"info"'));
-  assert.ok(info && JSON.parse(info).name === 'fpv-vbs-bruecke', 'meldet sich');
-  assert.ok(rx.some(x => typeof x === 'string' && JSON.parse(x).t === 'lagebild'), 'Lagebild beim Verbinden');
+  assert.ok(info && JSON.parse(info).name === 'fpv-dis-bruecke', 'meldet sich'); assert.equal(JSON.parse(info).disPort, b.udpPort, 'meldet den DIS-Port');
   // Browser -> VBS: unverändert durchgereicht
   ws.send(pduSample(1, 42)); await wait(150);
   assert.equal(got.length, 1); assert.equal(got[0][100], 42);
@@ -50,9 +44,14 @@ test('Brücke: Gesamtlauf (WebSocket <-> UDP, Lagebild, Herzschlag, deaktiviert)
   const s = createSocket('udp4'); await new Promise(r => s.send(Buffer.from(pduSample(13)), b.udpPort, '127.0.0.1', r)); s.close();
   await wait(150);
   assert.ok(rx.some(x => x instanceof ArrayBuffer && new Uint8Array(x)[17] === 13), 'PDU von VBS am Browser');
-  // Lagebild geändert -> neu gesendet
-  writeFileSync(lb, '["KOPF",1,2,1,"t",1]\n["E",13,"x","WEST",[0,0,0],[1,2,3],[0,0,0],[0,1,0],[0,0,1],true,0,1]\n'); await wait(250);
-  assert.ok(rx.some(x => typeof x === 'string' && x.includes('\\"E\\",13')), 'neues Lagebild');
+  // Simulator wünscht anderen DIS-Port: neue Info, Empfang auf dem neuen Port, der alte ist frei
+  const probe = createSocket('udp4'); await new Promise(r => probe.bind(0, '127.0.0.1', r)); const np = probe.address().port; probe.close();
+  const old = b.udpPort; ws.send(JSON.stringify({ t: 'config', port: np })); await wait(200);
+  assert.equal(b.udpPort, np); assert.ok(rx.some(x => typeof x === 'string' && JSON.parse(x).disPort === np), 'neue Info');
+  const s2 = createSocket('udp4'); await new Promise(r => s2.send(Buffer.from(pduSample(21)), np, '127.0.0.1', r)); await new Promise(r => s2.send(Buffer.from(pduSample(22)), old, '127.0.0.1', r)); s2.close();
+  await wait(150);
+  assert.ok(rx.some(x => x instanceof ArrayBuffer && new Uint8Array(x)[17] === 21), 'Empfang auf dem neuen Port');
+  assert.ok(!rx.some(x => x instanceof ArrayBuffer && new Uint8Array(x)[17] === 22), 'alter Port zu');
   // Trennen: einmal „deaktiviert“
   const n = got.length; ws.close(); await wait(300);
   assert.ok(got.slice(n).some(p => (p[85] & 0x80) && p[88] === 1), 'deaktiviert');

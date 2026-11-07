@@ -210,6 +210,33 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   }
   return rw;
 }
+// Ort ohne Kartendaten (Nutzer, Prompt 145: Flug am Ort einer DIS-Übung, etwa auf einem erfundenen Gelände des Partners):
+// ebene Fläche 4 x 4 km auf Höhe hNhn (über NHN) um Breite/Länge, Grasbild ohne Gebäude und Bäume. UTM-Zone nach der Länge.
+export const RW_FLAT = { size: 4000, n: 64, img: 256 };
+export function rwFlat(lat, lon, hNhn) {
+  const zone = Math.floor((lon + 180)/6) + 1, [E, N] = toUtm(lat, lon, zone), S = RW_FLAT.size, n = RW_FLAT.n, h = Math.round(hNhn*100)/100;
+  const meta = { name: 'flach', place: lat.toFixed(5) + ', ' + lon.toFixed(5) + ' (ohne Kartendaten)', crs: 'EPSG:258' + String(zone).padStart(2, '0'),
+    bbox: [E - S/2, N - S/2, E + S/2, N + S/2], n, hMin: h, hMax: h, hScale: 0.1, home: [0, 0], hHome: h, startSpan: 1, startV: 2,
+    attribution: '', roofTris: 0, wallTris: 0, buildings: 0, trees: 0, flat: true };
+  rwApply({ meta, q: new Uint16Array(n*n), b16: new Int16Array(0), t16: new Int16Array(0), dop: rwFlatImage(RW_FLAT.img) }, { live: true });
+  rw.liveAt = [lat, lon]; rw.liveSrcs = []; rw.fromStore = false; rw.liveDlm = false; rw.stored = null;
+  return rw;
+}
+// Grasbild als BMP (24 Bit, ohne Bibliothek): Grundton mit großen hellen und dunklen Flecken und feinem Rauschen,
+// damit Höhe und Tempo im Bild ablesbar bleiben
+export function rwFlatImage(w) {
+  const row = w*3, b = new Uint8Array(54 + row*w), v = new DataView(b.buffer);
+  b[0] = 66; b[1] = 77; v.setUint32(2, b.length, true); v.setUint32(10, 54, true); v.setUint32(14, 40, true);
+  v.setInt32(18, w, true); v.setInt32(22, w, true); v.setUint16(26, 1, true); v.setUint16(28, 24, true); v.setUint32(34, row*w, true);
+  let seed = 12345;
+  const rnd = () => (seed = (seed*1103515245 + 12345) >>> 0)/4294967296;
+  for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) {
+    const u = x/w*2*Math.PI, t = y/w*2*Math.PI, f = 0.5*Math.sin(3*u + 1.3*Math.sin(2*t)) + 0.3*Math.sin(5*t + 0.7) + 0.2*Math.sin(7*u - 4*t), k = 1 + 0.12*f + (rnd() - 0.5)*0.16;
+    const o = 54 + y*row + x*3;
+    b[o] = Math.min(255, 52*k); b[o + 1] = Math.min(255, 112*k); b[o + 2] = Math.min(255, 84*k);   // BGR: Grasgrün
+  }
+  return b;
+}
 // Eingebettete Daten im Browser entpacken (DecompressionStream, Bordmittel). Werkzeug und Tests nutzen zlib direkt.
 export async function rwLoadEmbedded() {
   if (rw.ready && !rw.live) return rw;

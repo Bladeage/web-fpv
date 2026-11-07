@@ -8,7 +8,7 @@ import { audioInit, audioPause } from './audio.js';
 import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
-import { rw, rwLoadEmbedded, rwLoadLive } from './realworld.js';
+import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan } from './realworld.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
@@ -16,9 +16,9 @@ import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
-import { vb, vbProbe, VB_BRUECKE } from './verbund.js';
+import { VB, vbBridge, vbCenter, vbConfig, VB_BRUECKE } from './verbund.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
-const SPECIAL = new Set(['real', 'vbs']);   // Modi im Reiter „Spezial“: echte Welt, Vorschau der VBS-Grundtypen
+const SPECIAL = new Set(['real', 'vbs']);   // Modi im Reiter „Spezial“: echte Welt, Vorschau der DIS-Grundtypen
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -85,7 +85,7 @@ export function syncMenu() {
   press('#fcSeg button', b => b.dataset.fc === (cfg.fc || 'own'));
   setMode(cfg.mode);
   const sc = SCENARIOS.find(x => x.id === cfg.scen);
-  // DIS-Modus = echte Welt im Verbund mit VBS (cfg.verbund); eigener Knopf unter Spezial
+  // DIS-Modus = echte Welt im Verbund mit einem DIS-Partner (cfg.verbund); eigener Knopf unter Spezial
   const dis = cfg.scen === 'real' && !!cfg.verbund;
   press('#scenList button, #specList button', b => b.dataset.id === 'dis' ? dis : b.dataset.id === cfg.scen && !(b.dataset.id === 'real' && dis));
   // Reiter: „Spezial“ für echte Welt (später DIS), sonst „Modi“
@@ -100,7 +100,7 @@ export function syncMenu() {
   press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
-  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
+  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + ', ebene Fläche ohne Kartendaten.' : cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
       + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
     : 'Breite, Länge oder Karte. 15 bis 200 MB, danach gespeichert.';
@@ -264,7 +264,8 @@ async function start() {
     if (!await rwLiveRun()) { say('Ort nicht geladen, fliege Monschau. ' + $('rwMsg').textContent, 5); await rwLoadEmbedded(); }
     else say('Gebiet geladen', 1.5);
   }
-  if (cfg.scen === 'real' && cfg.rwSrc !== 'live' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
+  if (cfg.scen === 'real' && cfg.rwSrc === 'dis') disFlat();   // Ort der DIS-Übung ohne Kartendaten
+  if (cfg.scen === 'real' && cfg.rwSrc === 'emb' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
   if (cfg.scen === 'real' && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
   if (cfg.scen === 'real' && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
   setScenario(cfg.scen); applyDrone(cfg.drone); saveCfg();
@@ -272,26 +273,72 @@ async function start() {
   respawn(); resume();
 }
 
-for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (x.id === 'real') cfg.verbund = false; if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
-// DIS-Modus (Nutzer, Prompt 143): echte Welt im Verbund mit VBS. Prüft, ob die Brücke läuft; sonst Download der Windows-Brücke.
-// Ein Browser sieht nur, ob die Brücke läuft, nicht ob sie installiert ist.
-const DIS_INFO = 'Echte Welt im Verbund mit VBS: Die Drohne erscheint in VBS, VBS-Einheiten hier. Brücke und Browser laufen auf dem VBS-Rechner.';
-{ const b = addChoice($('specList'), 'DIS (VBS)', '', () => { cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); disCheck(); }); b.dataset.id = 'dis';
+for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (x.id === 'real') { cfg.verbund = false; if (cfg.rwSrc === 'dis') cfg.rwSrc = 'emb'; } if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+// DIS-Modus (Nutzer, Prompt 143 und 145): echte Welt im Verbund mit einem DIS-Partner. Zeigt, ob die Brücke läuft (die
+// Verbindung hält vbStep in der Hauptschleife), sonst Download der Windows-Brücke. Ein Browser sieht nur, ob die Brücke läuft,
+// nicht ob sie installiert ist. Mit Einheiten in der Übung: Flug an ihrem Ort (Kartendaten, wenn eine Quelle ihn abdeckt,
+// sonst ebene Fläche auf der Höhe der Einheiten).
+const DIS_INFO = 'Echte Welt im Verbund über DIS: Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Die Brücke läuft auf diesem Rechner.';
+{ const b = addChoice($('specList'), 'DIS', '', () => { cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); }); b.dataset.id = 'dis';
   $('specList').insertBefore(b, $('specList').querySelector('[data-id=vbs]')); }
-function syncDis() {
-  const st = vb.state === 'verbunden' ? 'läuft' : vb.probe;
-  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. Ort wählen und starten.' : st === 'nicht gefunden'
-    ? 'Brücke nicht gefunden. Herunterladen und auf dem VBS-Rechner doppelklicken (Windows fragt nach: „Weitere Informationen“, „Trotzdem ausführen“).'
-    : 'Suche Brücke …';
-  $('disGet').hidden = st !== 'nicht gefunden';
+VB.port = cfg.disPort || 3000; VB.exercise = cfg.disEx || 1;
+// Frage des Browsers nach dem lokalen Netz (Chrome: „local-network-access“): 'prompt', 'denied', 'granted' oder '' (unbekannt)
+let lna = '';
+function lnaCheck() {
+  try { navigator.permissions.query({ name: 'local-network-access' }).then(p => { lna = p.state; }, () => { lna = ''; }); } catch (e) { lna = ''; }
 }
-function disCheck() { vbProbe(() => { syncDis(); fitPanel(); }); }
-setInterval(() => { if (!menu.hidden && screen === 'mode' && cfg.scen === 'real' && cfg.verbund) disCheck(); }, 3000);   // alle 3 s, solange der DIS-Modus im Menü gewählt ist
+function syncDis() {
+  const st = vbBridge(), c = st === 'läuft' ? vbCenter() : null;
+  if (st === 'wartet') lnaCheck();
+  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. ' + (c ? 'Übung ' + VB.exercise + ': ' + c.n + (c.n === 1 ? ' Einheit' : ' Einheiten') + ' bei ' + c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) + '.'
+      : 'Noch keine Einheiten in Übung ' + VB.exercise + ' auf Port ' + VB.port + '.')
+    : st === 'wartet' && lna === 'prompt' ? 'Der Browser fragt nach Zugriff auf Geräte im lokalen Netz. Bitte „Zulassen“.'
+    : st === 'wartet' && lna === 'denied' ? 'Zugriff auf das lokale Netz ist gesperrt: links neben der Adresse die Website-Einstellungen öffnen und erlauben.'
+    : st === 'nicht gefunden' || st === 'wartet' ? 'Brücke nicht gefunden. Herunterladen und auf diesem Rechner doppelklicken (Windows fragt nach: „Weitere Informationen“, „Trotzdem ausführen“).'
+    : 'Suche Brücke …';
+  $('disGet').hidden = !(st === 'nicht gefunden' || (st === 'wartet' && lna !== 'prompt' && lna !== 'denied'));
+  $('disSets').hidden = st !== 'läuft';
+  $('disHere').disabled = !c;
+  if (document.activeElement !== $('disPort')) $('disPort').value = VB.port;
+  if (document.activeElement !== $('disEx')) $('disEx').value = VB.exercise;
+}
+let disShown = '';
+setInterval(() => {   // jede Sekunde, solange der DIS-Modus im Menü gewählt ist
+  if (menu.hidden || screen !== 'mode' || cfg.scen !== 'real' || !cfg.verbund) return;
+  syncDis();
+  const k = $('disOpts').textContent + $('disGet').hidden + $('disSets').hidden;
+  if (k !== disShown) { disShown = k; fitPanel(); }
+}, 1000);
 $('disGet').addEventListener('click', () => {
   if (VB_BRUECKE.startsWith('%%')) { $('disSt').textContent = 'Brücke nur in der fertigen Datei enthalten (npm run build).'; return; }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([VB_BRUECKE], { type: 'application/octet-stream' })); a.download = 'fpv-vbs-bruecke.cmd';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([VB_BRUECKE], { type: 'application/octet-stream' })); a.download = 'fpv-dis-bruecke.cmd';
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 });
+// Port und Übung: übernehmen, wenn gültig (Port an die Brücke, Übung filtert den Empfang)
+for (const [id, key, lo, hi] of [['disPort', 'disPort', 1, 65535], ['disEx', 'disEx', 1, 255]]) {
+  $(id).addEventListener('keydown', e => e.stopPropagation());   // Tippen steuert nicht die Drohne
+  $(id).addEventListener('change', e => {
+    const v = Math.round(+e.target.value);
+    if (!(v >= lo && v <= hi)) { e.target.value = key === 'disPort' ? VB.port : VB.exercise; return; }
+    cfg[key] = v; saveCfg();
+    if (key === 'disPort') { VB.port = v; vbConfig(); } else VB.exercise = v;
+    syncDis();
+  });
+}
+// Am Ort der Übung fliegen: Ort festhalten; mit Quelle (zum Beispiel NRW) wie „Ort laden“, sonst ebene Fläche beim Start
+$('disHere').addEventListener('click', () => {
+  const c = vbCenter();
+  if (!c) return;
+  const ll = c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
+  if (rwPlan(c.lat, c.lon)) { cfg.rwLL = ll; cfg.rwSrc = 'live'; saveCfg(); syncMenu(); rwReplace(); return; }
+  cfg.disLL = ll; cfg.disH = Math.round(c.h*100)/100; cfg.rwSrc = 'dis'; saveCfg(); syncMenu(); fitPanel();
+  if (game.started && game.scenRun === 'real') { disFlat(); setScenario('real'); respawn(); }
+});
+function disFlat() {
+  const ll = parseLatLon(cfg.disLL);
+  if (!ll) return;
+  if (!(rw.live && rw.meta && rw.meta.flat && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1] && rw.meta.hHome === cfg.disH)) rwFlat(ll[0], ll[1], cfg.disH || 0);
+}
 // Reiter wechseln: „Spezial“ wählt die echte Welt, „Modi“ den zuletzt gewählten normalen Modus
 document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('click', () => {
   const spec = b.dataset.mtab === 'spec';

@@ -101,10 +101,10 @@ export function bundle() {
     .replace("'%%RW_FARDOP%%'", () => "'" + readFileSync(RW + '.far.jpg').toString('base64') + "'")
     .replace("'%%RW_FEATURES%%'", () => packed(RW + '.features.json'));   // Kartenebenen gepackt (109 statt 38 KB)
   // Deutschlandkarte (Ländergrenzen, BKG VG2500) für die Auswahl eines Ortes
-  // Windows-Brücke (bruecke/fpv-vbs-bruecke.cmd) für den Download im DIS-Modus; muss reines ASCII sein (cmd und PowerShell 5.1)
+  // Windows-Brücke (bruecke/fpv-dis-bruecke.cmd) für den Download im DIS-Modus; muss reines ASCII sein (cmd und PowerShell 5.1)
   if (js.includes("'%%BRUECKE_CMD%%'")) {
-    const cmd = readFileSync(join(ROOT, 'bruecke', 'fpv-vbs-bruecke.cmd'), 'utf8');
-    if (/[^\x00-\x7f]/.test(cmd)) throw new Error('bruecke/fpv-vbs-bruecke.cmd enthält Zeichen außerhalb von ASCII');
+    const cmd = readFileSync(join(ROOT, 'bruecke', 'fpv-dis-bruecke.cmd'), 'utf8');
+    if (/[^\x00-\x7f]/.test(cmd)) throw new Error('bruecke/fpv-dis-bruecke.cmd enthält Zeichen außerhalb von ASCII');
     js = js.replace("'%%BRUECKE_CMD%%'", () => JSON.stringify(cmd).replace(/<\//g, '<\\/'));
   }
   if (js.includes("'%%DE_MAP%%'")) js = js.replace("'%%DE_MAP%%'", () => packed(join(ROOT, 'realworld', 'germany.json')));   // gepackt, entpackt beim Start (demap.dePrepare)

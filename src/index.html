@@ -51,6 +51,7 @@
         <div id="disOpts" class="disopts" hidden>
           <p class="hint" id="disSt"></p>
           <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
+          <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Flug am Ort der Übung beginnen" disabled>Dort fliegen</button></div>
         </div>
         <div id="rwOpts">
           <div class="seg small seg3" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button><button id="rwOpt" title="Daten, Export und Import, Quellen">Optionen</button></div>
@@ -80,7 +81,7 @@
       <div class="tabs tabs2" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button></div>
       <div id="geoData">
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
-        <label class="row geotoggle"><span>Mit VBS verbinden (DIS-Brücke auf diesem Rechner) <small id="geoVbsSt"></small></span><input type="checkbox" id="geoVbs"></label>
+        <label class="row geotoggle"><span>Mit DIS verbinden (Brücke auf diesem Rechner) <small id="geoVbsSt"></small></span><input type="checkbox" id="geoVbs"></label>
         <div class="geostats" id="geoStats"></div>
         <div class="srclist" id="srcStore"></div>
         <div class="seg small"><button id="geoImp">Importieren</button><button id="geoExp">Exportieren</button></div>

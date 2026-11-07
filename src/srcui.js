@@ -33,7 +33,7 @@ function srcList() {
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
 // Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen)
-// Zustand der Verbindung zu VBS neben dem Schalter (verbunden, getrennt, ...)
+// Zustand der Verbindung zur DIS-Brücke neben dem Schalter (verbunden, getrennt, ...)
 function srcVbsState() { srcEl('geoVbsSt').textContent = cfg.verbund ? '· ' + (vb.state === 'verbunden' ? 'verbunden, ' + vb.units.length + ' Einheiten' : vb.err || vb.state) : ''; }
 export function srcOpen(tab = SRC.tab) { srcEl('geoVbs').checked = !!cfg.verbund; srcVbsState(); srcEl('srcMsg').textContent = ''; srcEl('geoMsg').textContent = 'Lade Übersicht …';   // Liste kommt gleich aus dem Speicher
   srcTab(tab); srcList(); srcStoreFill(); SRC.show('sources'); }

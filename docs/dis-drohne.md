@@ -124,6 +124,17 @@ Ersetzt den Aufbau aus D2 und D3. Die Abschnitte oben bleiben als Verlauf.
 - **Nicht geprüft:** SmartScreen (Download ohne Internet-Merkmal), Fensterschließen in Windows Terminal.
 - **Neue Vorgabe Fabian (über k5.2):** Das DIS-Plugin soll universell sein, ohne VBS-Bezug. Umsetzung offen.
 
+## Universeller DIS-Modus (07.11.2026, Prompt 145)
+
+Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug. Ersetzt Teile von Prompt 143.
+- **Brücke:** `bruecke/fpv-dis-bruecke.cmd` (vorher `fpv-vbs-bruecke.cmd`), Info `fpv-dis-bruecke`, Version 2. Kein Lagebild mehr. Neu: Text `{"t":"config","port":N}` wechselt den DIS-Port (neuer UDP-Kanal, neue Info an alle). Node-Relais gleich.
+- **Empfang nur aus DIS:** Ort, Lage, Tempo aus dem Entity State. Ab dem Empfang mit dem Tempo weitergeschoben (linear, höchstens 13 s). Vorhersage „statisch“ oder eingefroren: kein Tempo. Abgemeldete (Appearance Bit 23) und Platzhalter-Orte (Abstand zur Erdmitte außerhalb 6,3 bis 6,5 Mio. m) werden übergangen. Folge bei VBS 26.1.3: Die Einheiten stehen an ihrem eingefrorenen Ort.
+- **Menü:** Knopf „DIS“. Die Verbindung hält die Hauptschleife, solange der DIS-Modus gewählt ist; gesendet wird erst im Flug. Zustände: läuft (mit Zahl der Einheiten und Ort), wartet (Browser fragt nach dem lokalen Netz: Hinweis „Zulassen“ oder „gesperrt“, Chrome-Berechtigung `local-network-access`), nicht gefunden (Download). Port und Übung einstellbar (`cfg.disPort`, `cfg.disEx`).
+- **Ort der Übung:** „Dort fliegen“ nimmt die Mitte der Einheiten (Median von Breite und Länge, Höhe aus den Einheiten am Boden). Deckt eine Quelle den Ort ab (zum Beispiel NRW), lädt der Simulator die Kartendaten wie bei „Ort laden“. Sonst ebene Fläche 4 x 4 km auf der Höhe der Einheiten mit Grasbild, ohne Gebäude (`rwFlat`, UTM-Zone nach der Länge). Unsere Drohne steht dann auf derselben Höhe über dem Ellipsoid wie die Einheiten.
+- **OSD:** „DIS n“ statt „VBS n“. Vorschau heißt „DIS-Grundtypen“.
+- **Geprüft:** Node-Tests (Relais mit Portwechsel, Einheiten aus DIS, Ort der Übung, ebene Fläche, Gesamtlauf mit Weiterschieben, Übung 2 übergangen). PowerShell 7 unter Linux mit Portwechsel. Im Browser mit der PowerShell-Brücke und einem DIS-Ersatz bei 50,352 N, 16,640 E: Menü zeigt 4 Einheiten (Platzhalter übergangen), „Dort fliegen“, Flug auf ebener Fläche (EPSG:25833), Einheiten im Bild, Drohne auf 358,9 m über dem Ellipsoid wie die Einheiten, „DIS 4“ im OSD. Menü passt in vier Größen, mit und ohne Brücke.
+- **Offen:** Probe mit VBS auf dem VBS-Rechner (k5.2). Vermutet: Die eingefrorenen Orte der VBS-Fahrzeuge liegen am Startort der Mission; Personen mit Platzhalter-Ort fallen heraus oder verschieben den Median kaum.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
