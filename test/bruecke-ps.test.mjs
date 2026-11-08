@@ -36,6 +36,16 @@ test('Windows-Brücke: Gesamtlauf mit PowerShell (WebSocket <-> UDP, Herzschlag,
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('WebSocket: ' + out)); });
   await wait(1500);
   assert.ok(rx.some(x => typeof x === 'string' && JSON.parse(x).name === 'fpv-dis-bruecke' && JSON.parse(x).disPort === disPort), 'meldet sich');
+  // Version 3 (Prompt 177): Nummer je Verbindung, Zahl der Verbindungen an alle
+  const infos = arr => arr.filter(x => typeof x === 'string').map(x => JSON.parse(x)).filter(m => m.t === 'info');
+  assert.equal(infos(rx).pop().slot, 1, 'erste Verbindung FPV1');
+  const ws2 = new WebSocket('ws://localhost:' + port), rx2 = [];
+  ws2.onmessage = e => rx2.push(e.data);
+  await new Promise((res, rej) => { ws2.onopen = res; ws2.onerror = () => rej(new Error('WebSocket 2: ' + out)); });
+  await wait(1500);
+  assert.equal(infos(rx2).pop().slot, 2, 'zweite Verbindung FPV2'); assert.equal(infos(rx).pop().clients, 2, 'erste erfährt davon');
+  ws2.close(); await wait(1500);
+  assert.equal(infos(rx).pop().clients, 1, 'nach dem Trennen wieder eine');
   const pdu = new Uint8Array(144); pdu[0] = 6; pdu[1] = 1; pdu[2] = 1; pdu[3] = 1; pdu[88] = 4; pdu[100] = 42;
   ws.send(pdu); await wait(400);
   assert.ok(got.length >= 1 && got[0][100] === 42, 'durchgereicht');

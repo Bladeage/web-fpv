@@ -244,3 +244,24 @@ test('DIS-Modus: Gesamtlauf Simulator <-> Brücke <-> DIS-Netz (Drohne gesendet,
   b.close(); await wait(300);
   assert.equal(vbBridge(), 'nicht gefunden'); assert.equal(vbLabel(true), 'DIS --');
 });
+
+test('Zwei Simulatoren an einer Brücke (Prompt 177): eigene Nummer als Kennung und Name, der andere Tab ist eine Einheit', async () => {
+  const net = createSocket('udp4'); await new Promise(r => net.bind(0, '127.0.0.1', r));
+  const b = createBridge({ wsPort: 0, disPort: 0, disTarget: '127.0.0.1', disTargetPort: net.address().port, log: () => {} });
+  let loop = null, tt = 500;
+  const s = { p: [0, 30, -100], v: [0, 0, -12], q: [0, 0, 0, 1], w: [0, 0, 0] }, ent = VB.entity;
+  const other = await (async () => { await b.ready; const ws = new WebSocket('ws://127.0.0.1:' + b.wsPort); await new Promise(r => { ws.onopen = r; }); return ws; })();   // erster Tab: FPV1
+  try {
+    VB.url = 'ws://127.0.0.1:' + b.wsPort; VB.port = b.udpPort; vb.tTry = vb.tBuild = -1e9; vb.dis.clear();
+    loop = setInterval(() => { tt += 0.05; vbStep(tt, s, 'fly', true, false); }, 50);
+    await wait(400);
+    assert.equal(VB.entity, 2, 'dieser Tab ist FPV2'); assert.equal(vb.info.clients, 2);
+    const own = D.disDecode(vbOwnPdu(vbOwnFields(s, 'fly'), tt));
+    assert.equal(own.entity, 2); assert.equal(own.marking.trim(), 'FPV2');
+    const send = async pdu => { const k = createSocket('udp4'); await new Promise(r => k.send(pdu, b.udpPort, '127.0.0.1', r)); k.close(); };
+    const es = n => D.disEncodeES({ ...D.DIS_FPV, entity: n, marking: 'FPV' + n, pos: D.disToEcef(50.55, 6.24, 500), exercise: VB.exercise });
+    await send(es(1)); await send(es(2)); await wait(200);
+    assert.ok(vb.dis.has('1:200:1'), 'Drohne des anderen Tabs als Einheit');
+    assert.ok(!vb.dis.has('1:200:2'), 'eigene Pakete übergangen');
+  } finally { clearInterval(loop); vbClose(); other.close(); b.close(); net.close(); VB.entity = ent; }
+});

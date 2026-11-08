@@ -59,7 +59,11 @@ function Send-Text($c, $s) {
 function Send-Bin($c, [byte[]]$b) {
   try { $c.ws.SendAsync((New-Object System.ArraySegment[byte] -ArgumentList @(,$b)), [System.Net.WebSockets.WebSocketMessageType]::Binary, $true, [Threading.CancellationToken]::None).Wait() } catch { $c.dead = $true }
 }
-function Info-Text { return '{"t":"info","name":"fpv-dis-bruecke","version":2,"disPort":' + $script:DisPort + '}' }
+# Version 3: je Verbindung eine Nummer (kleinste freie ab 1); der Simulator sendet damit als FPV1, FPV2 ... (zwei Tabs stoeren
+# sich nicht mehr). clients = Zahl der Verbindungen; bei jeder neuen oder getrennten Verbindung bekommen alle die neue Info.
+function Info-Text($c) { $sl = $(if ($c) { $c.slot } else { 0 }); return '{"t":"info","name":"fpv-dis-bruecke","version":3,"disPort":' + $script:DisPort + ',"slot":' + $sl + ',"clients":' + $script:clients.Count + '}' }
+function Info-All { foreach ($x in @($script:clients)) { Send-Text $x (Info-Text $x) } }
+function Free-Slot { $n = 1; while (@($script:clients | Where-Object { $_.slot -eq $n }).Count -gt 0) { $n++ }; return $n }
 function Start-Rx($c) { $c.seg = New-Object System.ArraySegment[byte] -ArgumentList @(,$c.buf); $c.rx = $c.ws.ReceiveAsync($c.seg, [Threading.CancellationToken]::None) }
 # Letzte PDU als "deaktiviert" (Appearance Bit 23, Byte 85 Bit 7) und Vorhersage Static (Byte 88 = 1)
 function Off-Pdu([byte[]]$p) { $q = [byte[]]$p.Clone(); if ($q.Length -ge 144) { $q[85] = $q[85] -bor 0x80; $q[88] = 1 }; return ,$q }
@@ -70,7 +74,7 @@ function Set-DisPort($p) {
   try { $script:udp.Close() } catch { }
   $script:udp = $n; $script:DisPort = $p; $script:dest = New-Dest; $script:udpTask = $script:udp.ReceiveAsync()
   Log "DIS-Port jetzt $p"
-  foreach ($c in $script:clients) { Send-Text $c (Info-Text) }
+  Info-All
 }
 
 try {
@@ -82,10 +86,11 @@ try {
       $ok = $false; foreach ($o in $Origins) { if ($origin -eq $o -or $origin.StartsWith($o + ':')) { $ok = $true } }
       if ($ctx.Request.IsWebSocketRequest -and $ok) {
         $wsc = $ctx.AcceptWebSocketAsync([NullString]::Value).Result   # echtes null (PowerShell macht aus $null einen leeren Text)
-        $c = @{ ws = $wsc.WebSocket; buf = New-Object byte[] 65536; msg = New-Object System.IO.MemoryStream; last = $null; lastT = 0.0; dead = $false; rx = $null; seg = $null }
+        $c = @{ ws = $wsc.WebSocket; buf = New-Object byte[] 65536; msg = New-Object System.IO.MemoryStream; last = $null; lastT = 0.0; dead = $false; rx = $null; seg = $null; slot = (Free-Slot) }
         Start-Rx $c; [void]$clients.Add($c)
-        Log "Simulator verbunden ($($clients.Count))"
-        Send-Text $c (Info-Text)
+        Log "Simulator verbunden als FPV$($c.slot) ($($clients.Count))"
+        if ($clients.Count -gt 1) { Log "Achtung: $($clients.Count) Simulatoren verbunden, jeder sendet mit eigener Nummer (FPV1, FPV2 ...)" }
+        Info-All
       } else {
         $ctx.Response.StatusCode = $(if ($ok) { 200 } else { 403 })
         $b = [Text.Encoding]::UTF8.GetBytes('FPV-DIS-Bruecke laeuft'); $ctx.Response.OutputStream.Write($b, 0, $b.Length); $ctx.Response.Close()
@@ -125,7 +130,7 @@ try {
       if ($c.dead) {
         if ($c.last) { $q = Off-Pdu $c.last; [void]$udp.Send($q, $q.Length, $dest) }
         try { $c.ws.Abort() } catch { }
-        $clients.Remove($c); Log "Simulator getrennt ($($clients.Count))"
+        [void]$clients.Remove($c); Log "Simulator FPV$($c.slot) getrennt ($($clients.Count))"; Info-All
       }
     }
     Start-Sleep -Milliseconds 10

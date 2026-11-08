@@ -394,7 +394,8 @@ function syncDis() {
   const now = cur && vb.now - cur.tNew < 6 ? cur : null;   // 6 s ohne Meldung (Herzschlag 5 s): Partner schweigt
   if (st === 'wartet') lnaCheck();
   const where = c ? ' bei ' + c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) : '', skip = c && c.skipped ? ' (' + c.skipped + ' Platzhalter übergangen)' : '';
-  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. ' + (now ? 'Übung ' + VB.exercise + ': ' + disN(c.n) + where + skip + '.'
+  const many = vb.info && vb.info.clients > 1 ? ' Achtung: ' + vb.info.clients + ' Simulatoren an der Brücke, dieser sendet als FPV' + VB.entity + '.' : '';
+  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft.' + many + ' ' + (now ? 'Übung ' + VB.exercise + ': ' + disN(c.n) + where + skip + '.'
       : c ? 'Übung ' + VB.exercise + ': keine neuen Meldungen, zuletzt ' + disN(c.n) + where + ', vor ' + Math.round((performance.now() - disLast.t)/1000) + ' s.'
       : 'Noch keine Einheiten in Übung ' + VB.exercise + ' auf Port ' + VB.port + '.')
     : st === 'wartet' && lna === 'prompt' ? 'Der Browser fragt nach dem Zugriff auf das lokale Netz. Bitte „Zulassen“ wählen.'

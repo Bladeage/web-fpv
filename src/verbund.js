@@ -81,7 +81,8 @@ export function vbOwnFields(s, st = 'fly') {
   const [lat, lon] = rwLatLon(s.p[0], s.p[2]), f = disFromSim(s, { lat, lon, zone: vbZone(), hNhn: rw.meta.hHome + s.p[1], undulation: VB.undulation }), x = disState(st);
   return { ...f, appearance: x.appearance, dra: x.dra };
 }
-export const vbOwnPdu = (cur, t) => disEncodeES({ ...DIS_FPV, ...cur, exercise: VB.exercise, entity: VB.entity, timestamp: disTimestamp(t*1000) });
+// Kennung und Name nach der Nummer, die die Brücke dieser Verbindung gibt (Version 3, Prompt 177): FPV1, FPV2 ...
+export const vbOwnPdu = (cur, t) => disEncodeES({ ...DIS_FPV, ...cur, exercise: VB.exercise, entity: VB.entity, marking: 'FPV' + VB.entity, timestamp: disTimestamp(t*1000) });
 
 // ---- Einheiten in Kartenkoordinaten ----
 export function vbLocal(u) {
@@ -129,14 +130,19 @@ export function vbConfig() {
 function vbMessage(e) {
   if (typeof e.data === 'string') {
     let m; try { m = JSON.parse(e.data); } catch (x) { return; }
-    if (m.t === 'info') { if (vb.info && vb.info.disPort !== m.disPort) vb.dis.clear(); vb.info = m; vb.seen = 'läuft'; vbConfig(); }
+    if (m.t === 'info') {
+      if (vb.info && vb.info.disPort !== m.disPort) vb.dis.clear();
+      // Brücke ab Version 3: eigene Nummer je Verbindung (zwei Tabs senden nicht mehr beide als 1/200/1); ältere Brücken: 1
+      if (m.slot > 0 && m.slot !== VB.entity) { vb.dis.delete(DIS_FPV.site + ':' + DIS_FPV.app + ':' + m.slot); VB.entity = m.slot; }
+      vb.info = m; vb.seen = 'läuft'; vbConfig();
+    }
     return;
   }
   const d = disDecode(new Uint8Array(e.data));
   if (!d || d.exercise !== VB.exercise) return;
   if (d.pduType === DIS_PDU.fire || d.pduType === DIS_PDU.det) { vbShot(d); return; }
   if (d.pduType !== 1) return;
-  if (d.site === DIS_FPV.site && d.app === DIS_FPV.app) return;   // eigene Pakete (Broadcast kommt zurück)
+  if (d.site === DIS_FPV.site && d.app === DIS_FPV.app && d.entity === VB.entity) return;   // eigene Pakete (Broadcast kommt zurück); andere Tabs sind Einheiten
   // Turm und Rohr: aus dieser PDU, sonst die letzten bekannten Werte (nicht jede PDU muss sie tragen)
   const k = d.site + ':' + d.app + ':' + d.entity, old = vb.dis.get(k), a = disArticulation(d.params), oa = old && old.art;
   d.art = { az: a.az ?? (oa ? oa.az : null), el: a.el ?? (oa ? oa.el : null) };
@@ -152,7 +158,7 @@ function vbShot(d) {
   const kind = d.pduType === DIS_PDU.fire ? 'fire' : 'det', from = d.shooter.site + ':' + d.shooter.app + ':' + d.shooter.entity;
   vb.fx.push({ kind, x: L.x, y: L.y, z: L.z, v: L.v, t: vb.now, from });
   if (kind === 'fire') vb.fired.set(from, vb.now);
-  if (vb.me && !(d.shooter.site === DIS_FPV.site && d.shooter.app === DIS_FPV.app)) vbHitCheck(d, kind, L);
+  if (vb.me && !(d.shooter.site === DIS_FPV.site && d.shooter.app === DIS_FPV.app && d.shooter.entity === VB.entity)) vbHitCheck(d, kind, L);
   if (vb.fx.length > 64) vb.fx.splice(0, vb.fx.length - 64);
 }
 // Treffer an unserer Drohne (Prompt 157). Zwei Wege, weil offen ist, ob der Partner fremde Luftfahrzeuge trifft und dort

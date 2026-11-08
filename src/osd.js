@@ -65,11 +65,12 @@ export function osdLines(o, d) {
 }
 
 // Warnung wie im Betaflight-OSD, oder null
+// d.god: Gott-Modus (durch Hindernisse, Akku unendlich, kein Schaden). Dort keine Warnungen zu Akku und Funk (Nutzer, Prompt 177).
 export function osdWarning(d) {
   const warnV = d.warnV ?? 3.5, minV = d.minV ?? 3.3;   // Volt pro Zelle, im Menü einstellbar
-  if (d.cellRest < minV + 0.15 || d.cell < minV) return 'LAND NOW';
-  if (d.cell < warnV) return 'LOW BATTERY';
+  if (!d.god && (d.cellRest < minV + 0.15 || d.cell < minV)) return 'LAND NOW';
+  if (!d.god && d.cell < warnV) return 'LOW BATTERY';
   if (d.hp && d.hp.some(x => x <= 0)) return 'MOTOR FAIL';
-  if (d.lq < 35) return 'LQ LOW';
+  if (!d.god && d.lq < 35) return 'LQ LOW';
   return null;
 }

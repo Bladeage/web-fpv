@@ -69,3 +69,21 @@ test('Brücke: fremde Webseiten dürfen sich nicht verbinden', async t => {
     let d = ''; s.on('data', x => d += x); s.on('close', () => r(d)); });
   assert.match(res, /403/);
 });
+
+test('Brücke Version 3 (Prompt 177): eigene Nummer je Verbindung, alle kennen die Zahl der Verbindungen', async t => {
+  const b = createBridge({ wsPort: 0, disPort: 0, disTarget: '127.0.0.1', disTargetPort: 9, log: () => {} });
+  t.after(() => b.close());
+  await b.ready;
+  const open = async () => { const ws = new WebSocket('ws://127.0.0.1:' + b.wsPort), rx = []; ws.onmessage = e => { if (typeof e.data === 'string') rx.push(JSON.parse(e.data)); };
+    await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }); return { ws, rx, last: () => rx[rx.length - 1] }; };
+  const A = await open(); await wait(150);
+  assert.equal(A.last().version, 3); assert.equal(A.last().slot, 1); assert.equal(A.last().clients, 1);
+  const B = await open(); await wait(150);
+  assert.equal(B.last().slot, 2, 'zweiter Tab bekommt FPV2'); assert.equal(B.last().clients, 2);
+  assert.equal(A.last().clients, 2, 'erster Tab erfährt vom zweiten'); assert.equal(A.last().slot, 1, 'Nummer bleibt');
+  A.ws.close(); await wait(200);
+  assert.equal(B.last().clients, 1, 'nach dem Trennen wieder einer'); assert.equal(B.last().slot, 2);
+  const C = await open(); await wait(150);
+  assert.equal(C.last().slot, 1, 'freie Nummer wird wieder vergeben');
+  B.ws.close(); C.ws.close(); await wait(100);
+});

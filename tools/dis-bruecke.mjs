@@ -51,7 +51,13 @@ export function createBridge(o = {}) {
     origins: ['null', 'https://bladeage.github.io', 'http://localhost', 'http://127.0.0.1'], log: () => {}, ...o };
   const clients = new Set();
   let closed = false, udp = null;
-  const info = () => wsFrame(JSON.stringify({ t: 'info', name: 'fpv-dis-bruecke', version: 2, disPort: cfg.disPort }));
+  // Version 3 (Prompt 177): je Verbindung eine Nummer (kleinste freie ab 1). Der Simulator sendet mit ihr als Kennung und Name
+  // (FPV1, FPV2 ...), so stören sich zwei Tabs nicht (vorher beide 1/200/1, beim Partner eine springende Einheit). clients nennt
+  // die Zahl der Verbindungen; bei jeder neuen oder getrennten Verbindung bekommen alle die neue Info.
+  const info = c => wsFrame(JSON.stringify({ t: 'info', name: 'fpv-dis-bruecke', version: 3, disPort: cfg.disPort, slot: c ? c.slot : 0, clients: clients.size }));
+  const freeSlot = () => { let n = 1; while ([...clients].some(c => c.slot === n)) n++; return n; };
+  const infoAll = () => { for (const c of clients) try { c.sock.write(info(c)); } catch (e) {} };
+  const many = () => { if (clients.size > 1) cfg.log('Achtung: ' + clients.size + ' Simulatoren verbunden, jeder sendet mit eigener Nummer (FPV1, FPV2 ...)'); };
   const send = pdu => { if (closed) return; try { udp.send(pdu, cfg.disTargetPort || cfg.disPort, cfg.disTarget); } catch (e) { cfg.log('Senden fehlgeschlagen: ' + e.message); } };
   // UDP-Kanal (Port mit anderen DIS-Programmen geteilt); alles Empfangene an die Simulatoren, die filtern selbst
   const openUdp = port => new Promise((res, rej) => {
@@ -64,7 +70,7 @@ export function createBridge(o = {}) {
   let switching = Promise.resolve();
   const setPort = port => { switching = switching.then(async () => {
     if (closed || !(port > 0 && port < 65536) || port === cfg.disPort) return;
-    try { const u = await openUdp(port), old = udp; udp = u; cfg.disPort = port; old.close(); cfg.log('DIS-Port jetzt ' + port); for (const c of clients) c.sock.write(info()); }
+    try { const u = await openUdp(port), old = udp; udp = u; cfg.disPort = port; old.close(); cfg.log('DIS-Port jetzt ' + port); infoAll(); }
     catch (e) { cfg.log('DIS-Port ' + port + ' nicht möglich: ' + e.message); }
   }); return switching; };
   const ready = openUdp(cfg.disPort).then(u => { udp = u; if (!cfg.disPort) cfg.disPort = u.address().port; });
@@ -74,9 +80,9 @@ export function createBridge(o = {}) {
     const ok = key && /websocket/i.test(req.headers.upgrade || '') && cfg.origins.some(x => origin === x || origin.startsWith(x + ':'));
     if (!ok) { sock.end('HTTP/1.1 403 Forbidden\r\n\r\n'); cfg.log('abgelehnt: ' + origin); return; }
     sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + wsAccept(key) + '\r\n\r\n');
-    const c = { sock, last: null, lastT: 0, buf: Buffer.alloc(0) };
-    clients.add(c); cfg.log('Simulator verbunden (' + clients.size + ')');
-    sock.write(info());
+    const c = { sock, last: null, lastT: 0, buf: Buffer.alloc(0), slot: freeSlot() };
+    clients.add(c); cfg.log('Simulator verbunden als FPV' + c.slot + ' (' + clients.size + ')'); many();
+    infoAll();
     sock.on('data', chunk => {
       const r = wsParse(Buffer.concat([c.buf, chunk])); c.buf = Buffer.from(r.rest);
       for (const f of r.frames) {
@@ -87,7 +93,7 @@ export function createBridge(o = {}) {
         if (f.op === 1) { let m = null; try { m = JSON.parse(f.data.toString()); } catch (e) {} if (m && m.t === 'config') setPort(+m.port); }
       }
     });
-    const bye = () => { if (!clients.delete(c)) return; if (c.last) send(offPdu(c.last)); cfg.log('Simulator getrennt (' + clients.size + ')'); };
+    const bye = () => { if (!clients.delete(c)) return; if (c.last) send(offPdu(c.last)); cfg.log('Simulator FPV' + c.slot + ' getrennt (' + clients.size + ')'); infoAll(); };
     sock.on('close', bye); sock.on('error', bye);
   });
   const httpReady = new Promise(res => http.listen(cfg.wsPort, '127.0.0.1', res));

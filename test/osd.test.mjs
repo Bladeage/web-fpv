@@ -29,6 +29,8 @@ test('Warnungen und Farben', () => {
   assert.equal(osdWarning({ ...d, cell: 3.4 }), 'LOW BATTERY');
   assert.equal(osdWarning({ ...d, cellRest: 3.4 }), 'LAND NOW');
   assert.equal(osdWarning({ ...d, lq: 20 }), 'LQ LOW');
+  // Gott-Modus (Prompt 177): keine Warnungen zu Akku und Funk
+  for (const x of [{ cell: 3.4 }, { cellRest: 3.4 }, { lq: 20 }]) assert.equal(osdWarning({ ...d, ...x, god: true }), null);
   assert.equal(osdOn({}, 'sticks'), true);
   assert.equal(osdOn({ sticks: false }, 'sticks'), false);
 });
