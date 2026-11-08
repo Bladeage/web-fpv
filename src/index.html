@@ -103,12 +103,16 @@
       <h1 id="sfTitle">Quelle</h1>
       <div class="sform">
         <label>Name<input id="sfName" autocomplete="off"></label>
-        <label>Bundesland<select id="sfLand"></select></label>
-        <label>Koordinaten<select id="sfCrs"><option value="EPSG:25832">UTM 32 (EPSG:25832)</option><option value="EPSG:25833">UTM 33 (EPSG:25833)</option></select></label>
-        <label class="w2">Höhen, WCS (nötig)<input id="sfDgm" placeholder="https://…" autocomplete="off"></label><label>Coverage-ID<input id="sfDgmC" autocomplete="off"></label>
-        <label class="w2">Oberfläche für Bäume, WCS<input id="sfDom" placeholder="https://…" autocomplete="off"></label><label>Coverage-ID<input id="sfDomC" autocomplete="off"></label>
-        <label class="w2">Luftbild, WMS<input id="sfDop" placeholder="https://…" autocomplete="off"></label><label>Layer<input id="sfDopL" autocomplete="off"></label>
-        <label class="w2">Gebäude LoD2, Muster mit {E} {N} (km)<input id="sfLod" placeholder="https://…/LoD2_{E}_{N}.gml" autocomplete="off"></label><label>Kachel km<input id="sfLodK" type="number" min="1" max="10" step="1"></label>
+        <label>Art<select id="sfKind"><option value="land">Landesdienste</option><option value="wms">WMS-Höhendienst</option></select></label>
+        <label class="lk">Bundesland<select id="sfLand"></select></label>
+        <label class="lk">Koordinaten<select id="sfCrs"><option value="EPSG:25832">UTM 32 (EPSG:25832)</option><option value="EPSG:25833">UTM 33 (EPSG:25833)</option></select></label>
+        <label class="w2 wk">Höhendienst, WMS (nötig)<input id="sfWms" placeholder="http://…/ows" autocomplete="off"></label><label class="wk">Höhenebene<input id="sfWmsL" placeholder="automatisch" autocomplete="off"></label>
+        <label class="wk">Höhenbezug<select id="sfVref"><option value="ellipsoid">Ellipsoid</option><option value="msl">Meereshöhe</option></select></label>
+        <label class="wk">Gilt für<select id="sfUse"><option value="dis">DIS-Übung</option><option value="all">Überall</option><option value="nie">Nie</option></select></label>
+        <label class="w2 lk">Höhen, WCS (nötig)<input id="sfDgm" placeholder="https://…" autocomplete="off"></label><label class="lk">Coverage-ID<input id="sfDgmC" autocomplete="off"></label>
+        <label class="w2 lk">Oberfläche für Bäume, WCS<input id="sfDom" placeholder="https://…" autocomplete="off"></label><label class="lk">Coverage-ID<input id="sfDomC" autocomplete="off"></label>
+        <label class="w2 lk">Luftbild, WMS<input id="sfDop" placeholder="https://…" autocomplete="off"></label><label class="lk">Layer<input id="sfDopL" autocomplete="off"></label>
+        <label class="w2 lk">Gebäude LoD2, Muster mit {E} {N} (km)<input id="sfLod" placeholder="https://…/LoD2_{E}_{N}.gml" autocomplete="off"></label><label class="lk">Kachel km<input id="sfLodK" type="number" min="1" max="10" step="1"></label>
         <label class="w3">Quellenvermerk (Lizenz)<input id="sfAttr" autocomplete="off"></label>
       </div>
       <p class="hint" id="sfMsg"></p>

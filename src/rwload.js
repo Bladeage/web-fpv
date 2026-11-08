@@ -2,6 +2,7 @@
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
 import { readTiff, readLod2, readLod2Async } from './geo.js';
+import { wmsFetchHeights } from './rwwms.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
@@ -14,7 +15,16 @@ export const RW_SOURCES = [{
   // Landesdaten (L4): Basis-DLM als ein ZIP; Gewässerflächen und Ortslagen einmal laden (zusammen 60 MB, gesichert 06.11.2026)
   dlm: { url: 'https://www.opengeodata.nrw.de/produkte/geobasis/lm/akt/basis-dlm/basis-dlm_EPSG25832_Shape.zip', water: 'gew01_f.shp', places: ['sie01_f.shp', 'sie01_f.dbf'], mb: 60 },
   attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
+}, {
+  // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.
+  // Gilt überall (box null), ohne Gebäude, Bäume, Luftbild. Nie im Browser speichern (Lizenz der Quelle). use: 'dis' (nur für den
+  // Startort DIS-Übung, Etappe W3), 'all' (auch „Ort laden“) oder 'nie'. vref: Höhen über dem Ellipsoid oder über dem Meer.
+  id: 'wms-lokal', kind: 'wms', name: 'WMS-Höhendienst (lokaler Rechner)', land: '', box: null,
+  hgt: { url: 'http://localhost:7071/ows', layer: '', tile: 256 }, vref: 'ellipsoid', use: 'dis', store: false,
+  attribution: 'Gelände des WMS-Höhendienstes'
 }];
+// UTM-Zone aus dem Koordinatensystem einer Quelle oder eines Gebiets (EPSG:258xx)
+export const crsZone = crs => +((String(crs).match(/258(\d\d)/)) || [0, 32])[1];
 // Rastergrößen: Höhen 512² (knapp 2 m), Luftbild 4096² (0,25 m) für 1 x 1 km
 export const RW_GRIDN = 512, RW_DOPN = 4096;
 // Umgebung (L5a): 10 x 10 km um das Gebiet, Höhen alle 25 m, Luftbild 2048² (knapp 5 m). Ein WCS liefert Werte für
@@ -44,7 +54,7 @@ export function lod2Urls(svc, bbox) {
 // prüft genauer: Quellen mit Land gelten nur in diesem Land (das Rechteck allein reicht bis Niedersachsen und Belgien).
 export function rwSourceAt(E, N, list = RW_SOURCES, landAt = null) {
   const land = landAt ? landAt(E, N) : null;
-  return list.find(s => E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3] && (!landAt || !s.land || s.land === land)) || null;
+  return list.find(s => s.kind !== 'wms' && (!s.box || (E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3] && (!landAt || !s.land || s.land === land)))) || null;   // ohne Rechteck: überall; WMS-Höhendienste wählt rwPlan
 }
 
 // Grundrisse der Gebäude als Raster (Dächer aus LoD2, um dil Zellen verbreitert): 1 = Gebäude
@@ -152,10 +162,12 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     return out;
   };
   say('Höhen', 0);
-  const dgm = await raster('dgm', 'Höhen');
+  // WMS-Höhendienst: Höhen aus dem Dienst (geografisch, umgerechnet auf unser Gitter); keine Oberfläche, kein Luftbild, keine Gebäude
+  const wms = srcs[0].kind === 'wms';
+  const dgm = wms ? { w: n, h: n, nodata: NaN, data: (await wmsFetchHeights(srcs[0], a.bbox, crsZone(a.crs), n, get)).data } : await raster('dgm', 'Höhen');
   if (!dgm) throw new Error('Quelle ohne Höhen (WCS)');
   say('Oberfläche (Bäume)', 0.1);
-  const domR = srcs[0].dom || multi ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
+  const domR = !wms && (srcs[0].dom || multi) ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
   say('Luftbild', 0.2);
   // Fortschritt beim Herunterladen großer Dateien: Schritt mit MB
   const mb = (what, f) => n => say(what + ' (' + (n/1e6).toFixed(1) + ' MB)', f);
@@ -240,6 +252,15 @@ export function rwSourcesParse(json) {
   const ok = [], errors = [], url = u => typeof u === 'string' && /^https?:\/\//.test(u);
   list.forEach((s, i) => {
     const e = [];
+    if (s && s.kind === 'wms') {   // WMS-Höhendienst: Adresse, Höhenbezug, Geltung
+      if (typeof s.name !== 'string' || !s.name) e.push('Name fehlt');
+      if (!s.hgt || !url(s.hgt.url)) e.push('Höhendienst: Adresse ungültig');
+      if (s.vref && !['ellipsoid', 'msl'].includes(s.vref)) e.push('Höhenbezug nur Ellipsoid oder Meereshöhe');
+      if (e.length) { errors.push('Quelle ' + (i + 1) + ': ' + e.join(', ')); return; }
+      ok.push({ id: s.id || 'eigen-' + i, kind: 'wms', name: s.name, land: '', box: null, hgt: { url: s.hgt.url.replace(/\?.*$/, ''), layer: s.hgt.layer || '', tile: s.hgt.tile || 256 },
+        vref: s.vref || 'ellipsoid', use: ['dis', 'all', 'nie'].includes(s.use) ? s.use : 'dis', store: false, attribution: s.attribution || s.name });
+      return;
+    }
     if (!s || typeof s.name !== 'string' || !s.name) e.push('Name fehlt');
     if (!s || !['EPSG:25832', 'EPSG:25833'].includes(s.crs)) e.push('Koordinatensystem nur EPSG:25832 oder EPSG:25833');
     if (!s || !s.dgm || !url(s.dgm.url) || !s.dgm.coverage) e.push('Höhen (WCS-Adresse und Coverage) fehlen');
@@ -306,6 +327,11 @@ export function rwFixStart(p) {
 export async function rwFetchFar(a, src, get, say = () => {}) {
   const c = [(a.bbox[0] + a.bbox[2])/2, (a.bbox[1] + a.bbox[3])/2], h = RW_FAR.size/2, n = RW_FAR.n, bb = [c[0] - h, c[1] - h, c[0] + h, c[1] + h];
   say('Umgebung (Höhen)', 0.94);
+  if (src.kind === 'wms') {   // WMS-Höhendienst: Höhen auf das Raster der Umgebung, ohne Luftbild
+    const v = (await wmsFetchHeights(src, bb, crsZone(a.crs), n, get)).data;
+    let lo = Infinity; for (const x of v) if (x < lo) lo = x;
+    return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q: Uint16Array.from(v, x => Math.round((x - lo)*10)), dop: null };
+  }
   const b = await get(wcsUrl(src.dgm, bb, a.crs, n)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
   if (t.w !== n || t.h !== n) throw new Error('Umgebung: Raster ' + t.w + 'x' + t.h);
   const v = Float32Array.from(t.data, x => isFinite(x) && x !== t.nodata && x > -1000 ? x : NaN);

@@ -32,7 +32,9 @@ async function text(url) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const a = AREA, p = await rwFetchArea(a, RW_SOURCES.find(s => s.id === 'nrw'), get, text, s => console.log('…', s));
+  const a = AREA, src = RW_SOURCES.find(s => s.id === 'nrw');
+  if (src.kind === 'wms' || src.store === false) throw new Error('Quellen mit store:false (WMS-Höhendienst) werden nie abgelegt.');
+  const p = await rwFetchArea(a, src, get, text, s => console.log('…', s));
   mkdirSync(OUT, { recursive: true });
   const old = existsSync(join(OUT, a.name + '.json')) ? JSON.parse(readFileSync(join(OUT, a.name + '.json'), 'utf8')) : {};
   if (old.water) p.meta.water = old.water;   // Gewässer (tools/water.mjs) bleiben erhalten

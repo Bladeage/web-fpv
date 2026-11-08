@@ -24,6 +24,7 @@ test('Etappe 5: Worker-Quelltext aus dem Bundle, ohne eingebettete Daten und ohn
   assert.ok(src.length < 400e3, 'klein: ' + Math.round(src.length/1e3) + ' KB (Bundle 7,5 MB)');
   assert.ok(!/'[A-Za-z0-9+/=]{2000,}'/.test(src), 'keine Base64-Daten');
   assert.ok(!/document\.|getElementById/.test(src), 'kein DOM');
+  assert.ok(src.includes('function wmsFetchHeights') && src.includes('function resampleToUtm'), 'WMS-Höhendienst im Worker (W2)');
   const w = startWorker(async () => { throw new TypeError('offline'); });
   assert.equal(w.out[0].ready, true, 'Worker meldet sich');
 });

@@ -72,14 +72,25 @@ function rwFarGrid(F, hHome, cx, cz) {
 }
 // Alle Quellen: eigene (rw.userSources, aus den Einstellungen) zuerst, dann die Vorlagen. Rechteck aus dem Land, falls keins da ist.
 export function rwSources() {
-  return [...rw.userSources, ...RW_SOURCES].map(s => s.box ? s : { ...s, box: deLandBox(s.land) || [0, 0, 0, 0] });
+  return [...rw.userSources, ...RW_SOURCES].map(s => s.box || s.kind === 'wms' ? s : { ...s, box: deLandBox(s.land) || [0, 0, 0, 0] });   // WMS-Höhendienst: überall
 }
 const zoneOf = s => s.crs === 'EPSG:25833' ? 33 : 32;
 // Quellen für ein Gebiet um Breite/Länge: Hauptquelle am Mittelpunkt, dazu die Quellen der Länder, die das Gebiet
 // berührt (Probe auf 5 x 5 Punkten), im selben Koordinatensystem. Rückgabe { srcs, area, skipped } oder null.
-export function rwPlan(lat, lon, list = rwSources()) {
-  const land = deMap() ? deLandAt : null, [E32, N32] = toUtm(lat, lon, 32), main = rwSourceAt(E32, N32, list, land);
+// WMS-Höhendienste nur mit use 'all' (opt.dis: auch 'dis', für den Startort DIS-Übung); ihre UTM-Zone kommt aus der Länge.
+export function rwPlan(lat, lon, list = rwSources(), opt = {}) {
+  list = list.filter(s => s.kind !== 'wms' || s.use === 'all' || (opt.dis && s.use === 'dis'));
+  const land = deMap() ? deLandAt : null, [E32, N32] = toUtm(lat, lon, 32);
+  let main = rwSourceAt(E32, N32, list, land);
+  const w = list.find(s => s.kind === 'wms');   // WMS-Höhendienst gilt überall: gewinnt, wenn er in der Liste vor der Landesquelle steht
+  if (w && (!main || list.indexOf(w) < list.indexOf(main))) main = w;
   if (!main) return null;
+  if (main.kind === 'wms') {   // geografischer Dienst: Gebiet im UTM-Gitter der Zone des Orts, keine weiteren Quellen
+    const z = Math.floor((lon + 180)/6) + 1, [E, N] = toUtm(lat, lon, z);
+    main = { ...main, crs: 'EPSG:258' + String(z).padStart(2, '0') };
+    const area = rwAreaAt(E, N, main); area.place = lat.toFixed(5) + ', ' + lon.toFixed(5);
+    return { srcs: [main], area, skipped: [], toLand: () => null };
+  }
   const z = zoneOf(main), [E, N] = toUtm(lat, lon, z), area = rwAreaAt(E, N, main);
   area.place = lat.toFixed(5) + ', ' + lon.toFixed(5);
   const to32 = (e, n) => { const [la, lo] = fromUtm(e, n, z); return toUtm(la, lo, 32); };
@@ -124,10 +135,11 @@ export function rwNet(signal, stall = RW_STALL) {
     finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
   };
   const both = (prog, kick) => n => { kick(); if (prog) prog(n); };
+  // XML ist eine Fehlermeldung, außer bei den Fähigkeiten eines WMS-Höhendienstes (W2)
   const get = (u, prog) => go(u, async (r, kick) => {
     if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
     const b = await readBody(r, both(prog, kick));
-    if (b[0] === 0x3c) throw new Error(host(u) + ' meldet: ' + new TextDecoder().decode(b.slice(0, 300)).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
+    if (b[0] === 0x3c && !/REQUEST=GetCapabilities/i.test(u)) throw new Error(host(u) + ' meldet: ' + new TextDecoder().decode(b.slice(0, 300)).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
     return b;
   });
   const text = (u, prog) => go(u, async (r, kick) => { if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await readBody(r, both(prog, kick))); });
@@ -170,10 +182,12 @@ async function rwFetch(a, srcs, say, signal, opt, store) {
 }
 // Eingaben für rwModelMesh (Netz der Gebäude und Bäume einer Kachel), ohne den Rest der Kachel: geht an den Worker
 export const rwMeshInput = S => ({ tris: S.tris, nr: S.nr, bldId: S.bldId, bldInfo: S.bldInfo, trees: S.trees.map(t => ({ x: t.x, z: t.z, y0: t.y0, r: t.r, boxes: t.boxes.map(b => ({ c: b.c, h: b.h })) })) });
-export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null) {
-  const plan = rwPlan(lat, lon);
+export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null, po = {}) {
+  const plan = rwPlan(lat, lon, rwSources(), po);
+  rw.liveDis = !!po.dis;   // Kacheln und Umgebung planen mit denselben Quellen (WMS-Höhendienst für die DIS-Übung)
   if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
   const { srcs, area: a } = plan, key = rwAreaKey(lat, lon, srcs);
+  if (srcs[0].store === false) store = null;   // Quelle darf nicht gespeichert werden (Lizenz): nur Arbeitsspeicher
   const saved = store ? await store.get(key) : null;
   if (saved && saved.meta) {   // schon gespeichert: ohne Netz, sofort
     say('aus dem Speicher', 0.5);
@@ -200,6 +214,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
     await rwLandData(srcs[0], store, (t, f) => say('Gewässer und Orte, einmalig: ' + t, 0.97), signal).catch(e => { if (signal && signal.aborted) throw e; rw.landErr = String(e.message || e); });
   const x = await rwExtras(p, srcs[0], store);
+  if (!p.dop && srcs[0].kind === 'wms') p.dop = rwShadeImage(p.meta, p.q);   // ohne Luftbild: Relief schattiert auf Gras
   rwApply(p, { live: true, ...x }); rw.stored = null;
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
   if (store) {
@@ -221,6 +236,20 @@ export function rwFlat(lat, lon, hNhn) {
   rwApply({ meta, q: new Uint16Array(n*n), b16: new Int16Array(0), t16: new Int16Array(0), dop: rwFlatImage(RW_FLAT.img) }, { live: true });
   rw.liveAt = [lat, lon]; rw.liveSrcs = []; rw.fromStore = false; rw.liveDlm = false; rw.stored = null;
   return rw;
+}
+// Relief als Bild (WMS-Höhendienst ohne Luftbild, Etappe W2): Schattierung aus den Höhen (Licht aus Süden, 45° hoch, wie die Sonne
+// der echten Welt) mal Grasgrün, als BMP n x n (24 Bit, Zeilen von Norden nach Süden). Stärke der Schattierung geschätzt.
+export function rwShadeImage(meta, q) {
+  const n = meta.n, cell = (meta.bbox[2] - meta.bbox[0])/n, h = (i, j) => meta.hMin + q[Math.min(n - 1, Math.max(0, j))*n + Math.min(n - 1, Math.max(0, i))]*meta.hScale;
+  const row = n*3 + (4 - (n*3) % 4) % 4, b = new Uint8Array(54 + row*n), v = new DataView(b.buffer), L = [0, Math.SQRT1_2, Math.SQRT1_2];   // Licht: Süden (z+), 45°
+  b[0] = 66; b[1] = 77; v.setUint32(2, b.length, true); v.setUint32(10, 54, true); v.setUint32(14, 40, true);
+  v.setInt32(18, n, true); v.setInt32(22, -n, true); v.setUint16(26, 1, true); v.setUint16(28, 24, true); v.setUint32(34, row*n, true);   // negative Höhe: von oben nach unten
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const dx = (h(i + 1, j) - h(i - 1, j))/(2*cell), dz = (h(i, j + 1) - h(i, j - 1))/(2*cell), len = Math.hypot(dx, 1, dz);
+    const k = 0.45 + 0.75*Math.max(0, (-dx*L[0] + L[1] - dz*L[2])/len), o = 54 + j*row + i*3;
+    b[o] = Math.min(255, 52*k); b[o + 1] = Math.min(255, 112*k); b[o + 2] = Math.min(255, 84*k);
+  }
+  return b;
 }
 // Grasbild als BMP (24 Bit, ohne Bibliothek): Grundton mit großen hellen und dunklen Flecken und feinem Rauschen,
 // damit Höhe und Tempo im Bild ablesbar bleiben
@@ -788,10 +817,11 @@ export function rwStreamPlan(x, z, now = Date.now()) {
 // Eine Kachel laden (aus dem Speicher oder von den Diensten) und als Kachel-Objekt liefern (Weltkoordinaten des Startgebiets)
 export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + i*S, nc = (m.bbox[1] + m.bbox[3])/2 - j*S;
-  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon);
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), { dis: !!rw.liveDis });
   if (!plan) throw new Error('keine Quelle');
   const srcs = plan.srcs.filter(s => s.crs === m.crs);
   if (!srcs.length) throw new Error('anderes Koordinatensystem');
+  if (srcs[0].store === false) store = null;   // nur Arbeitsspeicher (Lizenz der Quelle)
   const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs, startNear: [ec, nc], name: 'kachel', place: lat.toFixed(5) + ', ' + lon.toFixed(5), attribution: '', dopN: RW_STREAM.dop };
   const key = rwAreaKey(lat, lon, srcs) + '|kachel';
   // schon geladen? als Kachel oder als gespeicherter Ort an genau dieser Stelle (der hat sogar das schärfere Luftbild)
@@ -805,6 +835,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
     if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
     p = await rwFetch(a, srcs, say, signal, opt, store);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
+    if (!p.dop && srcs[0].kind === 'wms') p.dop = rwShadeImage(p.meta, p.q);   // ohne Luftbild: Relief schattiert
     x = await rwExtras(p, srcs[0], store);
     if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });
   }
@@ -853,9 +884,10 @@ export async function rwStreamStep(x, z, store, say = () => {}) {
 export const RW_FAR_MOVE = 1500;
 export async function rwLoadFar(cx, cz, store, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + cx, nc = (m.bbox[1] + m.bbox[3])/2 - cz;
-  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon);
-  const src = plan && plan.srcs.find(s => s.crs === m.crs && s.dgm);
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), { dis: !!rw.liveDis });
+  const src = plan && plan.srcs.find(s => s.crs === m.crs && (s.dgm || s.kind === 'wms'));
   if (!src) throw new Error(plan ? 'anderes Koordinatensystem' : 'keine Quelle');
+  if (src.store === false) store = null;   // nur Arbeitsspeicher (Lizenz der Quelle)
   const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs }, key = rwAreaKey(lat, lon, [src]) + '|umgebung';
   const saved = store ? await store.get(key) : null;
   let F = saved && saved.farq ? { meta: saved.meta.far, q: saved.farq, dop: saved.fardop } : null;

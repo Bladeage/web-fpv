@@ -4,6 +4,7 @@ import { cfg, saveCfg } from './state.js';
 import { rw, rwNet, rwSources, rwLandData, rwLandHas } from './realworld.js';
 import { RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage, storePut, storeArea, storeStats, storeExportAll, geoPack, geoUnpack } from './rwstore.js';
 import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
+import { wmsCheck } from './rwwms.js';
 import { deMap } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
@@ -12,7 +13,7 @@ import { vbSet } from './verbund.js';
 const srcEl = id => document.getElementById(id);
 const SRC = { show: null, fit: () => {}, onData: () => {}, edit: -1, busy: null, tab: 'data' };
 const SRC_FIELDS = [['sfName', 'name'], ['sfLand', 'land'], ['sfCrs', 'crs'], ['sfDgm', 'dgm.url'], ['sfDgmC', 'dgm.coverage'], ['sfDom', 'dom.url'], ['sfDomC', 'dom.coverage'],
-  ['sfDop', 'dop.url'], ['sfDopL', 'dop.layer'], ['sfLod', 'lod2.url'], ['sfLodK', 'lod2.tileKm'], ['sfAttr', 'attribution']];
+  ['sfDop', 'dop.url'], ['sfDopL', 'dop.layer'], ['sfLod', 'lod2.url'], ['sfLodK', 'lod2.tileKm'], ['sfAttr', 'attribution'], ['sfWms', 'hgt.url'], ['sfWmsL', 'hgt.layer'], ['sfVref', 'vref'], ['sfUse', 'use']];
 const srcGetP = (o, p) => p.split('.').reduce((x, k) => x && x[k], o);
 
 // Eigene Quellen in die Laufzeit übernehmen und speichern
@@ -28,8 +29,9 @@ function srcList() {
     const k = document.createElement('button'); k.className = 'secondary'; k.textContent = btn; k.addEventListener('click', fn);
     r.append(t, k); box.append(r);
   };
-  (cfg.rwSources || []).forEach((s, i) => row(s, (s.land || 'ohne Land') + ' · eigene', 'Bearbeiten', () => srcForm(i)));
-  for (const s of RW_SOURCES) row(s, s.land + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
+  const where = s => s.kind === 'wms' ? 'Höhendienst, ' + ({ dis: 'DIS-Übung', all: 'überall', nie: 'aus' }[s.use] || 'DIS-Übung') + ', nicht gespeichert' : s.land || 'ohne Land';
+  (cfg.rwSources || []).forEach((s, i) => row(s, where(s) + ' · eigene', 'Bearbeiten', () => srcForm(i)));
+  for (const s of RW_SOURCES) row(s, where(s) + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
 // Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen). Den DIS-Modus schaltet der Knopf „DIS“ unter Spezial.
@@ -101,21 +103,33 @@ function srcForm(i) {
   srcEl('sfLand').textContent = '';
   for (const n of ['', ...lands]) { const o = document.createElement('option'); o.value = n; o.textContent = n || '(bitte wählen)'; srcEl('sfLand').append(o); }
   for (const [id, p] of SRC_FIELDS) srcEl(id).value = srcGetP(s, p) ?? '';
+  srcEl('sfKind').value = s.kind === 'wms' ? 'wms' : 'land'; if (!srcEl('sfVref').value) srcEl('sfVref').value = 'ellipsoid'; if (!srcEl('sfUse').value) srcEl('sfUse').value = 'dis';
+  srcKind();
   srcEl('sfTitle').textContent = i >= 0 ? 'Quelle bearbeiten' : 'Neue Quelle';
   srcEl('sfDel').disabled = i < 0;
   srcEl('sfMsg').textContent = 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen sind nötig, alles andere ist frei.';
   SRC.show('source');
 }
+// Art der Quelle: Felder der Landesdienste oder des WMS-Höhendienstes zeigen
+function srcKind() {
+  const w = srcEl('sfKind').value === 'wms';
+  document.querySelectorAll('section[data-screen=source] .lk').forEach(e => { e.hidden = w; });
+  document.querySelectorAll('section[data-screen=source] .wk').forEach(e => { e.hidden = !w; });
+  srcEl('sfMsg').textContent = w ? 'Adresse des Dienstes ohne Parameter. Höhenebene leer lassen: wird automatisch erkannt. Wird nie gespeichert.'
+    : 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen sind nötig, alles andere ist frei.';
+  SRC.fit();
+}
 // Formular -> Quelle (leere Ebenen weglassen)
 function srcRead() {
   const v = id => srcEl(id).value.trim(), lay = (u, k, x) => u ? { url: u.replace(/\?.*$/, ''), [k]: x } : null;
+  if (v('sfKind') === 'wms') return { kind: 'wms', name: v('sfName'), hgt: { url: v('sfWms').replace(/\?.*$/, ''), layer: v('sfWmsL'), tile: 256 }, vref: v('sfVref'), use: v('sfUse'), store: false, land: '', attribution: v('sfAttr') || v('sfName') };
   return { name: v('sfName'), land: v('sfLand'), crs: v('sfCrs'), dgm: lay(v('sfDgm'), 'coverage', v('sfDgmC')), dom: lay(v('sfDom'), 'coverage', v('sfDomC')),
     dop: lay(v('sfDop'), 'layer', v('sfDopL')), lod2: v('sfLod') ? { url: v('sfLod'), tileKm: Math.max(1, Math.round(+v('sfLodK') || 1)) } : null, attribution: v('sfAttr') || v('sfName') };
 }
 function srcSave() {
   const s = srcRead(), chk = rwSourcesParse(JSON.stringify([s]));
   if (chk.errors.length) { srcEl('sfMsg').textContent = 'Nicht gespeichert: ' + chk.errors[0].replace(/^Quelle 1: /, ''); return false; }
-  if (!s.land) { srcEl('sfMsg').textContent = 'Nicht gespeichert: Bitte das Bundesland wählen.'; return false; }
+  if (!s.land && s.kind !== 'wms') { srcEl('sfMsg').textContent = 'Nicht gespeichert: Bitte das Bundesland wählen.'; return false; }
   const srcList = [...(cfg.rwSources || [])];
   if (SRC.edit >= 0) srcList[SRC.edit] = s; else { srcList.push(s); SRC.edit = srcList.length - 1; }
   cfg.rwSources = srcList; srcStore();
@@ -127,6 +141,15 @@ async function srcCheck() {
   if (SRC.busy) { SRC.busy.abort(); return; }
   const s = srcRead(), z = s.crs === 'EPSG:25833' ? 33 : 32, L = deMap() && deMap().lands.find(l => l.name === s.land);
   let ll = parseLatLon(cfg.rwLL);
+  if (s.kind === 'wms') {   // Höhendienst: am gewählten Ort, sonst am Ort der DIS-Übung, sonst Monschau
+    ll = ll || parseLatLon(cfg.disLL) || [50.5547, 6.2412];
+    SRC.busy = new AbortController(); srcEl('sfCheck').textContent = 'Abbrechen';
+    srcEl('sfMsg').textContent = 'Prüfe bei ' + ll[0].toFixed(4) + ', ' + ll[1].toFixed(4) + ' …';
+    try { const res = await wmsCheck(s, ll[0], ll[1], rwNet(SRC.busy.signal, 15000).get); srcEl('sfMsg').textContent = res.map(r => r.was + ': ' + (r.ok ? 'ok, ' : 'Fehler, ') + r.text).join(' · '); }
+    catch (e) { srcEl('sfMsg').textContent = 'Prüfen abgebrochen: ' + (e.message || e); }
+    finally { SRC.busy = null; srcEl('sfCheck').textContent = 'Prüfen'; }
+    return;
+  }
   if (L && !ll) { const r = L.rings.reduce((a, b) => b.length > a.length ? b : a); ll = fromUtm(r.reduce((t, p) => t + p[0], 0)/r.length*100, r.reduce((t, p) => t + p[1], 0)/r.length*100); }
   if (!ll) { srcEl('sfMsg').textContent = 'Bitte erst das Bundesland wählen (oder auf der Karte einen Ort setzen).'; return; }
   SRC.busy = new AbortController(); srcEl('sfCheck').textContent = 'Abbrechen';
@@ -198,6 +221,7 @@ export function srcInit(show, fit, onData) {
   srcEl('srcFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) srcImport(f); e.target.value = ''; });
   srcEl('sfSave').addEventListener('click', () => { if (srcSave()) { srcList(); } });
   srcEl('sfCheck').addEventListener('click', srcCheck);
+  srcEl('sfKind').addEventListener('change', srcKind);
   srcEl('sfDel').addEventListener('click', () => { if (SRC.edit < 0) return; cfg.rwSources = cfg.rwSources.filter((_, i) => i !== SRC.edit); srcStore(); srcOpen(); srcEl('srcMsg').textContent = 'Quelle gelöscht.'; });
   for (const [id] of SRC_FIELDS) srcEl(id).addEventListener('keydown', e => e.stopPropagation());   // Tippen steuert nicht die Drohne
 }

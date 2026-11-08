@@ -3,7 +3,6 @@
    sie auf unser UTM-Gitter um (Mitte des Gebiets, Zeilen von Norden nach Süden, wie die Höhen aus dem WCS).
    Allgemein, kein Bezug auf einen bestimmten Hersteller. Daten nur im Arbeitsspeicher (Lizenz der Quelle). */
 import { readTiff, fromUtm, GEOID_FIX } from './geo.js';
-import { rwFillGaps } from './rwload.js';
 
 // Fähigkeiten (GetCapabilities, XML) ohne Bibliothek lesen: Ebenen (Name, Titel), Formate für GetMap, Bezugssysteme, Größengrenzen
 export function wmsCapsParse(xml) {
@@ -47,6 +46,7 @@ export function wmsError(u8) {
 // Kacheln aufgerundet, Kacheln holen (höchstens par gleichzeitig), zusammensetzen, auf das Gitter abtasten, Lücken füllen.
 export const WMS = { tile: 256, maxPx: 4096, par: 4 };
 export async function wmsFetchHeights(src, bbox, zone, n, get) {
+  if (!src.hgt.layer) src = { ...src, hgt: { ...src.hgt, layer: await wmsLayerOf(src, get) } };
   const cell = (bbox[2] - bbox[0])/n, g = geoBoxOf(bbox, zone, 2*cell), T = src.hgt.tile || WMS.tile;
   const midLat = (g.minLat + g.maxLat)/2, wM = (g.maxLon - g.minLon)*111320*Math.cos(midLat*Math.PI/180), hM = (g.maxLat - g.minLat)*111320;
   const nx = Math.max(1, Math.ceil(Math.min(WMS.maxPx, wM/cell)/T)), ny = Math.max(1, Math.ceil(Math.min(WMS.maxPx, hM/cell)/T)), W = nx*T, H = ny*T;
@@ -66,8 +66,49 @@ export async function wmsFetchHeights(src, bbox, zone, n, get) {
   if (src.vref !== 'msl') for (let k = 0; k < data.length; k++) data[k] -= GEOID_FIX;
   let ok = 0; for (const v of data) if (!Number.isNaN(v)) ok++;
   if (!ok) throw new Error('Der Höhendienst hat für diesen Ort keine Höhen');
-  rwFillGaps(data, n);
-  return { data, tiles: jobs.length, geo: g, hRef: src.vref === 'msl' ? 'msl' : 'ell-' + GEOID_FIX };
+  wmsFill(data, n);
+  return { data, tiles: jobs.length, geo: g, hRef: src.vref === 'msl' ? 'msl' : 'ell-' + GEOID_FIX, layer: src.hgt.layer };
+}
+// Lücken (NaN) vom Rand der gültigen Werte her füllen (wie rwFillGaps in rwload.js; eigene Fassung, weil rwload dieses Modul nutzt)
+function wmsFill(v, n) {
+  for (let pass = 0, left = 1; left && pass < 2*n; pass++) {
+    left = 0;
+    const src = v.slice();
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const k = j*n + i;
+      if (!Number.isNaN(src[k])) continue;
+      let s = 0, c = 0;
+      for (const [x, y] of [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) if (x >= 0 && y >= 0 && x < n && y < n && !Number.isNaN(src[y*n + x])) { s += src[y*n + x]; c++; }
+      if (c) v[k] = s/c; else left++;
+    }
+  }
+}
+// Höhenebene eines Dienstes: eingetragen, sonst aus den Fähigkeiten gewählt (Laufzeit-Zwischenspeicher je Adresse)
+const wmsLayers = new Map();
+export async function wmsLayerOf(src, get) {
+  if (src.hgt.layer) return src.hgt.layer;
+  if (wmsLayers.has(src.hgt.url)) return wmsLayers.get(src.hgt.url);
+  const caps = wmsCapsParse(new TextDecoder().decode(bytesOf(await get(src.hgt.url + (src.hgt.url.includes('?') ? '&' : '?') + 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0'))));
+  const l = wmsPickHeight(caps)[0];
+  if (!l) throw new Error('Höhendienst ohne erkennbare Höhenebene (bitte im Formular eintragen)');
+  wmsLayers.set(src.hgt.url, l);
+  return l;
+}
+// Prüfen an einem Ort (Breite, Länge): Fähigkeiten, Höhenebene, kleiner Abruf 16 x 16. Rückgabe [{ was, ok, text }] wie rwCheckSource.
+export async function wmsCheck(src, lat, lon, get) {
+  const out = [];
+  try {
+    const caps = wmsCapsParse(new TextDecoder().decode(bytesOf(await get(src.hgt.url + (src.hgt.url.includes('?') ? '&' : '?') + 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0'))));
+    out.push({ was: 'Dienst', ok: true, text: (caps.title || 'WMS') + ', ' + caps.layers.length + ' Ebenen' });
+    const l = src.hgt.layer || wmsPickHeight(caps)[0];
+    if (!l) { out.push({ was: 'Höhenebene', ok: false, text: 'keine erkannt; Ebenen: ' + caps.layers.map(x => x.name).slice(0, 8).join(', ') }); return out; }
+    const d = 0.0005, u8 = bytesOf(await get(wmsHgtUrl(src.hgt.url, l, { minLat: lat - d, maxLat: lat + d, minLon: lon - d, maxLon: lon + d }, 16, 16, src.hgt.format || 'image/tiff')));
+    const err = wmsError(u8); if (err) throw new Error(err);
+    const t = readTiff(asBuf(u8)), v = [...t.data].find(x => x > -1000 && x !== t.nodata);
+    if (v === undefined) throw new Error('nur Füllwerte (Ort außerhalb?)');
+    out.push({ was: 'Höhen', ok: true, text: l + ', ' + v.toFixed(1) + ' m' + (src.vref === 'msl' ? '' : ' über dem Ellipsoid') });
+  } catch (e) { out.push({ was: 'Höhen', ok: false, text: String(e.message || e) }); }
+  return out;
 }
 // Geografisches Raster (W x H, Zeile 0 = Norden, Pixelmitten) auf das UTM-Gitter n x n (Zellmitten) bilinear abtasten. Breite und
 // Länge der Gitterpunkte aus einem Stützgitter 17 x 17 (fromUtm), dazwischen linear: über 1 km fast linear (Test: unter 1 cm).

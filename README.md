@@ -63,6 +63,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/geo.js` | GeoTIFF lesen, UTM und WGS84 umrechnen, CityGML (LoD2) lesen |
 | `src/realworld.js` | Echte Welt: Gelände, Gebäude, Bäume, Wasser, Netze; Laden eingebettet oder live, Quellenplanung an Grenzen |
 | `src/rwload.js` | Echte Welt: Quellen (NRW-Vorlage), Abruf-Adressen, Laden und Packen eines Gebiets, Zusammensetzen an Landesgrenzen, Prüfen, Quellen-Datei |
+| `src/rwwms.js` | Echte Welt: WMS-Höhendienst (OGC WMS 1.3.0, EPSG:4326) lesen, Höhenebene wählen, auf unser UTM-Gitter abtasten, prüfen; Daten nur im Arbeitsspeicher |
 | `src/rwdlm.js` | Echte Welt: Basis-DLM (ZIP, Shape, DBF) für Gewässer und Ortsnamen |
 | `src/rwstore.js` | Echte Welt: Speicher im Browser (IndexedDB) für Orte und Landesdaten |
 | `src/rwworker.js` | Echte Welt: Aufträge im Hintergrund-Thread (Gebiet laden, Netz der Gebäude), läuft im Worker |
@@ -84,13 +85,13 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `sitl/` | Quellen und Build-Skript für Betaflight als WebAssembly |
 | `test/` | Tests mit `node:test` |
 
-`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `place` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwwms`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `place` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
 ## Daten „Echte Welt“
 
 Gelände und Luftbild von Monschau: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (https://www.govdata.de/dl-de/zero-2-0). Abgelegt in `realworld/`, geladen mit `node tools/realworld.mjs`, beim Build eingebettet. Plan: `docs/echte-welt.md`.
 
-Andere Orte lädt der Browser live (1 x 1 km): Modus „Echte Welt“ → „Ort laden“, Breite und Länge eintragen oder „Karte“ öffnen und klicken. Für NRW sind die Dienste von Geobasis NRW hinterlegt (dl-de/zero-2.0). Für andere Bundesländer trägt man die Dienste unter Karte → „Quellen“ ein (Höhen als WCS, Luftbild als WMS, Gebäude als LoD2-Kacheln); „Prüfen“ testet sie, „Exportieren“ und „Importieren“ geben sie weiter. An Landesgrenzen setzt das Programm mehrere Quellen zusammen. Um jedes Gebiet liegen 10 x 10 km grobes Gelände mit Luftbild; beim Fliegen lädt das Programm Gebäude und Bäume in 1-km-Kacheln nach. Geladene Orte bleiben im Browser gespeichert und öffnen sich später ohne Netz („Gespeicherte Orte“). Gewässer und Ortsnamen für NRW lädt man einmal unter Echte Welt → Optionen → Daten (etwa 60 MB). Dort lassen sich alle Geodaten als eine Datei exportieren und an einem anderen Rechner ohne Netz importieren.
+Andere Orte lädt der Browser live (1 x 1 km): Modus „Echte Welt“ → „Ort laden“, Breite und Länge eintragen oder „Karte“ öffnen und klicken. Für NRW sind die Dienste von Geobasis NRW hinterlegt (dl-de/zero-2.0). Für andere Bundesländer trägt man die Dienste unter Karte → „Quellen“ ein (Höhen als WCS, Luftbild als WMS, Gebäude als LoD2-Kacheln); „Prüfen“ testet sie, „Exportieren“ und „Importieren“ geben sie weiter. Als zweite Art gibt es den WMS-Höhendienst (etwa den Gelände-Server einer DIS-Übung): nur Höhen, gilt für die DIS-Übung, überall oder nie, und wird nie gespeichert. An Landesgrenzen setzt das Programm mehrere Quellen zusammen. Um jedes Gebiet liegen 10 x 10 km grobes Gelände mit Luftbild; beim Fliegen lädt das Programm Gebäude und Bäume in 1-km-Kacheln nach. Geladene Orte bleiben im Browser gespeichert und öffnen sich später ohne Netz („Gespeicherte Orte“). Gewässer und Ortsnamen für NRW lädt man einmal unter Echte Welt → Optionen → Daten (etwa 60 MB). Dort lassen sich alle Geodaten als eine Datei exportieren und an einem anderen Rechner ohne Netz importieren.
 
 Deutschlandkarte zur Auswahl:
 - Ländergrenzen: © BKG 2026 dl-de/by-2-0 (https://www.govdata.de/dlde/by-2-0), VG2500, vereinfacht; Datenquellen: https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf. Abgelegt in `realworld/germany.json` (`node tools/germany.mjs`).
