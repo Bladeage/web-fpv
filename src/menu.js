@@ -22,21 +22,25 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // Menüführung (Etappe T1, docs/plan-taktischer-flug.md): Flugart im Hauptmenü (cfg.flight: Parcours oder Taktisch), auf Schritt 1
 // die Welt (cfg.world: Spielkarte oder echte Welt) und der Modus. Der Modus heißt intern weiter cfg.scen (Parcours) bzw. cfg.tac
 // (Taktisch). In der echten Welt gibt es bis zu den Etappen T2 und T3 nur den Freiflug (Szenario 'real').
-// Taktische Modi: bis Etappe T4 verhalten sie sich wie die Jagd-Modi; „Gemischt“ und Ziele in der echten Welt folgen (T5, T6).
+// Taktische Modi: die Jagd auf Fahrzeuge, Drohnen und Flugzeuge gehört nur in den Taktischen Flug (Nutzer, Prompt 176; vorher auch
+// im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
+// info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
   { id: 'recon', name: 'Aufklärung', scen: 'free', worlds: ['map', 'real'], info: 'Frei fliegen und beobachten. Mit Wirkmittel zündet die Drohne bei Kontakt.' },
-  { id: 'ground', name: 'Ziele Boden', scen: 'hunt2', worlds: ['map'], info: 'Fahrzeuge auf der Spielkarte. Die Wirkung der Wirkmittel auf Fahrzeuge folgt mit der nächsten Etappe.' },
-  { id: 'air', name: 'Ziele Luft', scen: 'hunt3', worlds: ['map'], info: 'Fluggeräte über der Spielkarte. Die Wirkung der Wirkmittel folgt.' },
+  { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map'], info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.' },
+  { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',
+    infoReal: '9 Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt.' },
+  { id: 'air', name: 'Flugzeuge', scen: 'hunt3', worlds: ['map', 'real'], info: '6 Luftziele: Starrflügler (3 Punkte), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).',
+    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' },
   { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
 ];
-const COURSE_REAL = ['free', 'rings', 'landing', 'hunt', 'hunt3', 'deliver'];   // Parcours in der echten Welt (T2: Ringe, T3: Luftziele, Landung, Lieferung)
+const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3'];   // nicht im Parcours (Prompt 176)
+const COURSE_REAL = ['free', 'rings', 'landing', 'deliver'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung)
 // Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
 const REAL_INFO = {
   real: 'Freiflug in echtem Gelände.',
   rings: '8 Ringe zufällig im Gebiet verteilt, bei jedem Start neu. Die Raute zeigt den nächsten Ring.',
   landing: 'Plattform auf einem flachen, freien Platz 60 bis 150 m vom Start, bei jedem Start neu. Sanft landen, 1 s ruhig stehen.',
-  hunt: 'Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt. Bei Leicht mit Ballons.',
-  hunt3: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei Leicht mit Ballons.',
   deliver: 'Paket am orangen Platz neben dem Start holen, zu den blauen Plätzen bringen. Plätze flach und frei, bei jedem Start neu.' };
 // DIS-Übung (Flugart im Hauptmenü, docs/plan-menue.md) ist immer echte Welt; cfg.world bleibt die Wahl für Parcours und Taktisch
 const isDis = () => cfg.flight === 'dis';
@@ -44,9 +48,12 @@ const isReal = () => cfg.world === 'real' || isDis();
 // Szenario, das beim Start läuft
 export function flightScen() {
   if (isDis()) return 'real';   // DIS-Übung: nur der Inhalt des Partners, keine Parcours- oder Jagdziele (Nutzer, Prompt 173)
-  if (isReal()) return cfg.flight !== 'tactical' && COURSE_REAL.includes(cfg.scen) && cfg.scen !== 'free' ? cfg.scen : 'real';
-  if (cfg.flight === 'tactical') { const t = TAC.find(x => x.id === cfg.tac) || TAC[0]; return t.scen || 'free'; }
-  return cfg.scen === 'real' || cfg.scen === 'vbs' ? 'gates' : cfg.scen;
+  if (cfg.flight === 'tactical') {   // echte Welt: Freiflug heißt dort 'real'; Modi ohne echte Welt fliegen frei
+    const t = TAC.find(x => x.id === cfg.tac) || TAC[0], s = t.scen || 'free';
+    return isReal() ? (s !== 'free' && t.worlds.includes('real') ? s : 'real') : s;
+  }
+  if (isReal()) return COURSE_REAL.includes(cfg.scen) && cfg.scen !== 'free' ? cfg.scen : 'real';
+  return cfg.scen === 'real' || cfg.scen === 'vbs' || COURSE_HUNT.includes(cfg.scen) ? 'gates' : cfg.scen;
 }
 
 export const $ = id => document.getElementById(id);
@@ -120,7 +127,7 @@ export function syncMenu() {
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = tac ? t.info : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
+  $('courseInfo').textContent = tac ? (real && t.infoReal || t.info) : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
   $('modeSpec').hidden = !real;
   if (dis) syncDis();
   $('droneBack').dataset.go = dis ? 'dis' : 'mode';   // Schritt 2 zurück zu Schritt 1 der Flugart
@@ -355,7 +362,7 @@ function buildModeList() {
   if (key !== listKey) {
     listKey = key; box.textContent = '';
     const items = tac ? TAC.map(t => ({ id: t.id, name: t.name, off: !t.worlds.includes(cfg.world) }))
-      : SCENARIOS.filter(x => x.id !== 'real' && x.id !== 'vbs' && (!real || COURSE_REAL.includes(x.id))).map(x => ({ id: x.id, name: x.name, off: false }));
+      : SCENARIOS.filter(x => x.id !== 'real' && x.id !== 'vbs' && !COURSE_HUNT.includes(x.id) && (!real || COURSE_REAL.includes(x.id))).map(x => ({ id: x.id, name: x.name, off: false }));
     for (const it of items) {
       const b = addChoice(box, it.name, '', () => { if (tac) cfg.tac = it.id; else cfg.scen = it.id; saveCfg(); syncMenu(); fitPanel(); });
       b.dataset.id = it.id; b.disabled = it.off; if (it.off) b.title = 'Folgt mit einer der nächsten Etappen';
