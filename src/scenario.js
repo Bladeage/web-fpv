@@ -363,7 +363,7 @@ export function scenLabel() {
 export function scenTarget() {
   const s = game.sim;
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
-  if (st.done || scen.id === 'free' || scen.id === 'vbs') return null;
+  if (st.done || scen.id === 'free' || scen.id === 'vbs' || scen.id === 'real') return null;   // Freiflug: kein Ziel (vorher zeigte die echte Welt auf den Landeplatz der Spielkarte)
   if (scen.id === 'deliver') { const t = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP; return [t[0], 0.6, t[2]]; }
   if (scen.id === 'follow') return [lead.x, 1.5, lead.z];
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug

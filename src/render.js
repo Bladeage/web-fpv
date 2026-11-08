@@ -1088,7 +1088,7 @@ function drawTerrain() {
     gl.bindVertexArray(g.model.vao); gl.drawArrays(gl.TRIANGLES, 0, g.model.count);
   }
   gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(0, 0)); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
-  // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder, Säule über Türmen; leicht nach vorn gezogen
+  // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder; leicht nach vorn gezogen
   if (rw.features && osdOn(cfg.osd, 'mapLayers')) {
     if (!featGl) featGl = upload(rwFeatureMesh());
     gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -400);

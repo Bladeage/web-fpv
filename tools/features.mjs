@@ -1,5 +1,5 @@
 // Kartenebenen für den Modus „Echte Welt“ aus dem ATKIS Basis-DLM (Geobasis NRW, dl-de/zero-2.0). Nur Node-Bordmittel.
-// Nur zur Anzeige: schmale Gewässer (Achsen), Straßen (Achsen), Brücken und Wehre, Wald (Umrisse), Türme.
+// Nur zur Anzeige: schmale Gewässer (Achsen), Straßen (Achsen), Brücken und Wehre, Wald (Umrisse). Türme entfallen (Nutzer, Prompt 165).
 // Liest per Teilabruf die Shape-Dateien aus dem Gesamtpaket, schneidet aufs Gebiet zu (mit Rand) und rechnet in
 // Kartenkoordinaten (Mitte = Ursprung, x nach Osten, z nach Süden). Ergebnis: realworld/<name>.features.json
 import { writeFileSync } from 'node:fs';
@@ -62,9 +62,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   F.forest = (await lines('veg02_f', r => ({ kind: r.VEG === '1200' ? 'Nadelwald' : r.VEG === '1100' ? 'Laubwald' : 'Mischwald' })));   // Ränder als Linien
   // Ortslagen (bebaute Orte mit Namen) im Umkreis von 8 km: Umrisse vereinfacht (10 m), für „nächster Ort“ im OSD
   F.places = (await layer('sie01_f', 8000)).out.filter(o => o.rec.NAM).map(o => ({ name: o.rec.NAM, rings: o.parts.map(r => simplify(r.slice(0, -1), 10).map(loc)).filter(r => r.length > 3) }));
-  F.towers = (await layer('sie05_p')).out.filter(o => o.rec.OBJART_TXT === 'AX_Turm').map(o => { const [x, z] = loc(o.parts[0][0]); return { name: o.rec.NAM || 'Turm', x, z }; });
   writeFileSync(join(ROOT, 'realworld', AREA.name + '.features.json'), JSON.stringify(F));
   console.log(Object.fromEntries(Object.entries(F).filter(([k]) => k !== 'source').map(([k, v]) => [k, v.length])), 'Namen:',
-    [...new Set([...F.streams, ...F.roads].map(x => x.name).filter(Boolean))].slice(0, 12).join(', '), '| Türme:', F.towers.map(t => t.name).join(', '),
+    [...new Set([...F.streams, ...F.roads].map(x => x.name).filter(Boolean))].slice(0, 12).join(', '),
     '| Größe', JSON.stringify(F).length, 'B');
 }

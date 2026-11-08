@@ -2,7 +2,7 @@
 import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { cfg, game, tch, inp, ptr, messages, keyOf, keyName } from './state.js';
 import { bf } from './bf.js';
-import { rw, groundH, rwLatLon, rwPlace } from './realworld.js';
+import { rw, groundH, rwLatLon, rwPlace, rwPlaceCenters } from './realworld.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
@@ -386,18 +386,21 @@ function drawBig(c, x, y, fs, FONT, weight, txt, rows) {
   c.font = font;
 }
 
-// Echte Welt (mit „Nächster Ort“): Name und Entfernung über Türmen (z. B. Eselsturm), nur wenn im Bild
+// Echte Welt (mit „Nächster Ort“): die nächsten Orte mit Name und Entfernung über ihrer Mitte (Nutzer, Prompt 165; ersetzt die
+// Türme). Erst ab 400 m Abstand (im Ort selbst stört es), bis 12 km, höchstens 5, nur wenn im Bild. Abstände geschätzt.
+export const POI = { near: 400, far: 12000, max: 5, up: 40 };
 function drawPoiLabels(c, W, H, fs) {
   if (!lastVP || !rw.on || !rw.features || !osdOn(cfg.osd, 'place')) return;
-  for (const t of rw.features.towers || []) {
-    const p = [t.x, groundH(t.x, t.z) + 31, t.z], cp = mApply(lastVP, p);
+  const me = game.sim.p, list = rwPlaceCenters().map(t => ({ t, d: Math.hypot(t.x - me[0], t.z - me[2]) })).filter(o => o.d > POI.near && o.d < POI.far);
+  list.sort((a, b) => a.d - b.d);
+  for (const { t, d } of list.slice(0, POI.max)) {
+    const p = [t.x, groundH(t.x, t.z) + POI.up, t.z], cp = mApply(lastVP, p);
     if (cp[3] < 0.01) continue;
     const nx = cp[0]/cp[3], ny = cp[1]/cp[3];
     if (Math.abs(nx) > 0.95 || Math.abs(ny) > 0.95) continue;
-    const d = Math.round(vLen(vSub(p, game.sim.p)));
     c.font = `600 ${Math.round(fs*0.9)}px system-ui,sans-serif`; c.textAlign = 'center';
     c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.fillStyle = '#ffc27a';
-    const sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H - 6, txt = `${t.name} ${d} M`;
+    const sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H - 6, txt = t.name + ' ' + (d < 1000 ? Math.round(d) + ' M' : (d/1000).toFixed(1).replace('.', ',') + ' KM');
     c.strokeText(txt, sx, sy); c.fillText(txt, sx, sy);
   }
 }

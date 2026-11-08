@@ -498,7 +498,7 @@ export function rwWaterMesh(T = rw.main) {
 }
 
 // Kartenebenen (Basis-DLM, nur Anzeige): Bänder auf dem Gelände für Bäche, Straßen, Brücken und Waldränder,
-// über Türmen eine Säule. Farben wie auf einer Karte. Höhe 0,5 m über dem Höhenmodell, Punkte alle 3 m (folgt dem Gelände).
+// Farben wie auf einer Karte. Höhe 0,5 m über dem Höhenmodell, Punkte alle 3 m (folgt dem Gelände).
 export const RW_LAYERS = {
   streams: { w: 2.5, col: [0.25, 0.5, 0.9] }, roads: { w: 1.0, col: [0.98, 0.86, 0.4] },
   bridges: { w: 3.0, col: [1.0, 0.5, 0.15] }, forest: { w: 1.2, col: [0.1, 0.38, 0.16] } };
@@ -518,14 +518,6 @@ export function rwFeatureMesh() {
       const [ax, az] = pts[i], [bx, bz] = pts[i + 1], l = Math.hypot(bx - ax, bz - az) || 1, px = -(bz - az)/l*st.w/2, pz = (bx - ax)/l*st.w/2;
       vtx(ax - px, az - pz, st.col); vtx(bx - px, bz - pz, st.col); vtx(bx + px, bz + pz, st.col);
       vtx(ax - px, az - pz, st.col); vtx(bx + px, bz + pz, st.col); vtx(ax + px, az + pz, st.col);
-    }
-  }
-  for (const t of F.towers || []) {   // Säule 30 m über dem Boden, 0,6 m dick, orange
-    const y0 = groundH(t.x, t.z), y1 = y0 + 30, d = 0.3, c = [1.0, 0.55, 0.1];
-    for (const [ax, az, bx, bz] of [[-d, -d, d, -d], [d, -d, d, d], [d, d, -d, d], [-d, d, -d, -d]]) {
-      const q = [[t.x + ax, y0, t.z + az], [t.x + bx, y0, t.z + bz], [t.x + bx, y1, t.z + bz], [t.x + ax, y1, t.z + az]];
-      const n = [Math.sign(ax + bx), 0, Math.sign(az + bz)];
-      for (const k of [0, 1, 2, 0, 2, 3]) out.push(...q[k], ...n, ...c, 1);
     }
   }
   rw.on = on;
@@ -703,6 +695,22 @@ export function rwModelMesh(S = rw.main) {
 export function rwLatLon(x, z) {
   const b = rw.meta.bbox;
   return fromUtm((b[0] + b[2])/2 + x, (b[1] + b[3])/2 - z, +(rw.meta.crs.match(/258(\d\d)/) || [0, 32])[1]);
+}
+// Ortsmitten für die Anzeige der nächsten Orte (Nutzer, Prompt 165; ersetzt die Anzeige der Türme): je Name die Mitte der größten
+// Ortsfläche (Schwerpunkt der Fläche), aus den Ortslagen des Basis-DLM (eingebautes Monschau und Landesdaten geladener Orte).
+let placeCache = { ver: -1, list: [] };
+export function rwPlaceCenters() {
+  if (placeCache.ver === rw.ver) return placeCache.list;
+  const best = new Map();
+  for (const p of (rw.features && rw.features.places) || []) for (const r of p.rings) {
+    let a = 0, cx = 0, cz = 0;
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const k = r[j][0]*r[i][1] - r[i][0]*r[j][1]; a += k; cx += (r[j][0] + r[i][0])*k; cz += (r[j][1] + r[i][1])*k; }
+    if (Math.abs(a) < 1) continue;
+    const o = best.get(p.name);
+    if (!o || Math.abs(a) > o.area) best.set(p.name, { name: p.name, x: cx/(3*a), z: cz/(3*a), area: Math.abs(a)/2 });
+  }
+  placeCache = { ver: rw.ver, list: [...best.values()] };
+  return placeCache.list;
 }
 // Nächster Ort (Ortslagen aus dem Basis-DLM, 8 km Umkreis): { name, d: Abstand in m (0 = im Ort), dir: Himmelsrichtung vom Punkt aus }
 const DIRS = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];

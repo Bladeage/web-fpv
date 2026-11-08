@@ -9,7 +9,7 @@ import { STEP, step, respawn, hoverThrottle } from '../src/physics.js';
 import { setScenario } from '../src/scenario.js';
 import { applyDrone } from '../src/drone.js';
 import { readTiff, toUtm, fromUtm } from '../src/geo.js';
-import { rw, rwInit, rwModels, rwModelMesh, rwWallAlpha, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName, rwLatLon, rwPlace } from '../src/realworld.js';
+import { rw, rwInit, rwModels, rwModelMesh, rwWallAlpha, groundH, groundN, rwMesh, rwNear, waterAt, rwWaterMesh, rwFeatureMesh, rwNearName, rwLatLon, rwPlace, rwPlaceCenters } from '../src/realworld.js';
 import { pilot } from '../src/pilot.js';
 import { qRot } from '../src/math.js';
 import { birds, initBirds, stepBirds } from '../src/birds.js';
@@ -242,7 +242,9 @@ test('Echte Welt: tiefer Überflug über dem Wasser bleibt ohne Folgen', () => {
 test('Echte Welt: Kartenebenen (Basis-DLM) nur zur Anzeige', () => {
   const F = rw.features;
   assert.ok(F.streams.length > 10 && F.roads.length > 50 && F.bridges.length > 5 && F.forest.length > 10, 'Ebenen vorhanden');
-  assert.deepEqual(F.towers.map(t => t.name), ['Eselsturm']);
+  assert.equal(F.towers, undefined, 'Türme entfallen (Prompt 165)');
+  const pc = rwPlaceCenters(), ms = pc.find(p => p.name === 'Monschau');
+  assert.ok(pc.length > 15 && ms, 'Ortsmitten'); assert.ok(Math.hypot(ms.x, ms.z) < 800, 'Mitte von Monschau nahe dem Gebiet');
   assert.ok(rwFeatureMesh().length > 10000, 'Netz der Bänder');
   rw.on = true;
   const road = F.roads.find(r => r.name === 'Laufenstraße'), [x, z] = road.pts[0];
