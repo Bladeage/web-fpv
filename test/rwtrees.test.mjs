@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
-import { rw, rwApply, rwModelMesh, rwWallAlpha, rwWaterMesh, WATER_A, WATER_UP, groundH, waterAt } from '../src/realworld.js';
+import { rw, rwApply, rwModelMesh, rwWallAlpha, rwWaterMesh, rwMesh, WATER_A, WATER_UP, WATER_DIP, groundH, waterAt } from '../src/realworld.js';
 import { bldClass } from '../src/rwload.js';
 
 const file = n => new URL('../' + n, import.meta.url);
@@ -77,4 +77,36 @@ test('Wassernetz: Alpha-Kennung für den Shader, Ufer-Anteil in der Normale (0 a
   assert.ok(lo >= 1 && lo < 1.3 && hi <= 2 && hi > 1.9, `Normale ${lo} bis ${hi}`);
   // Alpha bleibt knapp unter der Dach-Kennung (0,55 bis 0,65) und über der Wand (< 0,5)
   assert.ok(WATER_A > 0.66 && WATER_A < 0.74);
+});
+
+test('Wasserfläche liegt parallel zum Gelände, genau WATER_UP darüber (Nutzer: Flecken auf dem Rhein aus 150 m)', () => {
+  // Vorher lag das Wasser auf einem eigenen 2-m-Raster; an den Knicken der Geländedreiecke kamen sich Fläche und Flussbett näher
+  // als die Tiefenauflösung, das Bett schien in Flecken durch. Jetzt teilen beide Gitter und Diagonale: in der Mitte jedes
+  // Wasserdreiecks im Fluss ist der Abstand zum Gelände WATER_UP.
+  rwApply(pack(), { water });
+  rw.on = true;
+  const v = rwWaterMesh();
+  let n = 0, off = 0, minSep = Infinity;
+  const inner = (x, z) => [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]].every(([a, b]) => waterAt(x + a, z + b));
+  for (let i = 0; i + 29 < v.length; i += 30) {
+    const x = (v[i] + v[i + 10] + v[i + 20])/3, y = (v[i + 1] + v[i + 11] + v[i + 21])/3, z = (v[i + 2] + v[i + 12] + v[i + 22])/3;
+    if (!inner(x, z)) continue;
+    n++; const s = y - groundH(x, z); minSep = Math.min(minSep, s);
+    if (Math.abs(s - WATER_UP) > 0.01) off++;
+  }
+  assert.ok(n > 5000, 'Dreiecke mitten im Fluss: ' + n);
+  assert.ok(off/n < 0.002, `${off} von ${n} Dreiecken nicht parallel`);   // Rest: Ecken, die die 1-m-Maske knapp trocken nennt
+  assert.ok(minSep > 0.05, 'nie näher als 5 cm am Gelände: ' + minSep.toFixed(3));
+  // Gezeichnetes Bett: im Fluss um WATER_DIP unter dem Höhenmodell, an Land gleich dem Höhenmodell
+  const M = rwMesh(2, 500), k = Math.round(Math.sqrt(M.v.length/10));
+  let wetV = 0, dryV = 0, wetOk = 0, dryOk = 0;
+  for (let i = 0; i < k*k; i++) {
+    const x = M.v[i*10], y = M.v[i*10 + 1], z = M.v[i*10 + 2], g = groundH(x, z);
+    if (Math.abs(x) >= 499 || Math.abs(z) >= 499) continue;   // Randreihe des Netzes (ohne Umgebung reicht groundH weiter hinaus)
+    if (inner(x, z)) { wetV++; if (Math.abs(g - WATER_DIP - y) < 1e-3) wetOk++; }
+    else if (![[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]].some(([a, b]) => waterAt(x + a, z + b))) { dryV++; if (Math.abs(g - y) < 1e-3) dryOk++; }
+  }
+  assert.ok(wetV > 500 && wetOk === wetV, `Ecken im Fluss ${wetV}, davon um WATER_DIP tiefer ${wetOk}`);   // Rur: rund 950 Ecken im 4-m-Netz
+  assert.ok(dryV > 50000 && dryOk === dryV, `Ecken an Land ${dryV}, davon gleich dem Höhenmodell ${dryOk}`);
+  rw.on = false;
 });

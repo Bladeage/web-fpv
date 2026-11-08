@@ -253,10 +253,11 @@ void main(){
     c = mix(texture(uGround, clamp(uv, 0.0, 1.0)).rgb, c, 0.35);   // 65 % Luftbild, 35 % Tönung (Schätzung)
     vec3 v = normalize(uCam - vW);
     vec2 wp = vW.xz*1.7 + uTime*vec2(0.25, 0.18);   // Wellen etwa 0,6 m, langsam ziehend (Schätzung)
-    vec3 wn = normalize(vec3(vnoise(wp) - 0.5, 4.0, vnoise(wp.yx + 3.1) - 0.5));
+    float ws = exp(-dCam/150.0);   // Wellen nur nah: weiter weg ist ein Bildpunkt größer als eine Welle, Rauschen wurde zu weißem Geflimmer (Köln, 77 m)
+    vec3 wn = normalize(vec3((vnoise(wp) - 0.5)*ws, 4.0, (vnoise(wp.yx + 3.1) - 0.5)*ws));
     float fr = pow(1.0 - max(dot(v, wn), 0.0), 3.0);
     c = mix(c, uFog, 0.12 + 0.55*fr);
-    wGlint = pow(max(dot(reflect(-v, wn), uSun), 0.0), 160.0)*0.7;
+    wGlint = pow(max(dot(reflect(-v, wn), uSun), 0.0), 160.0)*0.7*(0.4 + 0.6*ws);
     n = normalize(wn + vec3(0.0, 2.0, 0.0));
     wAlpha = clamp(length(vNor) - 1.0, 0.0, 1.0);
   }
@@ -1020,10 +1021,11 @@ function drawTerrain() {
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
   if (farGl) { gl.bindVertexArray(farGl.vao); gl.drawElements(gl.TRIANGLES, farGl.n, gl.UNSIGNED_INT, 0); }
   // Gewässer (Basis-DLM): Fläche über dem Flussbett; der Shader tönt das Luftbild darunter und spiegelt den Horizont.
-  // Mit Blending, damit der Rand (Alpha aus dem Wasseranteil je Ecke) weich ins Ufer läuft; leicht nach vorn gezogen,
-  // damit der Spiegel in der Ferne nicht mit dem Flussbett flackert. Das Luftbild der Kachel muss dabei gebunden sein.
+  // Mit Blending, damit der Rand (Alpha aus dem Wasseranteil je Ecke) weich ins Ufer läuft; nach vorn gezogen (16 Einheiten;
+  // 4 reichten aus der Höhe nicht, dazu liegt das gezeichnete Bett tiefer, WATER_DIP), damit der Spiegel in der Ferne nicht mit
+  // dem Flussbett flackert. Das Luftbild der Kachel muss dabei gebunden sein.
   const drawWater = m => { if (!m || !m.count) return;
-    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -16);
     gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count);
     gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.BLEND); };
   if (!waterGl && rw.water) waterGl = upload(rwWaterMesh());

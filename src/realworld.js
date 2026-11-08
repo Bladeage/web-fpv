@@ -312,7 +312,8 @@ function sampleN(x, z) {
 // Bodenhöhe = Höhe der gezeichneten Geländefläche an (x, z): dieselben Ecken und Dreiecke wie rwMesh (Abstand RW_STEP
 // Rasterpunkte) bzw. rwFarMesh. Vorher rechnete die Physik mit den gemessenen Höhen dazwischen; die gezeichnete Fläche lag am
 // Hang bis 4 m darüber (Monschau, an 32 % der Punkte über 3,5 cm), die Drohne sank sichtbar ein, die Kamera sah das Gelände
-// von unten. Jetzt eine Fläche für Physik, Kamera, Bäume, Vögel und Pilot (Prüfbericht Nr. 1).
+// von unten. Jetzt eine Fläche für Physik, Kamera, Bäume, Vögel und Pilot (Prüfbericht Nr. 1). Einzige Ausnahme: unter Wasser
+// zeichnet rwMesh das Bett um WATER_DIP tiefer (siehe dort); dort zählt für alles der Wasserspiegel.
 export const RW_STEP = 2;
 const tri = (a, b, c, d, fx, fz) => fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz);
 export function groundH(x, z) {
@@ -344,15 +345,23 @@ export function groundN(x, z) {
 }
 // Netz fürs Gelände: Raster mit Abstand step Rasterpunkte (2 = 4 m), außen ein Rand bis „far“ m in Randhöhe.
 // Rückgabe: Ecken (wie MeshBuilder: Ort, Normale, Farbe, Alpha 0 = Boden) und Dreiecks-Indizes.
+// Unter Wasser liegt das gezeichnete Flussbett um WATER_DIP tiefer als das Höhenmodell (anteilig am Ufer). Grund: Der Spiegel lag
+// nur 0,25 m über dem Bett; aus der Höhe (Köln, 150 m) reichte die Tiefenauflösung der Grafik dafür nicht, das Bett schien in
+// eckigen Flecken durch (Versuch: ohne Geländenetz keine Flecken, mit großem Polygon-Offset keine Flecken). Die Physik (groundH)
+// bleibt auf dem Höhenmodell: auf dem Wasser gilt ohnehin der Spiegel (Absturz), unter dem Spiegel ist nichts erreichbar.
+export const WATER_DIP = 2;   // m (Schätzung: tiefer als die Tiefenauflösung bis etwa 1 km, flacher als eine glaubhafte Uferböschung)
+const DIP5 = [[0, 0], [1.5, 0], [-1.5, 0], [0, 1.5], [0, -1.5]];   // Proben für den Wasseranteil um eine Ecke
 export function rwMesh(step = 2, far = 1500, T = null) {
   const N = T ? T.n : rw.n, C = T ? T.cell : rw.cell, ox = T ? T.dx : 0, oz = T ? T.dz : 0;
+  const wet = rwWetFn(T ? T.water : rw.water, T ? T.wmeta : rw.meta && rw.meta.water, ox, oz);
   const m = Math.floor(N/step), pos = [-far];
   for (let i = 0; i < m; i++) pos.push(((i*step + step/2) - N/2)*C);
   pos.push(far);
   const k = pos.length, v = new Float32Array(k*k*10), idx = new Uint32Array((k - 1)*(k - 1)*6);
   for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
     const x = pos[i] + ox, z = pos[j] + oz, n = sampleN(x, z), o = (j*k + i)*10;
-    v.set([x, rwSampleH(x, z), z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], o);
+    let f = 0; for (const [a, b] of DIP5) if (wet(x + a, z + b)) f++;
+    v.set([x, rwSampleH(x, z) - WATER_DIP*f/5, z, n[0], n[1], n[2], 0.35, 0.50, 0.27, 0], o);
   }
   let t = 0;
   for (let j = 0; j < k - 1; j++) for (let i = 0; i < k - 1; i++) {
@@ -449,10 +458,15 @@ export function rwWaterMesh(T = rw.main) {
   const out = [], w = T ? T.wmeta : rw.meta && rw.meta.water, bits = T ? T.water : rw.water, ox = T ? T.dx : 0, oz = T ? T.dz : 0;
   if (!bits || !w) return new Float32Array(0);
   const on = rw.on; rw.on = true;
-  // Raster 2 m über allen nassen Zellen, 3 m nach außen erweitert. Wasserspiegel je Ecke: über Wasser das Flussbett (Wasserlinie
+  // Raster über allen nassen Zellen, etwa 4 m nach außen erweitert. Wasserspiegel je Ecke: über Wasser das Flussbett (Wasserlinie
   // im Höhenmodell), am Ufer der tiefste Boden der nassen Zellen im Umkreis von 5 m; dazu WATER_UP. Das Ufer entsteht dort, wo
   // das Gelände den Spiegel überragt: keine Treppen am Rand, kein Streifen, der unter das Gelände taucht.
-  const n = w.n, res = w.res, h = rw.size/2, G = 2, m = Math.round(n*res/G) + 1;
+  // Die Ecken liegen auf dem Gitter des Geländenetzes (eine Rasterzelle, knapp 2 m; die Geländeecken sind jede zweite davon), die
+  // Dreiecke haben dieselbe Diagonale wie rwMesh und groundH. So liegt jedes Wasserdreieck in der Ebene eines Geländedreiecks, genau
+  // WATER_UP darüber. Vorher ein eigenes 2-m-Raster ab dem Rand: Über dem unruhigen Höhenmodell des Rheins (Laser über Wasser, Wellen
+  // bis 5 m) kamen sich Fläche und Flussbett an den Knicken der Geländedreiecke näher als die Tiefenauflösung, und das Bett schien
+  // aus der Höhe in eckigen Flecken durch (Nutzer, Köln aus 150 m; mit großem Polygon-Offset verschwanden die Flecken, Beleg).
+  const n = w.n, res = w.res, h = rw.size/2, N = T ? T.n : rw.n, G = rw.size/N, m = N + 1;
   const wet = (i, j) => { if (i < 0 || j < 0 || i >= n || j >= n) return false; const b = j*n + i; return (bits[b >> 3] >> (b & 7) & 1) === 1; };
   const near = new Uint8Array(m*m);   // Ecke liegt höchstens 3 m von nassen Zellen
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) if (wet(i, j)) {
@@ -467,8 +481,8 @@ export function rwWaterMesh(T = rw.main) {
     const ci = Math.round(gi*G/res), cj = Math.round(gj*G/res);
     let lo = Infinity, nw = 0;
     for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) { lo = Math.min(lo, cellH(ci + x, cj + y)); if (Math.abs(x) <= 2 && Math.abs(y) <= 2) nw++; }
-    const x = gi*G - h + ox, z = gj*G - h + oz;   // über Wasser: dem Flussbett folgen (Wehre, Gefälle); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
-    if (lo < Infinity) lvl[gj*m + gi] = (wet(ci, cj) ? Math.max(lo, groundH(x, z)) : lo) + WATER_UP;
+    const x = gi*G - h + ox, z = gj*G - h + oz;   // über Wasser: genau das Flussbett (Wehre, Gefälle; parallel zum Gelände); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
+    if (lo < Infinity) lvl[gj*m + gi] = (wet(ci, cj) ? groundH(x, z) : lo) + WATER_UP;
     shore[gj*m + gi] = nw/25;   // Anteil nasser Zellen in 5 x 5 m um die Ecke
   }
   const col = [0.20, 0.30, 0.38];   // Tönung über dem Luftbild: graublau, gedämpft (Schätzung, Flusswasser im Mittelgebirge)
@@ -476,8 +490,8 @@ export function rwWaterMesh(T = rw.main) {
     const k = [gj*m + gi, gj*m + gi + 1, (gj + 1)*m + gi + 1, (gj + 1)*m + gi];
     if (k.some(q => Number.isNaN(lvl[q]))) continue;
     const P = q => [(q % m)*G - h + ox, lvl[q], Math.floor(q/m)*G - h + oz, 1 + shore[q]];
-    const [a, b, c, d] = k.map(P);
-    for (const p of [a, d, c, a, c, b]) out.push(p[0], p[1], p[2], 0, p[3], 0, col[0], col[1], col[2], WATER_A);
+    const [a, b, d, c] = k.map(P);   // a (gi, gj), b rechts, c unten, d rechts unten; Diagonale b-c wie rwMesh
+    for (const p of [a, c, b, b, c, d]) out.push(p[0], p[1], p[2], 0, p[3], 0, col[0], col[1], col[2], WATER_A);
   }
   rw.on = on;
   return new Float32Array(out);

@@ -389,7 +389,9 @@ test('Kamera nie unter der gezeichneten Fläche (Fehlerbericht Nutzer): rwSurfac
     const fx = (x - xs[i])/(xs[i + 1] - xs[i]), fz = (z - xs[j])/(xs[j + 1] - xs[j]), a = Y(i, j), b = Y(i + 1, j), c = Y(i, j + 1), d = Y(i + 1, j + 1);
     return fx + fz <= 1 ? a + (b - a)*fx + (c - a)*fz : d + (c - d)*(1 - fx) + (b - d)*(1 - fz); };
   let worst = 0, above = 0;
+  const nearWater = (x, z) => [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]].some(([a, b]) => waterAt(x + a, z + b));   // unter Wasser liegt das Netz absichtlich tiefer (WATER_DIP)
   for (let n = 0; n < 4000; n++) { const x = (Math.random() - 0.5)*990, z = (Math.random() - 0.5)*990, s = surf(x, z);
+    if (nearWater(x, z)) continue;
     worst = Math.max(worst, Math.abs(s - groundH(x, z))); above = Math.max(above, s - R.rwSampleH(x, z)); }
   assert.ok(worst < 1e-3, 'groundH (Physik) weicht vom gezeichneten Netz ab: ' + worst);
   assert.ok(above > 0.035, 'die gemessenen Höhen allein lägen teils unter dem Netz (bis ' + above.toFixed(2) + ' m); daher zählt die Fläche');
