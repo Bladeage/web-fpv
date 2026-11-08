@@ -99,8 +99,9 @@ export const game = {
   pendingRespawn: false, // Drohne nach diesem Physikschritt neu starten (Jagd nach Treffer)
   payload: 0             // Masse eines getragenen Pakets in kg
 };
-// Bestzeit je Szenario. Der Torkurs behält den alten Schlüssel.
-const bestKey = () => cfg.scen === 'gates' ? STORE_BEST : STORE_BEST + '.' + cfg.scen;
+// Bestzeit je Szenario und Welt (game.bestScen, setzt setScenario; in der echten Welt mit „.real“, Echte-Welt-Freiflug heißt
+// weiter „real“). Der Torkurs behält den alten Schlüssel.
+const bestKey = () => { const k = game.bestScen || cfg.scen; return k === 'gates' ? STORE_BEST : STORE_BEST + '.' + k; };
 export function loadBest() {
   game.best = null;
   try { const b = parseFloat(localStorage.getItem(bestKey())); if (b > 0) game.best = b; } catch (e) {}

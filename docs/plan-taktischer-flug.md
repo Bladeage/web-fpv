@@ -258,6 +258,11 @@ Später, nicht geplant: Slalom in der echten Welt (gerade Freifläche über den 
 - **T6 nach T5:** Fahrzeuge in der echten Welt brauchen Straßen und Höhe; Monschau hat beides. T7 ist die einzige Etappe mit neuer Datenquelle und darum die unsicherste, deshalb spät.
 - **T8 am Ende:** rundet ab, hängt von allem ab.
 
+## Stand der Etappen
+
+- **T1 erledigt** (Prompt 163, Version 1.180): Menü mit Flugart und Welt, DIS-Übung als experimenteller Startort.
+- **T2 erledigt** (Prompt 164): `src/place.js` (Ringkette, Kreis als Rückfall, freier Weg), `placeReal()` in `realworld.js` (Gebäude-Dreiecke über `ptTriDist` in `math.js`, Bäume als Quader, Boden), Ringparcours in der echten Welt (Kette um den Start, Monschau etwa 7 ms), Bestzeit je Welt (`rings.real`). Abweichung vom Plan: Die Spielkarte nutzt weiter `makeRings` unverändert (sicher gleiche Anordnung); `placeMap()` folgt, wenn ein Modus sie braucht (T3).
+
 ## 7 Offene Entscheidungen (mit Vorschlag)
 
 Aus der 1. Fassung, gelten weiter:

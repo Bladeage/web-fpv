@@ -12,7 +12,8 @@ import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.j
 import { TOWN } from './town.js';
 import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
-import { rw, rwNearName } from './realworld.js';
+import { rw, rwNearName, placeReal } from './realworld.js';
+import { ringChain, ringCircle } from './place.js';
 import { osdOn } from './osd.js';
 import { DIS_PREVIEW } from './distypes.js';
 
@@ -131,12 +132,18 @@ function makeSlalom(R) {
   const A = COURSE[0], B = COURSE[1], n = vNorm([B[0] - A[0], 0, B[1] - A[1]]);
   return [0.2, 0.35, 0.5, 0.65, 0.8].map((t, k) => ({ c: [A[0] + (B[0] - A[0])*t, SLALOM_H/2, A[1] + (B[1] - A[1])*t], n, r: [-n[2], 0, n[0]], yaw: Math.atan2(-n[0], -n[2]), side: k % 2 ? -1 : 1 }));
 }
+// Ringe in der echten Welt (Etappe T2): Kette von 8 Ringen um den Start über den Platzierungsdienst; findet er keine freie
+// Kette (dichte Altstadt), Kreis hoch über dem Start
+export function ringsReal(R) {
+  const W = placeReal(), c = game.home, cs = ringChain(W, c, 8, R) || ringCircle(W, c, 8);
+  return framesFromCenters(cs);
+}
 // Startwert für die Anordnung: null = bei jedem Start neu (Zufall), Zahl = feste Anordnung (Tests)
 let layoutSeed = null;
 export function setLayoutSeed(n) { layoutSeed = n; }
 function newLayout() {
   const R = rng(layoutSeed ?? Math.floor(Math.random()*1e9));
-  rings.length = 0; rings.push(...makeRings(R));
+  rings.length = 0; rings.push(...(rw.on ? ringsReal(R) : makeRings(R)));
   poles.length = 0; poles.push(...makeSlalom(R));
   poleCols = poles.map(p => ({ c: p.c, h: [0.08, SLALOM_H/2, 0.08], cs: 1, sn: 0 }));
   scen.version++;   // Modell neu bauen
@@ -322,16 +329,17 @@ const TASKS = {
 };
 task.reset = reset;
 
-// Szenario wählen. Danach respawn() aufrufen.
-export function setScenario(id) {
+// Szenario wählen. Danach respawn() aufrufen. real: in der echten Welt (Freiflug „real“ immer; Ringe ab Etappe T2)
+export function setScenario(id, real = id === 'real') {
   if (!TASKS[id]) id = 'gates';
   scen.id = id; scen.version++;
   // Echte Welt nur mit geladenem Gelände; Start auf der flachsten Stelle (Werkzeug), Nase zur Mitte des Gebiets (Altstadt)
-  rw.on = id === 'real' && rw.ready;
+  rw.on = real && rw.ready;
+  if (rw.on && (id === 'rings' || id === 'slalom')) rings.length = 0;   // neue Anordnung beim nächsten Neustart (reset)
   game.home = rw.on ? rw.meta.home.slice() : id === 'free' ? TOWN.start.slice() : id === 'vbs' ? DIS_PREVIEW.home.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
   game.homeYaw = rw.on ? Math.atan2(game.home[0], game.home[1]) : 0;
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
-  cfg.scen = id;
+  game.bestScen = id === 'real' || !rw.on ? id : id + '.real';   // Bestzeit je Welt
   task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
 }

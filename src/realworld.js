@@ -2,7 +2,7 @@
    Ohne DOM. Hält das Höhenraster und liefert Bodenhöhe und Bodenrichtung für Physik und Darstellung.
    Kartenkoordinaten: Mitte des Gebiets = Ursprung, x nach Osten, z nach Süden, y = Höhe über dem Startplatz.
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
-import { clamp } from './math.js';
+import { clamp, ptTriDist } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
 import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart } from './rwload.js';
 import { deLandAt, deMap, deLandBox } from './demap.js';
@@ -532,6 +532,19 @@ export function rwFeatureMesh() {
   return new Float32Array(out);
 }
 // Name der nächsten Straße oder des nächsten Gewässers im Umkreis r (für die Anzeige), sonst ''
+// Welt-Schnittstelle für den Platzierungsdienst (place.js): Boden, Wasser, freie Kugel (Gebäude-Dreiecke, Bäume als Quader,
+// Boden), erlaubtes Rechteck (Startgebiet, 1 x 1 km), Startplatz.
+export function placeReal() {
+  const S = rw.size/2;
+  const free = (p, r) => {
+    if (p[1] - r < groundH(p[0], p[2])) return false;
+    const n = rwNear(p[0], p[2], r + 1), T = rw.tris;
+    for (const t of n.tris) { const o = t*9; if (ptTriDist(p, [T[o], T[o + 1], T[o + 2]], [T[o + 3], T[o + 4], T[o + 5]], [T[o + 6], T[o + 7], T[o + 8]]) < r) return false; }
+    for (const b of n.boxes) if (Math.hypot(Math.max(0, Math.abs(p[0] - b.c[0]) - b.h[0]), Math.max(0, Math.abs(p[1] - b.c[1]) - b.h[1]), Math.max(0, Math.abs(p[2] - b.c[2]) - b.h[2])) < r) return false;
+    return true;
+  };
+  return { groundH, wet: waterAt, free, bounds: [-S, -S, S, S], home: rw.meta.home.slice() };
+}
 export function rwNearName(x, z, r = 30) {
   const F = rw.features;
   if (!F || !rw.on) return '';

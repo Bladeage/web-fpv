@@ -45,7 +45,7 @@ respawn();
 let boomed = false;
 function combat() {
   if (game.state === 'fly') boomed = false;
-  if (!rw.on || game.scenRun !== 'real' || !game.started) { vb.hits.length = 0; return; }
+  if (!rw.on || !game.started) { vb.hits.length = 0; return; }
   for (const h of vb.hits.splice(0)) shotHit(h.heavy, h.heavy ? 'Abgeschossen' : 'Treffer');
   const s = game.sim, armed = cfg.warhead === 'charge', u = vb.contact;
   if (game.state === 'fly' && u) {
@@ -93,7 +93,7 @@ function frame(now) {
   // DIS-Modus: Verbindung halten, solange er gewählt ist (auch im Menü: Brücke und Einheiten der Übung anzeigen); die eigene
   // Drohne nur im Flug der echten Welt senden, auch in der Pause (die Brücke hält den Herzschlag)
   const disOn = !!cfg.verbund && cfg.world === 'real';
-  vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && game.scenRun === 'real');
+  vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && rw.on);
   combat();
   render(dt);
   drawHud();

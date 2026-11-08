@@ -28,11 +28,11 @@ export const TAC = [
   { id: 'air', name: 'Ziele Luft', scen: 'hunt3', worlds: ['map'], info: 'Fluggeräte über der Spielkarte. Die Wirkung der Wirkmittel folgt.' },
   { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
 ];
-const COURSE_REAL = ['free'];   // Parcours in der echten Welt (wächst mit T2 und T3)
+const COURSE_REAL = ['free', 'rings'];   // Parcours in der echten Welt (Etappe T2: Ringe; wächst mit T3)
 const isReal = () => cfg.world === 'real';
 // Szenario, das beim Start läuft
 export function flightScen() {
-  if (isReal()) return 'real';
+  if (isReal()) return cfg.flight !== 'tactical' && COURSE_REAL.includes(cfg.scen) && cfg.scen !== 'free' ? cfg.scen : 'real';
   if (cfg.flight === 'tactical') { const t = TAC.find(x => x.id === cfg.tac) || TAC[0]; return t.scen || 'free'; }
   return cfg.scen === 'real' || cfg.scen === 'vbs' ? 'gates' : cfg.scen;
 }
@@ -108,7 +108,7 @@ export function syncMenu() {
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real ? 'Freiflug in echtem Gelände. Weitere Modi in der echten Welt folgen.' : sc.info;
+  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && run === 'real' ? 'Freiflug in echtem Gelände. Weitere Modi in der echten Welt folgen.' : real && run === 'rings' ? '8 Ringe in der Luft, frei von Häusern und Bäumen. Bei jedem Start neu angeordnet.' : sc.info;
   $('modeSpec').hidden = !real;
   $('disOpts').hidden = !dis; syncDis();
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
@@ -244,7 +244,7 @@ async function rwLiveDo() {
     await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE);
     rwSavedFill(); ok = true;
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
-    if (game.started && game.scenRun === 'real') { setScenario('real'); respawn(); }
+    if (game.started && rw.on) { setScenario(game.scenRun, true); respawn(); }
   } catch (e) {
     $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
     if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
@@ -298,11 +298,11 @@ async function start() {
   if (real && cfg.rwSrc === 'emb' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
   if (real && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
   if (real && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
-  run(flightScen());
+  run(flightScen(), real);
 }
-// Flug mit Szenario id beginnen (auch die Vorschau der Grundtypen, ohne die Wahl im Menü zu ändern)
-function run(id) {
-  setScenario(id); applyDrone(cfg.drone); saveCfg();
+// Flug mit Szenario id beginnen, real: in der echten Welt (auch die Vorschau der Grundtypen, ohne die Wahl im Menü zu ändern)
+function run(id, real = false) {
+  setScenario(id, real); applyDrone(cfg.drone); saveCfg();
   game.scenRun = id;
   respawn(); resume();
 }
@@ -323,7 +323,7 @@ function buildModeList() {
   // gewählter Modus muss in der Liste sein; sonst den ersten verfügbaren nehmen
   const ok = [...box.querySelectorAll('button')].filter(b => !b.disabled).map(b => b.dataset.id), cur = tac ? cfg.tac : cfg.scen;
   if (!ok.includes(cur) && ok.length) { if (tac) cfg.tac = ok[0]; else if (!real) cfg.scen = ok[0]; }
-  press('#scenList button', b => b.dataset.id === (tac ? cfg.tac : real ? 'free' : cfg.scen));
+  press('#scenList button', b => b.dataset.id === (tac ? cfg.tac : real && !COURSE_REAL.includes(cfg.scen) ? 'free' : cfg.scen));
 }
 
 // DIS-Modus (Nutzer, Prompt 143 und 145): echte Welt im Verbund mit einem DIS-Partner. Zeigt, ob die Brücke läuft (die

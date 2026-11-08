@@ -101,3 +101,21 @@ export function mApply(m, p) {
     m[3]*p[0] + m[7]*p[1] + m[11]*p[2] + m[15]
   ];
 }
+// Abstand eines Punktes p zum Dreieck a, b, c (alle [x, y, z]); nächster Punkt nach Ericson, „Real-Time Collision Detection“
+// (Verfahren, kein Quelltext übernommen). Für den Platzierungsdienst (place.js): Gebäude der echten Welt sind Dreiecke.
+export function ptTriDist(p, a, b, c) {
+  const ab = vSub(b, a), ac = vSub(c, a), ap = vSub(p, a), d1 = vDot(ab, ap), d2 = vDot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return vLen(ap);
+  const bp = vSub(p, b), d3 = vDot(ab, bp), d4 = vDot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return vLen(bp);
+  const vc = d1*d4 - d3*d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return vLen(vSub(p, vAdd(a, vScale(ab, d1/(d1 - d3)))));
+  const cp = vSub(p, c), d5 = vDot(ab, cp), d6 = vDot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return vLen(cp);
+  const vb = d5*d2 - d1*d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return vLen(vSub(p, vAdd(a, vScale(ac, d2/(d2 - d6)))));
+  const va = d3*d6 - d5*d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { const w = (d4 - d3)/((d4 - d3) + (d5 - d6)); return vLen(vSub(p, vAdd(b, vScale(vSub(c, b), w)))); }
+  const den = 1/(va + vb + vc), v = vb*den, w = vc*den;
+  return vLen(vSub(p, vAdd(a, vAdd(vScale(ab, v), vScale(ac, w)))));
+}
