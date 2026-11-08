@@ -224,6 +224,13 @@ Je Ort ein Radpanzer, ein Schützenpanzer, ein Soldat (VBS als Host mit World Se
 - **Entscheidung Fabian (Prompt 158):** An VBS wird nichts geändert; höchstens die Brücke läuft als Zusatzsoftware. Kein VBS-Skript für Schaden. Folge: Unsere Sprengladung wirkt in VBS nicht (nur bei uns und als DIS-Meldung), und VBS-KI schießt nicht von selbst auf die Drohne; ein menschlicher Schütze in VBS kann auf die sichtbare Drohne schießen, das werten wir aus.
 - **Treffer realistischer (Prompt 158):** Grenze = Kollisionsradius der Drohne + 0,15 m (5 Zoll: 0,3 m), Geschoss fällt unter der Schwerkraft (300 m bei 1100 m/s: 0,37 m), Streuung je Schuss 1,5 mrad (leicht) bzw. 0,7 mrad (schwer). Alles Schätzungen (`VB_HIT`).
 
+## Native Wege im VBS-Gateway (08.11.2026, Prompt 160, k5.2 im Testprofil, danach Ausgangsstand)
+
+- **Schaden aus fremden Detonationen:** kein nativer Weg. Fuzzy-Zuordnung für Munition und LightweightMode 0 ohne Wirkung. Hilfe „Mapping Tables“: „Remote Mapped Ballistics are not tracked“; nur „Remote Mapped Usable ammunition is tracked until detonation“ (Munition, die als eigene Einheit gesendet wird, etwa Granaten, Flugkörper). Gefechtskopf und Zünder wertet VBS nicht aus.
+- **Kandidat (nicht getestet):** Wirkmittel als eigene Munitions-Einheit senden (Entity State, Art 2) mit einem Munitionstyp, den VBS als „Usable ammunition“ zugeordnet hat, und am Ziel detonieren lassen. Die Zuordnungen zeigt die Gateway-Oberfläche in VBS (Editor, Tools, Show Gateway UI, Mappings); im Browser 404.
+- **Fremde Einheit als echtes Objekt:** LightweightMode 0 plus RemoteGroundClampingDisabled 1 legt FPV1 als Objekt an (richtige Höhe), aber die KI greift nicht an (knowsAbout 0; selbst nach reveal und doTarget kein Schuss). Keine Einstellung für Feindschaft fremder Einheiten gefunden. Kostet vermutlich Bildrate.
+- **Release Notes 26.1:** Die drei Einträge zu Detonation und Schadensweitergabe sind schon in 26.1.0 behoben; sie erklären unseren Fall nicht.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
