@@ -11,7 +11,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, show: { dop: true, bld: true, trees: true, water: true, far: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -23,19 +23,29 @@ export function rwInit(meta, q) {
 }
 // Gebiet übernehmen (eingebettet oder live geladen, siehe rwload.js): Höhen, Gebäude, Bäume, Luftbild (JPEG-Bytes).
 // x: { water, features } nur beim eingebetteten Gebiet. rw.ver zählt hoch, damit die Grafik ihre Netze neu baut.
+// Ebenen (Reiter „Debug“ in den Optionen der echten Welt, Nutzer Prompt 166/167, docs/plan-ebenen.md): zum Abschalten für
+// Fehlersuche und schwache Geräte. Wirken beim Übernehmen und Zeichnen, nicht beim Laden (der Speicherschlüssel eines Orts kennt
+// sie nicht). Höhen bleiben immer an: Physik, Gebäude und Lader brauchen sie. rw.last hält die Daten zum erneuten Übernehmen.
+export const RW_SHOW = [['dop', 'Luftbild'], ['bld', 'Gebäude'], ['trees', 'Bäume'], ['water', 'Gewässer'], ['far', 'Umgebung bis 10 km']];
+export function rwSetShow(s = {}) {
+  rw.show = Object.fromEntries(RW_SHOW.map(([k]) => [k, s[k] !== false]));
+  rw.showOff = RW_SHOW.some(([k]) => !rw.show[k]);
+  if (rw.last) { const on = rw.on; rwApply(rw.last.p, rw.last.x); rw.on = on; }
+}
 export function rwApply(p, x = {}) {
-  const on = rw.on;
+  const on = rw.on, S = rw.show;
   if (!x.live) rw.liveDis = null;   // eingebettetes Gebiet: Kacheln wieder aus den Landesquellen
-  Object.assign(rw, { tris: null, grid: null, bldId: null, bldInfo: null, trees: [], water: x.water || null, features: x.features || null, dop: p.dop || null, live: !!x.live });
+  rw.last = { p, x };
+  Object.assign(rw, { tris: null, grid: null, bldId: null, bldInfo: null, trees: [], water: S.water ? x.water || null : null, features: x.features || null, dop: S.dop ? p.dop || null : null, live: !!x.live });
   rwInit(p.meta, p.q);
   // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far
-  const F = p.far || (p.farq && p.meta.far ? { meta: p.meta.far, q: p.farq, dop: p.fardop } : null);
+  const F = !S.far ? null : p.far || (p.farq && p.meta.far ? { meta: p.meta.far, q: p.farq, dop: p.fardop } : null);
   if (rw.tileBusy) rw.tileBusy.ac.abort();   // laufendes Nachladen gehört zum alten Gebiet
   if (rw.farBusy) rw.farBusy.ac.abort();
   rw.far = null; rw.farDop = null; rw.tiles = new Map(); rw.tileFail = new Map(); rw.tileBusy = null; rw.tileErr = ''; tileByCode = new Map();
   rw.farBusy = null; rw.farFail = new Map(); rw.farVer++;
-  if (F) { rw.far = rwFarGrid(F, p.meta.hHome, 0, 0); rw.farDop = F.dop || null; }
-  rwModels(p.b16, p.t16);
+  if (F) { rw.far = rwFarGrid(F, p.meta.hHome, 0, 0); rw.farDop = S.dop ? F.dop || null : null; }
+  rwModels(p.b16, p.t16, x.water || null);
   rwDryHome();
   rw.on = on; rw.ver++;
   return rw;
@@ -586,11 +596,14 @@ export function rwNearName(x, z, r = 30) {
 
 // Gebäude (LoD2) und Bäume übernehmen. b16: Ecken in dm (Karte), erst meta.roofTris Dächer, dann Wände, dahinter je Dreieck
 // die Gebäudenummer. t16: Bäume x, z, Höhe, Kronenradius in dm, Fuß auf dem Gelände.
-export function rwModels(b16, t16) {
+export function rwModels(b16, t16, wetBits = rw.water) {
   const on = rw.on; rw.on = true;   // Bodenhöhe der Bäume braucht das Gelände
-  // Wasser aus den neuen Daten (rwWetFn), nicht waterAt: das sähe hier noch das alte rw.main
-  rw.main = { i: 0, j: 0, dx: 0, dz: 0, n: rw.n, cell: rw.cell, h: rw.h, water: rw.water, wmeta: rw.meta.water, dop: rw.dop,
-    ...rwTileModels(b16, t16, rw.meta, 0, 0, 0, groundH, rwWetFn(rw.water, rw.meta.water, 0, 0)) };
+  // Wasser aus den neuen Daten (rwWetFn), nicht waterAt: das sähe hier noch das alte rw.main. Bäume prüfen auch bei
+  // abgeschalteter Ebene „Gewässer“ gegen das echte Wasser (wetBits)
+  // Erst das Gelände eintragen, dann die Modelle: sonst misst groundH den Fuß der Bäume beim ersten Gebiet auf der groben
+  // Umgebung (kein rw.main) und bei jedem weiteren auf dem alten rw.main (gefunden mit dem Reiter „Debug“: 7 von 2 962 Bäumen)
+  rw.main = { i: 0, j: 0, dx: 0, dz: 0, n: rw.n, cell: rw.cell, h: rw.h, water: rw.water, wmeta: rw.meta.water, dop: rw.dop, tris: new Float32Array(0), nr: 0, trees: [] };
+  Object.assign(rw.main, rwTileModels(b16, t16, rw.meta, 0, 0, 0, groundH, rwWetFn(wetBits, rw.meta.water, 0, 0)));
   rw.bldId = rw.main.bldId; rw.bldInfo = rw.main.bldInfo;
   rw.on = on;
   rwRebuild();
@@ -602,6 +615,8 @@ export function rwModels(b16, t16) {
 // Abstand. Dazu: Liegt Wasser im Kronenkreis und der Fuß unter dessen Spiegel, steht der Baum im Flussbett (Uferböschung,
 // Brückenrand); Nutzer sah Stämme im Wasser (Monschau: 49 Spitzen, dazu etwa 30 Kronen von 3 031).
 export function rwTileModels(b16, t16, meta, dx, dy, dz, hAt, wet = () => false) {
+  if (!rw.show.bld) meta = { ...meta, roofTris: 0, wallTris: 0, buildings: 0 };   // Ebenen (Reiter „Debug“)
+  if (!rw.show.trees) t16 = [];
   const nt = meta.roofTris + meta.wallTris, tris = new Float32Array(nt*9);
   for (let i = 0; i < nt*9; i += 3) { tris[i] = b16[i]/10 + dx; tris[i + 1] = b16[i + 1]/10 + dy; tris[i + 2] = b16[i + 2]/10 + dz; }
   const bldId = b16.slice(nt*9, nt*9 + nt), nb = meta.buildings || 0;   // je Gebäude: Fassadenklasse (0 bis 8) + 16 x Flachdach
@@ -845,8 +860,8 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   // Höhen relativ zum Startplatz des Startgebiets; Gebäude sind relativ zum eigenen Startplatz gepackt (dy gleicht aus)
   const n = p.meta.n, h = new Float32Array(n*n);
   for (let k = 0; k < n*n; k++) h[k] = p.meta.hMin + p.q[k]*p.meta.hScale - m.hHome;
-  const T = { i, j, dx: i*S, dz: j*S, n, cell: S/n, h, water: x.water || null, wmeta: p.meta.water || null, dop: p.dop, key, place: p.meta.place };
-  const wet = rwWetFn(T.water, T.wmeta, T.dx, T.dz);
+  const T = { i, j, dx: i*S, dz: j*S, n, cell: S/n, h, water: rw.show.water ? x.water || null : null, wmeta: p.meta.water || null, dop: rw.show.dop ? p.dop : null, key, place: p.meta.place };
+  const wet = rwWetFn(x.water || null, T.wmeta, T.dx, T.dz);
   // Bäume auf die gezeichnete Fläche, wie sie mit dieser Kachel aussieht (Ränder zur Umgebung eingeschlossen): Kachel dafür kurz
   // eintragen (ohne Warten dazwischen, die Physik sieht das nicht). Vorher: eigene Höhen ohne Rand, Bäume am Rand schwebten (Nr. 6).
   const code = tileCode(i, j), had = tileByCode.get(code), on = rw.on;
@@ -916,7 +931,7 @@ export async function rwFarStep(x, z, store) {
   try {
     const G = await rwLoadFar(cx, cz, store, job.ac.signal);
     if (rw.ver !== ver) return false;
-    rw.far = G.grid; rw.farDop = G.dop; rw.farVer++;   // Bild tauscht, sobald Netz und Luftbild fertig sind (render.js)
+    rw.far = G.grid; rw.farDop = rw.show.dop ? G.dop : null; rw.farVer++;   // Bild tauscht, sobald Netz und Luftbild fertig sind (render.js)
     return true;
   } catch (e) { if (rw.ver === ver) { rw.farFail.set(k, Date.now()); rw.tileErr = 'Umgebung: ' + String(e.message || e); } return false; }
   finally { if (rw.farBusy === job) rw.farBusy = null; }

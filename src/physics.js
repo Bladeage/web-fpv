@@ -10,6 +10,8 @@ import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
 import { rw, groundH, groundN, rwNear, waterAt, WATER_UP } from './realworld.js';
+// Bestzeit nur mit allen Ebenen der echten Welt (Reiter „Debug“): ohne Gebäude oder Umgebung ist der Kurs leichter
+export const bestOk = () => !(rw.on && rw.showOff);
 
 /* ---------- Physik-Parameter (Stufe 1, vereinfacht) ---------- */
 export const PHYS = {
@@ -669,7 +671,7 @@ export function passGate() {
     if (s.lapStart !== null) {
       const lt = s.t - s.lapStart;
       s.lastLap = lt;
-      if (game.best === null || lt < game.best) { game.best = lt; saveBest(); say('Neue Bestzeit ' + fmtTime(lt), 2.2); fx.beep(1320, 0.25); }
+      if (bestOk() && (game.best === null || lt < game.best)) { game.best = lt; saveBest(); say('Neue Bestzeit ' + fmtTime(lt), 2.2); fx.beep(1320, 0.25); }
       else say('Runde ' + fmtTime(lt), 2);
     } else say('Zeit läuft', 1.2);
     s.lapStart = s.t;

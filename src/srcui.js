@@ -1,7 +1,7 @@
 /* Quellen für „Echte Welt“ (Etappe L3): Liste (Vorlagen und eigene), Formular, Prüfen, Import und Export.
    Eigene Quellen liegen in cfg.rwSources (Browser-Speicher) und gelten vor den Vorlagen (rw.userSources). */
 import { cfg, saveCfg } from './state.js';
-import { rw, rwNet, rwSources, rwLandData, rwLandHas } from './realworld.js';
+import { rw, rwNet, rwSources, rwLandData, rwLandHas, RW_SHOW, rwSetShow } from './realworld.js';
 import { RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage, storePut, storeArea, storeStats, storeExportAll, geoPack, geoUnpack } from './rwstore.js';
 import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { wmsCheck } from './rwwms.js';
@@ -40,7 +40,7 @@ export function srcOpen(tab = SRC.tab) { srcEl('srcMsg').textContent = ''; srcEl
 function srcTab(tab) {
   SRC.tab = tab;
   document.querySelectorAll('#geoTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.gtab === tab)));
-  srcEl('geoData').hidden = tab !== 'data'; srcEl('geoSrc').hidden = tab !== 'src';
+  srcEl('geoData').hidden = tab !== 'data'; srcEl('geoSrc').hidden = tab !== 'src'; srcEl('geoDbg').hidden = tab !== 'dbg';
   SRC.fit();
 }
 // Übersicht je Art: Anzahl und Größe (gespeicherte Orte, Landesdaten, Browser gesamt)
@@ -208,6 +208,14 @@ export function srcInit(show, fit, onData) {
   SRC.show = show; SRC.fit = fit || SRC.fit; SRC.onData = onData || SRC.onData; srcApply();
   document.querySelectorAll('#geoTabs button').forEach(b => b.addEventListener('click', () => srcTab(b.dataset.gtab)));
   srcEl('geoExp').addEventListener('click', geoExport);
+  // Reiter „Debug“: Ebenen der echten Welt (gespeichert in cfg.rwShow, wirken sofort)
+  rwSetShow(cfg.rwShow);
+  for (const [k, name] of RW_SHOW) {
+    const l = document.createElement('label'), s = document.createElement('span'), c = document.createElement('input');
+    l.className = 'row geotoggle'; s.textContent = name; c.type = 'checkbox'; c.dataset.show = k; c.checked = rw.show[k];
+    c.addEventListener('change', () => { cfg.rwShow = { ...cfg.rwShow, [k]: c.checked }; saveCfg(); rwSetShow(cfg.rwShow); });
+    l.append(s, c); srcEl('geoShow').append(l);
+  }
   srcEl('geoStream').checked = cfg.rwStream !== false;
   srcEl('geoStream').addEventListener('change', e => { cfg.rwStream = e.target.checked; saveCfg(); });
   // Für Partner, die nur beim Anlegen senden (VBS 26.1.3, D6): sonst verschwinden ihre Einheiten nach 13 s

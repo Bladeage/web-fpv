@@ -8,7 +8,7 @@ import { audioInit, audioPause } from './audio.js';
 import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
-import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources } from './realworld.js';
+import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources, RW_SHOW } from './realworld.js';
 import { wmsProbe } from './rwwms.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
@@ -301,6 +301,7 @@ async function start() {
   if (real && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
   if (real && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
   run(flightScen(), real);
+  if (real && rw.ready && rw.showOff) say('Debug: ' + RW_SHOW.filter(([k]) => !rw.show[k]).map(x => x[1]).join(', ') + ' ausgeblendet. Keine Bestzeit.', 4);   // Reiter „Debug“
 }
 // Flug mit Szenario id beginnen, real: in der echten Welt (auch die Vorschau der Grundtypen, ohne die Wahl im Menü zu ändern)
 function run(id, real = false) {

@@ -79,7 +79,7 @@
 
     <section data-screen="sources" hidden>
       <h1>Echte Welt: Optionen</h1>
-      <div class="tabs tabs2" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button></div>
+      <div class="tabs tabs3" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button><button data-gtab="dbg">Debug</button></div>
       <div id="geoData">
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
         <label class="row geotoggle"><span>DIS: Einheiten ohne neue Meldung behalten, bis sie sich abmelden</span><input type="checkbox" id="geoKeep"></label>
@@ -95,6 +95,11 @@
         <div class="seg small seg3"><button id="srcNew">Neu</button><button id="srcImp">Importieren</button><button id="srcExp">Exportieren</button></div>
         <input type="file" id="srcFile" accept=".json,application/json" hidden>
         <p class="hint" id="srcMsg"></p>
+      </div>
+      <div id="geoDbg" hidden>
+        <p class="hint">Ebenen ausblenden, für Fehlersuche und schwache Geräte. Wirkt sofort auf das geladene Gebiet. Die Höhen bleiben immer an.</p>
+        <div id="geoShow"></div>
+        <p class="hint" id="geoShowMsg">Mit ausgeblendeter Ebene gibt es keine Bestzeit. Ohne Umgebung lädt beim Fliegen nichts nach.</p>
       </div>
       <div class="nav"><button class="secondary" data-go="map">Zur Karte</button><button class="primary" id="srcDone">Fertig</button></div>
     </section>

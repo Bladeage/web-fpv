@@ -4,7 +4,7 @@
 import { vAdd, vSub, vScale, vDot, vLen, vNorm, vCross } from './math.js';
 import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
 import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
-import { PHYS, task, checkGate, collide, contact, fx } from './physics.js';
+import { PHYS, task, checkGate, collide, contact, fx, bestOk } from './physics.js';
 import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
@@ -207,7 +207,7 @@ function crossed(a, b, c, n) {
 function finish(time) {
   const s = game.sim;
   s.lastLap = time; s.lapStart = null; st.done = true;
-  if (game.best === null || time < game.best) { game.best = time; saveBest(); banner('AUFGABE ERFÜLLT', 'Neue Bestzeit ' + fmtTime(time), 4); fx.beep(1320, 0.25); }
+  if (bestOk() && (game.best === null || time < game.best)) { game.best = time; saveBest(); banner('AUFGABE ERFÜLLT', 'Neue Bestzeit ' + fmtTime(time), 4); fx.beep(1320, 0.25); }
   else banner('AUFGABE ERFÜLLT', fmtTime(time), 4);
 }
 function advance(count) {

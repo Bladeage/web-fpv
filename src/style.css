@@ -228,6 +228,7 @@ details{margin-top:10px}
 @media (max-width:560px){.sform{grid-template-columns:1fr}.sform .w2,.sform .w3{grid-column:auto}.nav4{grid-template-columns:1fr 1fr}}
 /* Modus: Reiter „Modi“ und „Spezial“ (echte Welt, später DIS) */
 .tabs.tabs2{grid-template-columns:1fr 1fr;margin-top:6px}
+.tabs.tabs3{grid-template-columns:1fr 1fr 1fr;margin-top:6px}
 #specList button[disabled]{opacity:.5;cursor:default}
 /* Echte Welt: Optionen, Reiter „Daten“ (Übersicht je Art) */
 .geostats{display:grid;grid-template-columns:1fr auto auto;gap:2px 14px;font-size:13px;margin:6px 0 4px}
