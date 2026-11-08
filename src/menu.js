@@ -41,6 +41,7 @@ const REAL_INFO = {
 const isReal = () => cfg.world === 'real';
 // Szenario, das beim Start läuft
 export function flightScen() {
+  if (isReal() && cfg.verbund) return 'real';   // DIS-Übung: nur der Inhalt des Partners, keine Parcours- oder Jagdziele (Nutzer, Prompt 173)
   if (isReal()) return cfg.flight !== 'tactical' && COURSE_REAL.includes(cfg.scen) && cfg.scen !== 'free' ? cfg.scen : 'real';
   if (cfg.flight === 'tactical') { const t = TAC.find(x => x.id === cfg.tac) || TAC[0]; return t.scen || 'free'; }
   return cfg.scen === 'real' || cfg.scen === 'vbs' ? 'gates' : cfg.scen;
@@ -119,6 +120,8 @@ export function syncMenu() {
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
   $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
   $('modeSpec').hidden = !real;
+  $('scenList').hidden = dis;   // DIS-Übung: keine Modi, nur der Inhalt des Partners (Prompt 173)
+  if (dis) $('rwSaved').hidden = true;
   $('disOpts').hidden = !dis; syncDis();
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = run === 'gates' || run === 'free' || run === 'real' || run === 'vbs';
@@ -226,10 +229,17 @@ export function openMenu(name = 'settings') {
 export function resume() { keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; document.body.classList.remove('menuopen'); game.last = performance.now(); }
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
-export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
+// Umschauen am Ort der Übung (Freiflug ohne Aufgabe im DIS-Modus, Prompt 172): Esc öffnet die Auswahl mit dem DIS-Block (Gelände
+// wechseln, Mission starten), ein zweites Esc fliegt weiter. Sonst Esc wie bisher: Pause.
+const disLooking = () => game.started && game.scenRun === 'real' && !!cfg.verbund && cfg.world === 'real';
+export function toggleMenu() {
+  if (menu.hidden && disLooking()) openMenu('mode');
+  else if (!menu.hidden && screen === 'mode' && from === null && disLooking()) back();
+  else if (!menu.hidden && screen === 'settings') back(); else openMenu('settings');
+}
 // Echte Welt, Ort laden: Fortschritt im Menü. Knopf „Laden“: ein zweiter Klick bricht ab (rwBusy oben).
 // Solange geladen wird, sind „Weiter“ und „Start“ gesperrt (Nutzer, Prompt 148): sonst startet man mit halbem Gebiet.
-// Die Karte, ein gespeicherter Ort und „Dort fliegen“ ersetzen das laufende Laden; ein anderer Startort oder Modus bricht es ab.
+// Die Karte, ein gespeicherter Ort und „Dorthin“ ersetzen das laufende Laden; ein anderer Startort oder Modus bricht es ab.
 let rwJob = null;
 function rwLive() {
   if (rwBusy) { rwBusy.abort(); return Promise.resolve(false); }
@@ -241,7 +251,7 @@ function rwAbort() { if (rwBusy) rwBusy.abort(); }
 // „Weiter“ (Modus) und „Start“ (Drohne) während des Ladens gesperrt, mit Beschriftung „Lädt …“
 function rwLock() {
   for (const [id, t] of [['modeNext', 'Weiter'], ['bStart', 'Start']]) { $(id).disabled = !!rwBusy; $(id).textContent = rwBusy ? 'Lädt …' : t; }
-  if (cfg.verbund) syncDis();   // „Dort fliegen“ ist während des Ladens auch gesperrt
+  if (cfg.verbund) syncDis();   // „Dorthin“ ist während des Ladens auch gesperrt
 }
 async function rwLiveDo() {
   const ll = parseLatLon(cfg.rwLL);
@@ -292,7 +302,7 @@ async function rwSavedFill() {
   const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); };
   add('', 'Gespeicherte Orte (' + list.length + ')');
   for (const x of list) add(x.lat + ', ' + x.lon, x.place + ' · ' + (x.buildings || 0) + ' Gebäude · ' + (x.size/1e6).toFixed(0) + ' MB');
-  sel.hidden = !list.length || cfg.rwSrc !== 'live';
+  sel.hidden = !list.length || cfg.rwSrc !== 'live' || !!cfg.verbund;   // DIS-Übung: der Ort kommt aus der Übung
   fitPanel();
 }
 const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
@@ -342,7 +352,7 @@ function buildModeList() {
 // nicht ob sie installiert ist. Mit Einheiten in der Übung: Flug an ihrem Ort (Kartendaten, wenn eine Quelle ihn abdeckt,
 // sonst ebene Fläche auf der Höhe der Einheiten).
 // Experimentell (DIS-Abschluss, docs/dis-abschluss.md): bekannte Grenzen im Hinweis.
-const DIS_INFO = 'DIS-Übung (experimentell): Die Drohne erscheint beim Partner, seine Einheiten hier. Der Partner greift die Drohne meist nicht an und übernimmt keinen Schaden.';
+const DIS_INFO = 'DIS-Übung (experimentell): nur die Einheiten des Partners, keine Parcours- oder Jagdziele. Die Drohne erscheint beim Partner; er greift sie meist nicht an und übernimmt keinen Schaden.';
 vbSet({ port: cfg.disPort || 3000, exercise: cfg.disEx || 1, keep: !!cfg.disKeep });
 // Frage des Browsers nach dem lokalen Netz (Chrome: „local-network-access“): 'prompt', 'denied', 'granted' oder '' (unbekannt)
 let lna = '';
@@ -350,7 +360,7 @@ function lnaCheck() {
   try { navigator.permissions.query({ name: 'local-network-access' }).then(p => { lna = p.state; }, () => { lna = ''; }); } catch (e) { lna = ''; }
 }
 // Letzter Ort der Übung (D5: pausiert der Partner, etwa VBS ohne Fokus, kommen keine Meldungen; nach 13 s wären die Einheiten
-// weg und „Dort fliegen“ aus). Bleibt bis zum Wechsel von Übung oder Port; das Menü nennt das Alter.
+// weg und „Dorthin“ aus). Bleibt bis zum Wechsel von Übung oder Port; das Menü nennt das Alter.
 let disLast = null;
 const disN = n => n + (n === 1 ? ' Einheit' : ' Einheiten');
 function syncDis() {
@@ -369,18 +379,20 @@ function syncDis() {
   $('disGet').hidden = !(st === 'nicht gefunden' || (st === 'wartet' && lna !== 'prompt' && lna !== 'denied'));
   $('disSets').hidden = st !== 'läuft';
   $('disHere').disabled = !c || !!rwBusy;
-  // „Dort fliegen“ gewählt: ebene Fläche am Ort der Übung oder Kartendaten an genau diesem Ort (dann ist auch „Ort laden“ gewählt)
+  // „Dorthin“ gewählt: ebene Fläche am Ort der Übung oder Kartendaten an genau diesem Ort (dann ist auch „Ort laden“ gewählt)
   $('disHere').setAttribute('aria-pressed', String(cfg.rwSrc === 'dis' || (cfg.rwSrc === 'live' && !!cfg.disLL && cfg.rwLL === cfg.disLL)));
   if (document.activeElement !== $('disPort')) $('disPort').value = VB.port;
   if (document.activeElement !== $('disEx')) $('disEx').value = VB.exercise;
 }
 // ---- Höhendienst für die DIS-Übung (Etappe W3, docs/plan-gelaende-wms.md, Abschnitt 3) ----
-// Suche beim Öffnen des DIS-Blocks, ohne Fund alle 30 s, vor „Dort fliegen“ erneut, wenn älter als 60 s. Ergebnis in rw.wms
+// Suche beim Öffnen des DIS-Blocks, ohne Fund alle 30 s, vor „Dorthin“ erneut, wenn älter als 60 s. Ergebnis in rw.wms
 // (Laufzeit, nicht gespeichert). Reihenfolge der Quellen wie in der Liste: eigene vor der Vorlage „lokaler Rechner“.
 const WMS_RETRY = 30, WMS_FRESH = 60;
 let wmsBusy = null, wmsT = -1e9;
 const disWmsList = () => rwSources().filter(s => s.kind === 'wms' && (s.use === 'dis' || s.use === 'all'));
-const disWms = () => !!(cfg.verbund && isReal() && cfg.rwLL === cfg.disLL && rw.wms && rw.wms.src);
+// disLand: am Ort der Übung die Kartendaten des Landes statt des Höhendienstes (Knopf „Kartendaten laden“, Nutzer Prompt 172)
+let disLand = false;
+const disWms = () => !!(cfg.verbund && isReal() && cfg.rwLL === cfg.disLL && rw.wms && rw.wms.src && !disLand);
 function disProbe() {
   if (wmsBusy) return wmsBusy;
   const c = vbCenter() || (disLast && disLast.c), ll = c ? [c.lat, c.lon] : parseLatLon(cfg.disLL) || [null, null];
@@ -390,25 +402,38 @@ function disProbe() {
   disMsg();
   return wmsBusy;
 }
-// Geländezeile im DIS-Block: was „Dort fliegen“ nimmt oder genommen hat, dazu „Gelände ›“ (Quellen)
+// Geländezeile im DIS-Block: was „Dorthin“ nimmt oder genommen hat. Nach dem Laden ein Knopf zum Wechsel des Geländes
+// (Höhendienst <-> Kartendaten des Landes, Prompt 172), dazu „Gelände ›“ (Quellen)
 const disHost = u => String(u).split('/')[2];
 function disMsg(force = false) {
   if (rwBusy || !cfg.verbund || !isReal() || (!force && $('rwMsg').dataset.dis === 'err')) return;   // Fehlermeldung bleibt bis zur nächsten Eingabe
   const w = rw.wms, here = parseLatLon(cfg.disLL), flown = cfg.rwSrc === 'live' && here && cfg.rwLL === cfg.disLL && rw.live && rw.liveAt && rw.liveAt[0] === here[0] && rw.liveAt[1] === here[1];
-  const t = cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + '. Gelände: ebene Fläche. Kein Höhendienst, keine Kartendaten.'
-    : flown && rw.liveDis && rw.liveDis.wms ? 'Start am Ort der Übung: ' + cfg.disLL + '. Gelände: Höhendienst (' + disHost(rw.liveDis.wms.hgt.url) + ', ' + rw.liveDis.wms.hgt.layer + '). Nicht gespeichert.'
-    : flown ? 'Start am Ort der Übung: ' + cfg.disLL + '. Gelände: Kartendaten (' + (rw.liveSrcs || []).join(', ') + '). Kein Höhendienst gefunden.'
-    : !disWmsList().length ? 'Kein Höhendienst eingetragen. „Dort fliegen“ nimmt Kartendaten oder eine ebene Fläche.'
+  const land = here && !!rwPlan(here[0], here[1]), viaWms = flown && rw.liveDis && rw.liveDis.wms;
+  const t = cfg.rwSrc === 'dis' ? 'Gelände: ebene Fläche, keine Daten.'
+    : viaWms ? 'Gelände: Höhendienst ' + disHost(rw.liveDis.wms.hgt.url) + ', ohne Häuser und Luftbild.' + (rw.meta && rw.meta.hMax - rw.meta.hMin < 2 ? ' Hier nur flach.' : '')
+    : flown ? 'Gelände: Kartendaten ' + (rw.liveSrcs || []).map(x => x.split(' (')[0]).join(', ') + '.' + (w && w.src ? ' Höhen weichen von VBS ab.' : '')
+    : !disWmsList().length ? 'Kein Höhendienst eingetragen. „Dorthin“ nimmt Kartendaten oder eine ebene Fläche.'
     : wmsBusy && !w ? 'Suche Höhendienst …'
-    : w && w.src ? 'Höhendienst gefunden: ' + disHost(w.url) + ', Ebene ' + w.layer + '. „Dort fliegen“ nimmt ihn.'
+    : w && w.src ? 'Höhendienst gefunden: ' + disHost(w.url) + ', Ebene ' + w.layer + '. „Dorthin“ nimmt ihn.'
     : w && w.err ? 'Höhendienst auf ' + disHost(w.url) + ', aber ' + w.text + '. Ebene unter Gelände › eintragen.'
-    : 'Kein Höhendienst gefunden. „Dort fliegen“ nimmt Kartendaten oder eine ebene Fläche.';
+    : 'Kein Höhendienst gefunden. „Dorthin“ nimmt Kartendaten oder eine ebene Fläche.';
+  const swap = (viaWms || cfg.rwSrc === 'dis') && land ? 'Kartendaten laden' : flown && !viaWms && w && w.src ? 'Höhendienst laden' : '';
   const m = $('rwMsg');
-  if (m.dataset.dis === t && m.querySelector('button')) return;
-  m.textContent = t; m.dataset.dis = t;
+  if (m.dataset.dis === t + swap && m.querySelector('button')) return;
+  m.textContent = t; m.dataset.dis = t + swap;
+  if (swap) {
+    const s = document.createElement('button'); s.className = 'secondary linkbtn'; s.id = 'disSwap'; s.textContent = swap;
+    s.addEventListener('click', () => disTerrain(swap === 'Kartendaten laden')); m.append(' ', s);
+  }
   const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Gelände ›';
   b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('src'); }); m.append(' ', b);
   fitPanel();
+}
+// Gelände am Ort der Übung wechseln, ohne die Mission zu starten; läuft das Umschauen (Freiflug), geht es dort im neuen Gelände weiter
+async function disTerrain(land) {
+  if (rwBusy || !parseLatLon(cfg.disLL)) return;
+  disLand = land; cfg.rwLL = cfg.disLL; cfg.rwSrc = 'live'; saveCfg(); syncMenu();
+  await rwReplace();
 }
 let disShown = '';
 setInterval(() => {   // jede Sekunde, solange der DIS-Modus im Menü gewählt ist
@@ -439,18 +464,25 @@ for (const [id, key, lo, hi] of [['disPort', 'disPort', 1, 65535], ['disEx', 'di
 // Am Ort der Übung fliegen (Nutzer, Prompt 148: ein Klick lädt und startet): Ort festhalten; mit Quelle (zum Beispiel NRW)
 // die Kartendaten laden wie „Ort laden“ (Abbrechen bleibt möglich), sonst ebene Fläche; dann der Flug dort, auch aus einem
 // laufenden Flug heraus. Schlägt das Laden fehl, bleibt das Menü mit der Meldung offen, kein Start in Monschau.
+// „Dorthin“ (Nutzer, Prompt 172): nicht mehr sofort die Mission. Gelände laden, dann Freiflug ohne Aufgabe am Ort der Übung zum
+// Umschauen (die Drohne erscheint dabei schon beim Partner). Im Menü lässt sich das Gelände wechseln; „Weiter“ und „Start“
+// beginnen die Mission am selben Ort, ohne neu zu laden.
 $('disHere').addEventListener('click', async () => {
   const c = vbCenter() || (disLast && disLast.c);
   if (!c || rwBusy) return;
   const ll = c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
+  if (ll !== cfg.disLL) disLand = false;   // neuer Ort: wieder zuerst der Höhendienst
   cfg.disLL = ll; cfg.disH = Math.round(c.h*100)/100;
   // Reihenfolge (W3): Höhendienst, dann Landesquelle, dann ebene Fläche. Suche erneuern, wenn älter als 60 s oder ohne Fund
   if (!rw.wms || !rw.wms.src || performance.now() - wmsT > WMS_FRESH*1000) { $('disHere').disabled = true; await disProbe(); }
-  if (rw.wms && rw.wms.src || rwPlan(c.lat, c.lon)) {
+  if (rw.wms && rw.wms.src && !disLand || rwPlan(c.lat, c.lon)) {
     cfg.rwLL = ll; cfg.rwSrc = 'live'; saveCfg(); syncMenu();
     if (!await rwReplace()) return;
   } else { rwAbort(); cfg.rwSrc = 'dis'; saveCfg(); syncMenu(); fitPanel(); }
-  await start();
+  if (cfg.rwSrc === 'dis') disFlat();
+  if (!rw.ready) await rwLoadEmbedded();
+  run('real', true);   // Freiflug ohne Aufgabe am Ort der Übung
+  say('Am Ort der Übung, ohne Aufgabe. Esc: Auswahl, dort Gelände wechseln oder mit Weiter die Mission starten.', 6);
 });
 function disFlat() {
   const ll = parseLatLon(cfg.disLL);
@@ -468,7 +500,7 @@ for (const id of ['go', 'goTac']) $(id).addEventListener('click', () => { cfg.fl
 // Vorschau der DIS-Grundtypen (aus dem DIS-Block): Spielkarte mit den 18 Modellen, Wahl im Menü bleibt
 $('disBases').addEventListener('click', () => { rwAbort(); run('vbs'); });
 document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
-// Startort: Monschau, Ort laden oder DIS-Übung (Verbund; den Ort setzt dort „Dort fliegen“)
+// Startort: Monschau, Ort laden oder DIS-Übung (Verbund; den Ort setzt dort „Dorthin“)
 document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.start;
   if (v === 'dis') { cfg.verbund = true; }
