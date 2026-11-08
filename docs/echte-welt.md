@@ -346,3 +346,9 @@ Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io gepr�
 ## WMS-Höhendienst (08.11.2026, Prompt 166 bis 170, Plan `docs/plan-gelaende-wms.md`)
 - Zweite Quellenart neben den Landesdiensten: nur Höhen aus einem OGC-WMS 1.3.0 (EPSG:4326, Gleitkomma-GeoTIFF), etwa vom Gelände-Server einer DIS-Übung. Gilt für DIS-Übung, überall oder nie. Daten nur im Arbeitsspeicher, nie gespeichert. Ohne Luftbild: schattiertes Relief.
 - Startort DIS-Übung: Der Simulator sucht den Dienst selbst (Vorlage localhost:7071 und eigene Quellen). „Dort fliegen“ nimmt den Höhendienst, sonst die Landesquelle, sonst eine ebene Fläche. Die Zeile unter dem DIS-Block nennt das Gelände.
+
+## Bäume unter Freileitungen, ein Ringkurs (08.11.2026, Prompt 171)
+- Fehler (Nutzer, Attendorn): Bäume auf Straßen und Feldern, in einer Reihe. Ursache gesichert: Die Oberfläche (DOM) enthält die Leiterseile einer Hochspannungstrasse; jeder Hochpunkt darunter wurde ein Baum. Behoben in `findTrees` (`dropWires` in `rwload.js`): schmale Hochpunkte über 10 m, die zu mindestens 6 auf einer Geraden liegen, gelten als Leitung; alle Hochpunkte bis 6 m daneben fallen weg. Attendorn: 419 von 1 774 Punkten entfernt (5 Leiterseile), sonst keiner. Schwellen geschätzt.
+- Geprüft, nicht eingebaut: Farbe des Luftbilds an der Krone. Trennt Straße und Boden gut, Wiese aber nicht (grün), und echte kleine Straßenbäume fielen mit heraus (hohe Dinge stehen im Luftbild versetzt). Bräuchte das Bild im Browser.
+- Gespeicherte Orte und Kacheln behalten ihre alten Bäume, bis man sie löscht und neu lädt (Optionen → Daten).
+- Ringe: wieder ein Kurs je km², 8 Ringe zufällig 40 bis 420 m vom Start, frei sein muss nur An- und Abflug je 15 m; Beschriftung der Kurse entfernt (die Raute zeigt den nächsten Ring). Monschau: 30 von 30 Startwerten finden eine Kette, höchstens 11 ms.

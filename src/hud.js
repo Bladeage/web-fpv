@@ -8,7 +8,7 @@ import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget, scen, diff, rings, ringsAlt } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff, rings } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';
@@ -270,7 +270,6 @@ export function drawHud() {
 
   if (on('marker')) drawGateMarker(c, W, H, fs);
   drawPoiLabels(c, W, H, fs);
-  drawCourseLabels(c, W, H, fs);
   drawBaseLabels(c, W, H, fs);
   drawVbsLabels(c, W, H, fs);
   if (touchUI) drawSticks(c, W, H);
@@ -390,20 +389,6 @@ function drawBig(c, x, y, fs, FONT, weight, txt, rows) {
 // Echte Welt (mit „Nächster Ort“): die nächsten Orte mit Name und Entfernung über ihrer Mitte (Nutzer, Prompt 165; ersetzt die
 // Türme). Erst ab 400 m Abstand (im Ort selbst stört es), bis 12 km, höchstens 5, nur wenn im Bild. Abstände geschätzt.
 export const POI = { near: 400, far: 12000, max: 5, up: 40 };
-// Zwei Ringkurse (echte Welt, vor dem ersten Ring): Name und Entfernung über dem ersten Ring jedes Kurses, damit man den
-// entfernteren blauen Kurs findet
-function drawCourseLabels(c, W, H, fs) {
-  if (!lastVP || !rw.on || scen.id !== 'rings' || !ringsAlt.length || game.sim.next !== 0) return;
-  for (const [g, name, col] of [[rings[0], 'KURS ORANGE', '#ffc27a'], [ringsAlt[0], 'KURS BLAU', '#9cd0ff']]) {
-    const p = [g.c[0], g.c[1] + diff().ringR + 1.5, g.c[2]], cp = mApply(lastVP, p);
-    if (cp[3] < 0.01) continue;
-    const nx = cp[0]/cp[3], ny = cp[1]/cp[3];
-    if (Math.abs(nx) > 0.95 || Math.abs(ny) > 0.95) continue;
-    const d = vLen(vSub(p, game.sim.p)), sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H - 6, txt = name + ' ' + Math.round(d) + ' M';
-    c.font = `600 ${Math.round(fs*0.9)}px system-ui,sans-serif`; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.6)'; c.fillStyle = col;
-    c.strokeText(txt, sx, sy); c.fillText(txt, sx, sy);
-  }
-}
 function drawPoiLabels(c, W, H, fs) {
   if (!lastVP || !rw.on || !rw.features || !osdOn(cfg.osd, 'place')) return;
   const me = game.sim.p, list = rwPlaceCenters().map(t => ({ t, d: Math.hypot(t.x - me[0], t.z - me[2]) })).filter(o => o.d > POI.near && o.d < POI.far);

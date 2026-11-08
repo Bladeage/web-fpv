@@ -530,3 +530,14 @@ test('Fehlerbericht Nutzer (Prompt 140): Start nicht im Wasser, kein Absturz in 
   R.rwApply({ meta: { ...meta, far: undefined }, q: new Uint16Array(q.buffer, q.byteOffset, q.byteLength/2), b16: un('bld'), t16: un('trees') });
   assert.deepEqual(rw.meta.home, meta.home, 'ohne Wasser bleibt der Start, wo er war');
 });
+
+test('Freileitung (Prompt 171): Hochpunkte unter Leiterseilen fallen weg, Kronen bleiben', async () => {
+  const { findTrees } = await import('../src/rwload.js');
+  const n = 200, bbox = [0, 0, 400, 400], dgm = new Float32Array(n*n), dom = new Float32Array(n*n);
+  const crown = (ci, cj, h, r) => { for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i*i + j*j <= r*r) { const k = (cj + j)*n + ci + i; dom[k] = Math.max(dom[k], h - (i*i + j*j)*0.4); } };
+  for (const [ci, cj] of [[30, 30], [60, 150], [150, 40], [170, 170], [100, 60]]) crown(ci, cj, 14, 3);   // fünf Bäume, 14 m, Krone 6 m breit
+  for (let k = 10; k < 190; k += 4) dom[(20 + Math.round(k*0.8))*n + k] = 18 + (k % 8)*0.3;   // Seil schräg durchs Gebiet, Hochpunkte alle 8 m
+  const t = findTrees(dgm, dom, [], n, bbox);
+  assert.equal(t.length, 5, 'nur die Kronen: ' + t.length);
+  assert.ok(t.every(q => Math.abs(q[2] - 14) < 0.01));
+});

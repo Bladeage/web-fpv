@@ -112,9 +112,50 @@ export function findTrees(dgm, dom, roofs, n, bbox) {
       const w = nd[(j + y)*n + i + x];
       if (w > v || (w === v && (y < 0 || (y === 0 && x < 0)))) { top = false; break; }
     }
-    if (top) trees.push([(i + 0.5)*cell - half, (j + 0.5)*cell - half, v, Math.min(5, Math.max(1.5, v*0.3))]);
+    if (top) trees.push([(i + 0.5)*cell - half, (j + 0.5)*cell - half, v, Math.min(5, Math.max(1.5, v*0.3)), i, j]);
   }
-  return trees;
+  return dropWires(trees, nd, n, cell).map(t => t.slice(0, 4));
+}
+// Freileitungen (Nutzer, Prompt 171: „Bäume auf den Straßen“ in Attendorn): Die Oberfläche enthält die Leiterseile, jeder Hochpunkt
+// darunter wurde ein Baum, quer über Straßen und Felder. Erkennung: Hochpunkt über 10 m, aber schmal (im Umkreis 3 Zellen weniger
+// als 12 % der Zellen über der halben Höhe; eine Krone füllt mehr). Liegen mindestens 6 solche Punkte auf einer Geraden (3 m
+// Abstand), ist es eine Leitung: alle Hochpunkte bis 6 m daneben fallen weg (auch über Hecken unter der Leitung). Einzelne schmale
+// Punkte bleiben (junge Bäume). Schwellen geschätzt und an Attendorn geprüft (5 Leiterseile, 419 von 1 774 Punkten, sonst keiner).
+export const RW_WIRE = { minH: 10, fill: 0.12, near: 3, need: 6, drop: 6, rounds: 8, pairs: 6000 };
+export function dropWires(trees, nd, n, cell) {
+  const W = RW_WIRE, thin = [];
+  for (const t of trees) {
+    const [, , v, , i, j] = t;
+    if (v <= W.minH) continue;
+    let tot = 0, hi = 0;
+    for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) {
+      if (x*x + y*y > 9 || i + x < 0 || j + y < 0 || i + x >= n || j + y >= n) continue;
+      tot++; if (nd[(j + y)*n + i + x] > 0.5*v) hi++;
+    }
+    if (hi/tot < W.fill) thin.push(t);
+  }
+  if (thin.length < W.need) return trees;
+  let rest = thin, seed = 12345;
+  const rnd = () => (seed = (seed*1103515245 + 12345) % 2147483648)/2147483648, lines = [];
+  for (let r = 0; r < W.rounds && rest.length >= W.need; r++) {
+    let best = null;
+    const m = rest.length, all = m*(m - 1)/2 <= W.pairs;
+    for (let k = 0; k < (all ? m*(m - 1)/2 : W.pairs); k++) {
+      let a, b;
+      if (all) { a = Math.floor((1 + Math.sqrt(1 + 8*k))/2); b = k - a*(a - 1)/2; } else { a = Math.floor(rnd()*m); b = Math.floor(rnd()*m); }
+      const A = rest[a], B = rest[b], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz);
+      if (L < 10 || L > 150) continue;
+      const ux = dx/L, uz = dz/L;
+      let cnt = 0; for (const q of rest) if (Math.abs((q[0] - A[0])*uz - (q[1] - A[1])*ux) < W.near) cnt++;
+      if (!best || cnt > best.cnt) best = { A, ux, uz, cnt };
+    }
+    if (!best || best.cnt < W.need) break;
+    const on = rest.filter(q => Math.abs((q[0] - best.A[0])*best.uz - (q[1] - best.A[1])*best.ux) < W.near), s = on.map(q => (q[0] - best.A[0])*best.ux + (q[1] - best.A[1])*best.uz);
+    lines.push({ ...best, s0: Math.min(...s) - 10, s1: Math.max(...s) + 10 });
+    rest = rest.filter(q => !on.includes(q));
+  }
+  if (!lines.length) return trees;
+  return trees.filter(q => !lines.some(l => { const s = (q[0] - l.A[0])*l.ux + (q[1] - l.A[1])*l.uz; return s > l.s0 && s < l.s1 && Math.abs((q[0] - l.A[0])*l.uz - (q[1] - l.A[1])*l.ux) < W.drop; }));
 }
 // Gebäudenutzung (ALKIS-Gebäudefunktion, steht in LoD2 als bldg:function) -> Fassadenklasse. Bedeutung der Codes geprüft
 // gegen den ALKIS-WFS NRW (Feld „funktion“ als Text). 0 Wohnen, 1 Wohnen mit Laden, 2 Garage/Überdachung, 3 Gewerbe,

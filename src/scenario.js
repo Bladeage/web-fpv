@@ -135,26 +135,13 @@ function makeSlalom(R) {
   const A = COURSE[0], B = COURSE[1], n = vNorm([B[0] - A[0], 0, B[1] - A[1]]);
   return [0.2, 0.35, 0.5, 0.65, 0.8].map((t, k) => ({ c: [A[0] + (B[0] - A[0])*t, SLALOM_H/2, A[1] + (B[1] - A[1])*t], n, r: [-n[2], 0, n[0]], yaw: Math.atan2(-n[0], -n[2]), side: k % 2 ? -1 : 1 }));
 }
-// Ringe in der echten Welt (Etappe T2): Kette von 8 Ringen um den Start über den Platzierungsdienst; findet er keine freie
-// Kette (dichte Altstadt), Kreis hoch über dem Start
+// Ringe in der echten Welt: ein Kurs je km² (Nutzer, Prompt 171; ersetzt die zwei Kurse aus Prompt 166). 8 Ringe zufällig im Gebiet,
+// 40 bis 420 m vom Start, 3 bis 18 m über dem Boden, reihum; zwischen den Ringen fliegt man auch über Häuser, frei sein müssen nur
+// je 15 m An- und Abflug. Den nächsten Ring zeigt die Zielraute. Findet der Dienst keine Kette, Kreis hoch über dem Start.
+export const RING_REAL = { rMin: 40, rMax: 420, hMin: 3, hMax: 18, dMin: 40, dMax: 360, approach: 15, retry: 12 };
 export function ringsReal(R) {
-  const W = placeReal(), c = game.home, cs = ringChain(W, c, 8, R) || ringCircle(W, c, 8);
+  const W = placeReal(), c = game.home, cs = ringChain(W, c, 8, R, RING_REAL) || ringCircle(W, c, 8);
   return framesFromCenters(cs);
-}
-// Zweiter Kurs im Gebiet (Prompt 166: zwei Ringparcours im 1 x 1 km): Mitte 150 bis 400 m vom Start in zufälliger Richtung, im
-// Gebiet mit 60 m Rand, nicht über Wasser, mindestens 60 m von jedem Ring des ersten Kurses. Enger (15 bis 45 m um die Mitte) und
-// höher (5 bis 25 m über dem Boden, über Baumkronen; gemessen in Monschau: so passt eine Kette an 34 von 64 Stellen statt 10).
-// Bis 30 Mitten; sonst kein zweiter Kurs.
-export const ringsAlt = [];
-export function ringsRealSecond(R, first) {
-  const W = placeReal(), h = game.home, B = W.bounds;
-  for (let k = 0; k < 30; k++) {
-    const a = R()*2*Math.PI, d = 150 + 250*R(), c = [h[0] + Math.sin(a)*d, h[1] - Math.cos(a)*d];
-    if (c[0] < B[0] + 60 || c[0] > B[2] - 60 || c[1] < B[1] + 60 || c[1] > B[3] - 60 || W.wet(c[0], c[1])) continue;
-    const cs = ringChain(W, c, 8, R, { tries: 150, rMin: 15, rMax: 45, hMin: 5, hMax: 25 });
-    if (cs && cs.every(p => first.every(g => Math.hypot(p[0] - g.c[0], p[2] - g.c[2]) > 60))) return framesFromCenters(cs);
-  }
-  return [];
 }
 // Startwert für die Anordnung: null = bei jedem Start neu (Zufall), Zahl = feste Anordnung (Tests)
 let layoutSeed = null;
@@ -162,7 +149,6 @@ export function setLayoutSeed(n) { layoutSeed = n; }
 function newLayout() {
   const R = rng(layoutSeed ?? Math.floor(Math.random()*1e9));
   rings.length = 0; rings.push(...(rw.on ? ringsReal(R) : makeRings(R)));
-  ringsAlt.length = 0; if (rw.on) ringsAlt.push(...ringsRealSecond(R, rings));
   poles.length = 0; poles.push(...makeSlalom(R));
   poleCols = poles.map(p => ({ c: p.c, h: [0.08, SLALOM_H/2, 0.08], cs: 1, sn: 0 }));
   scen.version++;   // Modell neu bauen
@@ -276,16 +262,11 @@ function advance(count) {
 const ringPassed = (g, a, b) => { const p = crossed(a, b, g.c, g.n); if (!p) return false; const d = vSub(p, g.c); return vLen(vSub(d, vScale(g.n, vDot(d, g.n)))) < diff().ringR - ringTube(); };
 function checkRing(a, b) {
   if (st.done) return;
-  // Zwei Kurse (echte Welt): Wer zuerst durch den ersten Ring des zweiten Kurses fliegt, fliegt diesen Kurs
-  if (game.sim.next === 0 && ringsAlt.length && ringPassed(ringsAlt[0], a, b)) {
-    const A = rings.slice(); rings.length = 0; rings.push(...ringsAlt); ringsAlt.length = 0; ringsAlt.push(...A); scen.version++;
-    advance(rings.length); return;
-  }
   if (ringPassed(rings[game.sim.next], a, b)) advance(rings.length);
 }
 function collideRings(h) {
   const s = game.sim, lim = ringTube() + PHYS.radius;
-  for (const g of [...rings, ...ringsAlt]) {
+  for (const g of rings) {
     const d = vSub(s.p, g.c);
     if (vLen(d) > diff().ringR + lim) continue;
     const inPlane = vSub(d, vScale(g.n, vDot(d, g.n))), l = vLen(inPlane);
@@ -432,7 +413,7 @@ export function scenLabel() {
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
   if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
-  if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}` + (s.next === 0 && ringsAlt.length ? ' · 2 KURSE' : '');
+  if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;
   return 'LANDEN';
 }
@@ -458,10 +439,7 @@ export function scenTarget() {
     for (const t of targets) if (t.state === 'fly') { const d = vLen(vSub(t.p, s.p)); if (d < bd) { bd = d; best = t.p; } }
     return best;
   }
-  if (scen.id === 'rings') {   // vor dem ersten Ring: der nähere Startring der beiden Kurse
-    if (s.next === 0 && ringsAlt.length && vLen(vSub(ringsAlt[0].c, s.p)) < vLen(vSub(rings[0].c, s.p))) return ringsAlt[0].c;
-    return rings[s.next].c;
-  }
+  if (scen.id === 'rings') return rings[s.next].c;
   if (scen.id === 'slalom') { const g = poles[s.next]; return [g.c[0] + g.r[0]*g.side*2, 2, g.c[2] + g.r[2]*g.side*2]; }
   return [PAD.c[0], PAD.c[1] + 0.5, PAD.c[2]];
 }
@@ -498,7 +476,6 @@ export function buildScenario() {
   const mb = new MeshBuilder(), parts = [];
   const part = f => { const start = mb.count; f(); parts.push({ start, count: mb.count - start }); };
   if (scen.id === 'rings') for (const g of rings) part(() => torus(mb, g, [1.0, 0.72, 0.1]));
-  if (scen.id === 'rings') for (const g of ringsAlt) part(() => torus(mb, g, [0.3, 0.75, 1.0]));   // zweiter Kurs blau
   if (scen.id === 'slalom') for (const g of poles) part(() => {
     mb.box(g.c, [0.08, SLALOM_H/2, 0.08], g.yaw, [0.92, 0.92, 0.9]);
     const fc = [g.c[0] + g.r[0]*g.side*0.33, SLALOM_H - 0.25, g.c[2] + g.r[2]*g.side*0.33];

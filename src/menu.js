@@ -33,7 +33,7 @@ const COURSE_REAL = ['free', 'rings', 'landing', 'hunt', 'hunt3', 'deliver'];   
 // Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
 const REAL_INFO = {
   real: 'Freiflug in echtem Gelände.',
-  rings: 'Zwei Kurse mit je 8 Ringen (orange am Start, blau weiter weg). Es zählt der Kurs, durch dessen ersten Ring du zuerst fliegst.',
+  rings: '8 Ringe zufällig im Gebiet verteilt, bei jedem Start neu. Die Raute zeigt den nächsten Ring.',
   landing: 'Plattform auf einem flachen, freien Platz 60 bis 150 m vom Start, bei jedem Start neu. Sanft landen, 1 s ruhig stehen.',
   hunt: 'Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt. Bei Leicht mit Ballons.',
   hunt3: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei Leicht mit Ballons.',

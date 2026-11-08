@@ -16,26 +16,34 @@ const inB = (W, x, z, m) => x > W.bounds[0] + m && x < W.bounds[2] - m && z > W.
 // (scenario.js ringLayoutOk): Ring rCheck + 1 m über dem Boden, rCheck + 1,5 m frei, Ringe 12 bis 70 m auseinander, Weg zum
 // nächsten Ring mit 1,2 m frei, Ringebene nicht zu flach (Steigung zum Nachbarn unter etwa 37°), nicht über Wasser tiefer als
 // 3 m (Absturz ins Wasser beim Verfehlen soll nicht zwingend sein; Schätzung). Höhe über dem Boden hMin bis hMax.
-// opts: { rMin, rMax (Abstand zur Mitte, m), hMin, hMax, rCheck, tries }. Liefert Mitten [[x, y, z], ...] oder null.
-export const PLACE_RING = { rMin: 25, rMax: 70, hMin: 3, hMax: 15, rCheck: 2.4, tries: 400 };
+// opts: { rMin, rMax (Abstand zur Mitte, m), hMin, hMax, rCheck, tries, dMin, dMax (Abstand der Ringe), approach }. approach > 0:
+// statt des ganzen Wegs nur An- und Abflug je approach m vor und hinter jedem Ring frei (weit verteilte Ringe, Prompt 171: man
+// fliegt über Häuser hinweg). Liefert Mitten [[x, y, z], ...] oder null.
+export const PLACE_RING = { rMin: 25, rMax: 70, hMin: 3, hMax: 15, rCheck: 2.4, tries: 400, dMin: 12, dMax: 70, approach: 0, retry: 1 };
 export function ringChain(W, c, n, R, opts = {}) {
   const o = { ...PLACE_RING, ...opts };
   for (let t = 0; t < o.tries; t++) {
     const a0 = R()*2*Math.PI, cs = [];
     let ok = true;
-    for (let i = 0; i < n && ok; i++) {
+    // je Ring bis retry Würfe in seinem Sektor (retry 1: wie bisher, ein Fehlwurf verwirft die Kette)
+    const one = i => {
       const a = a0 + (i + 0.2 + 0.6*R())/n*2*Math.PI, r = o.rMin + (o.rMax - o.rMin)*R(), x = c[0] + Math.sin(a)*r, z = c[1] - Math.cos(a)*r;
-      if (!inB(W, x, z, 20) || W.wet(x, z)) { ok = false; break; }
+      if (!inB(W, x, z, 20) || W.wet(x, z)) return null;
       const p = [x, W.groundH(x, z) + o.rCheck + 1 + o.hMin + (o.hMax - o.hMin)*R(), z];
       // auch über Hängen: Ringunterkante über dem höchsten Boden im Umkreis
-      for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) if (W.groundH(x + dx, z + dz) > p[1] - o.rCheck - 1) { ok = false; break; }
-      if (ok && !W.free(p, o.rCheck + 1.5)) ok = false;
-      cs.push(p);
+      for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) if (W.groundH(x + dx, z + dz) > p[1] - o.rCheck - 1) return null;
+      return W.free(p, o.rCheck + 1.5) ? p : null;
+    };
+    for (let i = 0; i < n && ok; i++) {
+      let p = null;
+      for (let k = 0; k < o.retry && !p; k++) p = one(i);
+      if (p) cs.push(p); else ok = false;
     }
     if (!ok) continue;
     for (let i = 0; i < n && ok; i++) {
       const p = cs[i], q = cs[(i + 1) % n], d = vLen(vSub(q, p)), dir = vNorm(vSub(cs[(i + 1) % n], cs[(i + n - 1) % n]));
-      if (d < 12 || d > 70 || Math.abs(dir[1]) > 0.6 || !pathClearW(W, p, q, 1.2, 0.75)) ok = false;
+      if (d < o.dMin || d > o.dMax || Math.abs(dir[1]) > 0.6) ok = false;
+      else if (o.approach ? !pathClearW(W, vAdd(p, vScale(dir, -o.approach)), vAdd(p, vScale(dir, o.approach)), 1.2, 0.75) : !pathClearW(W, p, q, 1.2, 0.75)) ok = false;
     }
     if (ok) return cs;
   }
