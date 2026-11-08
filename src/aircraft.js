@@ -44,10 +44,14 @@ function planeAt(a, s) {
   return { p: [cx + Math.cos(ang)*r, 0, cz + Math.sin(ang)*r], r, dir, ang };
 }
 
-export function initAircraft(speedScale = 1) {
-  aircraft.length = 0;
-  PLANES.forEach(pl => aircraft.push({ kind: 'plane', ...pl, speed: pl.speed*Math.max(0.85, speedScale),   /* nicht langsamer als etwa 12 m/s: sonst Strömungsabriss (Schätzung) */ s: 0, t: 0, p: [0, 0, 0], v: [0, 0, 0], q: [0, 0, 0, 1], bank: 0, state: 'fly', spin: 0, ang: 0 }));
-  ROTORS.forEach(([kind, wps]) => {
+// Welt der Luftziele (T3): Bodenhöhe für den Absturz (Spielkarte 0)
+const aenv = { gh: () => 0 };
+// lay (echte Welt, T3): { planes: [{ loops, alt, speed }], rotors: [[kind, wps]], gh(x, z) } aus dem Platzierungsdienst.
+// Ohne lay die feste Aufstellung der Spielkarte (unverändert).
+export function initAircraft(speedScale = 1, lay = null) {
+  aircraft.length = 0; aenv.gh = lay ? lay.gh : () => 0;
+  (lay ? lay.planes : PLANES).forEach(pl => aircraft.push({ kind: 'plane', ...pl, speed: pl.speed*Math.max(0.85, speedScale),   /* nicht langsamer als etwa 12 m/s: sonst Strömungsabriss (Schätzung) */ s: 0, t: 0, p: [0, 0, 0], v: [0, 0, 0], q: [0, 0, 0, 1], bank: 0, state: 'fly', spin: 0, ang: 0 }));
+  (lay ? lay.rotors : ROTORS).forEach(([kind, wps]) => {
     const k = AIR_KIND[kind];
     aircraft.push({ kind, wps, wp: 1, p: wps[0].slice(), v: [0, 0, 0], yaw: 0, hold: 0, vmax: k.vmax*speedScale, q: [0, 0, 0, 1], tilt: [0, 0], state: 'fly', spin: 0, ang: 0, t: 0 });
   });
@@ -112,7 +116,8 @@ export function stepAircraft(h, a, b, balloons = false) {
       t.v[1] -= G*h; t.v = vScale(t.v, 1 - 0.4*h);
       t.p = vAdd(t.p, vScale(t.v, h)); t.ang += t.spin*h;
       t.q = qMul(t.q, qAxis([0, 0, 1], t.spin*h));   // trudelt um die Längsachse
-      if (t.p[1] <= 0.3) { t.p[1] = 0.3; t.state = 'down'; t.v = [0, 0, 0]; }
+      const g = aenv.gh(t.p[0], t.p[2]);
+      if (t.p[1] <= g + 0.3) { t.p[1] = g + 0.3; t.state = 'down'; t.v = [0, 0, 0]; }
     }
   }
   return points;

@@ -6,14 +6,14 @@ import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
 import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx, bestOk } from './physics.js';
 import { fmtTime } from './format.js';
-import { targets, initTargets, stepTargets } from './targets.js';
+import { targets, initTargets, stepTargets, HUNT_N, huntRoutePts, REGION } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
 import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.js';
 import { TOWN } from './town.js';
 import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
-import { rw, rwNearName, placeReal } from './realworld.js';
-import { ringChain, ringCircle } from './place.js';
+import { rw, rwNearName, placeReal, groundH } from './realworld.js';
+import { ringChain, ringCircle, freeAir, airRegions, airCircle, airWaypoints, flatSpot } from './place.js';
 import { osdOn } from './osd.js';
 import { DIS_PREVIEW } from './distypes.js';
 
@@ -57,7 +57,7 @@ export const diff = () => DIFF[cfg.diff] || DIFF.mid;
 export const dropR = () => DROP_R*(diff().dropScale || 1);   // Radius der Lieferzonen nach Stufe
 // Landehilfe (Leicht): unter 5 m Höhe höchstens 1,2 m/s plus 0,5 m/s je Meter Höhe sinken (am Boden 1,2 m/s)
 function landAid(s, h) {
-  const alt = s.p[1] - PHYS.foot, vmax = 1.2 + 0.5*Math.max(0, alt);
+  const alt = s.p[1] - PHYS.foot - (rw.on ? groundH(s.p[0], s.p[2]) : 0), vmax = 1.2 + 0.5*Math.max(0, alt);
   if (!diff().landAid || alt > 5 || s.v[1] > -vmax) return;
   // Schwerkraft dieses Schritts ausgleichen und dann zügig auf die erlaubte Sinkrate bremsen (nicht darüber hinaus)
   s.v[1] = Math.min(-vmax, s.v[1] + 9.81*h + (-vmax - s.v[1])*Math.min(1, 10*h));
@@ -179,8 +179,60 @@ export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
 const lead = { s: 0, t: 0, x: 0, z: 0, yaw: 0, ok: false, dist: 0, trail: [], trailT: 0 };
 export const followLead = () => lead;
 
-// Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden.
+// Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden. In der echten Welt ein flacher Platz (T3); c[1] = Boden.
 export const PAD = { c: [72.5, 0, -45] };
+const PAD_MAP = PAD.c.slice(), PICKUP_MAP = PICKUP.slice(), DROPS_MAP = DROPS.map(d => d.slice());
+
+/* ---------- Echte Welt: Aufstellung über den Platzierungsdienst (Etappe T3) ---------- */
+// Ziel-Drohnen: 6 Bereiche 40 bis 320 m um den Start, 9 bis 16 m über dem Boden; die drei mit fester Strecke nur dort, wo die
+// ganze Strecke 2,5 m frei und 4 m über dem Boden ist. Dazu 3 Schweber. Findet der Dienst weniger, gibt es weniger Ziele.
+export function huntLayoutReal(R) {
+  const W = placeReal(), h = game.home, regions = [], statics = [];
+  for (let i = 0; i < HUNT_N; i++) for (let k = 0; k < 40; k++) {
+    const p = freeAir(W, h, 40, 320, 9, 16, 3, R, 10);
+    if (!p || regions.some(q => Math.hypot(p[0] - q[0], p[2] - q[2]) < 2*REGION)) continue;
+    if (huntRoutePts(i, p).every(q => W.free(q, 2.5) && q[1] > W.groundH(q[0], q[2]) + 4)) { regions.push(p); break; }
+  }
+  for (let k = 0; k < 60 && statics.length < 3; k++) {
+    const p = freeAir(W, h, 30, 280, 8, 14, 2, R, 10);
+    if (p && [...regions, ...statics].every(q => Math.hypot(p[0] - q[0], p[2] - q[2]) > 20)) statics.push(p);
+  }
+  return { regions, statics, gh: groundH, free: W.free };
+}
+// Luftziele: Starrflügler als Achte (zwei Kreise mit 60 m, die sich berühren) und als Kreis mit 120 m um den Start, je 25 m über
+// dem höchsten Boden und frei; der Kreis mindestens 7 m über der Achte (wie auf der Spielkarte). Hubschrauber 18 bis 30 m, Sechs-
+// Rotoren 17 bis 22 m über dem Boden mit freien Wegen. Fehlt eine Strecke, fehlt das Ziel.
+export function airLayoutReal(R) {
+  const W = placeReal(), h = game.home, B = W.bounds, cx = Math.min(B[2] - 140, Math.max(B[0] + 140, h[0])), cz = Math.min(B[3] - 70, Math.max(B[1] + 70, h[1]));
+  const A = airCircle(W, [cx - 60, cz], 60), C = airCircle(W, [cx + 60, cz], 60), E = airCircle(W, h, 120), alt8 = Math.max(A.alt, C.alt);
+  const planes = [{ loops: [[A.c[0], A.c[1], 60, 1], [C.c[0], C.c[1], 60, -1]], alt: alt8, speed: 14 },
+    { loops: [[E.c[0], E.c[1], 120, -1]], alt: Math.max(E.alt, alt8 + 7), speed: 15 }];
+  const rotors = [];
+  for (const [kind, n, o] of [['heli', 4, { hMin: 18, hMax: 30 }], ['heli', 4, { hMin: 18, hMax: 30 }], ['hexa', 3, { hMin: 17, hMax: 22, rMax: 200 }], ['hexa', 3, { hMin: 17, hMax: 22, rMax: 200 }]]) {
+    const wps = airWaypoints(W, h, n, R, o);
+    if (wps) rotors.push([kind, wps]);
+  }
+  return { planes, rotors, gh: groundH };
+}
+// Plätze: Landeplatz 60 bis 150 m vom Start (Rückfall 15 bis 400 m), Abholplatz 10 bis 30 m, 4 Lieferplätze 60 bis 200 m, je
+// 25 m auseinander. Halbe Breite 3 m (größte Stufe), damit derselbe Platz für jede Stufe passt. Ohne Fund: neben dem Start.
+function spotReal(W, R, rMin, rMax, need, away = []) {
+  const ok = p => p && away.every(q => Math.hypot(p[0] - q[0], p[2] - q[2]) > 25);
+  for (let k = 0; k < 6; k++) { const p = flatSpot(W, game.home, rMin, rMax, 3, need, R, 100); if (ok(p)) return p; }
+  for (let k = 0; k < 6; k++) { const p = flatSpot(W, game.home, 15, 400, 3, need, R, 100); if (ok(p)) return p; }
+  const x = game.home[0] + 8 + 6*away.length, z = game.home[1];
+  return [x, groundH(x, z), z];
+}
+function spotsReal(R) {
+  const W = placeReal();
+  if (scen.id === 'landing') { const p = spotReal(W, R, 60, 150, 6); PAD.c[0] = p[0]; PAD.c[1] = p[1]; PAD.c[2] = p[2]; }
+  if (scen.id === 'deliver') {
+    const pk = spotReal(W, R, 10, 30, 4), ds = [];
+    for (let i = 0; i < 4; i++) ds.push(spotReal(W, R, 60, 200, 5, [pk, ...ds]));
+    PICKUP.splice(0, 3, ...pk); ds.forEach((d, i) => DROPS[i].splice(0, 3, ...d));
+  }
+}
+function spotsMap() { PAD.c.splice(0, 3, ...PAD_MAP); PICKUP.splice(0, 3, ...PICKUP_MAP); DROPS_MAP.forEach((d, i) => DROPS[i].splice(0, 3, ...d)); }
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
@@ -189,13 +241,16 @@ function reset() {
   task.gateExtra = diff().gateExtra || 0;   // Tor-Toleranz nach Stufe
   if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout();
   st.carry = false; st.deliv = 0; st.inBand = 0; game.payload = 0;
+  if (rw.on) spotsReal(rng(layoutSeed ?? Math.floor(Math.random()*1e9))); else spotsMap();
+  scen.version++;
   if (scen.id === 'deliver') {   // zufällige Reihenfolge von 3 der 4 Plattformen
     const idx = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
     dropOrder.length = 0; dropOrder.push(...idx.slice(0, DELIVER_N));
     scen.version++;
   }
   if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; const r = routeAt(ROUTES[0], 0); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw; }
-  st.hits = 0; if (scen.id === 'hunt') initTargets(diff().huntSpeed); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+  st.hits = 0; const lr = () => rng(layoutSeed ?? Math.floor(Math.random()*1e9));
+  if (scen.id === 'hunt') initTargets(diff().huntSpeed, rw.on ? huntLayoutReal(lr()) : null); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed, rw.on ? airLayoutReal(lr()) : null); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -260,7 +315,7 @@ function checkLanding(a, b, h) {
   landAid(s, h);
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
-  const onPad = s.p[1] - PHYS.foot < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
+  const onPad = s.p[1] - PHYS.foot - PAD.c[1] < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
   if (onPad && !st.onPad && st.takeoff !== null) {
     const hard = vLen(st.vPrev) > diff().landV;
     st.hard = st.hard || hard;   // einmal zu hart bleibt zu hart, bis die Drohne wieder abhebt
@@ -270,7 +325,7 @@ function checkLanding(a, b, h) {
     st.hold += h;
     if (st.hold >= LAND_HOLD) finish(s.t - st.takeoff);
   } else st.hold = 0;
-  if (s.p[1] - PHYS.foot > 0.2) st.hard = false;   // nach hartem Aufsetzen erst wieder abheben (Abpraller zählen nicht)
+  if (s.p[1] - PHYS.foot - PAD.c[1] > 0.2) st.hard = false;   // nach hartem Aufsetzen erst wieder abheben (Abpraller zählen nicht)
   st.onPad = onPad; st.vPrev = s.v.slice();
 }
 
@@ -299,7 +354,7 @@ function checkDeliver(a, b, h) {
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const tgt = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP;
   landAid(s, h);
-  const over = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < dropR(), alt = s.p[1] - PHYS.foot;
+  const over = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < dropR(), alt = s.p[1] - PHYS.foot - tgt[1];
   const near = over && alt < 1.2 && vLen(s.v) < 2.5;
   const drop = st.carry && diff().flyDrop && over && alt < 12;   // Leicht: Abwurf im Überflug
   st.hold = near ? st.hold + h : 0;
@@ -386,7 +441,7 @@ export function scenTarget() {
   const s = game.sim;
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
   if (st.done || scen.id === 'free' || scen.id === 'vbs' || scen.id === 'real') return null;   // Freiflug: kein Ziel (vorher zeigte die echte Welt auf den Landeplatz der Spielkarte)
-  if (scen.id === 'deliver') { const t = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP; return [t[0], 0.6, t[2]]; }
+  if (scen.id === 'deliver') { const t = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP; return [t[0], t[1] + 0.6, t[2]]; }
   if (scen.id === 'follow') return [lead.x, 1.5, lead.z];
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
     let best = null, bd = 1e9;
@@ -408,7 +463,7 @@ export function scenTarget() {
     return rings[s.next].c;
   }
   if (scen.id === 'slalom') { const g = poles[s.next]; return [g.c[0] + g.r[0]*g.side*2, 2, g.c[2] + g.r[2]*g.side*2]; }
-  return [PAD.c[0], 0.5, PAD.c[2]];
+  return [PAD.c[0], PAD.c[1] + 0.5, PAD.c[2]];
 }
 // Welches Teil des Szenario-Modells grün leuchtet, oder -1.
 export function scenHighlight() {
@@ -451,20 +506,20 @@ export function buildScenario() {
   });
   if (scen.id === 'deliver') {   // Teil 0: Abholplatz (orange, mit Paketstapel), Teile 1..3: Lieferplattformen in Reihenfolge (blau)
     const plate = (c, col) => {
-      mb.box([c[0], 0.003, c[2]], [dropR(), 0.003, dropR()], 0, col);   // flache Platten: Drohne steht physikalisch auf y = 0
-      mb.box([c[0], 0.007, c[2]], [dropR()*0.8, 0.001, dropR()*0.8], 0, [0.92, 0.92, 0.92]);
+      mb.box([c[0], c[1] + 0.003, c[2]], [dropR(), 0.003, dropR()], 0, col);   // flache Platten: Drohne steht physikalisch auf dem Boden (c[1])
+      mb.box([c[0], c[1] + 0.007, c[2]], [dropR()*0.8, 0.001, dropR()*0.8], 0, [0.92, 0.92, 0.92]);
     };
-    part(() => { plate(PICKUP, [1.0, 0.5, 0.1]); for (let k = 0; k < 3; k++) mb.box([PICKUP[0] + (k - 1)*0.5, 0.106, PICKUP[2]], [0.18, 0.1, 0.18], k*0.4, [0.62, 0.45, 0.28]); });
+    part(() => { plate(PICKUP, [1.0, 0.5, 0.1]); for (let k = 0; k < 3; k++) mb.box([PICKUP[0] + (k - 1)*0.5, PICKUP[1] + 0.106, PICKUP[2]], [0.18, 0.1, 0.18], k*0.4, [0.62, 0.45, 0.28]); });
     for (const i of dropOrder) part(() => plate(DROPS[i], [0.15, 0.4, 0.95]));
   }
   if (scen.id === 'landing') part(() => {
-    const [x, , z] = PAD.c, w = diff().padHalf, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];
-    mb.box([x, 0.003, z], [w, 0.003, w], 0, [0.25, 0.27, 0.3]);
-    for (const [dx, dz, hx, hz] of [[0, -w, w, 0.05], [0, w, w, 0.05], [-w, 0, 0.05, w], [w, 0, 0.05, w]]) mb.box([x+dx, 0.007, z+dz], [hx, 0.001, hz], 0, orange);
+    const [x, y, z] = PAD.c, w = diff().padHalf, white = [0.95, 0.95, 0.95], orange = [1.0, 0.42, 0.08];
+    mb.box([x, y + 0.003, z], [w, 0.003, w], 0, [0.25, 0.27, 0.3]);
+    for (const [dx, dz, hx, hz] of [[0, -w, w, 0.05], [0, w, w, 0.05], [-w, 0, 0.05, w], [w, 0, 0.05, w]]) mb.box([x+dx, y + 0.007, z+dz], [hx, 0.001, hz], 0, orange);
     const k = w/1.0;   // H-Markierung mit der Plattform skalieren
-    mb.box([x-0.3*k, 0.007, z], [0.06*k, 0.001, 0.45*k], 0, white);
-    mb.box([x+0.3*k, 0.007, z], [0.06*k, 0.001, 0.45*k], 0, white);
-    mb.box([x, 0.007, z], [0.3*k, 0.001, 0.06*k], 0, white);
+    mb.box([x-0.3*k, y + 0.007, z], [0.06*k, 0.001, 0.45*k], 0, white);
+    mb.box([x+0.3*k, y + 0.007, z], [0.06*k, 0.001, 0.45*k], 0, white);
+    mb.box([x, y + 0.007, z], [0.3*k, 0.001, 0.06*k], 0, white);
   });
   return { data: new Float32Array(mb.d), parts };
 }

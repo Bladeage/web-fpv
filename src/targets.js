@@ -31,10 +31,13 @@ export function obstDist(p) {
   }
   return d;
 }
+// Welt der Ziel-Drohnen (Etappe T3): Spielkarte mit Boden 0 und den Quadern der Karte; echte Welt über den Platzierungsdienst
+// (gh: Bodenhöhe, free: Kugel frei). Höhen der Ziele relativ zum Boden.
+const tenv = { gh: () => 0, free: null };
 // Ist die gerade Strecke a->b mindestens m Meter von allen Hindernissen entfernt? (Probe alle 2 m)
 function flightClear(a, b, m) {
   const n = Math.max(1, Math.ceil(vLen(vSub(b, a))/2));
-  for (let i = 0; i <= n; i++) if (obstDist(vAdd(a, vScale(vSub(b, a), i/n))) < m) return false;
+  for (let i = 0; i <= n; i++) { const p = vAdd(a, vScale(vSub(b, a), i/n)); if (tenv.free ? !tenv.free(p, m) : obstDist(p) < m) return false; }
   return true;
 }
 let R = rng(7);
@@ -46,27 +49,40 @@ function routePos(t, time) {
   const s = Math.asin(Math.sin(ph))/(Math.PI/2);   // Hin und Her
   return [c[0] + s*t.size, c[1], c[2]];
 }
+// Punkte der festen Strecke des i-ten bewegten Ziels um die Mitte c (24 Proben über eine Runde), für die Prüfung „frei“ (T3)
+export const HUNT_N = SETUP.length;
+export function huntRoutePts(i, c) {
+  const [, route, , , size] = SETUP[i];
+  if (!route) return [c];
+  const t = { route, c, size, phase: 0, speed: size };
+  return Array.from({ length: 24 }, (_, k) => routePos(t, k/24*2*Math.PI));
+}
 function newWaypoint(t) {   // neuer Wegpunkt im eigenen Bereich, nur wenn der Weg dorthin frei ist (sonst bis zu 12 Versuche)
   let w = null;
   for (let k = 0; k < 12; k++) {
     const a = R()*Math.PI*2, d = Math.sqrt(R())*REGION*0.85;
-    w = [t.c[0] + Math.cos(a)*d, 9 + R()*7, t.c[2] + Math.sin(a)*d];
+    const x = t.c[0] + Math.cos(a)*d, z = t.c[2] + Math.sin(a)*d;
+    w = [x, tenv.gh(x, z) + 9 + R()*7, z];
     if (flightClear(t.p, w, 2.5)) return w;
   }
   return t.c.slice();   // Notfall: zurück zur Mitte des Bereichs
 }
 
-// speedScale: Schwierigkeit (leicht langsamer, schwer schneller)
-export function initTargets(speedScale = 1) {
+// speedScale: Schwierigkeit (leicht langsamer, schwer schneller). lay (echte Welt, T3): { regions: [[x, y, z], ...] (6 Mitten
+// der bewegten Ziele in der Reihenfolge von SETUP), statics: [[x, y, z], ...] (3 Schweber), gh(x, z), free(p, r) }.
+// Ohne lay die feste Aufstellung der Spielkarte (unverändert).
+export function initTargets(speedScale = 1, lay = null) {
   R = rng(7); targets.length = 0;
-  SETUP.forEach(([beh, route, speed, c0, size]) => {
+  tenv.gh = lay ? lay.gh : () => 0; tenv.free = lay ? lay.free : null;
+  const setup = lay ? SETUP.slice(0, lay.regions.length).map((s, i) => [s[0], s[1], s[2], lay.regions[i], s[4]]) : SETUP;
+  setup.forEach(([beh, route, speed, c0, size]) => {
     const c = c0.slice();
     const t = { beh, route, speed: speed*speedScale, c, size: size || 12, phase: R()*6, p: c.slice(), v: [0, 0, 0],
                 state: 'fly', spin: 0, ang: 0, wp: null, time: 0 };
     if (beh === 'dumb') t.p = routePos(t, 0);
     targets.push(t);
   });
-  for (const c0 of STATIC) {
+  for (const c0 of lay ? lay.statics : STATIC) {
     const c = c0.slice();
     targets.push({ beh: 'static', route: null, speed: 0, c, size: 0, phase: 0, p: c.slice(), v: [0, 0, 0], state: 'fly', spin: 0, ang: 0, wp: null, time: 0 });
   }
@@ -102,7 +118,7 @@ export function stepTargets(h, a, b, player, balloons = false) {
         const wl = vLen(want) || 1, dv = vSub(vScale(want, t.speed/wl), t.v), dl = vLen(dv), amax = 12*h;
         t.v = vAdd(t.v, dl > amax ? vScale(dv, amax/dl) : dv);
         t.p = vAdd(t.p, vScale(t.v, h));
-        t.p[1] = clamp(t.p[1], 6, 18);
+        const g = tenv.gh(t.p[0], t.p[2]); t.p[1] = clamp(t.p[1], g + 6, g + 18);
       }
       if (t.bal) stepBalloon(t.bal, t.p, h);   // Ballon an der Leine hinter der Ziel-Drohne
       if (balloons ? popBalloon(t.bal, a, b, 0.15) : sweptDist(a, b, p0, t.p) < HUNT.hitR) {
@@ -112,7 +128,8 @@ export function stepTargets(h, a, b, player, balloons = false) {
     } else if (t.state === 'fall') {
       t.v[1] -= 9.81*h; t.v = vScale(t.v, 1 - 0.3*h);
       t.p = vAdd(t.p, vScale(t.v, h)); t.ang += t.spin*h;
-      if (t.p[1] <= 0.1) { t.p[1] = 0.1; t.state = 'down'; t.v = [0, 0, 0]; }
+      const g = tenv.gh(t.p[0], t.p[2]);
+      if (t.p[1] <= g + 0.1) { t.p[1] = g + 0.1; t.state = 'down'; t.v = [0, 0, 0]; }
     }
   }
   return hits;

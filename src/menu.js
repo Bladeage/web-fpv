@@ -29,7 +29,15 @@ export const TAC = [
   { id: 'air', name: 'Ziele Luft', scen: 'hunt3', worlds: ['map'], info: 'Fluggeräte über der Spielkarte. Die Wirkung der Wirkmittel folgt.' },
   { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
 ];
-const COURSE_REAL = ['free', 'rings'];   // Parcours in der echten Welt (Etappe T2: Ringe; wächst mit T3)
+const COURSE_REAL = ['free', 'rings', 'landing', 'hunt', 'hunt3', 'deliver'];   // Parcours in der echten Welt (T2: Ringe, T3: Luftziele, Landung, Lieferung)
+// Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
+const REAL_INFO = {
+  real: 'Freiflug in echtem Gelände.',
+  rings: 'Zwei Kurse mit je 8 Ringen (orange am Start, blau weiter weg). Es zählt der Kurs, durch dessen ersten Ring du zuerst fliegst.',
+  landing: 'Plattform auf einem flachen, freien Platz 60 bis 150 m vom Start, bei jedem Start neu. Sanft landen, 1 s ruhig stehen.',
+  hunt: 'Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt. Bei Leicht mit Ballons.',
+  hunt3: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei Leicht mit Ballons.',
+  deliver: 'Paket am orangen Platz neben dem Start holen, zu den blauen Plätzen bringen. Plätze flach und frei, bei jedem Start neu.' };
 const isReal = () => cfg.world === 'real';
 // Szenario, das beim Start läuft
 export function flightScen() {
@@ -109,7 +117,7 @@ export function syncMenu() {
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && run === 'real' ? 'Freiflug in echtem Gelände. Weitere Modi in der echten Welt folgen.' : real && run === 'rings' ? 'Zwei Kurse mit je 8 Ringen (orange am Start, blau weiter weg). Es zählt der Kurs, durch dessen ersten Ring du zuerst fliegst.' : sc.info;
+  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
   $('modeSpec').hidden = !real;
   $('disOpts').hidden = !dis; syncDis();
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
