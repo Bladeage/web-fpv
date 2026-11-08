@@ -495,7 +495,7 @@ for (const [id, name] of OSD_ITEMS) {
 }
 $('propsView').addEventListener('change', e => { cfg.propsView = e.target.checked; saveCfg(); });
 
-// Zuordnung im Menü: Knüppel-Achsen (Reiter Steuerung) und Schalter-Funktionen (Reiter Schalter)
+// Zuordnung im Menü: Knüppel-Achsen (Reiter Knüppel) und Schalter-Funktionen (Reiter Funktionen, Nutzer Prompt 169)
 // Lernen: nach Klick wird die Achse mit der größten Bewegung (oder die gedrückte Taste) übernommen.
 const learn = { fn: null, sw: false, base: null, btn: null };
 function learnBtn(fn, sw) {
@@ -630,7 +630,7 @@ function showTab(id) {
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 showTab('general');
-// Reiter Steuerung: Funke / Gamepad oder Tastatur
+// Reiter Knüppel: Funke / Gamepad oder Tastatur
 function showCtl(id) {
   press('#ctlSeg button', b => b.dataset.ctl === id);
   $('ctlPad').hidden = id !== 'pad'; $('ctlKeys').hidden = id !== 'keys';
