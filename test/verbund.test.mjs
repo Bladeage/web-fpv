@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { createSocket } from 'node:dgram';
 import { rw, rwApply, rwLatLon, groundH, rwFlat, rwFlatImage, rwPlan } from '../src/realworld.js';
-import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet, vbGun, vbAims, vbContact, vbDetonate, VB_CHARGE } from '../src/verbund.js';
+import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet, vbGun, vbAims, vbContact, vbDetonate, VB_CHARGE, VB_HIT, vbMissDist } from '../src/verbund.js';
 import { createBridge } from '../tools/dis-bruecke.mjs';
 import * as D from '../src/dis.js';
 
@@ -116,13 +116,18 @@ test('DIS-Modus: Treffer an der Drohne (Geschossweg, Detonation, leicht und schw
     await wait(400);
     const ecef = (x, y, z) => { const [la, lo] = rwLatLon(x, z); return D.disToEcef(la, lo, meta.hHome + y + 47); };
     const send = async pdu => { const k = createSocket('udp4'); await new Promise(r => k.send(pdu, b.udpPort, '127.0.0.1', r)); k.close(); };
-    const shooter = { site: 1, app: 9, entity: 5 }, aim = (from, to, sp) => { const a = ecef(...from), b = ecef(...to), d = b.map((x, i) => x - a[i]), n = Math.hypot(...d); return d.map(x => x/n*sp); };
-    // Panzergeschoss von 300 m südlich genau auf die Drohne (nach Norden, 30 m hoch): schwer
+    // gezielt mit Vorhalt gegen das Fallen (Rohr um g*T/2 höher, T Flugzeit); Streuung für den Test aus
+    const spread = VB_HIT.spread; VB_HIT.spread = { light: 0, heavy: 0 };
+    const shooter = { site: 1, app: 9, entity: 5 }, aim = (from, to, sp, drop = true) => { const a = ecef(...from), b = ecef(...to), d = b.map((x, i) => x - a[i]), n = Math.hypot(...d), T = n/sp;
+      const [la, lo] = rwLatLon(from[0], from[2]), up = D.disNedAxes(la, lo)[2].map(x => -x); return d.map((x, i) => x/n*sp + (drop ? up[i]*9.81*T/2 : 0)); };
+    // Panzergeschoss von 300 m südlich auf die Drohne (30 m hoch): schwer
     await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 1 }, pos: ecef(0, 30, 200), vel: aim([0, 30, 200], [0, 30, -100], 1100), burst: { type: [2, 2, 225, 2, 10, 6, 0] } }));
-    // Gewehrschuss 5 m daneben: kein Treffer; Gewehr genau drauf: leicht
+    // Gewehr 5 m daneben: nichts; Gewehr drauf: leicht; Panzer ohne Vorhalt gegen das Fallen (0,37 m zu tief): nichts
     await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 2 }, pos: ecef(5, 30, 200), vel: aim([5, 30, 200], [5, 30, -100], 900), burst: { type: [2, 9, 225, 2, 81, 1, 0] } }));
-    await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 3 }, pos: ecef(0, 30.3, 200), vel: aim([0, 30.3, 200], [0, 30.3, -100], 900), burst: { type: [2, 9, 225, 2, 81, 1, 0] } }));
-    await wait(300); assert.deepEqual(vb.hits.map(h => h.kind + (h.heavy ? ' schwer' : ' leicht')), ['fire schwer', 'fire leicht'], 'Geschossweg: Panzer schwer, Gewehr 5 m daneben nichts, Gewehr drauf leicht');
+    await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 3 }, pos: ecef(0, 30, 200), vel: aim([0, 30, 200], [0, 30, -100], 900), burst: { type: [2, 9, 225, 2, 81, 1, 0] } }));
+    await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 6 }, pos: ecef(0, 30, 200), vel: aim([0, 30, 200], [0, 30, -100], 1100, false), burst: { type: [2, 2, 225, 2, 10, 6, 0] } }));
+    await wait(300); VB_HIT.spread = spread;
+    assert.deepEqual(vb.hits.map(h => h.kind + (h.heavy ? ' schwer' : ' leicht')), ['fire schwer', 'fire leicht'], 'Geschossweg: Panzer schwer, Gewehr daneben nichts, Gewehr drauf leicht, ohne Vorhalt nichts');
     // Detonation desselben Ereignisses 1 an der Drohne: zählt nicht doppelt; Panzer-Detonation 3,5 m entfernt: leicht
     await send(D.disEncodeDetonation({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 1 }, pos: ecef(0, 30, -100), burst: { type: [2, 2, 225, 2, 10, 6, 0] }, result: 1 }));
     await send(D.disEncodeDetonation({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 4 }, pos: ecef(3.5, 30, -100), burst: { type: [2, 2, 225, 2, 10, 6, 0] }, result: 3 }));
@@ -137,6 +142,16 @@ test('DIS-Modus: Treffer an der Drohne (Geschossweg, Detonation, leicht und schw
     const [dl, dlo] = D.disFromEcef(...d.pos), [el, elo] = rwLatLon(10, -97); near(dl, el, 1e-7); near(dlo, elo, 1e-7);
     assert.ok(vb.fx.some(f => f.kind === 'det' && f.from === 'eigen'), 'Explosion im Bild');
   } finally { clearInterval(loop); vbClose(); b.close(); net.close(); vb.tTry = vb.tBuild = -1e9; vb.seen = 'suche'; VB.port = 3000; rw.on = false; }
+});
+
+test('DIS-Modus: Geschossweg mit Fallen und Streuung (Schätzungen)', () => {
+  near(vbMissDist([0, 0, -300], [0, 0, -1100]), 0.365, 0.01, 'gerade gezielt fällt bei 300 m um 0,37 m');
+  near(vbMissDist([0, 0, -300], [0, 0.5*9.81*300/1100, -1100]), 0, 0.01, 'mit Vorhalt genau');
+  assert.equal(vbMissDist([0, 0, 300], [0, 0, -1100]), Infinity, 'Drohne hinter dem Schützen');
+  // Streuung 0,7 mrad: bei 300 m im Mittel etwa 0,26 m daneben (Rayleigh: sigma*1,25)
+  let sum = 0; const N = 2000;
+  for (let i = 0; i < N; i++) { const e1 = Math.sqrt(-2*Math.log(1 - Math.random()))*Math.cos(2*Math.PI*Math.random())*0.7e-3, e2 = Math.sqrt(-2*Math.log(1 - Math.random()))*Math.cos(2*Math.PI*Math.random())*0.7e-3; sum += Math.hypot(e1, e2)*300; }
+  near(sum/N, 0.26, 0.03, 'Erwartung Streuung');
 });
 
 test('DIS-Modus: Übung oder Port wechseln leert die Liste; Einheiten behalten bis zur Abmeldung (Schalter)', () => {

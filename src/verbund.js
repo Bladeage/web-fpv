@@ -11,6 +11,7 @@
    Werte aus SISO-REF-010 über dis.js und distypes.js. Reprinted with permission from SISO Inc. */
 import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence, disDeadReckon, disArticulation, DIS_PDU, disToEcef, disNedToEcef, disEncodeDetonation } from './dis.js';
 import { qMul, qAxis, qRot } from './math.js';
+import { PHYS } from './physics.js';
 import { disBaseInfo, disBaseOf, disBaseParts } from './distypes.js';
 import { toUtm } from './geo.js';
 import { rw, rwLatLon, groundH } from './realworld.js';
@@ -158,10 +159,32 @@ function vbShot(d) {
 // detoniert: (1) Detonation nahe der Drohne, (2) der Weg des Geschosses aus der Fire-PDU (gerade Linie ab Abschuss) geht nah an
 // der Drohne vorbei. Je Ereignis (Fire und Detonation teilen die Ereignis-Nummer) höchstens ein Treffer.
 // Schwere nach Munitionsbereich (SISO-REF-010, Art 2, zweite Zahl): 8 Personenabwehr und 9 Gefechtsfeldunterstützung (im Test:
-// Gewehr des Soldaten) leicht, alle anderen (Panzerabwehr, Maschinenkanone) schwer. Radien als Schätzung: Drohne etwa 0,3 m groß,
-// Geschoss gilt bis 0,8 m als Treffer; Explosion schwer bis 2 m zerstörend, bis 5 m leicht; leichte Munition bis 1 m.
-// Reprinted with permission from SISO Inc.
-export const VB_HIT = { ray: 0.8, rayT: 4, blastHeavy: 2, blastLight: 5, smallBlast: 1, lightDomains: [8, 9] };
+// Gewehr des Soldaten) leicht, alle anderen (Panzerabwehr, Maschinenkanone) schwer. Reprinted with permission from SISO Inc.
+// Geschossweg realistischer (Nutzer, Prompt 158; vorher gerade Linie und 0,8 m, damit traf bei VBS jeder Schuss):
+// - Treffer, wenn das Geschoss näher als der Kollisionsradius der Drohne (PHYS.radius, 5 Zoll 0,15 m) plus extra vorbeigeht.
+//   extra 0,15 m: Arme und Propeller ragen über den Radius, Splitter beim Aufschlag (Schätzung). 5 Zoll also 0,3 m.
+// - Fallen unter der Schwerkraft (ohne Luftwiderstand; Schätzung: bei 300 m und 1000 m/s etwa 0,45 m).
+// - Streuung je Schuss als Winkel (Standardabweichung, Schätzung): leichte Munition 1,5 mrad (Gewehr), schwere 0,7 mrad
+//   (Maschinenkanone, Panzer). Bei 300 m also etwa 0,45 m bzw. 0,2 m.
+// Explosion (falls der Partner nahe der Drohne detoniert): schwer bis 2 m zerstörend, bis 5 m leicht; leichte Munition bis 1 m.
+export const VB_HIT = { extra: 0.15, rayT: 4, g: 9.81, spread: { light: 1.5e-3, heavy: 0.7e-3 }, blastHeavy: 2, blastLight: 5, smallBlast: 1, lightDomains: [8, 9], rand: Math.random };
+// Normalverteilte Zufallszahl (Box-Muller)
+const vbGauss = () => Math.sqrt(-2*Math.log(1 - VB_HIT.rand()))*Math.cos(2*Math.PI*VB_HIT.rand());
+// Kleinster Abstand des fallenden Geschosses (Start rel vor der Drohne gesehen: Drohne minus Abschuss, Tempo v) zur Drohne
+export function vbMissDist(rel, v, g = VB_HIT.g, tMax = VB_HIT.rayT) {
+  const v2 = v[0]**2 + v[1]**2 + v[2]**2;
+  if (!v2) return Infinity;
+  const t0 = (rel[0]*v[0] + rel[1]*v[1] + rel[2]*v[2])/v2;
+  if (t0 <= 0 || t0 > tMax) return Infinity;
+  let best = Infinity;
+  for (let i = -150; i <= 150; i++) {   // fein um die Zeit der geraden Linie (±0,3 s in 2-ms-Schritten)
+    const t = t0 + i*0.002;
+    if (t < 0) continue;
+    const dx = rel[0] - v[0]*t, dy = rel[1] - v[1]*t + 0.5*g*t*t, dz = rel[2] - v[2]*t;
+    best = Math.min(best, Math.hypot(dx, dy, dz));
+  }
+  return best;
+}
 function vbHitCheck(d, kind, L) {
   const key = d.shooter.site + ':' + d.shooter.app + ':' + d.event.site + ':' + d.event.app + ':' + d.event.entity;
   if (vb.events.has(key)) return;
@@ -171,8 +194,14 @@ function vbHitCheck(d, kind, L) {
     const r = Math.hypot(...rel);
     hit = light ? (r < VB_HIT.smallBlast ? 1 : 0) : r < VB_HIT.blastHeavy ? 2 : r < VB_HIT.blastLight ? 1 : 0;
   } else {
-    const v2 = L.v[0]**2 + L.v[1]**2 + L.v[2]**2, tc = v2 ? (rel[0]*L.v[0] + rel[1]*L.v[1] + rel[2]*L.v[2])/v2 : -1;
-    if (tc > 0 && tc < VB_HIT.rayT) { const c = [rel[0] - L.v[0]*tc, rel[1] - L.v[1]*tc, rel[2] - L.v[2]*tc]; if (Math.hypot(...c) < VB_HIT.ray) hit = light ? 1 : 2; }
+    // Streuung: Richtung um einen kleinen Zufallswinkel drehen (zwei Querrichtungen), dann Geschossweg mit Fallen
+    const sp = Math.hypot(...L.v), sd = light ? VB_HIT.spread.light : VB_HIT.spread.heavy;
+    let v = L.v;
+    if (sp && sd) { const d = L.v.map(x => x/sp), a = Math.abs(d[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+      const p1 = [d[1]*a[2] - d[2]*a[1], d[2]*a[0] - d[0]*a[2], d[0]*a[1] - d[1]*a[0]], n1 = Math.hypot(...p1), u1 = p1.map(x => x/n1);
+      const u2 = [d[1]*u1[2] - d[2]*u1[1], d[2]*u1[0] - d[0]*u1[2], d[0]*u1[1] - d[1]*u1[0]], e1 = vbGauss()*sd, e2 = vbGauss()*sd;
+      v = [0, 1, 2].map(i => (d[i] + u1[i]*e1 + u2[i]*e2)*sp); }
+    if (vbMissDist(rel, v) < PHYS.radius + VB_HIT.extra) hit = light ? 1 : 2;
   }
   if (!hit) return;
   vb.events.add(key); if (vb.events.size > 256) vb.events.clear();
