@@ -44,7 +44,7 @@ Bleibt alles, weil es klein ist, getestet ist und ohne Partner nicht stört:
 
 - Wirkung unserer Sprengladung in VBS (kein Weg ohne Eingriff in VBS, Entscheidung des Nutzers).
 - Angriff der VBS-KI auf die Drohne (gleicher Grund).
-- Gelände per WMS über die Brücke (Schritt 5 des Entwurfs).
+- Gelände per WMS über die Brücke (Schritt 5 des Entwurfs). Nachtrag 08.11.2026: Das Gelände kommt doch, aber universell als Quellenart „WMS-Höhendienst“ ohne Bezug auf VBS (`docs/plan-gelaende-wms.md`, W1 bis W3 erledigt). Die Brücke reicht es erst mit W4 durch (Dienst auf einem anderen Rechner).
 - Lagebild-Modul und alles mit VBS-Bezug (schon mit Prompt 145 entfernt).
 - Weitere PDU-Arten (Designator, Emission, IFF), HLA, WebLVC.
 

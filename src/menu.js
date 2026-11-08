@@ -8,7 +8,8 @@ import { audioInit, audioPause } from './audio.js';
 import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
-import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan } from './realworld.js';
+import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources } from './realworld.js';
+import { wmsProbe } from './rwwms.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
@@ -116,8 +117,8 @@ export function syncMenu() {
   press('#rwSeg button', b => b.dataset.start === (dis ? 'dis' : cfg.rwSrc === 'live' ? 'live' : 'emb'));
   $('rwLive').hidden = dis || cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
-  if (!rwBusy) $('rwMsg').textContent = dis && cfg.rwSrc !== 'dis' ? '' : cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + ', ebene Fläche ohne Kartendaten.'
-    : cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
+  if (!rwBusy && dis) disMsg(true);
+  else if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
     : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
       + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
@@ -241,12 +242,13 @@ async function rwLiveDo() {
   const t0 = performance.now();
   let ok = false;
   try {
-    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE);
+    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE,
+      disWms() ? { wms: rw.wms.src } : {});   // Ort der DIS-Übung mit gefundenem Höhendienst (W3)
     rwSavedFill(); ok = true;
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
     if (game.started && rw.on) { setScenario(game.scenRun, true); respawn(); }
   } catch (e) {
-    $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
+    $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e); $('rwMsg').dataset.dis = 'err';
     if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
       const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Geodaten importieren';
       b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); }); $('rwMsg').append(' ', b);
@@ -254,7 +256,7 @@ async function rwLiveDo() {
   } finally {
     rwBusy = null; rwJob = null; $('rwGo').textContent = 'Laden'; rwLock();
     // Geladen: Hinweis zum Ort mit Dauer. Startort inzwischen gewechselt (Abbruch): Hinweis des neuen Startorts statt der Fehlermeldung
-    if (ok || cfg.rwSrc !== 'live') { syncMenu(); if (ok) $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
+    if (ok || cfg.rwSrc !== 'live') { syncMenu(); if (ok && !cfg.verbund) $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
     fitPanel();
   }
   return ok;
@@ -363,10 +365,48 @@ function syncDis() {
   if (document.activeElement !== $('disPort')) $('disPort').value = VB.port;
   if (document.activeElement !== $('disEx')) $('disEx').value = VB.exercise;
 }
+// ---- Höhendienst für die DIS-Übung (Etappe W3, docs/plan-gelaende-wms.md, Abschnitt 3) ----
+// Suche beim Öffnen des DIS-Blocks, ohne Fund alle 30 s, vor „Dort fliegen“ erneut, wenn älter als 60 s. Ergebnis in rw.wms
+// (Laufzeit, nicht gespeichert). Reihenfolge der Quellen wie in der Liste: eigene vor der Vorlage „lokaler Rechner“.
+const WMS_RETRY = 30, WMS_FRESH = 60;
+let wmsBusy = null, wmsT = -1e9;
+const disWmsList = () => rwSources().filter(s => s.kind === 'wms' && (s.use === 'dis' || s.use === 'all'));
+const disWms = () => !!(cfg.verbund && isReal() && cfg.rwLL === cfg.disLL && rw.wms && rw.wms.src);
+function disProbe() {
+  if (wmsBusy) return wmsBusy;
+  const c = vbCenter() || (disLast && disLast.c), ll = c ? [c.lat, c.lon] : parseLatLon(cfg.disLL) || [null, null];
+  wmsT = performance.now();
+  wmsBusy = wmsProbe(disWmsList(), ll[0], ll[1], ms => rwNet(null, ms).get).catch(() => null)
+    .then(r => { rw.wms = r; wmsBusy = null; wmsT = performance.now(); disMsg(); return r; });
+  disMsg();
+  return wmsBusy;
+}
+// Geländezeile im DIS-Block: was „Dort fliegen“ nimmt oder genommen hat, dazu „Gelände ›“ (Quellen)
+const disHost = u => String(u).split('/')[2];
+function disMsg(force = false) {
+  if (rwBusy || !cfg.verbund || !isReal() || (!force && $('rwMsg').dataset.dis === 'err')) return;   // Fehlermeldung bleibt bis zur nächsten Eingabe
+  const w = rw.wms, here = parseLatLon(cfg.disLL), flown = cfg.rwSrc === 'live' && here && cfg.rwLL === cfg.disLL && rw.live && rw.liveAt && rw.liveAt[0] === here[0] && rw.liveAt[1] === here[1];
+  const t = cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + '. Gelände: ebene Fläche. Kein Höhendienst, keine Kartendaten.'
+    : flown && rw.liveDis && rw.liveDis.wms ? 'Start am Ort der Übung: ' + cfg.disLL + '. Gelände: Höhendienst (' + disHost(rw.liveDis.wms.hgt.url) + ', ' + rw.liveDis.wms.hgt.layer + '). Nicht gespeichert.'
+    : flown ? 'Start am Ort der Übung: ' + cfg.disLL + '. Gelände: Kartendaten (' + (rw.liveSrcs || []).join(', ') + '). Kein Höhendienst gefunden.'
+    : !disWmsList().length ? 'Kein Höhendienst eingetragen. „Dort fliegen“ nimmt Kartendaten oder eine ebene Fläche.'
+    : wmsBusy && !w ? 'Suche Höhendienst …'
+    : w && w.src ? 'Höhendienst gefunden: ' + disHost(w.url) + ', Ebene ' + w.layer + '. „Dort fliegen“ nimmt ihn.'
+    : w && w.err ? 'Höhendienst auf ' + disHost(w.url) + ', aber ' + w.text + '. Ebene unter Gelände › eintragen.'
+    : 'Kein Höhendienst gefunden. „Dort fliegen“ nimmt Kartendaten oder eine ebene Fläche.';
+  const m = $('rwMsg');
+  if (m.dataset.dis === t && m.querySelector('button')) return;
+  m.textContent = t; m.dataset.dis = t;
+  const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Gelände ›';
+  b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('src'); }); m.append(' ', b);
+  fitPanel();
+}
 let disShown = '';
 setInterval(() => {   // jede Sekunde, solange der DIS-Modus im Menü gewählt ist
   if (menu.hidden || screen !== 'mode' || !isReal() || !cfg.verbund) return;
   syncDis();
+  if (!wmsBusy && (!rw.wms || !rw.wms.src) && performance.now() - wmsT > WMS_RETRY*1000) disProbe();
+  disMsg();
   const k = $('disOpts').textContent + $('disGet').hidden + $('disSets').hidden;
   if (k !== disShown) { disShown = k; fitPanel(); }
 }, 1000);
@@ -395,7 +435,9 @@ $('disHere').addEventListener('click', async () => {
   if (!c || rwBusy) return;
   const ll = c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
   cfg.disLL = ll; cfg.disH = Math.round(c.h*100)/100;
-  if (rwPlan(c.lat, c.lon)) {
+  // Reihenfolge (W3): Höhendienst, dann Landesquelle, dann ebene Fläche. Suche erneuern, wenn älter als 60 s oder ohne Fund
+  if (!rw.wms || !rw.wms.src || performance.now() - wmsT > WMS_FRESH*1000) { $('disHere').disabled = true; await disProbe(); }
+  if (rw.wms && rw.wms.src || rwPlan(c.lat, c.lon)) {
     cfg.rwLL = ll; cfg.rwSrc = 'live'; saveCfg(); syncMenu();
     if (!await rwReplace()) return;
   } else { rwAbort(); cfg.rwSrc = 'dis'; saveCfg(); syncMenu(); fitPanel(); }

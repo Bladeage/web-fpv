@@ -342,3 +342,7 @@ Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io gepr�
 - **Nicht umgesetzt (nicht gewählt):** Kronen an Gebäuden kürzen (Kronen können weiter vom Ufer in Brücken ragen), Bäche als Wasser, grünere oder rundere Kronen, stufenweises Laden.
 - **Geprüft:** 4 neue Tests (`test/rwtrees.test.mjs`); Vorher-Nachher-Bilder an der Rur in Monschau; Bildrate in der Software-Grafik ohne messbaren Verlust.
 - **Nachtrag fleckiges Wasser (Prompt 155):** Aus der Ferne gewann das Flussbett stellenweise den Tiefentest gegen die Wasserfläche 0,25 m darüber (dunkle, eckige Flecken am Rhein). Behoben: Das gezeichnete Flussbett liegt unter Wasser 2 m tiefer (`WATER_DIP`, Schätzung; Physik unverändert), Wasser-Ecken auf dem Gitter des Geländes, Polygon-Offset 16 statt 4, Wellen und Glanz klingen mit der Entfernung ab. Im Browser in Köln nachgestellt und geprüft.
+
+## WMS-Höhendienst (08.11.2026, Prompt 166 bis 170, Plan `docs/plan-gelaende-wms.md`)
+- Zweite Quellenart neben den Landesdiensten: nur Höhen aus einem OGC-WMS 1.3.0 (EPSG:4326, Gleitkomma-GeoTIFF), etwa vom Gelände-Server einer DIS-Übung. Gilt für DIS-Übung, überall oder nie. Daten nur im Arbeitsspeicher, nie gespeichert. Ohne Luftbild: schattiertes Relief.
+- Startort DIS-Übung: Der Simulator sucht den Dienst selbst (Vorlage localhost:7071 und eigene Quellen). „Dort fliegen“ nimmt den Höhendienst, sonst die Landesquelle, sonst eine ebene Fläche. Die Zeile unter dem DIS-Block nennt das Gelände.

@@ -11,7 +11,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0 };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -25,6 +25,7 @@ export function rwInit(meta, q) {
 // x: { water, features } nur beim eingebetteten Gebiet. rw.ver zählt hoch, damit die Grafik ihre Netze neu baut.
 export function rwApply(p, x = {}) {
   const on = rw.on;
+  if (!x.live) rw.liveDis = null;   // eingebettetes Gebiet: Kacheln wieder aus den Landesquellen
   Object.assign(rw, { tris: null, grid: null, bldId: null, bldInfo: null, trees: [], water: x.water || null, features: x.features || null, dop: p.dop || null, live: !!x.live });
   rwInit(p.meta, p.q);
   // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far
@@ -78,11 +79,13 @@ const zoneOf = s => s.crs === 'EPSG:25833' ? 33 : 32;
 // Quellen für ein Gebiet um Breite/Länge: Hauptquelle am Mittelpunkt, dazu die Quellen der Länder, die das Gebiet
 // berührt (Probe auf 5 x 5 Punkten), im selben Koordinatensystem. Rückgabe { srcs, area, skipped } oder null.
 // WMS-Höhendienste nur mit use 'all' (opt.dis: auch 'dis', für den Startort DIS-Übung); ihre UTM-Zone kommt aus der Länge.
+// opt.wms: genau diese Quelle (Ergebnis von wmsProbe, Startort DIS-Übung).
 export function rwPlan(lat, lon, list = rwSources(), opt = {}) {
   list = list.filter(s => s.kind !== 'wms' || s.use === 'all' || (opt.dis && s.use === 'dis'));
   const land = deMap() ? deLandAt : null, [E32, N32] = toUtm(lat, lon, 32);
   let main = rwSourceAt(E32, N32, list, land);
-  const w = list.find(s => s.kind === 'wms');   // WMS-Höhendienst gilt überall: gewinnt, wenn er in der Liste vor der Landesquelle steht
+  const w = opt.wms || list.find(s => s.kind === 'wms');   // opt.wms: von der Aushandlung gefundener Dienst (W3), gilt vor allem anderen
+  if (opt.wms) main = null;   // WMS-Höhendienst gilt überall: gewinnt, wenn er in der Liste vor der Landesquelle steht
   if (w && (!main || list.indexOf(w) < list.indexOf(main))) main = w;
   if (!main) return null;
   if (main.kind === 'wms') {   // geografischer Dienst: Gebiet im UTM-Gitter der Zone des Orts, keine weiteren Quellen
@@ -184,7 +187,7 @@ async function rwFetch(a, srcs, say, signal, opt, store) {
 export const rwMeshInput = S => ({ tris: S.tris, nr: S.nr, bldId: S.bldId, bldInfo: S.bldInfo, trees: S.trees.map(t => ({ x: t.x, z: t.z, y0: t.y0, r: t.r, boxes: t.boxes.map(b => ({ c: b.c, h: b.h })) })) });
 export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null, po = {}) {
   const plan = rwPlan(lat, lon, rwSources(), po);
-  rw.liveDis = !!po.dis;   // Kacheln und Umgebung planen mit denselben Quellen (WMS-Höhendienst für die DIS-Übung)
+  rw.liveDis = po.wms || po.dis ? { wms: po.wms || null, dis: !!po.dis } : null;   // Kacheln und Umgebung planen mit denselben Quellen
   if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
   const { srcs, area: a } = plan, key = rwAreaKey(lat, lon, srcs);
   if (srcs[0].store === false) store = null;   // Quelle darf nicht gespeichert werden (Lizenz): nur Arbeitsspeicher
@@ -234,7 +237,7 @@ export function rwFlat(lat, lon, hNhn) {
     bbox: [E - S/2, N - S/2, E + S/2, N + S/2], n, hMin: h, hMax: h, hScale: 0.1, home: [0, 0], hHome: h, startSpan: 1, startV: 2,
     attribution: '', roofTris: 0, wallTris: 0, buildings: 0, trees: 0, flat: true };
   rwApply({ meta, q: new Uint16Array(n*n), b16: new Int16Array(0), t16: new Int16Array(0), dop: rwFlatImage(RW_FLAT.img) }, { live: true });
-  rw.liveAt = [lat, lon]; rw.liveSrcs = []; rw.fromStore = false; rw.liveDlm = false; rw.stored = null;
+  rw.liveAt = [lat, lon]; rw.liveSrcs = []; rw.fromStore = false; rw.liveDlm = false; rw.stored = null; rw.liveDis = null;
   return rw;
 }
 // Relief als Bild (WMS-Höhendienst ohne Luftbild, Etappe W2): Schattierung aus den Höhen (Licht aus Süden, 45° hoch, wie die Sonne
@@ -817,7 +820,7 @@ export function rwStreamPlan(x, z, now = Date.now()) {
 // Eine Kachel laden (aus dem Speicher oder von den Diensten) und als Kachel-Objekt liefern (Weltkoordinaten des Startgebiets)
 export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + i*S, nc = (m.bbox[1] + m.bbox[3])/2 - j*S;
-  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), { dis: !!rw.liveDis });
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), rw.liveDis || {});
   if (!plan) throw new Error('keine Quelle');
   const srcs = plan.srcs.filter(s => s.crs === m.crs);
   if (!srcs.length) throw new Error('anderes Koordinatensystem');
@@ -884,7 +887,7 @@ export async function rwStreamStep(x, z, store, say = () => {}) {
 export const RW_FAR_MOVE = 1500;
 export async function rwLoadFar(cx, cz, store, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + cx, nc = (m.bbox[1] + m.bbox[3])/2 - cz;
-  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), { dis: !!rw.liveDis });
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), rw.liveDis || {});
   const src = plan && plan.srcs.find(s => s.crs === m.crs && (s.dgm || s.kind === 'wms'));
   if (!src) throw new Error(plan ? 'anderes Koordinatensystem' : 'keine Quelle');
   if (src.store === false) store = null;   // nur Arbeitsspeicher (Lizenz der Quelle)

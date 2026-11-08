@@ -62,3 +62,28 @@ test('Fehlerfälle: Fehler-XML, falsche Größe, nur Füllwerte', async t => {
     await assert.rejects(wmsFetchHeights({ hgt: { url: w.url, layer: 'Test_hgt', tile: 256 }, vref: 'msl' }, bbox, 32, 32, get), re);
   }
 });
+
+test('W3: Aushandlung: tote und hängende Adresse übergehen, Dienst mit Ebene finden, Ersatzadresse localhost/127.0.0.1', async t => {
+  const { wmsProbe, wmsAlt, WMS_PROBE } = await import('../src/rwwms.js');
+  const { rwNet } = await import('../src/realworld.js');
+  const { createServer } = await import('node:http');
+  const E = startErsatz(), hang = createServer(() => {}); await E.ready; await new Promise(r => hang.listen(0, '127.0.0.1', r));
+  t.after(() => { E.close(); hang.closeAllConnections(); hang.close(); });
+  assert.deepEqual(wmsAlt('http://localhost:7071/ows'), ['http://localhost:7071/ows', 'http://127.0.0.1:7071/ows']);
+  assert.deepEqual(wmsAlt('http://127.0.0.1/ows'), ['http://127.0.0.1/ows', 'http://localhost/ows']);
+  assert.deepEqual(wmsAlt('https://geo.example/ows'), ['https://geo.example/ows']);
+  const old = WMS_PROBE.caps; WMS_PROBE.caps = 300;
+  try {
+    const src = url => ({ kind: 'wms', name: url, hgt: { url, layer: '' }, vref: 'ellipsoid', use: 'dis' });
+    const net = ms => rwNet(null, ms).get, t0 = Date.now();
+    const r = await wmsProbe([src('http://127.0.0.1:9/ows'), src('http://127.0.0.1:' + hang.address().port + '/ows'), src(E.url)], 50.9, 7.0, net);
+    assert.ok(Date.now() - t0 < 3000, 'Zeitgrenze greift: ' + (Date.now() - t0) + ' ms');
+    assert.equal(r.url, E.url); assert.equal(r.layer, 'Test_hgt'); assert.equal(r.src.hgt.layer, 'Test_hgt'); assert.equal(r.title, 'Test Web Map Service');
+    assert.equal(await wmsProbe([src('http://127.0.0.1:9/ows')], 50.9, 7.0, net), null, 'kein Dienst');
+    const bad = await wmsProbe([{ ...src(E.url), hgt: { url: E.url, layer: 'Test_photo' } }], 50.9, 7.0, net);
+    assert.equal(bad.err, 'map', 'eingetragene Ebene liefert keine Höhen');
+    const E2 = startErsatz({ empty: true }); await E2.ready; t.after(() => E2.close());
+    assert.equal((await wmsProbe([src(E2.url)], 50.9, 7.0, net)).err, 'map', 'nur Füllwerte am Ort');
+    assert.equal((await wmsProbe([src(E2.url)], null, null, net)).layer, 'Test_hgt', 'ohne Ort nur die Fähigkeiten');
+  } finally { WMS_PROBE.caps = old; }
+});

@@ -128,3 +128,36 @@ export function resampleToUtm(geo, W, H, g, bbox, zone, n, S = 17) {
   }
   return out;
 }
+// Aushandlung (Etappe W3): Höhendienste der Reihe nach suchen. list: WMS-Quellen in der gewünschten Reihenfolge; je Quelle die
+// Adresse und als Ersatz localhost <-> 127.0.0.1. net(ms) liefert get(url) mit Zeitgrenze ms. Fähigkeiten 2 s; Bestätigung mit
+// GetMap 16 x 16 am Ort (lat, lon) 3 s, ohne Ort nur die Fähigkeiten. Bei mehreren Höhenebenen gilt die erste, die besteht.
+// Rückgabe: { src (Quelle mit gefundener Adresse und Ebene), url, layer, title, t } oder { err: 'layer' | 'map', url, title, text }
+// (Dienst da, aber keine brauchbare Höhenebene) oder null (kein Dienst erreichbar).
+export const WMS_PROBE = { caps: 2000, map: 3000 };
+export function wmsAlt(url) {
+  const m = String(url).match(/^(https?:\/\/)(localhost|127\.0\.0\.1)([:/].*)?$/i);
+  if (!m) return [url];
+  return [url, m[1] + (m[2].toLowerCase() === 'localhost' ? '127.0.0.1' : 'localhost') + (m[3] || '')];
+}
+export async function wmsProbe(list, lat, lon, net) {
+  let bad = null;
+  for (const s of list) for (const url of wmsAlt(s.hgt.url)) {
+    let caps;
+    try { caps = wmsCapsParse(new TextDecoder().decode(bytesOf(await net(WMS_PROBE.caps)(url + (url.includes('?') ? '&' : '?') + 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0')))); }
+    catch (e) { continue; }   // nicht erreichbar oder zu langsam: nächste Adresse
+    if (!caps.layers.length) continue;   // keine WMS-Antwort
+    const cand = s.hgt.layer ? [s.hgt.layer] : wmsPickHeight(caps);
+    if (!cand.length) { bad = bad || { err: 'layer', url, title: caps.title, text: 'keine Höhenebene erkannt' }; continue; }
+    for (const l of cand) {
+      if (lat != null && lon != null) try {
+        const d = 0.0005, u8 = bytesOf(await net(WMS_PROBE.map)(wmsHgtUrl(url, l, { minLat: lat - d, maxLat: lat + d, minLon: lon - d, maxLon: lon + d }, 16, 16, s.hgt.format || 'image/tiff')));
+        const err = wmsError(u8); if (err) throw new Error(err);
+        const t = readTiff(asBuf(u8));
+        if (![...t.data].some(x => x > -1000 && x !== t.nodata)) throw new Error('nur Füllwerte am Ort');
+      } catch (e) { bad = bad || { err: 'map', url, title: caps.title, text: l + ': ' + String(e.message || e) }; continue; }
+      wmsLayers.set(url, l);
+      return { src: { ...s, hgt: { ...s.hgt, url, layer: l } }, url, layer: l, title: caps.title, t: Date.now() };
+    }
+  }
+  return bad;
+}

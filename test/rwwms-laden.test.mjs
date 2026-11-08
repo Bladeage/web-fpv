@@ -63,3 +63,14 @@ test('W2: Ort vom Ersatzdienst laden: Höhen stimmen, Relief statt Luftbild, nic
     assert.equal(puts.length, 0, 'auch die Kachel nicht gespeichert');
   } finally { rw.userSources = old; rw.on = false; rw.tiles.clear(); }
 });
+
+test('W3: Gefundener Dienst gilt vor der Landesquelle, auch in NRW; Kacheln planen mit ihm; Monschau setzt zurück', async () => {
+  const old = rw.userSources;
+  try {
+    rw.userSources = [];
+    const found = { ...wms('http://h:7071/ows', 'dis'), hgt: { url: 'http://h:7071/ows', layer: 'X_hgt', tile: 256 } };
+    assert.equal(rwPlan(50.5553, 6.2428, rwSources(), { dis: true }).srcs[0].id, 'nrw', 'ohne Aushandlung: Landesquelle in NRW');
+    const p = rwPlan(50.5553, 6.2428, rwSources(), { wms: found });
+    assert.equal(p.srcs.length, 1); assert.equal(p.srcs[0].hgt.layer, 'X_hgt'); assert.equal(p.srcs[0].crs, 'EPSG:25832');
+  } finally { rw.userSources = old; }
+});
