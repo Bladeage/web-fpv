@@ -179,6 +179,12 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **Einheiten behalten:** Optionen → Daten → „DIS: Einheiten ohne neue Meldung behalten, bis sie sich abmelden“ (`cfg.disKeep`, Vorgabe aus: Löschen nach 13 s).
 - **Geprüft:** Node-Tests (Platzhalter wie D5, Übung, Port, Behalten). Im Browser mit DIS-Ersatz wie D5: „2 Einheiten … (3 Platzhalter übergangen)“, Ort und Höhe aus den Fahrzeugen, Übung 2 sofort leer, nach 16 s Stille letzter Ort mit Alter.
 
+## Erfolg mit VBS als Host (08.11.2026, Test von Fabian, gemeldet von k5.2)
+
+- **Aufbau:** VBS 26.1.3 als Host mit `-gateway`, Battlespace Cologne Airport (etwa 50,868 N, 7,138 E), Simulator in Chrome mit der DIS-Brücke.
+- **Ergebnis:** OSD „DIS 10“ und „50.86802N 7.13799E“; mehrere VBS-Lkw als Grundtypen mit Namen und Abstand auf unserem NRW-Gelände des Flughafens.
+- **Hinweis:** Ohne VWS fehlt in VBS das Gelände, Objekte fallen endlos (im DIS Höhen um minus 170 km, Tempo um 1800 m/s). Höhen so weit unter der Erde verwirft unser Filter schon (Abstand zur Erdmitte unter 6,3 Mio. m); kurz nach Beginn des Falls greift die Regel „Bodeneinheit mehr als 100 m unter den übrigen“. Eine Grenze für das Tempo gibt es noch nicht (Vorschlag offen).
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
