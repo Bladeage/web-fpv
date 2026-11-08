@@ -79,3 +79,14 @@ test('Zurückspulen: 5 s zurück, auch nach einem Absturz', async () => {
   assert.ok(Math.abs(game.sim.p[1] - p1[1]) < 3, 'Höhe wie vor dem Sturz: ' + game.sim.p[1]);
   cfg.dmg = 'off';
 });
+
+test('Beschuss (DIS): leicht beschädigt einen Motor, schwer zerstört, Schadmodell „Aus“ nur Meldung', async () => {
+  const { shotHit } = await import('../src/physics.js');
+  cfg.dmg = 'real'; respawn(); game.state = 'fly';
+  shotHit(false);
+  assert.equal(game.sim.hp.filter(h => h < 1).length, 1, 'ein Motor getroffen'); assert.ok(Math.min(...game.sim.hp) < 0.5); assert.equal(game.state, 'fly');
+  shotHit(true, 'Abgeschossen');
+  assert.equal(game.state, 'crashed'); assert.match(game.sim.crashMsg, /Abgeschossen: zerstört/);
+  cfg.dmg = 'off'; respawn(); game.state = 'fly'; shotHit(true);
+  assert.equal(game.state, 'fly'); assert.ok(game.sim.hp.every(h => h === 1));
+});

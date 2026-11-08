@@ -44,6 +44,10 @@ test('Brücke: Gesamtlauf (WebSocket <-> UDP, Herzschlag, Port wechseln, deaktiv
   const s = createSocket('udp4'); await new Promise(r => s.send(Buffer.from(pduSample(13)), b.udpPort, '127.0.0.1', r)); s.close();
   await wait(150);
   assert.ok(rx.some(x => x instanceof ArrayBuffer && new Uint8Array(x)[17] === 13), 'PDU von VBS am Browser');
+  // Detonation (Typ 3) wird durchgereicht, aber nie als Herzschlag wiederholt
+  const det = pduSample(1, 77); det[2] = 3; const n0 = got.length; ws.send(det); await wait(800);
+  assert.ok(got.slice(n0).some(p => p[2] === 3), 'Detonation durchgereicht'); assert.equal(got.slice(n0).filter(p => p[2] === 3).length, 1, 'nur einmal');
+  assert.ok(got.slice(n0).some(p => p[2] === 1 && p[100] === 42), 'Herzschlag weiter mit der Lagemeldung');
   // Simulator wünscht anderen DIS-Port: neue Info, Empfang auf dem neuen Port, der alte ist frei
   const probe = createSocket('udp4'); await new Promise(r => probe.bind(0, '127.0.0.1', r)); const np = probe.address().port; probe.close();
   const old = b.udpPort; ws.send(JSON.stringify({ t: 'config', port: np })); await wait(200);

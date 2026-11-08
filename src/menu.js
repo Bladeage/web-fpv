@@ -141,6 +141,9 @@ export function syncMenu() {
   press('#visionSeg button', b => b.dataset.vision === (cfg.vision || 'normal'));
   press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
+  // Wirkmittel (Prompt 157): nur in der echten Welt (DIS-Übung oder Ort); zündet bei Kontakt
+  $('whSeg').hidden = cfg.scen !== 'real';
+  press('#whSeg button', b => b.dataset.wh === (cfg.warhead || 'none'));
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));
   $('propsView').checked = cfg.propsView;
@@ -372,6 +375,7 @@ document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('c
   if (!spec && SPECIAL.has(cfg.scen)) { rwAbort(); cfg.scen = cfg.lastStd && !SPECIAL.has(cfg.lastStd) ? cfg.lastStd : 'gates'; }
   saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
+document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
 document.querySelectorAll('#rwSeg button[data-src]').forEach(b => b.addEventListener('click', () => { if (b.dataset.src !== cfg.rwSrc) rwAbort(); cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
 let srcFrom = 'mode';   // Optionen der echten Welt: „Fertig“ führt dorthin zurück, woher man kam
 $('rwOpt').addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); });   // Optionen der echten Welt (Daten, Quellen)

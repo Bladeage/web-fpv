@@ -108,7 +108,8 @@ try {
             if ($res.EndOfMessage) {
               $data = $c.msg.ToArray(); $c.msg.SetLength(0)
               if ($res.MessageType -eq [System.Net.WebSockets.WebSocketMessageType]::Binary -and $data.Length -ge 12) {
-                [void]$udp.Send($data, $data.Length, $dest); $c.last = $data; $c.lastT = $sw.Elapsed.TotalSeconds
+                [void]$udp.Send($data, $data.Length, $dest)
+                if ($data[2] -eq 1) { $c.last = $data; $c.lastT = $sw.Elapsed.TotalSeconds }   # Herzschlag nur aus Entity State (Typ 1)
               } elseif ($res.MessageType -eq [System.Net.WebSockets.WebSocketMessageType]::Text) {
                 $s = [Text.Encoding]::UTF8.GetString($data)
                 if ($s -match '"t"\s*:\s*"config"' -and $s -match '"port"\s*:\s*(\d{1,5})') { Set-DisPort ([int]$Matches[1]) }

@@ -9,7 +9,7 @@
    - Ort der Übung (vbCenter): Mitte der empfangenen Einheiten, damit der Flug dort beginnen kann.
    - Getrennt: alle 3 s neuer Versuch. Hängt der Aufbau (Browser fragt nach dem lokalen Netz), meldet vbBridge „wartet“.
    Werte aus SISO-REF-010 über dis.js und distypes.js. Reprinted with permission from SISO Inc. */
-import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence, disDeadReckon, disArticulation, DIS_PDU } from './dis.js';
+import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence, disDeadReckon, disArticulation, DIS_PDU, disToEcef, disNedToEcef, disEncodeDetonation } from './dis.js';
 import { qMul, qAxis, qRot } from './math.js';
 import { disBaseInfo, disBaseOf, disBaseParts } from './distypes.js';
 import { toUtm } from './geo.js';
@@ -21,7 +21,7 @@ import { rw, rwLatLon, groundH } from './realworld.js';
 // behalten, bis sie sich abmelden (Optionen; für Partner, die nur beim Anlegen senden, etwa das Gateway von VBS 26.1.3). Vorgabe: Löschen
 // nach timeout (13 s, wie die DIS-Regel mit 5 s Herzschlag).
 export const VB = { url: 'ws://localhost:8642', retry: 3, hang: 15, wait: 2, maxUnits: 50, range: 5000, timeout: 13, undulation: 47, exercise: 1, port: 3000, entity: 1, everyUnits: 0.2, keep: false };
-export const vb = { ws: null, state: 'aus', err: '', units: [], dis: new Map(), last: null, tTry: -1e9, tUnits: 0, tBuild: -1e9, sent: 0, info: null, now: 0, seen: 'suche', fx: [], fired: new Map() };   // fx: Schüsse und Einschläge (Kartenkoordinaten), fired: Einheit -> Zeit des letzten Schusses   // seen: letztes Ergebnis für das Menü (bleibt während eines neuen Versuchs stehen)
+export const vb = { ws: null, state: 'aus', err: '', units: [], dis: new Map(), last: null, tTry: -1e9, tUnits: 0, tBuild: -1e9, sent: 0, info: null, now: 0, seen: 'suche', fx: [], fired: new Map(), me: null, hits: [], contact: null, events: new Set(), ev: 0 };   // fx: Schüsse und Einschläge (Kartenkoordinaten), fired: Einheit -> Zeit des letzten Schusses   // seen: letztes Ergebnis für das Menü (bleibt während eines neuen Versuchs stehen)
 // Die Windows-Brücke, eingebettet vom Build (Datei bruecke/fpv-dis-bruecke.cmd), für den Download im DIS-Modus
 export const VB_BRUECKE = '%%BRUECKE_CMD%%';
 
@@ -151,7 +151,57 @@ function vbShot(d) {
   const kind = d.pduType === DIS_PDU.fire ? 'fire' : 'det', from = d.shooter.site + ':' + d.shooter.app + ':' + d.shooter.entity;
   vb.fx.push({ kind, x: L.x, y: L.y, z: L.z, v: L.v, t: vb.now, from });
   if (kind === 'fire') vb.fired.set(from, vb.now);
+  if (vb.me && !(d.shooter.site === DIS_FPV.site && d.shooter.app === DIS_FPV.app)) vbHitCheck(d, kind, L);
   if (vb.fx.length > 64) vb.fx.splice(0, vb.fx.length - 64);
+}
+// Treffer an unserer Drohne (Prompt 157). Zwei Wege, weil offen ist, ob der Partner fremde Luftfahrzeuge trifft und dort
+// detoniert: (1) Detonation nahe der Drohne, (2) der Weg des Geschosses aus der Fire-PDU (gerade Linie ab Abschuss) geht nah an
+// der Drohne vorbei. Je Ereignis (Fire und Detonation teilen die Ereignis-Nummer) höchstens ein Treffer.
+// Schwere nach Munitionsbereich (SISO-REF-010, Art 2, zweite Zahl): 8 Personenabwehr und 9 Gefechtsfeldunterstützung (im Test:
+// Gewehr des Soldaten) leicht, alle anderen (Panzerabwehr, Maschinenkanone) schwer. Radien als Schätzung: Drohne etwa 0,3 m groß,
+// Geschoss gilt bis 0,8 m als Treffer; Explosion schwer bis 2 m zerstörend, bis 5 m leicht; leichte Munition bis 1 m.
+// Reprinted with permission from SISO Inc.
+export const VB_HIT = { ray: 0.8, rayT: 4, blastHeavy: 2, blastLight: 5, smallBlast: 1, lightDomains: [8, 9] };
+function vbHitCheck(d, kind, L) {
+  const key = d.shooter.site + ':' + d.shooter.app + ':' + d.event.site + ':' + d.event.app + ':' + d.event.entity;
+  if (vb.events.has(key)) return;
+  const light = VB_HIT.lightDomains.includes(d.burst.type[1]), me = vb.me, rel = [me[0] - L.x, me[1] - L.y, me[2] - L.z];
+  let hit = 0;   // 0 kein, 1 leicht, 2 schwer
+  if (kind === 'det') {
+    const r = Math.hypot(...rel);
+    hit = light ? (r < VB_HIT.smallBlast ? 1 : 0) : r < VB_HIT.blastHeavy ? 2 : r < VB_HIT.blastLight ? 1 : 0;
+  } else {
+    const v2 = L.v[0]**2 + L.v[1]**2 + L.v[2]**2, tc = v2 ? (rel[0]*L.v[0] + rel[1]*L.v[1] + rel[2]*L.v[2])/v2 : -1;
+    if (tc > 0 && tc < VB_HIT.rayT) { const c = [rel[0] - L.v[0]*tc, rel[1] - L.v[1]*tc, rel[2] - L.v[2]*tc]; if (Math.hypot(...c) < VB_HIT.ray) hit = light ? 1 : 2; }
+  }
+  if (!hit) return;
+  vb.events.add(key); if (vb.events.size > 256) vb.events.clear();
+  vb.hits.push({ heavy: hit === 2, kind, from: d.shooter.site + ':' + d.shooter.app + ':' + d.shooter.entity });
+}
+// Wirkmittel der Drohne (Prompt 157): Munitionsart nach SISO-REF-010 als Vorschlag (Art 2 Munition, Bereich 2 Panzerabwehr,
+// allgemein), Gefechtskopf 1000 (Sprengstoff), Zünder 1000 (Kontakt). Vermutet; ob der Partner (etwa VBS) damit Schaden rechnet,
+// prüft k5.2. Reprinted with permission from SISO Inc.
+export const VB_CHARGE = { type: [2, 2, 0, 0, 0, 0, 0], warhead: 1000, fuse: 1000, quantity: 1, rate: 0 };
+// Eigene Detonation am Kartenpunkt p (Drohne), Ziel: Einheit (oder null), Tempo v (Karte). Sendet die PDU, zeigt die Explosion.
+export function vbDetonate(p, target, v = [0, 0, 0]) {
+  if (!rw.meta) return null;
+  const [lat, lon] = rwLatLon(p[0], p[2]), pos = disToEcef(lat, lon, rw.meta.hHome + p[1] + VB.undulation), vel = disNedToEcef(lat, lon, [-v[2], v[0], -v[1]]);
+  const tid = target ? target.id.split(':').map(Number) : [0, 0, 0];
+  vb.ev = (vb.ev + 1) & 0xffff;
+  const pdu = disEncodeDetonation({ exercise: VB.exercise, shooter: { site: DIS_FPV.site, app: DIS_FPV.app, entity: VB.entity }, target: { site: tid[0], app: tid[1], entity: tid[2] },
+    event: { site: DIS_FPV.site, app: DIS_FPV.app, entity: vb.ev }, vel, pos, burst: VB_CHARGE, result: target ? 1 : 3 });   // 1 Treffer an Einheit, 3 Bodentreffer
+  vb.fx.push({ kind: 'det', x: p[0], y: p[1], z: p[2], v: [0, 0, 0], t: vb.now, from: 'eigen' });
+  if (vb.ws && vb.ws.readyState === 1) try { vb.ws.send(pdu); } catch (e) {}
+  return pdu;
+}
+// Berührt die Drohne (Punkt p, Radius r) eine Einheit? Kasten der Einheit in ihrer Lage (Maße aus distypes). Liefert die Einheit.
+export function vbContact(p, r = 0.2) {
+  for (const u of vb.units) {
+    const b = disBaseInfo(u.base), [L, W, H] = b.size, q = qMul(qAxis([0, 1, 0], u.yaw), qMul(qAxis([1, 0, 0], u.pitch), qAxis([0, 0, 1], -u.roll)));
+    const l = qRot([-q[0], -q[1], -q[2], q[3]], [p[0] - u.x, p[1] - u.y, p[2] - u.z]);
+    if (Math.abs(l[0]) < W/2 + r && Math.abs(l[2]) < L/2 + r && l[1] > -r && l[1] < H + r) return u;
+  }
+  return null;
 }
 // Richtung des Rohrs und Mündung in Kartenkoordinaten (Lage der Einheit, dann Turm um die Hochachse, dann Rohr um die
 // Querachse; wie render.js). null ohne Rohr. Azimut nach rechts = Drehung um +Y mit negativem Winkel (vorn ist -Z).
@@ -201,9 +251,12 @@ export function vbStep(t, s, st, link, send = link) {
     vb.units = live ? vbTake(vbUnitsGeo(vb.dis), s.p) : [];
   }
   for (const u of vb.units) { vbPlace(u, t - u.t0); u.fireT = vb.fired.get(u.id) ?? -1e9; u.aims = !u.dead && vbAims(u, s.p); }
+  // Für Treffer und Kontakt: Ort der Drohne nur im Flug (send), sonst keine Treffer
+  vb.me = send && live && st === 'fly' ? s.p.slice() : null;
+  vb.contact = vb.me ? vbContact(vb.me) : null;
   while (vb.fx.length && t - vb.fx[0].t > VB_FX.keep) vb.fx.shift();
 }
-export function vbClose() { const ws = vb.ws; vb.ws = null; vb.units = []; vb.dis.clear(); vb.info = null; vb.fx = []; vb.fired.clear(); if (ws) try { ws.close(); } catch (e) {} }
+export function vbClose() { const ws = vb.ws; vb.ws = null; vb.units = []; vb.dis.clear(); vb.info = null; vb.fx = []; vb.fired.clear(); vb.hits = []; vb.contact = null; if (ws) try { ws.close(); } catch (e) {} }
 // Zustand der Brücke für das Menü: 'läuft' | 'wartet' (Aufbau hängt, etwa Frage nach dem lokalen Netz) | 'nicht gefunden' | 'suche'.
 // Ein Browser sieht nur, ob die Brücke läuft, nicht ob sie installiert ist.
 export function vbBridge() {

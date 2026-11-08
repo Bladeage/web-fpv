@@ -6,7 +6,7 @@
    ========================================================= */
 import { cfg, game, inp, say } from './state.js';
 import { gates } from './world.js';
-import { STEP, fx, respawn, step, rewind, freezeOk } from './physics.js';
+import { STEP, fx, respawn, step, rewind, freezeOk, crash, shotHit } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
 import { gl, glLost, initGL, render, resize, toggleCam, cycleVision } from './render.js';
@@ -24,7 +24,8 @@ import { RW_STORE } from './rwstore.js';
 import { bfPrepare } from './bf.js';
 import { dePrepare } from './demap.js';
 import { rwThreadInit } from './rwthread.js';
-import { vbStep } from './verbund.js';
+import { vb, vbStep, vbDetonate } from './verbund.js';
+import { disBaseInfo } from './distypes.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
@@ -36,6 +37,24 @@ setScenario(cfg.scen); game.scenRun = cfg.scen;
 rwLoadEmbedded().then(() => { if (cfg.scen === 'real' && rw.ready && !rw.on) { setScenario('real'); respawn(); } });
 applyDrone(cfg.drone);
 respawn();
+
+/* ---------- Beschuss und Wirkmittel (Prompt 157) ---------- */
+// Treffer aus dem DIS-Netz (vb.hits) beschädigen die Drohne. Mit Sprengladung zündet die Drohne bei Kontakt mit einer DIS-Einheit
+// (Detonation-PDU mit deren Kennung) oder beim Absturz (Bodentreffer); ohne Sprengladung ist der Zusammenstoß mit einer Einheit
+// ein Absturz (Schadmodell an). boomed: einmal je Flug.
+let boomed = false;
+function combat() {
+  if (game.state === 'fly') boomed = false;
+  if (!rw.on || game.scenRun !== 'real' || !game.started) { vb.hits.length = 0; return; }
+  for (const h of vb.hits.splice(0)) shotHit(h.heavy, h.heavy ? 'Abgeschossen' : 'Treffer');
+  const s = game.sim, armed = cfg.warhead === 'charge', u = vb.contact;
+  if (game.state === 'fly' && u) {
+    const name = disBaseInfo(u.base).name;
+    if (armed) { vbDetonate(s.p, u, s.v); boomed = true; crash('Sprengladung gezündet: ' + name + ' getroffen'); }
+    else if (cfg.dmg !== 'off' && Math.hypot(...s.v) > 2) crash('An ' + name + ' geprallt');
+  }
+  if (armed && !boomed && game.state === 'crashed') { vbDetonate(s.p, null, s.v); boomed = true; }
+}
 
 /* ---------- Hauptschleife ---------- */
 game.last = performance.now();
@@ -75,6 +94,7 @@ function frame(now) {
   // Drohne nur im Flug der echten Welt senden, auch in der Pause (die Brücke hält den Herzschlag)
   const disOn = !!cfg.verbund && cfg.scen === 'real';
   vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && game.scenRun === 'real');
+  combat();
   render(dt);
   drawHud();
   audioUpd();

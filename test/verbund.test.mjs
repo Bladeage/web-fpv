@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { createSocket } from 'node:dgram';
 import { rw, rwApply, rwLatLon, groundH, rwFlat, rwFlatImage, rwPlan } from '../src/realworld.js';
-import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet, vbGun, vbAims } from '../src/verbund.js';
+import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet, vbGun, vbAims, vbContact, vbDetonate, VB_CHARGE } from '../src/verbund.js';
 import { createBridge } from '../tools/dis-bruecke.mjs';
 import * as D from '../src/dis.js';
 
@@ -101,6 +101,42 @@ test('DIS-Modus: Turm und Rohr aus den Parametern, Rohrrichtung, „zielt auf di
     const u0 = vbTake(vbUnitsGeo(new Map([['b', { ...e, art: null }]])), [0, 0, -100])[0]; vbPlace(u0, 0);
     near(vbGun(u0).dir[2], -1, 1e-3, 'Grundstellung vorn');
   } finally { rw.on = false; }
+});
+
+test('DIS-Modus: Treffer an der Drohne (Geschossweg, Detonation, leicht und schwer), Kontakt, eigene Detonation', async () => {
+  rw.on = true;
+  const net = createSocket('udp4'); await new Promise(r => net.bind(0, '127.0.0.1', r));
+  const b = createBridge({ wsPort: 0, disPort: 0, disTarget: '127.0.0.1', disTargetPort: net.address().port }), got = [];
+  net.on('message', m => got.push(D.disDecode(m)));
+  let loop = null, tt = 100;
+  const s = { p: [0, 30, -100], v: [0, 0, -12], q: [0, 0, 0, 1], w: [0, 0, 0] };
+  try {
+    await b.ready; VB.url = 'ws://127.0.0.1:' + b.wsPort; VB.port = b.udpPort; vb.tTry = vb.tBuild = -1e9; vb.hits = [];
+    loop = setInterval(() => { tt += 0.05; vbStep(tt, s, 'fly', true, true); }, 50);
+    await wait(400);
+    const ecef = (x, y, z) => { const [la, lo] = rwLatLon(x, z); return D.disToEcef(la, lo, meta.hHome + y + 47); };
+    const send = async pdu => { const k = createSocket('udp4'); await new Promise(r => k.send(pdu, b.udpPort, '127.0.0.1', r)); k.close(); };
+    const shooter = { site: 1, app: 9, entity: 5 }, aim = (from, to, sp) => { const a = ecef(...from), b = ecef(...to), d = b.map((x, i) => x - a[i]), n = Math.hypot(...d); return d.map(x => x/n*sp); };
+    // Panzergeschoss von 300 m südlich genau auf die Drohne (nach Norden, 30 m hoch): schwer
+    await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 1 }, pos: ecef(0, 30, 200), vel: aim([0, 30, 200], [0, 30, -100], 1100), burst: { type: [2, 2, 225, 2, 10, 6, 0] } }));
+    // Gewehrschuss 5 m daneben: kein Treffer; Gewehr genau drauf: leicht
+    await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 2 }, pos: ecef(5, 30, 200), vel: aim([5, 30, 200], [5, 30, -100], 900), burst: { type: [2, 9, 225, 2, 81, 1, 0] } }));
+    await send(D.disEncodeFire({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 3 }, pos: ecef(0, 30.3, 200), vel: aim([0, 30.3, 200], [0, 30.3, -100], 900), burst: { type: [2, 9, 225, 2, 81, 1, 0] } }));
+    await wait(300); assert.deepEqual(vb.hits.map(h => h.kind + (h.heavy ? ' schwer' : ' leicht')), ['fire schwer', 'fire leicht'], 'Geschossweg: Panzer schwer, Gewehr 5 m daneben nichts, Gewehr drauf leicht');
+    // Detonation desselben Ereignisses 1 an der Drohne: zählt nicht doppelt; Panzer-Detonation 3,5 m entfernt: leicht
+    await send(D.disEncodeDetonation({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 1 }, pos: ecef(0, 30, -100), burst: { type: [2, 2, 225, 2, 10, 6, 0] }, result: 1 }));
+    await send(D.disEncodeDetonation({ exercise: 1, shooter, event: { site: 1, app: 9, entity: 4 }, pos: ecef(3.5, 30, -100), burst: { type: [2, 2, 225, 2, 10, 6, 0] }, result: 3 }));
+    await wait(300);
+    assert.deepEqual(vb.hits.map(h => h.heavy), [true, false, false], 'dazu Explosion 3,5 m: leicht');
+    // eigene Detonation an einer Einheit: PDU mit unserer Kennung, Ziel, Munition, Ergebnis 1; Herzschlag bleibt Lagemeldung
+    const u = { id: '1:9:7', base: 'kpz', force: 2, x: 10, y: 0, z: -100, yaw: 0, pitch: 0, roll: 0 };
+    clearInterval(loop); vb.units = [u]; assert.equal(vbContact([10, 1.5, -97]), u, 'im Kasten'); assert.equal(vbContact([10, 1.5, -94]), null, 'davor');
+    got.length = 0; vbDetonate([10, 1.5, -97], u, [0, 0, -12]); await wait(300);
+    const d = got.find(p => p.pduType === 3);
+    assert.deepEqual([d.shooter.site, d.shooter.app, d.target.entity, d.result], [1, 200, 7, 1]); assert.deepEqual(d.burst.type, VB_CHARGE.type);
+    const [dl, dlo] = D.disFromEcef(...d.pos), [el, elo] = rwLatLon(10, -97); near(dl, el, 1e-7); near(dlo, elo, 1e-7);
+    assert.ok(vb.fx.some(f => f.kind === 'det' && f.from === 'eigen'), 'Explosion im Bild');
+  } finally { clearInterval(loop); vbClose(); b.close(); net.close(); vb.tTry = vb.tBuild = -1e9; vb.seen = 'suche'; VB.port = 3000; rw.on = false; }
 });
 
 test('DIS-Modus: Übung oder Port wechseln leert die Liste; Einheiten behalten bis zur Abmeldung (Schalter)', () => {

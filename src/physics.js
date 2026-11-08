@@ -463,6 +463,22 @@ export function damage(n, v, base) {
   });
 }
 
+// Beschuss im DIS-Modus (Prompt 157): schwer = Absturz, Drohne zerstört; leicht = ein Motor stark beschädigt (60 % weg, Schätzung),
+// zwei ausgefallene Motoren bringen sie ohnehin herunter. Schadmodell „Aus“ (Spielstile Lerner, Gott): nur Meldung.
+export function shotHit(heavy, why = 'Abgeschossen') {
+  const s = game.sim;
+  if (game.state !== 'fly') return false;
+  fx.hit(6);
+  if (cfg.dmg === 'off') { say('Treffer (Schaden aus)', 1.5); return false; }
+  if (heavy) { crash(why + ': zerstört'); return true; }
+  const alive = s.hp.map((h, i) => [h, i]).filter(x => x[0] > 0);
+  if (!alive.length) return false;
+  const [, i] = alive[Math.floor(Math.random()*alive.length)];
+  s.hp[i] = Math.max(0, s.hp[i] - 0.6);
+  say('Treffer: Motor ' + (i + 1) + (s.hp[i] === 0 ? ' ausgefallen' : ' beschädigt'), 2);
+  return false;
+}
+
 // Hitbox (P2): Teile im Körpersystem [x, y, z, Radius, Rotor oder -1, Dicke oder 0].
 // 0 bis 3: Füße unter den Armen, Auflage auf Höhe der Rahmen-Unterseite (PHYS.foot).
 // 4: Oberseite (Deckplatte, Akku), darauf liegt sie auf dem Kopf.

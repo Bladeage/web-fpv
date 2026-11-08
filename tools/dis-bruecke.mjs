@@ -82,7 +82,8 @@ export function createBridge(o = {}) {
       for (const f of r.frames) {
         if (f.op === 8) { sock.end(wsFrame('', 8)); continue; }
         if (f.op === 9) { sock.write(wsFrame(f.data, 10)); continue; }
-        if (f.op === 2 && f.data.length >= 12) { send(f.data); c.last = f.data; c.lastT = Date.now(); }
+        // Herzschlag und „deaktiviert“ nur aus der Lagemeldung (Entity State, PDU-Typ 1), nie aus Schuss oder Detonation
+        if (f.op === 2 && f.data.length >= 12) { send(f.data); if (f.data[2] === 1) { c.last = f.data; c.lastT = Date.now(); } }
         if (f.op === 1) { let m = null; try { m = JSON.parse(f.data.toString()); } catch (e) {} if (m && m.t === 'config') setPort(+m.port); }
       }
     });
