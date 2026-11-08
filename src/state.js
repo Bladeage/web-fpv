@@ -33,6 +33,10 @@ export const KEY_FN = [
   ['freeze', 'Einfrieren', 'KeyF'],
   ['tiltUp', 'Kamera höher', 'PageUp'], ['tiltDown', 'Kamera tiefer', 'PageDown']
 ];
+// Knüppel-Paare der Tastatur (Reiter Steuerung, Bereich Knüppel; Hilfe): [Name, Funktion, Gegenfunktion, Beschriftung].
+// Die übrigen Funktionen aus KEY_FN stehen im Bereich Funktionen; jede Funktion genau einmal (docs/plan-menue.md)
+export const KEY_STICKS = [['Gas', 'thrUp', 'thrDown', 'mehr / weniger'], ['Gieren', 'yawL', 'yawR', 'links / rechts'],
+  ['Nicken', 'pitchF', 'pitchB', 'Nase runter / hoch'], ['Rollen', 'rollL', 'rollR', 'links / rechts']];
 export const KEY_RESERVED = ['Escape', 'KeyP'];
 export const keyLearn = { fn: null };   // Menü wartet auf eine Taste für diese Funktion
 const KEY_DEFAULT = Object.fromEntries(KEY_FN.map(([fn, , code]) => [fn, code]));
@@ -67,11 +71,17 @@ Object.assign(cfg, storedCfg);
 cfgMigrate(cfg);
 // Menü mit Flugart und Welt (Etappe T1): alte Wahl „Echte Welt“ (scen 'real') wird Welt 'real' mit Freiflug, die Vorschau der
 // Grundtypen ist kein Modus mehr. Alte DIS-Wahl (verbund) bleibt: Startort „DIS-Übung“.
+// DIS-Übung ist seit der Neuordnung der Menüs (docs/plan-menue.md) eine Flugart im Hauptmenü, kein Startort mehr:
+// flight 'dis'; verbund bleibt als Flagge für main, hud und scenario und folgt nur noch flight. Die ebene Fläche (rwSrc 'dis')
+// gibt es nur in der DIS-Übung, sonst startete ein Parcours darauf.
 export function cfgMigrate(c) {
   if (c.scen === 'real') { c.world = 'real'; c.scen = 'free'; }
   if (c.scen === 'vbs') c.scen = 'gates';
-  if (c.flight !== 'course' && c.flight !== 'tactical') c.flight = 'course';
+  if (c.verbund && c.flight !== 'dis') c.flight = 'dis';   // alte Wahl „Startort DIS-Übung“ wird die Flugart DIS-Übung
+  if (!['course', 'tactical', 'dis'].includes(c.flight)) c.flight = 'course';
+  c.verbund = c.flight === 'dis';
   if (c.world !== 'map' && c.world !== 'real') c.world = 'map';
+  if (c.rwSrc === 'dis' && c.flight !== 'dis') c.rwSrc = 'emb';
   return c;
 }
 // Raten: Ältere Einstellungen kannten nur cfg.rate (max. Drehrate). Daraus Mitte, Maximum und Expo ableiten.

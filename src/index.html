@@ -23,8 +23,9 @@
       <h1 id="mt">FPV-Simulator<small>Modus wählen, Drohne wählen, fliegen</small></h1>
       <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
       <button id="bResume" class="primary" hidden>Weiterfliegen</button>
-      <button id="go" class="primary" data-flight="course" title="Tore, Ringe, Jagd, Lieferung. Spielkarte oder echte Welt">Parcours-Flug</button>
-      <button id="goTac" class="secondary" data-flight="tactical" title="Wirkmittel gegen Ziele. Spielkarte oder echte Welt">Taktischer Flug</button>
+      <button id="go" class="primary flight" data-flight="course"><b>Parcours-Flug</b><span>Tore, Ringe, Jagd, Lieferung. Spielkarte oder echte Welt</span></button>
+      <button id="goTac" class="secondary flight" data-flight="tactical"><b>Taktischer Flug</b><span>Wirkmittel gegen Ziele. Spielkarte oder echte Welt</span></button>
+      <button id="goDis" class="secondary flight" data-flight="dis"><b>DIS-Übung</b><span>Ort und Einheiten eines DIS-Partners. Experimentell</span></button>
       <button class="secondary" data-go="settings">Einstellungen</button>
       <p class="best" id="bestTxt"></p>
       <p class="hint firsthint" id="firstHint">Steuerung: Tastatur (W A S D und Pfeile), Touch oder Funke. Mehr unter Einstellungen → Hilfe.</p>
@@ -49,13 +50,7 @@
       <div id="modeSpec" hidden>
         <div id="rwOpts">
           <p class="grp">Startort <button class="linkbtn grplink" id="rwOpt" title="Daten, Export und Import, Quellen">Optionen ›</button></p>
-          <div class="seg small seg3" id="rwSeg"><button data-start="emb" title="Eingebaut, geht ohne Netz">Monschau</button><button data-start="live" title="Beliebiger Ort in Deutschland">Ort laden</button><button data-start="dis" title="Ort und Einheiten eines DIS-Partners, experimentell">DIS-Übung</button></div>
-          <div id="disOpts" class="disopts" hidden>
-            <p class="hint" id="disSt"></p>
-            <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
-            <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Zum Ort der Übung, erst umschauen, ohne Aufgabe" disabled>Dorthin</button></div>
-            <button class="linkbtn" id="disBases" title="Die 18 Modelle für Einheiten aus DIS auf der Spielkarte ansehen">Grundtypen ansehen ›</button>
-          </div>
+          <div class="seg small" id="rwSeg"><button data-start="emb" title="Eingebaut, geht ohne Netz">Monschau</button><button data-start="live" title="Beliebiger Ort in Deutschland">Ort laden</button></div>
           <div id="rwLive" class="rwlive">
             <input type="text" id="rwLL" placeholder="Breite, Länge" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
             <button class="secondary" id="rwMap">Karte</button>
@@ -66,6 +61,21 @@
         </div>
       </div>
       <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" id="modeNext" data-go="drone">Weiter</button></div>
+    </section>
+
+    <section data-screen="dis" hidden>
+      <p class="stepno">Schritt 1 von 2</p>
+      <h1>DIS-Übung <small class="tag">experimentell</small></h1>
+      <p class="hint" id="disInfo">Ort und Einheiten kommen vom Partner, ohne Aufgabe. Die Drohne erscheint dort; der Partner übernimmt keinen Schaden.</p>
+      <div id="disOpts" class="disopts">
+        <p class="hint" id="disSt"></p>
+        <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
+        <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Zum Ort der Übung, erst umschauen, ohne Aufgabe" disabled>Dorthin</button></div>
+        <label class="check" id="disKeepRow" hidden><input type="checkbox" id="disKeep"> Einheiten ohne neue Meldung behalten</label>
+        <p class="hint" id="disGround"></p>
+        <button class="linkbtn" id="disBases" title="Die 18 Modelle für Einheiten aus DIS auf der Spielkarte ansehen">Grundtypen ansehen ›</button>
+      </div>
+      <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" id="disNext" data-go="drone">Weiter</button></div>
     </section>
 
     <section data-screen="map" hidden>
@@ -82,7 +92,6 @@
       <div class="tabs tabs3" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button><button data-gtab="dbg">Debug</button></div>
       <div id="geoData">
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
-        <label class="row geotoggle"><span>DIS: Einheiten ohne neue Meldung behalten, bis sie sich abmelden</span><input type="checkbox" id="geoKeep"></label>
         <div class="geostats" id="geoStats"></div>
         <div class="srclist" id="srcStore"></div>
         <div class="seg small"><button id="geoImp">Importieren</button><button id="geoExp">Exportieren</button></div>
@@ -179,13 +188,13 @@
         <p class="hint" id="droneInfo"></p>
         <p class="hint">Alle Werte sind Schätzungen. Mehr Gewicht macht die Drohne träger. Die Raten gelten für beide Regler, in Angle nur fürs Gieren.</p>
       </div>
-      <div class="nav"><button class="secondary" data-go="mode">Zurück</button><button class="primary" id="bStart">Start</button></div>
+      <div class="nav"><button class="secondary" id="droneBack" data-go="mode">Zurück</button><button class="primary" id="bStart">Start</button></div>
     </section>
 
     <section data-screen="settings" hidden>
       <h1 id="setTitle">Einstellungen</h1>
       <div class="tabs" role="tablist">
-        <button data-tab="general">Allgemein</button><button data-tab="radio">Knüppel</button><button data-tab="switch">Funktionen</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
+        <button data-tab="general">Allgemein</button><button data-tab="radio">Steuerung</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
       </div>
       <div class="tabpane" data-pane="general">
         <div class="sliders three">
@@ -233,26 +242,31 @@
           <button data-ctl="pad"><b>Funke / Gamepad</b></button>
           <button data-ctl="keys"><b>Tastatur</b></button>
         </div>
-        <div id="ctlKeys" hidden>
-          <div class="keygrid" id="keyRows"></div>
-          <p class="hint" id="keyHint">Taste antippen, dann neue Taste drücken. Esc bricht ab. Liegt die Taste schon auf einer Funktion, tauschen beide. Fest: Esc / P Menü, + / − Blickfeld.</p>
-        </div>
-        <div id="ctlPad">
         <p class="gpstat" id="gpStat"></p>
-        <select id="gpPreset" aria-label="Belegung">
-          <option value="auto">Belegung: automatisch</option>
-          <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
-          <option value="gamepad">Gamepad (Xbox-Layout)</option>
-          <option value="custom">Eigene Zuordnung</option>
-        </select>
-        <div id="gpRows"></div>
-        <div class="nav"><button class="secondary" id="bCal">Kalibrieren</button><button class="secondary" id="bCalReset">Kalibrierung löschen</button></div>
-        <p class="hint" id="gpHint">A0 bis A7 sind die Achsen. „Lernen“: Knüppel nach oben bzw. rechts bewegen, die Achse wird erkannt.</p>
+        <div class="seg small" id="grpSeg">
+          <button data-grp="sticks"><b>Knüppel</b></button>
+          <button data-grp="fns"><b>Funktionen</b></button>
         </div>
-      </div>
-      <div class="tabpane" data-pane="switch" hidden>
-        <div id="swRows"></div>
-        <p class="hint">Quelle: A = Achse (Schalter an der Funke), T = Taste. „Lernen“: Schalter umlegen oder Taste drücken. Schalter an der Funke: die Stellung gilt (Angle/Acro: an = Acro). Taste: jeder Druck schaltet um. Scharf nur mit Gas unten.</p>
+        <div id="padSticks">
+          <div class="belegrow">
+            <select id="gpPreset" aria-label="Belegung">
+              <option value="auto">Belegung: automatisch</option>
+              <option value="radiomaster">RadioMaster / EdgeTX (AETR)</option>
+              <option value="gamepad">Gamepad (Xbox-Layout)</option>
+              <option value="custom">Eigene Zuordnung</option>
+            </select>
+            <button class="secondary" id="bCal">Kalibrieren</button><button class="secondary" id="bCalReset" title="Kalibrierung löschen">Löschen</button>
+          </div>
+          <div id="gpRows"></div>
+          <p class="hint" id="gpHint">A0 bis A7 sind die Achsen. „Lernen“: Knüppel nach oben bzw. rechts bewegen, die Achse wird erkannt.</p>
+        </div>
+        <div id="padFns" hidden>
+          <div id="swRows"></div>
+          <p class="hint">A = Achse (Schalter der Funke), T = Taste. „Lernen“: Schalter umlegen oder Taste drücken. Schalter: die Stellung gilt (Angle/Acro: an = Acro); Taste: jeder Druck schaltet um.</p>
+        </div>
+        <div id="keySticks" hidden><div class="keypairs" id="keyPairs"></div></div>
+        <div id="keyFns" hidden><div class="keygrid" id="keyRows"></div></div>
+        <p class="hint" id="keyHint" hidden>Taste antippen, dann neue Taste drücken. Esc bricht ab. Liegt die Taste schon auf einer Funktion, tauschen beide. Fest: Esc / P Menü, + / − Blickfeld.</p>
       </div>
       <div class="tabpane" data-pane="osd" hidden>
         <div class="seg seg3 small" id="osdStyleSeg"></div>
@@ -261,7 +275,7 @@
       <div class="tabpane" data-pane="help" hidden>
         <div class="keys" id="helpKeys"></div>
         <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
-        <p class="hint"><b>Echte Welt:</b> Monschau ist eingebaut. Andere Orte über den Startort „Ort laden“, per Koordinate oder Karte. Beim Fliegen lädt die Umgebung nach. Quellen für weitere Länder und Höhendienste (etwa vom DIS-Partner): Karte → Quellen. In Monschau ist Wasser ein Absturz.</p>
+        <p class="hint"><b>Echte Welt:</b> Monschau ist eingebaut, andere Orte über „Ort laden“. Weitere Länder und Höhendienste: Karte → Quellen. In Monschau ist Wasser ein Absturz. <b>DIS-Übung</b> (experimentell): Hauptmenü → DIS-Übung, Brücke starten, „Dorthin“.</p>
       </div>
       <div class="nav" id="setNav"><button class="secondary" id="bMain" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Fertig</button></div>
     </section>

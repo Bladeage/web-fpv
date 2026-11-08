@@ -1,6 +1,6 @@
 /* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
-import { cfg, game, keys, ptr, saveCfg, KEY_FN, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
+import { cfg, game, keys, ptr, saveCfg, KEY_FN, KEY_STICKS, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam } from './render.js';
@@ -38,10 +38,12 @@ const REAL_INFO = {
   hunt: 'Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt. Bei Leicht mit Ballons.',
   hunt3: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei Leicht mit Ballons.',
   deliver: 'Paket am orangen Platz neben dem Start holen, zu den blauen Plätzen bringen. Plätze flach und frei, bei jedem Start neu.' };
-const isReal = () => cfg.world === 'real';
+// DIS-Übung (Flugart im Hauptmenü, docs/plan-menue.md) ist immer echte Welt; cfg.world bleibt die Wahl für Parcours und Taktisch
+const isDis = () => cfg.flight === 'dis';
+const isReal = () => cfg.world === 'real' || isDis();
 // Szenario, das beim Start läuft
 export function flightScen() {
-  if (isReal() && cfg.verbund) return 'real';   // DIS-Übung: nur der Inhalt des Partners, keine Parcours- oder Jagdziele (Nutzer, Prompt 173)
+  if (isDis()) return 'real';   // DIS-Übung: nur der Inhalt des Partners, keine Parcours- oder Jagdziele (Nutzer, Prompt 173)
   if (isReal()) return cfg.flight !== 'tactical' && COURSE_REAL.includes(cfg.scen) && cfg.scen !== 'free' ? cfg.scen : 'real';
   if (cfg.flight === 'tactical') { const t = TAC.find(x => x.id === cfg.tac) || TAC[0]; return t.scen || 'free'; }
   return cfg.scen === 'real' || cfg.scen === 'vbs' ? 'gates' : cfg.scen;
@@ -111,25 +113,25 @@ function syncStyle() {
 export function syncMenu() {
   press('#fcSeg button', b => b.dataset.fc === (cfg.fc || 'own'));
   setMode(cfg.mode);
-  // Schritt 1: Titel nach Flugart, Welt-Schalter, Modus-Liste (nach Flugart und Welt gefiltert), Startort in der echten Welt.
-  // DIS-Übung (experimentell) = Startort in der echten Welt (cfg.verbund), in beiden Flugarten.
-  const tac = cfg.flight === 'tactical', real = isReal(), dis = real && !!cfg.verbund, run = flightScen(), sc = SCENARIOS.find(x => x.id === run);
+  // Schritt 1 „mode“: Titel nach Flugart, Welt-Schalter, Modus-Liste (nach Flugart und Welt gefiltert), Startort in der echten Welt.
+  // DIS-Übung: eigene Seite „dis“ als Schritt 1 (Flugart im Hauptmenü, docs/plan-menue.md).
+  const tac = cfg.flight === 'tactical', real = isReal(), dis = isDis(), run = flightScen(), sc = SCENARIOS.find(x => x.id === run);
   $('modeTitle').textContent = tac ? 'Taktischer Flug' : 'Parcours';
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
+  $('courseInfo').textContent = tac ? t.info : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
   $('modeSpec').hidden = !real;
-  $('scenList').hidden = dis;   // DIS-Übung: keine Modi, nur der Inhalt des Partners (Prompt 173)
-  if (dis) $('rwSaved').hidden = true;
-  $('disOpts').hidden = !dis; syncDis();
+  if (dis) syncDis();
+  $('droneBack').dataset.go = dis ? 'dis' : 'mode';   // Schritt 2 zurück zu Schritt 1 der Flugart
+  $('disKeep').checked = !!cfg.disKeep;
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
   $('courseOpts').hidden = run === 'gates' || run === 'free' || run === 'real' || run === 'vbs';
-  press('#rwSeg button', b => b.dataset.start === (dis ? 'dis' : cfg.rwSrc === 'live' ? 'live' : 'emb'));
-  $('rwLive').hidden = dis || cfg.rwSrc !== 'live';
+  press('#rwSeg button', b => b.dataset.start === (cfg.rwSrc === 'live' ? 'live' : 'emb'));
+  $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
   if (!rwBusy && dis) disMsg(true);
-  else if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
+  if (!rwBusy && !dis) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
     : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
       + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
@@ -169,8 +171,8 @@ export function syncMenu() {
   press('#visionSeg button', b => b.dataset.vision === (cfg.vision || 'normal'));
   press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
-  // Wirkmittel (Prompt 157): nur im Taktischen Flug (T1); zündet bei Kontakt
-  $('whSeg').hidden = !tac;
+  // Wirkmittel (Prompt 157): im Taktischen Flug und in der DIS-Übung (dort wirkt die Sprengladung gegen Einheiten); zündet bei Kontakt
+  $('whSeg').hidden = !tac && !dis;
   press('#whSeg button', b => b.dataset.wh === (cfg.warhead || 'none'));
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));
@@ -178,7 +180,7 @@ export function syncMenu() {
   $('gpPreset').value = cfg.gpPreset;
   syncGpRows();
   $('bResume').hidden = !game.started;
-  $('go').className = game.started ? 'secondary' : 'primary';   // nach dem ersten Flug ist „Weiterfliegen“ der Hauptknopf
+  $('go').classList.toggle('primary', !game.started); $('go').classList.toggle('secondary', game.started);   // nach dem ersten Flug ist „Weiterfliegen“ der Hauptknopf
   // Einstellungen: im Flug „Pause“ mit „Weiterfliegen“; aus dem Hauptmenü nur „Fertig“; aus einem anderen Schritt „Fertig“ (zurück dorthin) und „Hauptmenü“
   const inFlight = from === null && game.started;
   $('setTitle').textContent = inFlight ? 'Pause' : 'Einstellungen';
@@ -231,10 +233,10 @@ function back() { if (from === null && game.started) resume(); else show(from ||
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 // Umschauen am Ort der Übung (Freiflug ohne Aufgabe im DIS-Modus, Prompt 172): Esc öffnet die Auswahl mit dem DIS-Block (Gelände
 // wechseln, Mission starten), ein zweites Esc fliegt weiter. Sonst Esc wie bisher: Pause.
-const disLooking = () => game.started && game.scenRun === 'real' && !!cfg.verbund && cfg.world === 'real';
+const disLooking = () => game.started && game.scenRun === 'real' && isDis();
 export function toggleMenu() {
-  if (menu.hidden && disLooking()) openMenu('mode');
-  else if (!menu.hidden && screen === 'mode' && from === null && disLooking()) back();
+  if (menu.hidden && disLooking()) openMenu('dis');
+  else if (!menu.hidden && screen === 'dis' && from === null && disLooking()) back();
   else if (!menu.hidden && screen === 'settings') back(); else openMenu('settings');
 }
 // Echte Welt, Ort laden: Fortschritt im Menü. Knopf „Laden“: ein zweiter Klick bricht ab (rwBusy oben).
@@ -250,31 +252,33 @@ function rwLiveRun() { rwJob = rwLiveDo(); return rwJob; }
 function rwAbort() { if (rwBusy) rwBusy.abort(); }
 // „Weiter“ (Modus) und „Start“ (Drohne) während des Ladens gesperrt, mit Beschriftung „Lädt …“
 function rwLock() {
-  for (const [id, t] of [['modeNext', 'Weiter'], ['bStart', 'Start']]) { $(id).disabled = !!rwBusy; $(id).textContent = rwBusy ? 'Lädt …' : t; }
+  for (const [id, t] of [['modeNext', 'Weiter'], ['disNext', 'Weiter'], ['bStart', 'Start']]) { $(id).disabled = !!rwBusy; $(id).textContent = rwBusy ? 'Lädt …' : t; }
   if (cfg.verbund) syncDis();   // „Dorthin“ ist während des Ladens auch gesperrt
 }
+// Meldungen des Ladens: in der DIS-Übung in die Geländezeile der DIS-Seite, sonst unter „Ort laden“
+const msgEl = () => isDis() ? $('disGround') : msgEl();
 async function rwLiveDo() {
   const ll = parseLatLon(cfg.rwLL);
-  if (!ll) { $('rwMsg').textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }
+  if (!ll) { msgEl().textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }
   rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen'; rwLock();
   const t0 = performance.now();
   let ok = false;
   try {
-    await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE,
+    await rwLoadLive(ll[0], ll[1], (step, f) => { msgEl().textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE,
       disWms() ? { wms: rw.wms.src } : {});   // Ort der DIS-Übung mit gefundenem Höhendienst (W3)
     rwSavedFill(); ok = true;
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
     if (game.started && rw.on) { setScenario(game.scenRun, true); respawn(); }
   } catch (e) {
-    $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e); $('rwMsg').dataset.dis = 'err';
+    msgEl().textContent = 'Nicht geladen: ' + (e.message || e); msgEl().dataset.dis = 'err';
     if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
       const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Geodaten importieren';
-      b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); }); $('rwMsg').append(' ', b);
+      b.addEventListener('click', () => { srcFrom = isDis() ? 'dis' : 'mode'; srcOpen('data'); }); msgEl().append(' ', b);
     }
   } finally {
     rwBusy = null; rwJob = null; $('rwGo').textContent = 'Laden'; rwLock();
     // Geladen: Hinweis zum Ort mit Dauer. Startort inzwischen gewechselt (Abbruch): Hinweis des neuen Startorts statt der Fehlermeldung
-    if (ok || cfg.rwSrc !== 'live') { syncMenu(); if (ok && !cfg.verbund) $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
+    if (ok || cfg.rwSrc !== 'live') { syncMenu(); if (ok && !cfg.verbund) msgEl().textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
     fitPanel();
   }
   return ok;
@@ -318,7 +322,7 @@ async function rwSavedFill() {
   const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.append(o); };
   add('', 'Gespeicherte Orte (' + list.length + ')');
   for (const x of list) add(x.lat + ', ' + x.lon, x.place + ' · ' + (x.buildings || 0) + ' Gebäude · ' + (x.size/1e6).toFixed(0) + ' MB');
-  sel.hidden = !list.length || cfg.rwSrc !== 'live' || !!cfg.verbund;   // DIS-Übung: der Ort kommt aus der Übung
+  sel.hidden = !list.length || cfg.rwSrc !== 'live';
   fitPanel();
 }
 const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
@@ -327,7 +331,7 @@ async function start() {
   if (real && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
   if (real && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
     say('Lade Gebiet …', 60);
-    if (!await rwLiveRun()) { say('Ort nicht geladen, fliege Monschau. ' + $('rwMsg').textContent, 5); await rwLoadEmbedded(); }
+    if (!await rwLiveRun()) { say('Ort nicht geladen, fliege Monschau. ' + msgEl().textContent, 5); await rwLoadEmbedded(); }
     else say('Gebiet geladen', 1.5);
   }
   if (real && cfg.rwSrc === 'dis') disFlat();   // Ort der DIS-Übung ohne Kartendaten
@@ -363,12 +367,10 @@ function buildModeList() {
   press('#scenList button', b => b.dataset.id === (tac ? cfg.tac : real && !COURSE_REAL.includes(cfg.scen) ? 'free' : cfg.scen));
 }
 
-// DIS-Modus (Nutzer, Prompt 143 und 145): echte Welt im Verbund mit einem DIS-Partner. Zeigt, ob die Brücke läuft (die
-// Verbindung hält vbStep in der Hauptschleife), sonst Download der Windows-Brücke. Ein Browser sieht nur, ob die Brücke läuft,
-// nicht ob sie installiert ist. Mit Einheiten in der Übung: Flug an ihrem Ort (Kartendaten, wenn eine Quelle ihn abdeckt,
-// sonst ebene Fläche auf der Höhe der Einheiten).
-// Experimentell (DIS-Abschluss, docs/dis-abschluss.md): bekannte Grenzen im Hinweis.
-const DIS_INFO = 'DIS-Übung (experimentell): nur die Einheiten des Partners, keine Parcours- oder Jagdziele. Die Drohne erscheint beim Partner; er greift sie meist nicht an und übernimmt keinen Schaden.';
+// DIS-Übung (Nutzer, Prompt 143, 145, 174): echte Welt im Verbund mit einem DIS-Partner, Flugart im Hauptmenü mit eigener Seite
+// „dis“ (docs/plan-menue.md). Zeigt, ob die Brücke läuft (die Verbindung hält vbStep in der Hauptschleife), sonst Download der
+// Windows-Brücke. Ein Browser sieht nur, ob die Brücke läuft, nicht ob sie installiert ist. „Dorthin“: Flug am Ort der Einheiten
+// (Höhendienst, sonst Kartendaten, sonst ebene Fläche auf der Höhe der Einheiten). Experimentell (docs/dis-abschluss.md).
 vbSet({ port: cfg.disPort || 3000, exercise: cfg.disEx || 1, keep: !!cfg.disKeep });
 // Frage des Browsers nach dem lokalen Netz (Chrome: „local-network-access“): 'prompt', 'denied', 'granted' oder '' (unbekannt)
 let lna = '';
@@ -394,6 +396,7 @@ function syncDis() {
     : 'Suche Brücke …';
   $('disGet').hidden = !(st === 'nicht gefunden' || (st === 'wartet' && lna !== 'prompt' && lna !== 'denied'));
   $('disSets').hidden = st !== 'läuft';
+  $('disKeepRow').hidden = st !== 'läuft';
   $('disHere').disabled = !c || !!rwBusy;
   // „Dorthin“ gewählt: ebene Fläche am Ort der Übung oder Kartendaten an genau diesem Ort (dann ist auch „Ort laden“ gewählt)
   $('disHere').setAttribute('aria-pressed', String(cfg.rwSrc === 'dis' || (cfg.rwSrc === 'live' && !!cfg.disLL && cfg.rwLL === cfg.disLL)));
@@ -422,20 +425,21 @@ function disProbe() {
 // (Höhendienst <-> Kartendaten des Landes, Prompt 172), dazu „Gelände ›“ (Quellen)
 const disHost = u => String(u).split('/')[2];
 function disMsg(force = false) {
-  if (rwBusy || !cfg.verbund || !isReal() || (!force && $('rwMsg').dataset.dis === 'err')) return;   // Fehlermeldung bleibt bis zur nächsten Eingabe
+  if (rwBusy || !isDis() || (!force && $('disGround').dataset.dis === 'err')) return;   // Fehlermeldung bleibt bis zur nächsten Eingabe
   const w = rw.wms, here = parseLatLon(cfg.disLL), flown = cfg.rwSrc === 'live' && here && cfg.rwLL === cfg.disLL && rw.live && rw.liveAt && rw.liveAt[0] === here[0] && rw.liveAt[1] === here[1];
   const land = here && !!rwPlan(here[0], here[1]), viaWms = flown && rw.liveDis && rw.liveDis.wms;
   const t = cfg.rwSrc === 'dis' ? 'Gelände: ebene Fläche, keine Daten.'
     : viaWms ? 'Gelände: Höhendienst ' + disHost(rw.liveDis.wms.hgt.url) + (rw.photoOk ? ', mit Luftbild, ohne Häuser.' : ', ohne Luftbild und Häuser.') + (rw.meta && rw.meta.hMax - rw.meta.hMin < 2 ? ' Hier nur flach.' : '')
       + (rw.photoErr ? ' Luftbild: ' + rw.photoErr.slice(0, 70) : '')
     : flown ? 'Gelände: Kartendaten ' + (rw.liveSrcs || []).map(x => x.split(' (')[0]).join(', ') + '.' + (w && w.src ? ' Höhen können von VBS abweichen.' : '')
+    : !here && !vbCenter() && !(disLast && disLast.c) ? 'Noch kein Ort der Übung. „Dorthin“ holt ihn; ohne ihn startet der Flug in Monschau.'
     : !disWmsList().length ? 'Kein Höhendienst eingetragen. „Dorthin“ nimmt Kartendaten oder eine ebene Fläche.'
     : wmsBusy && !w ? 'Suche Höhendienst …'
     : w && w.src ? 'Höhendienst gefunden: ' + disHost(w.url) + ', Ebene ' + w.layer + '. „Dorthin“ nimmt ihn.'
     : w && w.err ? 'Höhendienst auf ' + disHost(w.url) + ', aber ' + w.text + '. Ebene unter Gelände › eintragen.'
     : 'Kein Höhendienst gefunden. „Dorthin“ nimmt Kartendaten oder eine ebene Fläche.';
   const swap = (viaWms || cfg.rwSrc === 'dis') && land ? 'Kartendaten laden' : flown && !viaWms && w && w.src ? 'Höhendienst laden' : '';
-  const m = $('rwMsg');
+  const m = $('disGround');
   if (m.dataset.dis === t + swap && m.querySelector('button')) return;
   m.textContent = t; m.dataset.dis = t + swap;
   if (swap) {
@@ -443,7 +447,7 @@ function disMsg(force = false) {
     s.addEventListener('click', () => disTerrain(swap === 'Kartendaten laden')); m.append(' ', s);
   }
   const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Gelände ›';
-  b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('src'); }); m.append(' ', b);
+  b.addEventListener('click', () => { srcFrom = 'dis'; srcOpen('src'); }); m.append(' ', b);
   fitPanel();
 }
 // Gelände am Ort der Übung wechseln, ohne die Mission zu starten; läuft das Umschauen (Freiflug), geht es dort im neuen Gelände weiter
@@ -454,11 +458,11 @@ async function disTerrain(land) {
 }
 let disShown = '';
 setInterval(() => {   // jede Sekunde, solange der DIS-Modus im Menü gewählt ist
-  if (menu.hidden || screen !== 'mode' || !isReal() || !cfg.verbund) return;
+  if (menu.hidden || screen !== 'dis' || !isDis()) return;
   syncDis();
   if (!wmsBusy && (!rw.wms || !rw.wms.src) && performance.now() - wmsT > WMS_RETRY*1000) disProbe();
   disMsg();
-  const k = $('disOpts').textContent + $('disGet').hidden + $('disSets').hidden;
+  const k = $('disOpts').textContent + $('disGet').hidden + $('disSets').hidden + $('disKeepRow').hidden;
   if (k !== disShown) { disShown = k; fitPanel(); }
 }, 1000);
 $('disGet').addEventListener('click', () => {
@@ -513,15 +517,21 @@ document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('c
   cfg.world = b.dataset.world; saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
 // Flugart aus dem Hauptmenü
-for (const id of ['go', 'goTac']) $(id).addEventListener('click', () => { cfg.flight = $(id).dataset.flight; saveCfg(); syncMenu(); show('mode'); });
+// DIS-Übung als dritte Flugart (docs/plan-menue.md): eigene Seite, cfg.verbund folgt der Flugart; die ebene Fläche der Übung gilt
+// nicht für Parcours und Taktisch
+for (const id of ['go', 'goTac', 'goDis']) $(id).addEventListener('click', () => {
+  cfg.flight = $(id).dataset.flight; cfg.verbund = isDis();
+  if (!isDis() && cfg.rwSrc === 'dis') { rwAbort(); cfg.rwSrc = 'emb'; }
+  saveCfg(); syncMenu(); show(isDis() ? 'dis' : 'mode');
+});
+$('disKeep').addEventListener('change', e => { cfg.disKeep = e.target.checked; saveCfg(); vbSet({ keep: cfg.disKeep }); });   // vorher unter Optionen → Daten
 // Vorschau der DIS-Grundtypen (aus dem DIS-Block): Spielkarte mit den 18 Modellen, Wahl im Menü bleibt
 $('disBases').addEventListener('click', () => { rwAbort(); run('vbs'); });
 document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
-// Startort: Monschau, Ort laden oder DIS-Übung (Verbund; den Ort setzt dort „Dorthin“)
+// Startort: Monschau oder Ort laden (die DIS-Übung ist eine eigene Flugart)
 document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.start;
-  if (v === 'dis') { cfg.verbund = true; }
-  else { if (v !== cfg.rwSrc) rwAbort(); cfg.verbund = false; cfg.rwSrc = v; }
+  if (v !== cfg.rwSrc) rwAbort(); cfg.rwSrc = v;
   saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
 let srcFrom = 'mode';   // Optionen der echten Welt: „Fertig“ führt dorthin zurück, woher man kam
@@ -730,24 +740,44 @@ function showTab(id) {
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 showTab('general');
-// Reiter Knüppel: Funke / Gamepad oder Tastatur
-function showCtl(id) {
-  press('#ctlSeg button', b => b.dataset.ctl === id);
-  $('ctlPad').hidden = id !== 'pad'; $('ctlKeys').hidden = id !== 'keys';
-  keyLearn.fn = null; buildKeyRows();
+// Reiter Steuerung (Knüppel und Funktionen zusammengelegt, Nutzer Prompt 174, docs/plan-menue.md): Gerät [Funke / Gamepad |
+// Tastatur] und Bereich [Knüppel | Funktionen], für beide Geräte gleich. Der Bereich ist Laufzeit-Zustand (Vorgabe Knüppel).
+const ctl = { dev: 'pad', grp: 'sticks' };
+function syncCtl() {
+  press('#ctlSeg button', b => b.dataset.ctl === ctl.dev);
+  press('#grpSeg button', b => b.dataset.grp === ctl.grp);
+  const pad = ctl.dev === 'pad', st = ctl.grp === 'sticks';
+  $('gpStat').hidden = !pad;
+  $('padSticks').hidden = !(pad && st); $('padFns').hidden = !(pad && !st);
+  $('keySticks').hidden = pad || !st; $('keyFns').hidden = pad || st; $('keyHint').hidden = pad;
+  keyLearn.fn = null; learn.fn = null; document.querySelectorAll('.learn').forEach(x => x.classList.remove('on'));
+  buildKeyRows();
   fitPanel();
 }
+function showCtl(id) { ctl.dev = id; syncCtl(); }
 document.querySelectorAll('#ctlSeg button').forEach(b => b.addEventListener('click', () => showCtl(b.dataset.ctl)));
-// Tastenbelegung: Taste antippen, dann neue Taste drücken
+document.querySelectorAll('#grpSeg button').forEach(b => b.addEventListener('click', () => { ctl.grp = b.dataset.grp; syncCtl(); }));
+// Tastenbelegung: Taste antippen, dann neue Taste drücken. Knüppel als Paare (KEY_STICKS), die übrigen Funktionen im Raster;
+// jede Funktion steht genau einmal da
+function keyBtn(fn) {
+  const b = document.createElement('button'); b.className = 'keybtn'; b.type = 'button';
+  b.textContent = keyLearn.fn === fn ? 'Taste …' : keyName(keyOf(fn));
+  b.classList.toggle('on', keyLearn.fn === fn);
+  b.addEventListener('click', () => { keyLearn.fn = keyLearn.fn === fn ? null : fn; buildKeyRows(); });
+  return b;
+}
 function buildKeyRows() {
-  const box = $('keyRows'); box.textContent = '';
+  const pairs = $('keyPairs'); pairs.textContent = '';
+  for (const [name, a, b, label] of KEY_STICKS) {
+    const n = document.createElement('span'); n.textContent = name;
+    const sm = document.createElement('small'); sm.textContent = label;
+    pairs.append(n, keyBtn(a), keyBtn(b), sm);
+  }
+  const stick = new Set(KEY_STICKS.flatMap(r => [r[1], r[2]])), box = $('keyRows'); box.textContent = '';
   for (const [fn, label] of KEY_FN) {
+    if (stick.has(fn)) continue;
     const lab = document.createElement('span'); lab.textContent = label;
-    const b = document.createElement('button'); b.className = 'keybtn'; b.type = 'button';
-    b.textContent = keyLearn.fn === fn ? 'Taste …' : keyName(keyOf(fn));
-    b.classList.toggle('on', keyLearn.fn === fn);
-    b.addEventListener('click', () => { keyLearn.fn = keyLearn.fn === fn ? null : fn; buildKeyRows(); });
-    box.append(lab, b);
+    box.append(lab, keyBtn(fn));
   }
   const r = document.createElement('button'); r.className = 'secondary keyreset'; r.type = 'button'; r.textContent = 'Standard-Tasten';
   r.addEventListener('click', () => { cfg.keys = {}; keyLearn.fn = null; saveCfg(); buildKeyRows(); });
@@ -765,15 +795,14 @@ addEventListener('keydown', e => {
 }, true);
 // Hilfe: aktuelle Belegung
 function buildHelpKeys() {
-  const rows = [['thrUp', 'thrDown', 'Gas mehr / weniger'], ['yawL', 'yawR', 'Gieren links / rechts'], ['pitchF', 'pitchB', 'Nase runter / hoch'],
-    ['rollL', 'rollR', 'Rollen links / rechts'], ['reset', null, 'Neustart'], ['cam', null, 'Kamera wechseln'], ['mode', null, 'Angle / Acro'],
+  const rows = [...KEY_STICKS.map(([n, a, b, l]) => [a, b, n + ' ' + l]), ['reset', null, 'Neustart'], ['cam', null, 'Kamera wechseln'], ['mode', null, 'Angle / Acro'],
     ['arm', null, 'Scharf schalten / aus (nur mit Gas unten)'], ['tiltUp', 'tiltDown', 'Kamerawinkel höher / tiefer'], ['rewind', null, '5 s zurückspulen'], ['freeze', null, 'Einfrieren / weiter (Lernen, Gott-Modus)'], ['vision', null, 'Bild: normal, Wärmebild, Nachtsicht']];
   const box = $('helpKeys'); box.textContent = '';
   const add = (k, t) => { const a = document.createElement('kbd'); a.textContent = k; const b = document.createElement('span'); b.textContent = t; box.append(a, b); };
   for (const [a, b, t] of rows) add(keyName(keyOf(a)) + (b ? ' / ' + keyName(keyOf(b)) : ''), t);
   add('+ / −', 'Blickfeld'); add('Esc / P', 'Einstellungen');
 }
-showCtl('pad');
+syncCtl();
 $('bResume').addEventListener('click', resume);
 $('bStart').addEventListener('click', start);
 $('bBack').addEventListener('click', back);

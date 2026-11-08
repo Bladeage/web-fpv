@@ -70,7 +70,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/dis.js` | DIS-Kodierer für die VBS-Anbindung: WGS84/ECEF, Lage, Entity State PDU (DIS 6/7), Vorhersage, Senderegel (noch nicht im Spiel) |
 | `src/distypes.js` | VBS-Grundtypen: 18 einfache Modelle, Zuordnung nach DIS-Entitätsart, Aufstellung der Vorschau (Modus „VBS-Grundtypen“) |
 | `src/place.js` | Platzierungsdienst: zufällige Orte für Ereignisse (Ringketten, Bereiche und Strecken der Luftziele, flache Plätze für Landung und Lieferung) in Spielkarte und echter Welt über eine kleine Welt-Schnittstelle |
-| `src/verbund.js` | DIS-Modus: eigene PDU bauen, DIS lesen, Einheiten in Kartenkoordinaten, Ort der Übung, Zustand der Brücke |
+| `src/verbund.js` | DIS-Übung (Hauptmenü → DIS-Übung, experimentell): eigene PDU bauen, DIS lesen, Einheiten in Kartenkoordinaten, Ort der Übung, Zustand der Brücke |
 | `bruecke/fpv-dis-bruecke.cmd` | DIS-Brücke für Windows (PowerShell, Doppelklick): reicht DIS-PDUs zwischen Simulator und UDP durch, Port einstellbar; der Simulator bietet sie im DIS-Modus zum Download an |
 | `tools/dis-bruecke.mjs` | Dieselbe Brücke in Node für Entwicklung und Tests |
 | `src/rwthread.js` | Echte Welt: Hintergrund-Thread aus dem eigenen Script anlegen, Aufträge abgeben; ohne ihn rechnet das Hauptprogramm |

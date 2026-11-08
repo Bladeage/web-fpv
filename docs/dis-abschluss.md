@@ -74,7 +74,7 @@ Voraussetzung: VBS4 mit Gateway (DIS-Adapter, DIS 6, Broadcast, Port 3000, Übun
 1. **VBS starten als Host eines Mehrspieler-Szenarios** mit `-gateway`. Läuft der Browser auf demselben Rechner, zusätzlich `-forceSimul` (sonst pausiert VBS ohne Fokus). Nicht im Einzelspieler testen (Einheiten frieren ein).
 2. **Karte mit echten Höhen:** ein Gelände, dessen Höhen zu den Geobasisdaten passen (Inset aus NRW-Höhen, zum Beispiel Köln). Auf der VBS-Standardkarte liegt unser Boden am Flughafen etwa 2,2 m tiefer; die gelandete Drohne ist dann in VBS nicht sichtbar.
 3. **Einheiten im Szenario** nur mit Klassen, die einen SISO-Wert haben (sonst werden sie nicht gesendet). Fahrer ja, Mitfahrer werden nicht gesendet.
-4. **Simulator öffnen** (https://bladeage.github.io/web-fpv/), Parcours-Flug oder Taktischer Flug → Welt „Echte Welt“ → Startort „DIS-Übung“. Zeigt das Menü „Brücke nicht gefunden“: Knopf „Brücke für Windows herunterladen“, Datei `fpv-dis-bruecke.cmd` doppelklicken. Windows fragt „Datei öffnen, Sicherheitswarnung“: „Ausführen“. Fenster offen lassen.
+4. **Simulator öffnen** (https://bladeage.github.io/web-fpv/), Hauptmenü → „DIS-Übung“ (seit Prompt 174; vorher Startort in der echten Welt). Zeigt das Menü „Brücke nicht gefunden“: Knopf „Brücke für Windows herunterladen“, Datei `fpv-dis-bruecke.cmd` doppelklicken. Windows fragt „Datei öffnen, Sicherheitswarnung“: „Ausführen“. Fenster offen lassen.
 5. **Chrome-Freigabe:** Chrome fragt „Zugriff auf Geräte im lokalen Netz“: „Zulassen“. Wurde es abgelehnt: links neben der Adresse die Website-Einstellungen öffnen und erlauben. Bis zur Antwort steht „Brücke nicht gefunden“ oder „wartet“.
 6. **Port und Übung** prüfen (3000, 1). Das Menü zeigt „Übung 1: n Einheiten bei Breite, Länge“. Zeigt es „Noch keine Einheiten“: VBS hat den Fokus verloren (Schritt 1) oder sendet nicht (Schritt 3).
 7. **„Dort fliegen“:** lädt die Kartendaten des Übungsorts (NRW) oder eine ebene Fläche und startet. OSD zeigt „DIS n“ und die Koordinaten. In VBS erscheint „FPV1“ (Freund, Mikado-Modell).
@@ -118,3 +118,7 @@ Umfang des DIS-Anteils in T1:
 5. Kein Code-Abbau. Danach gilt: keine neuen DIS-Funktionen ohne Auftrag des Nutzers.
 
 Aufwand: S (im Rahmen von T1). Risiko: gering; gespeicherte Einstellungen mit `cfg.verbund = true` müssen auf den Startort `cfg.rwSrc = 'dis'` und `cfg.world = 'real'` abgebildet werden.
+
+## Nachtrag Menü (08.11.2026, Prompt 174)
+
+Die DIS-Übung ist kein Startort der echten Welt mehr, sondern die dritte Flugart im Hauptmenü („DIS-Übung“, als experimentell gekennzeichnet) mit eigener Seite. Plan und Stand: `docs/plan-menue.md`.

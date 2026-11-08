@@ -92,7 +92,7 @@ function frame(now) {
   }
   // DIS-Modus: Verbindung halten, solange er gewählt ist (auch im Menü: Brücke und Einheiten der Übung anzeigen); die eigene
   // Drohne nur im Flug der echten Welt senden, auch in der Pause (die Brücke hält den Herzschlag)
-  const disOn = !!cfg.verbund && cfg.world === 'real';
+  const disOn = !!cfg.verbund;   // DIS-Übung ist immer echte Welt (Flugart im Hauptmenü)
   vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && rw.on);
   combat();
   render(dt);

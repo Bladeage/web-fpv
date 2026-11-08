@@ -172,9 +172,18 @@ test('Ringe und Slalom: bei jedem Start neue Anordnung, jede besteht die Prüfun
   setLayoutSeed(7);
 });
 
-test('Menü T1: alte Einstellungen werden umgestellt (Echte Welt als Welt, Vorschau kein Modus, DIS bleibt)', async () => {
-  const { cfgMigrate } = await import('../src/state.js');
-  assert.deepEqual(cfgMigrate({ scen: 'real', verbund: true }), { scen: 'free', world: 'real', verbund: true, flight: 'course' });
-  assert.deepEqual(cfgMigrate({ scen: 'vbs' }), { scen: 'gates', flight: 'course', world: 'map' });
-  assert.deepEqual(cfgMigrate({ scen: 'hunt2', flight: 'tactical', world: 'real' }), { scen: 'hunt2', flight: 'tactical', world: 'real' });
+test('Menü: alte Einstellungen werden umgestellt (Echte Welt als Welt, Vorschau kein Modus, DIS-Übung als Flugart)', async () => {
+  const { cfgMigrate, KEY_STICKS, KEY_FN } = await import('../src/state.js');
+  assert.deepEqual(cfgMigrate({ scen: 'real', verbund: true }), { scen: 'free', world: 'real', verbund: true, flight: 'dis' });
+  assert.deepEqual(cfgMigrate({ scen: 'vbs' }), { scen: 'gates', flight: 'course', verbund: false, world: 'map' });
+  assert.deepEqual(cfgMigrate({ scen: 'hunt2', flight: 'tactical', world: 'real' }), { scen: 'hunt2', flight: 'tactical', verbund: false, world: 'real' });
+  // Neuordnung (docs/plan-menue.md): Startort DIS-Übung wird Flugart; ebene Fläche nur in der DIS-Übung
+  assert.deepEqual(cfgMigrate({ flight: 'course', verbund: true, world: 'map' }), { flight: 'dis', verbund: true, world: 'map' });
+  assert.deepEqual(cfgMigrate({ flight: 'dis', world: 'real' }), { flight: 'dis', verbund: true, world: 'real' });
+  assert.equal(cfgMigrate({ flight: 'course', rwSrc: 'dis', world: 'real' }).rwSrc, 'emb');
+  assert.equal(cfgMigrate({ flight: 'dis', rwSrc: 'dis', world: 'real' }).rwSrc, 'dis');
+  // Tastatur: Knüppel-Paare aus KEY_FN, keine Funktion doppelt, die übrigen neun bleiben Funktionen
+  const stick = KEY_STICKS.flatMap(r => [r[1], r[2]]), fns = KEY_FN.map(r => r[0]);
+  assert.equal(new Set(stick).size, 8); assert.ok(stick.every(f => fns.includes(f)));
+  assert.equal(fns.filter(f => !stick.includes(f)).length, 9);
 });
