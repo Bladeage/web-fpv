@@ -230,6 +230,7 @@ Je Ort ein Radpanzer, ein Schützenpanzer, ein Soldat (VBS als Host mit World Se
 - **Kandidat (nicht getestet):** Wirkmittel als eigene Munitions-Einheit senden (Entity State, Art 2) mit einem Munitionstyp, den VBS als „Usable ammunition“ zugeordnet hat, und am Ziel detonieren lassen. Die Zuordnungen zeigt die Gateway-Oberfläche in VBS (Editor, Tools, Show Gateway UI, Mappings); im Browser 404.
 - **Fremde Einheit als echtes Objekt:** LightweightMode 0 plus RemoteGroundClampingDisabled 1 legt FPV1 als Objekt an (richtige Höhe), aber die KI greift nicht an (knowsAbout 0; selbst nach reveal und doTarget kein Schuss). Keine Einstellung für Feindschaft fremder Einheiten gefunden. Kostet vermutlich Bildrate.
 - **Release Notes 26.1:** Die drei Einträge zu Detonation und Schadensweitergabe sind schon in 26.1.0 behoben; sie erklären unseren Fall nicht.
+- **Entscheidung Fabian (über k5.2):** In VBS wird nichts geändert, auch nicht LightweightMode oder RemoteGroundClampingDisabled. Die Drohne bleibt in VBS eine reine DIS-Darstellung: kein Ziel der KI, kein Schaden aus unseren Detonationen.
 
 ## Lizenz: was ins öffentliche Repo darf
 
