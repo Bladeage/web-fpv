@@ -13,7 +13,7 @@ import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, dis
 import { qMul, qAxis, qRot } from './math.js';
 import { PHYS } from './physics.js';
 import { disBaseInfo, disBaseOf, disBaseParts } from './distypes.js';
-import { toUtm } from './geo.js';
+import { toUtm, GEOID_FIX } from './geo.js';
 import { rw, rwLatLon, groundH } from './realworld.js';
 
 // undulation: Quasigeoidhöhe für die Höhe über dem Ellipsoid (Schätzung Monschau 47 m; NRW 42,5 bis 48,5 m). Für den Ort
@@ -21,7 +21,7 @@ import { rw, rwLatLon, groundH } from './realworld.js';
 // port: DIS-Port der Brücke (Vorgabe 3000), exercise: Übungsnummer; beide im Menü einstellbar. keep: Einheiten ohne neue Meldung
 // behalten, bis sie sich abmelden (Optionen; für Partner, die nur beim Anlegen senden, etwa das Gateway von VBS 26.1.3). Vorgabe: Löschen
 // nach timeout (13 s, wie die DIS-Regel mit 5 s Herzschlag).
-export const VB = { url: 'ws://localhost:8642', retry: 3, hang: 15, wait: 2, maxUnits: 50, range: 5000, timeout: 13, undulation: 47, exercise: 1, port: 3000, entity: 1, everyUnits: 0.2, keep: false };
+export const VB = { url: 'ws://localhost:8642', retry: 3, hang: 15, wait: 2, maxUnits: 50, range: 5000, timeout: 13, undulation: GEOID_FIX, exercise: 1, port: 3000, entity: 1, everyUnits: 0.2, keep: false };
 export const vb = { ws: null, state: 'aus', err: '', units: [], dis: new Map(), last: null, tTry: -1e9, tUnits: 0, tBuild: -1e9, sent: 0, info: null, now: 0, seen: 'suche', fx: [], fired: new Map(), me: null, hits: [], contact: null, events: new Set(), ev: 0 };   // fx: Schüsse und Einschläge (Kartenkoordinaten), fired: Einheit -> Zeit des letzten Schusses   // seen: letztes Ergebnis für das Menü (bleibt während eines neuen Versuchs stehen)
 // Die Windows-Brücke, eingebettet vom Build (Datei bruecke/fpv-dis-bruecke.cmd), für den Download im DIS-Modus
 export const VB_BRUECKE = '%%BRUECKE_CMD%%';

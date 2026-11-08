@@ -286,6 +286,10 @@ Aufwand (Schätzung): S = unter einer Sitzung, M = eine Sitzung, L = zwei Sitzun
 5. Nach W3: DIS-Übung am Inset, Drohne landen, Höhenunterschied zu einem Fahrzeug daneben (Ziel unter 0,3 m), Drohne in VBS sichtbar.
 6. Nach W4: World Server auf einem zweiten Rechner, Brücke auf dem Browser-Rechner, Kacheln kommen durch.
 
+## Stand
+
+- **W1 erledigt** (Prompt 166): `src/rwwms.js` (Fähigkeiten lesen, Höhenebene wählen, geografisches Rechteck, GetMap mit Breite zuerst, Kacheln holen und zusammensetzen, Abtastung auf das UTM-Gitter mit Stützgitter 17 x 17, Ellipsoid minus `GEOID_FIX`, Lücken füllen, Fehler-XML, falsche Größe, nur Füllwerte). `GEOID_FIX` in `geo.js`, `VB.undulation` liest ihn. Ersatzdienst `test/wms-ersatz.mjs`, Tests `test/rwwms.test.mjs`: Abweichung zur bekannten Fläche unter 0,1 m, Ortsfehler des Stützgitters unter 1 cm.
+
 ## 6 Offene Entscheidungen für den Nutzer (mit Vorschlag)
 
 1. **Lizenz und Speichern.** Die Geländedaten des Dienstes sind Herstellerdaten. Vorschlag: nur im Arbeitsspeicher, kein Speichern im Browser, kein Export, kein Einbetten (`store: false`, fest für die Quellenart). Wenn der Hersteller mehr erlaubt, kommt später ein Schalter „Speichern erlaubt“ an die Quelle.

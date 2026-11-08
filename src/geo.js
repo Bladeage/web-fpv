@@ -2,6 +2,9 @@
    GeoTIFF mit Gleitkomma-Höhen (wie die WCS-Dienste der Länder liefern): Streifen oder Kacheln,
    ohne Kompression oder LZW, Prädiktor 1 (keiner), 2 (waagrecht) oder 3 (Gleitkomma). Dazu WGS84 -> UTM. */
 
+// Geoidhöhe (Quasigeoid) für Höhe über dem Ellipsoid minus Höhe über NHN. Fest 47 m (Schätzung für Monschau; NRW 42,5 bis
+// 48,5 m). Genutzt von DIS (verbund.js) und vom WMS-Höhendienst (rwwms.js, Höhen über dem Ellipsoid).
+export const GEOID_FIX = 47;
 // TIFF lesen: ArrayBuffer -> { w, h, data: Float32Array (Zeile für Zeile, oben = Norden) }
 export function readTiff(buf) {
   const dv = new DataView(buf), le = dv.getUint16(0) === 0x4949;
