@@ -154,6 +154,14 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **FPV1 in VBS:** per SQF nicht auffindbar. Laut Hilfe zeigt die Gateway-Oberfläche (Active Entities, http://localhost:4100/Gateway/index.html) Ort und Klasse; im Testclient dort 404. Ersatz: Ort per ECEFToASL mit der Geländehöhe vergleichen.
 - **Vorschlag k5.2 (nur nach Fabians Wort):** Lauf mit LightweightMode 0 mit Blick auf „eine PDU, dann Stille“; Zuordnung der eigenen Soldatenklasse in der Gateway-Oberfläche prüfen.
 
+## D7 LightweightMode 0 und Zuordnung (08.11.2026, k5.2, mit Fabians OK; Testprofil danach wieder im Ausgangsstand)
+
+- **LightweightMode 0 ändert nichts:** gleiches Muster (eine PDU oder Herzschlag mit dem Inhalt vom Anlegen). Fahrzeuge fuhren 270 m, Trupp 150 m, die PDUs blieben am Startort bzw. Platzhalter. Wieder eine Geisternummer mit einer PDU am Platzhalter. Als Ursache ausgeschlossen.
+- **Zuordnung (VBS-Katalog, Feld SISO-Wert):** Die Klasse des Spielers und der Besatzung hat keinen SISO-Wert und wird deshalb nie gesendet. Alle anderen Klassen im Test haben einen. Der Wert des Schützenpanzers hat 6 statt 7 Stellen; gesendet wird er trotzdem, solange besetzt nur eine PDU.
+- **Gateway-Oberfläche:** Port 4100 laut VBS, Seite antwortet mit 404.
+- **Folge:** Auf VBS 26.1.3 kommen je Einheit verlässlich nur Art, Seite und Anlegeort, bei Personen aus dem Editor mit falscher Höhe. Keine Bewegung. Einheiten mit nur einer PDU verschwinden bei uns nach 13 s.
+- Befunde von k5.2 auch im Repo vbs-tools, `docs/wissen-vbs4-dis-praxis.md` (dort PR 314).
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
