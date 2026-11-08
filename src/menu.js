@@ -16,7 +16,7 @@ import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
-import { VB, vbBridge, vbCenter, vbConfig, VB_BRUECKE } from './verbund.js';
+import { VB, vb, vbBridge, vbCenter, vbSet, VB_BRUECKE } from './verbund.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 const SPECIAL = new Set(['real', 'vbs']);   // Modi im Reiter „Spezial“: echte Welt, Vorschau der DIS-Grundtypen
 
@@ -281,20 +281,28 @@ for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenLis
 const DIS_INFO = 'Echte Welt im Verbund über DIS: Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Die Brücke läuft auf diesem Rechner.';
 { const b = addChoice($('specList'), 'DIS', '', () => { cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); }); b.dataset.id = 'dis';
   $('specList').insertBefore(b, $('specList').querySelector('[data-id=vbs]')); }
-VB.port = cfg.disPort || 3000; VB.exercise = cfg.disEx || 1;
+vbSet({ port: cfg.disPort || 3000, exercise: cfg.disEx || 1, keep: !!cfg.disKeep });
 // Frage des Browsers nach dem lokalen Netz (Chrome: „local-network-access“): 'prompt', 'denied', 'granted' oder '' (unbekannt)
 let lna = '';
 function lnaCheck() {
   try { navigator.permissions.query({ name: 'local-network-access' }).then(p => { lna = p.state; }, () => { lna = ''; }); } catch (e) { lna = ''; }
 }
+// Letzter Ort der Übung (D5: pausiert der Partner, etwa VBS ohne Fokus, kommen keine Meldungen; nach 13 s wären die Einheiten
+// weg und „Dort fliegen“ aus). Bleibt bis zum Wechsel von Übung oder Port; das Menü nennt das Alter.
+let disLast = null;
+const disN = n => n + (n === 1 ? ' Einheit' : ' Einheiten');
 function syncDis() {
-  const st = vbBridge(), c = st === 'läuft' ? vbCenter() : null;
+  const st = vbBridge(), cur = vbCenter(), c = st !== 'läuft' ? null : cur || (disLast && disLast.c);
+  if (cur) disLast = { c: cur, t: performance.now() - (vb.now - cur.tNew)*1000 };   // t: Zeit der jüngsten Meldung
+  const now = cur && vb.now - cur.tNew < 6 ? cur : null;   // 6 s ohne Meldung (Herzschlag 5 s): Partner schweigt
   if (st === 'wartet') lnaCheck();
-  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. ' + (c ? 'Übung ' + VB.exercise + ': ' + c.n + (c.n === 1 ? ' Einheit' : ' Einheiten') + ' bei ' + c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) + '.'
+  const where = c ? ' bei ' + c.lat.toFixed(5) + ', ' + c.lon.toFixed(5) : '', skip = c && c.skipped ? ' (' + c.skipped + ' Platzhalter übergangen)' : '';
+  $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. ' + (now ? 'Übung ' + VB.exercise + ': ' + disN(c.n) + where + skip + '.'
+      : c ? 'Übung ' + VB.exercise + ': keine neuen Meldungen, zuletzt ' + disN(c.n) + where + ', vor ' + Math.round((performance.now() - disLast.t)/1000) + ' s.'
       : 'Noch keine Einheiten in Übung ' + VB.exercise + ' auf Port ' + VB.port + '.')
     : st === 'wartet' && lna === 'prompt' ? 'Der Browser fragt nach Zugriff auf Geräte im lokalen Netz. Bitte „Zulassen“.'
     : st === 'wartet' && lna === 'denied' ? 'Zugriff auf das lokale Netz ist gesperrt: links neben der Adresse die Website-Einstellungen öffnen und erlauben.'
-    : st === 'nicht gefunden' || st === 'wartet' ? 'Brücke nicht gefunden. Herunterladen und auf diesem Rechner doppelklicken (Windows fragt nach: „Weitere Informationen“, „Trotzdem ausführen“).'
+    : st === 'nicht gefunden' || st === 'wartet' ? 'Brücke nicht gefunden. Herunterladen und auf diesem Rechner doppelklicken. Windows fragt eventuell nach: „Ausführen“ oder „Weitere Informationen“, „Trotzdem ausführen“.'
     : 'Suche Brücke …';
   $('disGet').hidden = !(st === 'nicht gefunden' || (st === 'wartet' && lna !== 'prompt' && lna !== 'denied'));
   $('disSets').hidden = st !== 'läuft';
@@ -316,18 +324,19 @@ $('disGet').addEventListener('click', () => {
 });
 // Port und Übung: übernehmen, wenn gültig (Port an die Brücke, Übung filtert den Empfang)
 for (const [id, key, lo, hi] of [['disPort', 'disPort', 1, 65535], ['disEx', 'disEx', 1, 255]]) {
-  $(id).addEventListener('keydown', e => e.stopPropagation());   // Tippen steuert nicht die Drohne
+  $(id).addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });   // Tippen steuert nicht die Drohne; Enter übernimmt
   $(id).addEventListener('change', e => {
-    const v = Math.round(+e.target.value);
-    if (!(v >= lo && v <= hi)) { e.target.value = key === 'disPort' ? VB.port : VB.exercise; return; }
+    const v = Math.round(+e.target.value), old = key === 'disPort' ? VB.port : VB.exercise;
+    if (!(v >= lo && v <= hi)) { e.target.value = old; return; }
     cfg[key] = v; saveCfg();
-    if (key === 'disPort') { VB.port = v; vbConfig(); } else VB.exercise = v;
+    if (v !== old) disLast = null;   // andere Übung oder anderer Port: alte Einheiten und alter Ort weg (vbSet leert die Liste)
+    vbSet(key === 'disPort' ? { port: v } : { exercise: v });
     syncDis();
   });
 }
 // Am Ort der Übung fliegen: Ort festhalten; mit Quelle (zum Beispiel NRW) wie „Ort laden“, sonst ebene Fläche beim Start
 $('disHere').addEventListener('click', () => {
-  const c = vbCenter();
+  const c = vbCenter() || (disLast && disLast.c);
   if (!c) return;
   const ll = c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
   if (rwPlan(c.lat, c.lon)) { cfg.rwLL = ll; cfg.rwSrc = 'live'; saveCfg(); syncMenu(); rwReplace(); return; }

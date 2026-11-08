@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { createSocket } from 'node:dgram';
 import { rw, rwApply, rwLatLon, groundH, rwFlat, rwFlatImage, rwPlan } from '../src/realworld.js';
-import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel } from '../src/verbund.js';
+import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet } from '../src/verbund.js';
 import { createBridge } from '../tools/dis-bruecke.mjs';
 import * as D from '../src/dis.js';
 
@@ -33,7 +33,7 @@ test('DIS-Modus: eigene PDU (DIS 6, unsere Kennung, Ort, Höhe NHN + Quasigeoid,
 test('DIS-Modus: Einheiten aus DIS (Art, Seite, Ort, Tempo), Platzhalter und Abgemeldete übergangen, Ort der Übung', () => {
   const E = D.disToEcef(50.352, 16.64, 0), up = E.map(v => v/Math.hypot(...E));
   const dis = new Map([
-    ['a', ent(2, 50.35259, 16.64423, 48.9, { type: [3, 1, 222, 11, 35, 0, 0] })],
+    ['a', ent(2, 50.35259, 16.64423, 350, { type: [3, 1, 222, 11, 35, 0, 0] })],
     ['b', ent(3, 50.3510, 16.6400, 347, { vel: up.map(v => v*2) })],
     ['c', ent(4, 50.3530, 16.6380, 351, { dra: 1, vel: [5, 5, 5] })],
     ['d', { ...ent(5, 0, 0, 0), pos: [0, 0, 0] }],
@@ -41,12 +41,42 @@ test('DIS-Modus: Einheiten aus DIS (Art, Seite, Ort, Tempo), Platzhalter und Abg
     ['f', ent(7, 50.3520, 16.6410, 900, { type: [1, 2, 78, 20, 1, 0, 0] })]]);
   const u = vbUnitsGeo(dis, { undulation: 44 });
   assert.deepEqual(u.map(x => x.id.split(':')[2]), ['2', '3', '4', '7'], 'ohne Platzhalter (0, 0, 0) und ohne Abgemeldete');
-  const per = u[0]; assert.deepEqual([per.base, per.force], ['person', 2]); near(per.h, 48.9 - 44, 1e-3);
+  const per = u[0]; assert.deepEqual([per.base, per.force], ['person', 2]); near(per.h, 350 - 44, 1e-3);
   near(u[1].vn[2], 2, 1e-4, 'steigt 2 m/s'); assert.deepEqual(u[2].vn, [0, 0, -0], 'statisch: kein Tempo');
   const c = vbCenter(dis, { undulation: 44 });
   assert.equal(c.n, 4); near(c.lat, 50.352295, 1e-6); near(c.lon, 16.6405, 1e-4);
-  near(c.h, 347 - 44, 1e-3, 'Höhe aus den Einheiten am Boden (Median), nicht aus dem Luftfahrzeug');
+  near(c.h, 350 - 44, 1e-3, 'Höhe aus den Einheiten am Boden (Median), nicht aus dem Luftfahrzeug');
   assert.equal(vbCenter(new Map()), null);
+});
+
+test('DIS-Modus: Platzhalter übergangen (mehrere auf demselben Punkt, Bodeneinheit weit unter den übrigen), Ort der Übung stimmt', () => {
+  // wie D5 mit VBS: zwei Fahrzeuge am Gelände (hEll 357 bis 359), drei Personen auf exakt demselben Ankerpunkt mit hEll 48,9, eine Geisternummer allein dort
+  const anchor = [50.352586, 16.644234, 48.9];
+  const dis = new Map([['a', ent(1, 50.3510, 16.6390, 357)], ['b', ent(2, 50.3505, 16.6380, 359)],
+    ['c', ent(3, ...anchor, { type: [3, 1, 222, 1, 0, 0, 0] })], ['d', ent(4, ...anchor, { type: [3, 1, 222, 1, 0, 0, 0] })], ['e', ent(5, ...anchor, { type: [3, 1, 222, 1, 0, 0, 0] })],
+    ['f', ent(6, 50.35259, 16.64425, 48.9, { type: [3, 1, 222, 1, 0, 0, 0] })], ['g', ent(7, 50.352, 16.640, 900, { type: [1, 2, 78, 20, 1, 0, 0] })]]);
+  const u = vbUnitsGeo(dis, { undulation: 44 });
+  assert.deepEqual(u.map(x => x.id.split(':')[2]), ['1', '2', '7'], 'nur Fahrzeuge und Luftfahrzeug'); assert.equal(u.skipped, 4);
+  const c = vbCenter(dis, { undulation: 44 });
+  assert.equal(c.n, 3); assert.equal(c.skipped, 4); near(c.lat, 50.3510, 1e-6); near(c.h, 358 - 44, 1e-6, 'Höhe aus den Fahrzeugen');
+  // eine einzelne Einheit: nichts zu vergleichen, bleibt
+  assert.equal(vbUnitsGeo(new Map([['x', ent(9, ...anchor)]])).length, 1);
+});
+
+test('DIS-Modus: Übung oder Port wechseln leert die Liste; Einheiten behalten bis zur Abmeldung (Schalter)', () => {
+  rw.on = true;
+  const s = { p: [0, 0, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0] }, [la, lo] = rwLatLon(10, 10);
+  try {
+    vb.dis.set('k', ent(13, la, lo, meta.hHome + 47, { t: 0 }));
+    vbSet({ exercise: 2 }); assert.equal(vb.dis.size, 0, 'andere Übung: Liste leer'); vbSet({ exercise: 1 });
+    vb.dis.set('k', ent(13, la, lo, meta.hHome + 47, { t: 0 })); vbSet({ port: 3001 }); assert.equal(vb.dis.size, 0, 'anderer Port: Liste leer'); vbSet({ port: 3000 });
+    // Aufbau der Einheiten in vbStep (Verbindung geht ins Leere, Port 9)
+    VB.url = 'ws://127.0.0.1:9';
+    const step = t => { vb.tBuild = -1e9; vbStep(t, s, 'fly', true, false); return vb.units.length; };
+    vb.dis.set('k', ent(13, la, lo, meta.hHome + 47, { t: 0 })); vbSet({ keep: true });
+    assert.equal(step(60), 1, 'nach 60 s ohne Meldung noch da');
+    vbSet({ keep: false }); assert.equal(step(61), 0, 'ohne Schalter nach 13 s weg');
+  } finally { vbSet({ keep: false }); vbClose(); vb.tTry = vb.tBuild = -1e9; vb.seen = 'suche'; rw.on = false; }
 });
 
 test('DIS-Modus: Einheit -> Karte (Ort, Kurs mit Meridiankonvergenz, Tempo, Boden), Umkreis, Weiterschieben ab Empfang', () => {
@@ -103,7 +133,7 @@ test('DIS-Modus: Gesamtlauf Simulator <-> Brücke <-> DIS-Netz (Drohne gesendet,
   const sock = createSocket('udp4');
   await new Promise(r => sock.send(pdu(1, 13), b.udpPort, '127.0.0.1', r)); await new Promise(r => sock.send(pdu(2, 14), b.udpPort, '127.0.0.1', r)); sock.close();
   await wait(400);
-  assert.equal(vb.units.length, 1, 'eine Einheit (nur Übung 1)');
+  assert.equal(vb.units.length, 1, 'eine Einheit (nur Übung 1) ' + JSON.stringify({ n: vb.dis.size, st: vb.state, keep: VB.keep, t: [...vb.dis.values()].map(e => [e.t, e.exercise]), tt }));
   const u = vb.units[0];
   assert.deepEqual([u.base, u.force], ['kpz', 2]);
   const dt = tt - u.t0, ex = 50 + 5*Math.cos(g)*dt;

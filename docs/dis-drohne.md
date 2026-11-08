@@ -162,6 +162,23 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **Folge:** Auf VBS 26.1.3 kommen je Einheit verlässlich nur Art, Seite und Anlegeort, bei Personen aus dem Editor mit falscher Höhe. Keine Bewegung. Einheiten mit nur einer PDU verschwinden bei uns nach 13 s.
 - Befunde von k5.2 auch im Repo vbs-tools, `docs/wissen-vbs4-dis-praxis.md` (dort PR 314).
 
+## D8 Korrektur von k5.2: Einfrieren lag am Testaufbau (08.11.2026)
+
+- **Ursache:** Die Tests D4 bis D7 liefen als Einzelspieler-Mission. Das Gateway arbeitet nur im Mehrspieler, auf dem Host (Admin-Client als Host oder Dedicated Server, jeweils mit `-gateway`).
+- **Gegenprobe als Host** (sonst unverändert, AllowLoopback 0), 130 s: Fahrzeuge senden live (bis 1163 PDUs, Tempo bis 13,4 m/s, Höhe passt), die 4 Soldaten laufen mit (Höhe richtig, kein Platzhalter, keine Geisternummer), Erscheinungsbild wechselt. Weiter nicht gesendet: Mitfahrer (laut Hilfe) und Klassen ohne SISO-Wert (im Test der Spieler und die Besatzung).
+- **Für die Anleitung:** VBS als Host eines Mehrspieler-Szenarios mit `-gateway`, nicht im Einzelspieler.
+- Die Befunde D5 bis D7 zum Einfrieren gelten nur für den Einzelspieler.
+
+## Robuster DIS-Modus (08.11.2026, Prompt 147)
+
+- **Platzhalter:** Mehrere Einheiten auf demselben Punkt (Raster 0,5 m) und Bodeneinheiten mehr als 100 m unter dem Median der übrigen Bodeneinheiten werden übergangen (`VB_PLACEHOLDER`, Schätzung). Das Menü nennt die Zahl.
+- **Übung oder Port wechseln** leert die Liste sofort (`vbSet`).
+- **Feld „Übung“ ausgegraut:** im Browser nicht nachvollziehbar (Feld frei, volle Deckkraft). Vermutet: Das graue Eingabefeld wirkte wie gesperrt.
+- **Windows-Text:** nennt „Ausführen“ und „Weitere Informationen“, „Trotzdem ausführen“.
+- **Letzter Ort:** Schweigt der Partner länger als 6 s, zeigt das Menü „keine neuen Meldungen, zuletzt … vor n s“; „Dort fliegen“ nutzt den letzten Ort, bis Übung oder Port wechseln.
+- **Einheiten behalten:** Optionen → Daten → „DIS: Einheiten ohne neue Meldung behalten, bis sie sich abmelden“ (`cfg.disKeep`, Vorgabe aus: Löschen nach 13 s).
+- **Geprüft:** Node-Tests (Platzhalter wie D5, Übung, Port, Behalten). Im Browser mit DIS-Ersatz wie D5: „2 Einheiten … (3 Platzhalter übergangen)“, Ort und Höhe aus den Fahrzeugen, Übung 2 sofort leer, nach 16 s Stille letzter Ort mit Alter.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.

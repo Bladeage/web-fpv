@@ -16,8 +16,10 @@ import { rw, rwLatLon, groundH } from './realworld.js';
 
 // undulation: Quasigeoidhöhe für die Höhe über dem Ellipsoid (Schätzung Monschau 47 m; NRW 42,5 bis 48,5 m). Für den Ort
 // einer Übung ohne Kartendaten egal: Dort leitet sich unsere Bodenhöhe mit demselben Wert aus den Einheiten ab (rwFlat).
-// port: DIS-Port der Brücke (Vorgabe 3000), exercise: Übungsnummer; beide im Menü einstellbar.
-export const VB = { url: 'ws://localhost:8642', retry: 3, hang: 15, wait: 2, maxUnits: 50, range: 5000, timeout: 13, undulation: 47, exercise: 1, port: 3000, entity: 1, everyUnits: 0.2 };
+// port: DIS-Port der Brücke (Vorgabe 3000), exercise: Übungsnummer; beide im Menü einstellbar. keep: Einheiten ohne neue Meldung
+// behalten, bis sie sich abmelden (Optionen; für Partner, die nur beim Anlegen senden, etwa das Gateway von VBS 26.1.3). Vorgabe: Löschen
+// nach timeout (13 s, wie die DIS-Regel mit 5 s Herzschlag).
+export const VB = { url: 'ws://localhost:8642', retry: 3, hang: 15, wait: 2, maxUnits: 50, range: 5000, timeout: 13, undulation: 47, exercise: 1, port: 3000, entity: 1, everyUnits: 0.2, keep: false };
 export const vb = { ws: null, state: 'aus', err: '', units: [], dis: new Map(), last: null, tTry: -1e9, tUnits: 0, tBuild: -1e9, sent: 0, info: null, now: 0, seen: 'suche' };   // seen: letztes Ergebnis für das Menü (bleibt während eines neuen Versuchs stehen)
 // Die Windows-Brücke, eingebettet vom Build (Datei bruecke/fpv-dis-bruecke.cmd), für den Download im DIS-Modus
 export const VB_BRUECKE = '%%BRUECKE_CMD%%';
@@ -26,12 +28,23 @@ const vbZone = () => +((rw.meta && rw.meta.crs.match(/258(\d\d)/)) || [0, 32])[1
 // Brauchbarer Ort im ECEF (manche Sender melden Platzhalter wie 0, 0, 0): Abstand zur Erdmitte 6,3 bis 6,5 Mio. m
 const vbSane = p => { const r = Math.hypot(p[0], p[1], p[2]); return r > 6.3e6 && r < 6.5e6; };
 
+// Platzhalter-Orte (D5 bis D7: das Gateway von VBS 26.1.3 meldet Personen aus dem Editor am Ankerpunkt ihrer Gruppe, alle auf
+// demselben Punkt und mit falscher Höhe, etwa 320 m unter dem Gelände): Mehrere Einheiten auf demselben Punkt (Raster same in m)
+// gelten alle als Platzhalter; Einheiten am Boden, die mehr als below unter dem Median der übrigen Bodeneinheiten liegen, auch.
+// Annahme: Echte Einheiten stehen nie auf den Zentimeter gleich, und am Boden liegen in einer Übung keine 100 m Höhe dazwischen
+// (Schätzung; ein Tal mit steilen Hängen kann mehr haben, dann bleibt die Einheit aber sichtbar, solange ihr Ort einzeln ist).
+export const VB_PLACEHOLDER = { same: 0.5, below: 100 };
 // DIS-Einheiten in Erdkoordinaten: [{ id, base, force, lat, lon, h (über NHN), hdg, pitch, roll, vn (Nord, Ost, oben), dead, t }]
-// t: Empfangszeit (ab da weitergeschoben). Vorhersage „statisch“ (1) oder eingefroren: kein Tempo.
+// t: Empfangszeit (ab da weitergeschoben). Vorhersage „statisch“ (1) oder eingefroren: kein Tempo. Die Liste trägt skipped:
+// Zahl der übergangenen Platzhalter.
 export function vbUnitsGeo(dis, o = {}) {
-  const N = o.undulation ?? VB.undulation, table = o.table || null, out = [];
+  const N = o.undulation ?? VB.undulation, table = o.table || null, out = [], P = VB_PLACEHOLDER;
+  const key = e => e.pos.map(v => Math.round(v/P.same)).join(','), seen = new Map();
+  for (const e of dis.values()) if (vbSane(e.pos)) seen.set(key(e), (seen.get(key(e)) || 0) + 1);
+  let skipped = 0;
   for (const e of dis.values()) {
     if (!vbSane(e.pos)) continue;
+    if (seen.get(key(e)) > 1) { skipped++; continue; }
     const ap = disAppearanceRead(e.appearance);
     if (ap.off) continue;   // abgemeldet (deaktiviert)
     const [lat, lon, he] = disFromEcef(...e.pos), [hdg, pitch, roll] = disEulerToHpr(lat, lon, ...e.ori);
@@ -39,15 +52,18 @@ export function vbUnitsGeo(dis, o = {}) {
     out.push({ id: e.site + ':' + e.app + ':' + e.entity, base: disBaseOf(e.type, table), force: e.force, lat, lon, h: he - N, hdg, pitch, roll, vn: [v[0], v[1], -v[2]],
       dead: ap.damage === 3, t: e.t || 0 });
   }
-  return out;
+  const ground = out.filter(u => disBaseInfo(u.base).dom !== 2), mh = vbMedian(ground.map(u => u.h));
+  const L = ground.length >= 2 ? out.filter(u => disBaseInfo(u.base).dom === 2 || u.h >= mh - P.below) : out;
+  L.skipped = skipped + out.length - L.length;
+  return L;
 }
-// Ort der Übung: Mitte (Median) der empfangenen Einheiten; Höhe aus den Einheiten am Boden (sonst allen). null ohne Einheiten.
+const vbMedian = a => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k])/2; };
+// Ort der Übung: Mitte (Median) der empfangenen Einheiten ohne Platzhalter; tNew: jüngste Meldung; Höhe aus den Einheiten am Boden (sonst allen). null ohne Einheiten.
 export function vbCenter(dis = vb.dis, o = {}) {
   const L = vbUnitsGeo(dis, o);
   if (!L.length) return null;
-  const med = a => { const s = [...a].sort((x, y) => x - y), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k])/2; };
   const ground = L.filter(u => disBaseInfo(u.base).dom !== 2);
-  return { n: L.length, lat: med(L.map(u => u.lat)), lon: med(L.map(u => u.lon)), h: med((ground.length ? ground : L).map(u => u.h)) };
+  return { n: L.length, skipped: L.skipped, tNew: Math.max(...L.map(u => u.t)), lat: vbMedian(L.map(u => u.lat)), lon: vbMedian(L.map(u => u.lon)), h: vbMedian((ground.length ? ground : L).map(u => u.h)) };
 }
 
 // ---- Eigene Drohne ----
@@ -79,6 +95,12 @@ export function vbPlace(u, dt) {
   return u;
 }
 
+// Einstellungen aus dem Menü: Übung oder Port gewechselt -> alte Einheiten weg (sonst stünden sie bis zum Löschen noch da)
+export function vbSet(o) {
+  if (o.exercise != null && o.exercise !== VB.exercise) { VB.exercise = o.exercise; vb.dis.clear(); vb.units = []; }
+  if (o.port != null && o.port !== VB.port) { VB.port = o.port; vb.dis.clear(); vb.units = []; vbConfig(); }
+  if (o.keep != null) VB.keep = !!o.keep;
+}
 // ---- Verbindung (jeden Frame aus der Hauptschleife, auch in der Pause und im Menü) ----
 // Port der Brücke anpassen, wenn er nicht passt (die Brücke meldet ihn in der Info)
 export function vbConfig() {
@@ -120,7 +142,7 @@ export function vbStep(t, s, st, link, send = link) {
   }
   if (t - vb.tBuild >= VB.everyUnits) {   // 5-mal je Sekunde neu aufbauen
     vb.tBuild = t;
-    for (const [k, e] of vb.dis) if (t - e.t > VB.timeout) vb.dis.delete(k);
+    if (!VB.keep) for (const [k, e] of vb.dis) if (t - e.t > VB.timeout) vb.dis.delete(k);
     vb.units = live ? vbTake(vbUnitsGeo(vb.dis), s.p) : [];
   }
   for (const u of vb.units) vbPlace(u, t - u.t0);
