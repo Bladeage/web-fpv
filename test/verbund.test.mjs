@@ -63,6 +63,27 @@ test('DIS-Modus: Platzhalter übergangen (mehrere auf demselben Punkt, Bodeneinh
   assert.equal(vbUnitsGeo(new Map([['x', ent(9, ...anchor)]])).length, 1);
 });
 
+test('DIS-Modus: Weiterrechnen nach dem Verfahren der PDU (Kurve und Lage), Tempo-Grenze, Name und Zustand', () => {
+  rw.on = true;
+  try {
+    const [la, lo] = rwLatLon(0, -100), N = D.disNedAxes(la, lo), east = N[1], down = N[2];
+    // Fahrzeug nach Osten mit 10 m/s, dreht mit 0,2 rad/s um die Hochachse (Körperachsen: z nach unten), Verfahren 4
+    const e = ent(21, la, lo, meta.hHome + 47, { vel: east.map(v => v*10), dra: 4 });
+    e.ori = D.disHprToEuler(la, lo, Math.PI/2, 0, 0); e.angVel = [0, 0, 0.2]; e.accel = [0, 0, 0]; e.marking = 'ALPHA1'; e.appearance = 1 << 3;
+    const u = vbTake(vbUnitsGeo(new Map([['a', e]])), [0, 0, -100])[0];
+    assert.equal(u.mark, 'ALPHA1'); assert.ok(u.damaged && !u.dead, 'beschädigt');
+    const y0 = u.yaw; vbPlace(u, 2);
+    near(u.x, 20, 0.3, '2 s mit 10 m/s nach Osten'); near(u.y, groundH(u.x, u.z), 1e-9, 'auf dem Boden');
+    near(Math.abs(u.yaw - y0), 0.4, 0.02, 'Lage dreht mit 0,2 rad/s');
+    // Verfahren 2: kein Drehen
+    const e2 = { ...e, dra: 2, angVel: [0, 0, 0.2] }, u2 = vbTake(vbUnitsGeo(new Map([['b', e2]])), [0, 0, -100])[0], y2 = u2.yaw; vbPlace(u2, 2); near(u2.yaw, y2, 1e-4, 'Verfahren 2 dreht nicht');
+    // Tempo-Grenze: Bodenfahrzeug mit 1800 m/s (fällt ohne Gelände) übergangen, Flugzeug mit 600 m/s bleibt
+    const fall = ent(22, la, lo, meta.hHome + 47, { vel: down.map(v => v*1800) }), jet = ent(23, la, lo, meta.hHome + 3000, { vel: east.map(v => v*600), type: [1, 2, 225, 1, 0, 0, 0] });
+    const L = vbUnitsGeo(new Map([['f', fall], ['j', jet]]));
+    assert.deepEqual(L.map(x => x.id.split(':')[2]), ['23']); assert.equal(L.skipped, 1);
+  } finally { rw.on = false; }
+});
+
 test('DIS-Modus: Übung oder Port wechseln leert die Liste; Einheiten behalten bis zur Abmeldung (Schalter)', () => {
   rw.on = true;
   const s = { p: [0, 0, 0], v: [0, 0, 0], q: [0, 0, 0, 1], w: [0, 0, 0] }, [la, lo] = rwLatLon(10, 10);

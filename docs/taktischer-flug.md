@@ -33,6 +33,14 @@ Quelle: Plan von k5.2 nach Fabians Auftrag (Nachricht vom 08.11.2026). Noch nich
 6. Datenlink, Störsender, Glasfaser. Mittel.
 7. Auswertung nach dem Flug. Mittel.
 
+## Schritt 1 erledigt (08.11.2026, Prompt 153): Einheiten richtig darstellen
+- Weiterrechnen nach dem Verfahren der PDU (`disDeadReckon`: 2 Ort und Tempo, 3 mit Drehung, 4 mit Beschleunigung und Drehung, 5 mit Beschleunigung) für Ort und Lage, jedes Bild; höchstens 13 s. Statisch oder eingefroren: kein Weiterrechnen.
+- Tempo-Grenze je Bereich: Boden, Wasser, Personen 150 m/s, Luft 1000 m/s (Schätzung).
+- Name aus dem Marking und Zustand „beschädigt“ in der Beschriftung; „zerstört“ wie bisher (dunkel, schief); abgemeldet und Platzhalter übergangen.
+- Typklassen: die 18 Grundtypen aus `src/distypes.js`, Unbekanntes als Quader.
+- Geprüft: Node-Tests (Kurve mit Verfahren 4, kein Drehen bei 2, Tempo-Grenze, Name, Zustand). Im Browser: Fahrzeug fährt einen Kreis (eine PDU je Sekunde), Lage dreht flüssig, Name in der Beschriftung.
+- Hinweis: Bei Verfahren 4 rechnet DIS den Ort mit Tempo und Beschleunigung weiter; ohne Beschleunigung in der PDU fährt die Einheit zwischen zwei PDUs geradeaus (Kreis mit 50 m Radius: etwa 1 m Abweichung nach 1 s).
+
 ## Anmerkungen web-fpv
 - Tempo-Grenze 300 m/s ist für Luftfahrzeuge zu niedrig; Vorschlag: je Bereich (Boden etwa 150 m/s, Luft etwa 1000 m/s).
 - Schritt 5 löst den Höhenunterschied zur VBS-Standardkarte an der Wurzel (gleiches Gelände); der automatische Höhenabgleich wäre dann nur Rückfall.

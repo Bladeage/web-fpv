@@ -430,7 +430,7 @@ function drawVbsLabels(c, W, H, fs) {
     if (cp[3] < 0.01) continue;
     const nx = cp[0]/cp[3], ny = cp[1]/cp[3];
     if (Math.abs(nx) > 0.95 || Math.abs(ny) > 0.95) continue;
-    const t = b.name + (u.dead ? ' (zerstört)' : '') + ' ' + Math.round(d) + ' M', sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H, hw = c.measureText(t).width/2 + 4, hh = fs*0.55;
+    const t = b.name + (u.mark ? ' ' + u.mark : '') + (u.dead ? ' (zerstört)' : u.damaged ? ' (beschädigt)' : '') + ' ' + Math.round(d) + ' M', sx = (nx*0.5 + 0.5)*W, sy = (0.5 - ny*0.5)*H, hw = c.measureText(t).width/2 + 4, hh = fs*0.55;
     if (used.some(r => Math.abs(r[0] - sx) < r[2] + hw && Math.abs(r[1] - sy) < r[3] + hh)) continue;
     used.push([sx, sy, hw, hh]);
     c.fillStyle = col[u.force] || '#ffffff'; c.strokeText(t, sx, sy); c.fillText(t, sx, sy);

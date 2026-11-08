@@ -9,7 +9,7 @@
    - Ort der Übung (vbCenter): Mitte der empfangenen Einheiten, damit der Flug dort beginnen kann.
    - Getrennt: alle 3 s neuer Versuch. Hängt der Aufbau (Browser fragt nach dem lokalen Netz), meldet vbBridge „wartet“.
    Werte aus SISO-REF-010 über dis.js und distypes.js. Reprinted with permission from SISO Inc. */
-import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence } from './dis.js';
+import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence, disDeadReckon } from './dis.js';
 import { disBaseInfo, disBaseOf } from './distypes.js';
 import { toUtm } from './geo.js';
 import { rw, rwLatLon, groundH } from './realworld.js';
@@ -33,7 +33,9 @@ const vbSane = p => { const r = Math.hypot(p[0], p[1], p[2]); return r > 6.3e6 &
 // gelten alle als Platzhalter; Einheiten am Boden, die mehr als below unter dem Median der übrigen Bodeneinheiten liegen, auch.
 // Annahme: Echte Einheiten stehen nie auf den Zentimeter gleich, und am Boden liegen in einer Übung keine 100 m Höhe dazwischen
 // (Schätzung; ein Tal mit steilen Hängen kann mehr haben, dann bleibt die Einheit aber sichtbar, solange ihr Ort einzeln ist).
-export const VB_PLACEHOLDER = { same: 0.5, below: 100 };
+// Tempo-Grenze je Bereich (Schätzung: Bodenfahrzeuge, Schiffe und Personen unter 150 m/s, Luftfahrzeuge unter 1000 m/s, etwa
+// Mach 3): schneller ist ein Fehler des Senders, etwa ein Objekt, das ohne Gelände endlos fällt (k5.2, 08.11.2026: 1800 m/s).
+export const VB_PLACEHOLDER = { same: 0.5, below: 100, vGround: 150, vAir: 1000 };
 // DIS-Einheiten in Erdkoordinaten: [{ id, base, force, lat, lon, h (über NHN), hdg, pitch, roll, vn (Nord, Ost, oben), dead, t }]
 // t: Empfangszeit (ab da weitergeschoben). Vorhersage „statisch“ (1) oder eingefroren: kein Tempo. Die Liste trägt skipped:
 // Zahl der übergangenen Platzhalter.
@@ -47,10 +49,13 @@ export function vbUnitsGeo(dis, o = {}) {
     if (seen.get(key(e)) > 1) { skipped++; continue; }
     const ap = disAppearanceRead(e.appearance);
     if (ap.off) continue;   // abgemeldet (deaktiviert)
+    const base = disBaseOf(e.type, table), vel = e.vel || [0, 0, 0];
+    if (Math.hypot(...vel) > (disBaseInfo(base).dom === 2 ? P.vAir : P.vGround)) { skipped++; continue; }
     const [lat, lon, he] = disFromEcef(...e.pos), [hdg, pitch, roll] = disEulerToHpr(lat, lon, ...e.ori);
-    const v = e.dra === 1 || ap.frozen ? [0, 0, 0] : disEcefToNed(lat, lon, e.vel || [0, 0, 0]);
-    out.push({ id: e.site + ':' + e.app + ':' + e.entity, base: disBaseOf(e.type, table), force: e.force, lat, lon, h: he - N, hdg, pitch, roll, vn: [v[0], v[1], -v[2]],
-      dead: ap.damage === 3, t: e.t || 0 });
+    const still = e.dra === 1 || ap.frozen, v = still ? [0, 0, 0] : disEcefToNed(lat, lon, vel);
+    // e: die PDU selbst, für das Weiterrechnen nach ihrem Verfahren (vbPlace); mark: Name (Marking), damaged: beschädigt
+    out.push({ id: e.site + ':' + e.app + ':' + e.entity, base, force: e.force, lat, lon, h: he - N, hdg, pitch, roll, vn: [v[0], v[1], -v[2]],
+      dead: ap.damage === 3, damaged: ap.damage === 1 || ap.damage === 2, mark: (e.marking || '').trim(), t: e.t || 0, e: still ? null : e });
   }
   const ground = out.filter(u => disBaseInfo(u.base).dom !== 2), mh = vbMedian(ground.map(u => u.h));
   const L = ground.length >= 2 ? out.filter(u => disBaseInfo(u.base).dom === 2 || u.h >= mh - P.below) : out;
@@ -78,17 +83,27 @@ export const vbOwnPdu = (cur, t) => disEncodeES({ ...DIS_FPV, ...cur, exercise: 
 export function vbLocal(u) {
   const z = vbZone(), b = rw.meta.bbox, [E, N] = toUtm(u.lat, u.lon, z), g = disConvergence(u.lat, u.lon, z), cg = Math.cos(g), sg = Math.sin(g);
   const vn = u.vn || [0, 0, 0], ng = vn[0]*cg + vn[1]*sg, eg = -vn[0]*sg + vn[1]*cg;   // geografisch -> Gitter
-  return { id: u.id, base: u.base, force: u.force, dead: !!u.dead, air: disBaseInfo(u.base).dom === 2, x: E - (b[0] + b[2])/2, z: (b[1] + b[3])/2 - N, y: u.h - rw.meta.hHome,
-    yaw: -((u.hdg || 0) - g), pitch: u.pitch || 0, roll: u.roll || 0, v: [eg, vn[2], -ng], t0: u.t || 0 };
+  return { id: u.id, base: u.base, force: u.force, dead: !!u.dead, damaged: !!u.damaged, mark: u.mark || '', air: disBaseInfo(u.base).dom === 2, x: E - (b[0] + b[2])/2, z: (b[1] + b[3])/2 - N, y: u.h - rw.meta.hHome,
+    yaw: -((u.hdg || 0) - g), pitch: u.pitch || 0, roll: u.roll || 0, v: [eg, vn[2], -ng], t0: u.t || 0, e: u.e || null };
 }
 export function vbTake(list, me = [0, 0, 0]) {
   const d = u => Math.hypot(u.x - me[0], u.z - me[2]), L = (list || []).map(vbLocal).filter(u => d(u) <= VB.range);
   L.sort((a, b) => d(a) - d(b));
   return L.slice(0, VB.maxUnits).map(u => ({ ...u, x0: u.x, y0: u.y, z0: u.z }));
 }
-// dt: Sekunden seit dem Empfang (höchstens bis zum Löschen)
+// dt: Sekunden seit dem Empfang (höchstens bis zum Löschen). Mit PDU (u.e): Weiterrechnen nach ihrem Dead-Reckoning-Verfahren
+// (dis.js: 2 Ort und Tempo, 3 dazu Drehung, 4 dazu Beschleunigung und Drehung, 5 Beschleunigung), also auch Kurven und Lage.
+// Ohne PDU: geradeaus mit dem Tempo.
 export function vbPlace(u, dt) {
   dt = Math.max(0, Math.min(VB.timeout, dt));
+  if (u.e) {
+    const r = disDeadReckon(u.e, dt), [lat, lon, he] = disFromEcef(...r.pos), [hdg, pitch, roll] = disEulerToHpr(lat, lon, ...r.ori);
+    const L = vbLocal({ ...u, lat, lon, h: he - VB.undulation, hdg, pitch, roll });
+    u.x = L.x; u.z = L.z; u.yaw = L.yaw; u.pitch = L.pitch; u.roll = L.roll;
+    const g = groundH(u.x, u.z);
+    u.y = u.air ? Math.max(g, L.y) : g;
+    return u;
+  }
   u.x = u.x0 + u.v[0]*dt; u.z = u.z0 + u.v[2]*dt;
   const g = groundH(u.x, u.z);
   u.y = u.air ? Math.max(g, u.y0 + u.v[1]*dt) : g;
