@@ -68,6 +68,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/rwworker.js` | Echte Welt: Aufträge im Hintergrund-Thread (Gebiet laden, Netz der Gebäude), läuft im Worker |
 | `src/dis.js` | DIS-Kodierer für die VBS-Anbindung: WGS84/ECEF, Lage, Entity State PDU (DIS 6/7), Vorhersage, Senderegel (noch nicht im Spiel) |
 | `src/distypes.js` | VBS-Grundtypen: 18 einfache Modelle, Zuordnung nach DIS-Entitätsart, Aufstellung der Vorschau (Modus „VBS-Grundtypen“) |
+| `src/place.js` | Platzierungsdienst: zufällige Orte für Ereignisse (heute Ringketten) in Spielkarte und echter Welt über eine kleine Welt-Schnittstelle |
 | `src/verbund.js` | DIS-Modus: eigene PDU bauen, DIS lesen, Einheiten in Kartenkoordinaten, Ort der Übung, Zustand der Brücke |
 | `bruecke/fpv-dis-bruecke.cmd` | DIS-Brücke für Windows (PowerShell, Doppelklick): reicht DIS-PDUs zwischen Simulator und UDP durch, Port einstellbar; der Simulator bietet sie im DIS-Modus zum Download an |
 | `tools/dis-bruecke.mjs` | Dieselbe Brücke in Node für Entwicklung und Tests |
@@ -83,7 +84,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `sitl/` | Quellen und Build-Skript für Betaflight als WebAssembly |
 | `test/` | Tests mit `node:test` |
 
-`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `place` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
 ## Daten „Echte Welt“
 
