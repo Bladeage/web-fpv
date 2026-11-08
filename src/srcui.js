@@ -7,7 +7,7 @@ import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { deMap } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
-import { vb, vbSet } from './verbund.js';
+import { vbSet } from './verbund.js';
 
 const srcEl = id => document.getElementById(id);
 const SRC = { show: null, fit: () => {}, onData: () => {}, edit: -1, busy: null, tab: 'data' };
@@ -32,10 +32,8 @@ function srcList() {
   for (const s of RW_SOURCES) row(s, s.land + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
-// Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen)
-// Zustand der Verbindung zur DIS-Brücke neben dem Schalter (verbunden, getrennt, ...)
-function srcVbsState() { srcEl('geoVbsSt').textContent = cfg.verbund ? '· ' + (vb.state === 'verbunden' ? 'verbunden, ' + vb.units.length + ' Einheiten' : vb.err || vb.state) : ''; }
-export function srcOpen(tab = SRC.tab) { srcEl('geoVbs').checked = !!cfg.verbund; srcVbsState(); srcEl('srcMsg').textContent = ''; srcEl('geoMsg').textContent = 'Lade Übersicht …';   // Liste kommt gleich aus dem Speicher
+// Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen). Den DIS-Modus schaltet der Knopf „DIS“ unter Spezial.
+export function srcOpen(tab = SRC.tab) { srcEl('srcMsg').textContent = ''; srcEl('geoMsg').textContent = 'Lade Übersicht …';   // Liste kommt gleich aus dem Speicher
   srcTab(tab); srcList(); srcStoreFill(); SRC.show('sources'); }
 function srcTab(tab) {
   SRC.tab = tab;
@@ -189,8 +187,6 @@ export function srcInit(show, fit, onData) {
   srcEl('geoExp').addEventListener('click', geoExport);
   srcEl('geoStream').checked = cfg.rwStream !== false;
   srcEl('geoStream').addEventListener('change', e => { cfg.rwStream = e.target.checked; saveCfg(); });
-  srcEl('geoVbs').checked = !!cfg.verbund;
-  srcEl('geoVbs').addEventListener('change', e => { cfg.verbund = e.target.checked; saveCfg(); srcVbsState(); });
   // Für Partner, die nur beim Anlegen senden (VBS 26.1.3, D6): sonst verschwinden ihre Einheiten nach 13 s
   srcEl('geoKeep').checked = !!cfg.disKeep;
   srcEl('geoKeep').addEventListener('change', e => { cfg.disKeep = e.target.checked; saveCfg(); vbSet({ keep: cfg.disKeep }); });

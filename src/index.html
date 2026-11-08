@@ -51,12 +51,13 @@
         <div id="disOpts" class="disopts" hidden>
           <p class="hint" id="disSt"></p>
           <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
-          <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Flug am Ort der Übung beginnen" disabled>Dort fliegen</button></div>
+          <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Am Ort der Übung starten" disabled>Dort fliegen</button></div>
         </div>
         <div id="rwOpts">
-          <div class="seg small seg3" id="rwSeg"><button data-src="emb">Monschau (eingebaut)</button><button data-src="live">Ort laden</button><button id="rwOpt" title="Daten, Export und Import, Quellen">Optionen</button></div>
+          <p class="grp">Startort</p>
+          <div class="seg small seg3" id="rwSeg"><button data-src="emb" title="Eingebaut, geht ohne Netz">Monschau</button><button data-src="live" title="Beliebiger Ort in Deutschland">Ort laden</button><button id="rwOpt" title="Daten, Export und Import, Quellen">Optionen</button></div>
           <div id="rwLive" class="rwlive">
-            <input type="text" id="rwLL" placeholder="z. B. 50.7753, 6.0839" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
+            <input type="text" id="rwLL" placeholder="Breite, Länge" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
             <button class="secondary" id="rwMap">Karte</button>
             <button class="secondary" id="rwGo">Laden</button>
           </div>
@@ -64,7 +65,7 @@
           <p class="hint" id="rwMsg"></p>
         </div>
       </div>
-      <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" data-go="drone">Weiter</button></div>
+      <div class="nav"><button class="secondary" data-go="main">Zurück</button><button class="primary" id="modeNext" data-go="drone">Weiter</button></div>
     </section>
 
     <section data-screen="map" hidden>
@@ -81,7 +82,6 @@
       <div class="tabs tabs2" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button></div>
       <div id="geoData">
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
-        <label class="row geotoggle"><span>Mit DIS verbinden (Brücke auf diesem Rechner) <small id="geoVbsSt"></small></span><input type="checkbox" id="geoVbs"></label>
         <label class="row geotoggle"><span>DIS: Einheiten ohne neue Meldung behalten, bis sie sich abmelden</span><input type="checkbox" id="geoKeep"></label>
         <div class="geostats" id="geoStats"></div>
         <div class="srclist" id="srcStore"></div>

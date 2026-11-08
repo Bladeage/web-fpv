@@ -100,10 +100,13 @@ export function syncMenu() {
   press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
-  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + ', ebene Fläche ohne Kartendaten.' : cfg.rwSrc !== 'live' ? '' : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
+  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + ', ebene Fläche ohne Kartendaten.'
+    : cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
+    : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
       + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
-    : 'Breite, Länge oder Karte. 15 bis 200 MB, danach gespeichert.';
+    : 'Zum Beispiel 50.7753, 6.0839, oder auf der Karte wählen. 15 bis 200 MB, danach gespeichert.';
+  rwLock();
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
   $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
   const total = cfg.scen === 'hunt2' ? 7 : cfg.scen === 'hunt3' ? 6 : 9;
@@ -197,7 +200,8 @@ function back() { if (from === null && game.started) resume(); else show(from ||
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 export function toggleMenu() { if (!menu.hidden && screen === 'settings') back(); else openMenu('settings'); }
 // Echte Welt, Ort laden: Fortschritt im Menü. Knopf „Laden“: ein zweiter Klick bricht ab (rwBusy oben).
-// Start und Kartenwahl brechen nicht ab: Start wartet auf das laufende Laden, die Karte ersetzt es durch den neuen Ort.
+// Solange geladen wird, sind „Weiter“ und „Start“ gesperrt (Nutzer, Prompt 148): sonst startet man mit halbem Gebiet.
+// Die Karte, ein gespeicherter Ort und „Dort fliegen“ ersetzen das laufende Laden; ein anderer Startort oder Modus bricht es ab.
 let rwJob = null;
 function rwLive() {
   if (rwBusy) { rwBusy.abort(); return Promise.resolve(false); }
@@ -205,30 +209,36 @@ function rwLive() {
 }
 async function rwReplace() { if (rwBusy) { rwBusy.abort(); await rwJob; } return rwLiveRun(); }
 function rwLiveRun() { rwJob = rwLiveDo(); return rwJob; }
+function rwAbort() { if (rwBusy) rwBusy.abort(); }
+// „Weiter“ (Modus) und „Start“ (Drohne) während des Ladens gesperrt, mit Beschriftung „Lädt …“
+function rwLock() {
+  for (const [id, t] of [['modeNext', 'Weiter'], ['bStart', 'Start']]) { $(id).disabled = !!rwBusy; $(id).textContent = rwBusy ? 'Lädt …' : t; }
+  if (cfg.verbund) syncDis();   // „Dort fliegen“ ist während des Ladens auch gesperrt
+}
 async function rwLiveDo() {
   const ll = parseLatLon(cfg.rwLL);
   if (!ll) { $('rwMsg').textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }
-  rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen';
+  rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen'; rwLock();
   const t0 = performance.now();
+  let ok = false;
   try {
     await rwLoadLive(ll[0], ll[1], (step, f) => { $('rwMsg').textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE);
-    rwSavedFill();
-    $('rwMsg').textContent = '';
+    rwSavedFill(); ok = true;
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
     if (game.started && game.scenRun === 'real') { setScenario('real'); respawn(); }
-    return true;
   } catch (e) {
     $('rwMsg').textContent = 'Nicht geladen: ' + (e.message || e);
     if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
       const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Geodaten importieren';
       b.addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); }); $('rwMsg').append(' ', b);
     }
-    return false;
   } finally {
-    rwBusy = null; rwJob = null; $('rwGo').textContent = 'Laden';
-    if ($('rwMsg').textContent === '') { syncMenu(); $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
+    rwBusy = null; rwJob = null; $('rwGo').textContent = 'Laden'; rwLock();
+    // Geladen: Hinweis zum Ort mit Dauer. Startort inzwischen gewechselt (Abbruch): Hinweis des neuen Startorts statt der Fehlermeldung
+    if (ok || cfg.rwSrc !== 'live') { syncMenu(); if (ok) $('rwMsg').textContent += ' (' + ((performance.now() - t0)/1000).toFixed(0) + ' s)'; }
     fitPanel();
   }
+  return ok;
 }
 // Luftbilder mehrerer Quellen (Landesgrenze) zusammensetzen: erst ein Bild als Grund, darüber je Quelle ihre Zellen.
 // imgs: JPEG/PNG-Bytes je Quelle (oder null), cells: Quelle je Zelle (RW_CELLS²). Ergebnis: JPEG-Bytes.
@@ -273,13 +283,13 @@ async function start() {
   respawn(); resume();
 }
 
-for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { cfg.scen = x.id; if (x.id === 'real') { cfg.verbund = false; if (cfg.rwSrc === 'dis') cfg.rwSrc = 'emb'; } if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
+for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { rwAbort(); cfg.scen = x.id; if (x.id === 'real') { cfg.verbund = false; if (cfg.rwSrc === 'dis') cfg.rwSrc = 'emb'; } if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
 // DIS-Modus (Nutzer, Prompt 143 und 145): echte Welt im Verbund mit einem DIS-Partner. Zeigt, ob die Brücke läuft (die
 // Verbindung hält vbStep in der Hauptschleife), sonst Download der Windows-Brücke. Ein Browser sieht nur, ob die Brücke läuft,
 // nicht ob sie installiert ist. Mit Einheiten in der Übung: Flug an ihrem Ort (Kartendaten, wenn eine Quelle ihn abdeckt,
 // sonst ebene Fläche auf der Höhe der Einheiten).
-const DIS_INFO = 'Echte Welt im Verbund über DIS: Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Die Brücke läuft auf diesem Rechner.';
-{ const b = addChoice($('specList'), 'DIS', '', () => { cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); }); b.dataset.id = 'dis';
+const DIS_INFO = 'Echte Welt im Verbund: Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Dazu läuft eine Brücke auf diesem Rechner.';
+{ const b = addChoice($('specList'), 'DIS', '', () => { rwAbort(); cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); }); b.dataset.id = 'dis';
   $('specList').insertBefore(b, $('specList').querySelector('[data-id=vbs]')); }
 vbSet({ port: cfg.disPort || 3000, exercise: cfg.disEx || 1, keep: !!cfg.disKeep });
 // Frage des Browsers nach dem lokalen Netz (Chrome: „local-network-access“): 'prompt', 'denied', 'granted' oder '' (unbekannt)
@@ -300,13 +310,15 @@ function syncDis() {
   $('disSt').textContent = st === 'läuft' ? 'Brücke läuft. ' + (now ? 'Übung ' + VB.exercise + ': ' + disN(c.n) + where + skip + '.'
       : c ? 'Übung ' + VB.exercise + ': keine neuen Meldungen, zuletzt ' + disN(c.n) + where + ', vor ' + Math.round((performance.now() - disLast.t)/1000) + ' s.'
       : 'Noch keine Einheiten in Übung ' + VB.exercise + ' auf Port ' + VB.port + '.')
-    : st === 'wartet' && lna === 'prompt' ? 'Der Browser fragt nach Zugriff auf Geräte im lokalen Netz. Bitte „Zulassen“.'
+    : st === 'wartet' && lna === 'prompt' ? 'Der Browser fragt nach dem Zugriff auf das lokale Netz. Bitte „Zulassen“ wählen.'
     : st === 'wartet' && lna === 'denied' ? 'Zugriff auf das lokale Netz ist gesperrt: links neben der Adresse die Website-Einstellungen öffnen und erlauben.'
-    : st === 'nicht gefunden' || st === 'wartet' ? 'Brücke nicht gefunden. Herunterladen und auf diesem Rechner doppelklicken. Windows fragt eventuell nach: „Ausführen“ oder „Weitere Informationen“, „Trotzdem ausführen“.'
+    : st === 'nicht gefunden' || st === 'wartet' ? 'Brücke nicht gefunden. Datei herunterladen und doppelklicken. Fragt Windows nach: „Ausführen“ oder „Weitere Informationen“, „Trotzdem ausführen“.'
     : 'Suche Brücke …';
   $('disGet').hidden = !(st === 'nicht gefunden' || (st === 'wartet' && lna !== 'prompt' && lna !== 'denied'));
   $('disSets').hidden = st !== 'läuft';
-  $('disHere').disabled = !c;
+  $('disHere').disabled = !c || !!rwBusy;
+  // „Dort fliegen“ gewählt: ebene Fläche am Ort der Übung oder Kartendaten an genau diesem Ort (dann ist auch „Ort laden“ gewählt)
+  $('disHere').setAttribute('aria-pressed', String(cfg.rwSrc === 'dis' || (cfg.rwSrc === 'live' && !!cfg.disLL && cfg.rwLL === cfg.disLL)));
   if (document.activeElement !== $('disPort')) $('disPort').value = VB.port;
   if (document.activeElement !== $('disEx')) $('disEx').value = VB.exercise;
 }
@@ -334,14 +346,19 @@ for (const [id, key, lo, hi] of [['disPort', 'disPort', 1, 65535], ['disEx', 'di
     syncDis();
   });
 }
-// Am Ort der Übung fliegen: Ort festhalten; mit Quelle (zum Beispiel NRW) wie „Ort laden“, sonst ebene Fläche beim Start
-$('disHere').addEventListener('click', () => {
+// Am Ort der Übung fliegen (Nutzer, Prompt 148: ein Klick lädt und startet): Ort festhalten; mit Quelle (zum Beispiel NRW)
+// die Kartendaten laden wie „Ort laden“ (Abbrechen bleibt möglich), sonst ebene Fläche; dann der Flug dort, auch aus einem
+// laufenden Flug heraus. Schlägt das Laden fehl, bleibt das Menü mit der Meldung offen, kein Start in Monschau.
+$('disHere').addEventListener('click', async () => {
   const c = vbCenter() || (disLast && disLast.c);
-  if (!c) return;
+  if (!c || rwBusy) return;
   const ll = c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
-  if (rwPlan(c.lat, c.lon)) { cfg.rwLL = ll; cfg.rwSrc = 'live'; saveCfg(); syncMenu(); rwReplace(); return; }
-  cfg.disLL = ll; cfg.disH = Math.round(c.h*100)/100; cfg.rwSrc = 'dis'; saveCfg(); syncMenu(); fitPanel();
-  if (game.started && game.scenRun === 'real') { disFlat(); setScenario('real'); respawn(); }
+  cfg.disLL = ll; cfg.disH = Math.round(c.h*100)/100;
+  if (rwPlan(c.lat, c.lon)) {
+    cfg.rwLL = ll; cfg.rwSrc = 'live'; saveCfg(); syncMenu();
+    if (!await rwReplace()) return;
+  } else { rwAbort(); cfg.rwSrc = 'dis'; saveCfg(); syncMenu(); fitPanel(); }
+  await start();
 });
 function disFlat() {
   const ll = parseLatLon(cfg.disLL);
@@ -352,10 +369,10 @@ function disFlat() {
 document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('click', () => {
   const spec = b.dataset.mtab === 'spec';
   if (spec && !SPECIAL.has(cfg.scen)) { cfg.lastStd = cfg.scen; cfg.scen = 'real'; }
-  if (!spec && SPECIAL.has(cfg.scen)) cfg.scen = cfg.lastStd && !SPECIAL.has(cfg.lastStd) ? cfg.lastStd : 'gates';
+  if (!spec && SPECIAL.has(cfg.scen)) { rwAbort(); cfg.scen = cfg.lastStd && !SPECIAL.has(cfg.lastStd) ? cfg.lastStd : 'gates'; }
   saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
-document.querySelectorAll('#rwSeg button[data-src]').forEach(b => b.addEventListener('click', () => { cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
+document.querySelectorAll('#rwSeg button[data-src]').forEach(b => b.addEventListener('click', () => { if (b.dataset.src !== cfg.rwSrc) rwAbort(); cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
 let srcFrom = 'mode';   // Optionen der echten Welt: „Fertig“ führt dorthin zurück, woher man kam
 $('rwOpt').addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); });   // Optionen der echten Welt (Daten, Quellen)
 $('srcDone').addEventListener('click', () => show(srcFrom));

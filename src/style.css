@@ -7,6 +7,7 @@
   --chip:#e7edf0;
   --chip-on:#16212a;
   --chip-on-text:#ffffff;
+  --field:#ffffff;
   --accent:#ff6a13;
   --accent-text:#1a0c02;
   --hud-btn-bg:rgba(10,14,18,.55);
@@ -20,12 +21,12 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --panel:#141c22; --panel-text:#e6edf1; --muted:#97a8b3; --line:#2b3842;
-    --chip:#1f2a32; --chip-on:#e6edf1; --chip-on-text:#141c22; --err:#ff8a80;
+    --chip:#1f2a32; --chip-on:#e6edf1; --chip-on-text:#141c22; --err:#ff8a80; --field:#0f161b;
   }
 }
 :root[data-theme="dark"]{
   --panel:#141c22; --panel-text:#e6edf1; --muted:#97a8b3; --line:#2b3842;
-  --chip:#1f2a32; --chip-on:#e6edf1; --chip-on-text:#141c22; --err:#ff8a80;
+  --chip:#1f2a32; --chip-on:#e6edf1; --chip-on-text:#141c22; --err:#ff8a80; --field:#0f161b;
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -168,7 +169,7 @@ details{margin-top:10px}
 }
 /* Raten-Tabelle (Betaflight „Actual“): Beschriftung links, drei Zahlenfelder */
 .rgrid{display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:4px 8px;align-items:center;font-size:.85em;margin:4px 0 2px}
-.rgrid input{width:100%;min-width:0;box-sizing:border-box;padding:3px 6px;font:inherit;background:var(--chip);color:var(--panel-text);border:1px solid var(--line);border-radius:6px}
+.rgrid input{width:100%;min-width:0;box-sizing:border-box;padding:3px 6px;font:inherit;background:var(--field);color:var(--panel-text);border:1px solid var(--line);border-radius:6px}
 .rgrid input:focus{outline:2px solid var(--accent);outline-offset:0}
 /* Mehr Luft (Nutzer 05.11.2026): größere Abstände und Flächen. Die Gesamtgröße passt menu.js (fitPanel) an den Bildschirm an:
    auf großen Bildschirmen größer, auf kleinen so, dass nichts scrollen muss. */
@@ -196,11 +197,11 @@ details{margin-top:10px}
 .ver{margin:10px 0 0;font-size:12px;color:var(--muted);opacity:.75;text-align:center;font-variant-numeric:tabular-nums}   /* Version im Hauptmenü, hellgrau */
 #scenList button:last-child:nth-child(odd){grid-column:1/-1}   /* letzter Modus allein in der Zeile: volle Breite */
 
-/* Echte Welt: Ort laden (Koordinate und Knopf in einer Zeile) */
-.rwlive{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:6px}
+/* Echte Welt: Ort laden (Koordinate und Knöpfe in einer Zeile). Eingabefelder weiß (var(--field)), damit sie bearbeitbar wirken. */
+.rwlive{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:8px}
 .rwlive button{padding:10px 14px}
-#rwMsg{margin-top:4px}
-.rwlive input{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--panel-text);min-width:0}
+#rwMsg{margin-top:8px}
+.rwlive input{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--panel-text);min-width:0}
 /* Deutschlandkarte (Ort wählen) */
 .mapbox{position:relative;margin-top:6px}
 #mapCv{position:static;inset:auto;display:block;width:100%;height:clamp(150px,34vh,400px);border-radius:10px;border:1px solid var(--line);touch-action:none;cursor:crosshair;background:#dde5e8}
@@ -208,19 +209,19 @@ details{margin-top:10px}
 .mapzoom button{width:34px;height:30px;padding:0;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:#223;font-weight:700}
 .mapattr{font-size:11px;opacity:.8}
 .mapattr a{color:inherit}
-#mapOk:disabled{opacity:.45}
+.primary:disabled,.secondary:disabled{opacity:.45;cursor:default}   /* Karte „Laden“ ohne Punkt, „Weiter“, „Start“ und „Dort fliegen“ während des Ladens, „Dort fliegen“ ohne Einheiten */
 /* Quellen (L3): Liste und Formular */
 .nav3{grid-template-columns:1fr 1fr 1fr}
 .nav4{grid-template-columns:1fr 1fr 1fr 1fr}
 .srclist{display:grid;gap:6px;margin:6px 0 8px;max-height:24vh;overflow:auto}
-.rwsaved{margin-top:6px;font-size:13px;padding:4px 8px}
+.rwsaved{margin-top:8px;font-size:13px;padding:6px 8px}
 .srcrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--chip)}
 .srcrow b{font-size:14px}
 .srcrow small{display:block;opacity:.75}
 .srcrow button{padding:5px 12px}
 .sform{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 8px;margin-top:4px}
 .sform label{display:flex;flex-direction:column;font-size:12px;gap:2px;min-width:0}
-.sform input,.sform select{font:inherit;font-size:13px;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--chip);color:var(--panel-text);min-width:0}
+.sform input,.sform select{font:inherit;font-size:13px;padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--field);color:var(--panel-text);min-width:0}
 .sform .w2{grid-column:span 2}
 .sform .w3{grid-column:span 3}
 @media (max-width:560px){.sform{grid-template-columns:1fr}.sform .w2,.sform .w3{grid-column:auto}.nav4{grid-template-columns:1fr 1fr}}
@@ -233,12 +234,12 @@ details{margin-top:10px}
 .geostats span:nth-child(3n+2),.geostats span:nth-child(3n){text-align:right;font-variant-numeric:tabular-nums}
 .geostats .sum{border-top:1px solid var(--line);padding-top:2px}
 #rwMsg .linkbtn{padding:2px 10px;font-size:12px;margin-left:4px}
-.geotoggle{font-size:13px;margin:4px 0 2px}
+.geotoggle{font-size:13px;margin:8px 0 0;align-items:center}
+.geotoggle input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
 /* Politur für das fertige Produkt (Prompt 133, Bewertung durch Fable) */
 .panel .primary:focus-visible{outline-color:var(--panel-text)}   /* Fokus auf orangem Knopf: dunkler Ring statt orange auf orange */
 #swRows .gprow{grid-template-columns:7.4em 5.6em auto 1fr auto}   /* Schalter: Namen nicht abschneiden */
 .segpair > div > h2{margin-top:12px}
-#specList button:last-child:nth-child(odd){grid-column:1/-1}
 #courseInfo,#specInfo,#droneHint,#styleHint{min-height:2.9em}   /* Beschreibung wechselt die Zeilenzahl nicht: Menü zuckt nicht */
 .firsthint{text-align:center}
 body.menuopen .topbar{visibility:hidden}   /* Neustart und Kamera nur im Flug */
@@ -246,13 +247,34 @@ body.menuopen .topbar{visibility:hidden}   /* Neustart und Kamera nur im Flug */
   .segpair{grid-template-columns:1fr}
   .seg4{grid-template-columns:1fr 1fr}
   #swRows .gprow{grid-template-columns:6.4em 5.2em auto 1fr auto}
+  .seg.small button{padding:10px 6px}   /* drei Knöpfe nebeneinander ohne Umbruch */
 }
 .osdgrp{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--muted);margin-top:8px;text-transform:uppercase;letter-spacing:.04em}   /* Gruppen im OSD-Reiter */
 .osdgrp:first-child{margin-top:2px}
 @media (max-height:620px){ .osdgrp{grid-column:auto;margin-top:2px;font-size:11px;align-self:center} .osdgrp:first-child{margin-top:2px} }   /* niedrige Fenster: Überschrift belegt nur eine Zelle */
-.disopts{margin-top:6px}
-.disopts .secondary{margin-top:6px}
-.dissets{display:flex;gap:8px;align-items:center;margin:6px 0 8px}
-.dissets label{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);white-space:nowrap}
-.dissets input{font:inherit;width:4.6em;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--chip);color:var(--panel-text);min-width:0}
+.disopts{margin-top:12px}
+.disopts .secondary{margin-top:8px}
+.dissets{display:flex;gap:8px;align-items:center;margin:8px 0 0}
+.dissets label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap}
+.dissets input{font:inherit;width:4.6em;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--panel-text);min-width:0}
 .dissets .secondary{flex:1;margin-top:0;padding:10px 12px;min-width:0}
+.dissets .secondary[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-text)}   /* „Dort fliegen“ gewählt: wie ein gewählter Startort */
+/* Spezial (Nutzer, Prompt 148): drei Modi in einer Zeile, Gruppe „Startort“ mit Überschrift, gleichmäßige Abstände (12 px je Gruppe, 8 px innen) */
+#specList{grid-template-columns:repeat(3,1fr)}
+#specList button{text-align:center;padding:12px 8px}
+#specList button b{font-size:15.5px}
+.grp{margin:12px 0 0;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#rwOpts .seg{margin-top:6px}
+@media (max-height:620px){
+  .disopts,.grp{margin-top:8px}
+  .disopts .secondary,.dissets,.rwlive,.rwsaved,#rwMsg{margin-top:6px}
+  #rwOpts .seg{margin-top:4px}
+  .grp{font-size:11px}
+  #specList button{padding:8px 6px}
+}
+@media (max-width:480px){   /* Handy: zwei Modi je Zeile, der dritte allein; „Dort fliegen“ in eigener Zeile */
+  #specList{grid-template-columns:1fr 1fr}
+  #specList button:last-child:nth-child(odd){grid-column:1/-1}
+  .dissets{flex-wrap:wrap}
+  .dissets .secondary{flex:1 1 100%}
+}
