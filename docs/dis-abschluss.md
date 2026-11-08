@@ -17,8 +17,8 @@ Einstufung: **gesichert** = gemessen oder im Code gelesen (Fundstelle in `docs/d
 
 ### Im Produkt (Menü)
 
-- DIS bleibt wählbar: Taktischer Flug → Aufgabe **„DIS-Verbund (experimentell)“**. Darunter wie heute: Zustand der Brücke, Download, Port, Übung, „Dort fliegen“.
-- Kennzeichnung im Hinweistext der Aufgabe (ein Satz, einfach): „Experimentell. Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Geprüft mit VBS4 26.1.3. Der Partner übernimmt keinen Schaden aus unserer Sprengladung, seine KI greift die Drohne nicht an.“
+- DIS bleibt wählbar, in beiden Flugarten: Schritt 1 → Welt „Echte Welt“ → Startort **„DIS-Übung (experimentell)“** neben Monschau und Ort laden (im Code ist das heute schon `cfg.rwSrc === 'dis'`). Darunter wie heute: Zustand der Brücke, Download, Port, Übung, „Dort fliegen“. Im Parcours-Flug sind die Einheiten des Partners nur zu sehen; im Taktischen Flug sind sie Ziele der Wirkmittel (Menüweg nach Prompt 162, siehe `docs/plan-taktischer-flug.md`, Abschnitt 1).
+- Kennzeichnung im Hinweistext des Startorts (ein Satz, einfach): „Experimentell. Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Geprüft mit VBS4 26.1.3. Der Partner übernimmt keinen Schaden aus unserer Sprengladung, seine KI greift die Drohne nicht an.“
 - Hilfe (Einstellungen → Hilfe): ein Absatz „DIS (experimentell)“ mit dem Verweis auf die Kurzanleitung unten (Dateiname im Repo), weil die Anleitung nicht ins Menü passt.
 - Vorschau „DIS-Grundtypen“: aus der Modus-Liste heraus. Erreichbar über einen kleinen Knopf „Grundtypen ansehen“ im DIS-Block (Vorschlag). Alternative: ganz aus dem Menü, Modul und Tests bleiben.
 - Option „DIS: Einheiten ohne neue Meldung behalten“ bleibt unter Optionen → Daten (für Partner, die nur beim Anlegen senden).
@@ -74,7 +74,7 @@ Voraussetzung: VBS4 mit Gateway (DIS-Adapter, DIS 6, Broadcast, Port 3000, Übun
 1. **VBS starten als Host eines Mehrspieler-Szenarios** mit `-gateway`. Läuft der Browser auf demselben Rechner, zusätzlich `-forceSimul` (sonst pausiert VBS ohne Fokus). Nicht im Einzelspieler testen (Einheiten frieren ein).
 2. **Karte mit echten Höhen:** ein Gelände, dessen Höhen zu den Geobasisdaten passen (Inset aus NRW-Höhen, zum Beispiel Köln). Auf der VBS-Standardkarte liegt unser Boden am Flughafen etwa 2,2 m tiefer; die gelandete Drohne ist dann in VBS nicht sichtbar.
 3. **Einheiten im Szenario** nur mit Klassen, die einen SISO-Wert haben (sonst werden sie nicht gesendet). Fahrer ja, Mitfahrer werden nicht gesendet.
-4. **Simulator öffnen** (https://bladeage.github.io/web-fpv/), Taktischer Flug → DIS-Verbund. Zeigt das Menü „Brücke nicht gefunden“: Knopf „Brücke für Windows herunterladen“, Datei `fpv-dis-bruecke.cmd` doppelklicken. Windows fragt „Datei öffnen, Sicherheitswarnung“: „Ausführen“. Fenster offen lassen.
+4. **Simulator öffnen** (https://bladeage.github.io/web-fpv/), Parcours-Flug oder Taktischer Flug → Welt „Echte Welt“ → Startort „DIS-Übung“. Zeigt das Menü „Brücke nicht gefunden“: Knopf „Brücke für Windows herunterladen“, Datei `fpv-dis-bruecke.cmd` doppelklicken. Windows fragt „Datei öffnen, Sicherheitswarnung“: „Ausführen“. Fenster offen lassen.
 5. **Chrome-Freigabe:** Chrome fragt „Zugriff auf Geräte im lokalen Netz“: „Zulassen“. Wurde es abgelehnt: links neben der Adresse die Website-Einstellungen öffnen und erlauben. Bis zur Antwort steht „Brücke nicht gefunden“ oder „wartet“.
 6. **Port und Übung** prüfen (3000, 1). Das Menü zeigt „Übung 1: n Einheiten bei Breite, Länge“. Zeigt es „Noch keine Einheiten“: VBS hat den Fokus verloren (Schritt 1) oder sendet nicht (Schritt 3).
 7. **„Dort fliegen“:** lädt die Kartendaten des Übungsorts (NRW) oder eine ebene Fläche und startet. OSD zeigt „DIS n“ und die Koordinaten. In VBS erscheint „FPV1“ (Freund, Mikado-Modell).
@@ -111,10 +111,10 @@ Gesichert ist nur: VBS hat aus unseren Detonation-PDUs, aus nachgespielten VBS-D
 ## Abschluss-Etappe (T1 in `docs/plan-taktischer-flug.md`)
 
 Umfang des DIS-Anteils in T1:
-1. Menü: DIS als Aufgabe „DIS-Verbund (experimentell)“ im Taktischen Flug, Hinweistext mit den zwei Grenzen (KI greift nicht an, kein Schaden beim Partner), „Grundtypen ansehen“ als kleiner Knopf, Vorschau aus der Liste.
+1. Menü: DIS als Startort „DIS-Übung (experimentell)“ in der echten Welt, in beiden Flugarten; Hinweistext mit den zwei Grenzen (KI greift nicht an, kein Schaden beim Partner); „Grundtypen ansehen“ als kleiner Knopf im DIS-Block, Vorschau aus der Modus-Liste.
 2. Hilfe: Absatz „DIS (experimentell)“ mit Verweis auf dieses Dokument.
 3. Doku: Vermerk oben in `docs/dis-drohne.md`, README-Zeilen „experimentell“, Eintrag in `docs/PLAN.md`, Übergabe ergänzen.
-4. Tests: alle DIS-Tests bleiben; Prüfung im Browser mit `node tools/dis-bruecke.mjs` und DIS-Ersatz, dass der Weg Taktischer Flug → DIS → „Dort fliegen“ geht; vier Größen.
+4. Tests: alle DIS-Tests bleiben; Prüfung im Browser mit `node tools/dis-bruecke.mjs` und DIS-Ersatz, dass der Weg Flugart → Echte Welt → DIS-Übung → „Dort fliegen“ in beiden Flugarten geht; vier Größen.
 5. Kein Code-Abbau. Danach gilt: keine neuen DIS-Funktionen ohne Auftrag des Nutzers.
 
-Aufwand: S (im Rahmen von T1). Risiko: gering; gespeicherte Einstellungen mit `cfg.verbund = true` müssen auf die neue Aufgabe `dis` abgebildet werden.
+Aufwand: S (im Rahmen von T1). Risiko: gering; gespeicherte Einstellungen mit `cfg.verbund = true` müssen auf den Startort `cfg.rwSrc = 'dis'` und `cfg.world = 'real'` abgebildet werden.
