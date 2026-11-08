@@ -185,6 +185,14 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **Ergebnis:** OSD „DIS 10“ und „50.86802N 7.13799E“; mehrere VBS-Lkw als Grundtypen mit Namen und Abstand auf unserem NRW-Gelände des Flughafens.
 - **Hinweis:** Ohne VWS fehlt in VBS das Gelände, Objekte fallen endlos (im DIS Höhen um minus 170 km, Tempo um 1800 m/s). Höhen so weit unter der Erde verwirft unser Filter schon (Abstand zur Erdmitte unter 6,3 Mio. m); kurz nach Beginn des Falls greift die Regel „Bodeneinheit mehr als 100 m unter den übrigen“. Eine Grenze für das Tempo gibt es noch nicht (Vorschlag offen).
 
+## Höhenmessung mit gelandeter Drohne (08.11.2026, k5.2, Cologne Airport, VBS als Host ohne VWS)
+
+- **Gemessen:** FPV1 gelandet hEll 120,4 m; VBS-Bodenfahrzeuge im Umkreis 10 bis 40 m hEll 120,8 bis 123,5 m. Fabian sieht die Drohne in VBS im Flug, nach der Landung nicht mehr (vermutlich knapp im VBS-Boden; VBS klemmt Luft-Entities nicht auf den Boden).
+- **Einordnung (gesichert im Code):** An diesem Ort (NRW) kommt unsere Höhe aus dem NRW-Gelände plus fester Quasigeoidhöhe 47 m (Schätzung für Monschau), nicht aus den Fahrzeugen. VBS hatte ohne VWS ein flaches Ersatzgelände. Ein Unterschied von einigen Dezimetern bis Metern ist so zu erwarten.
+- **Vermutet:** Der Bezugspunkt von VBS-Fahrzeugen liegt je nach Modell 0 bis 2,5 m über dem Boden. Für die ebene Fläche (Median der Fahrzeuge) wäre der untere Rand besser.
+- **Unplausible Einheiten:** Soldaten mit minus 2490 km, fallende Objekte mit minus 156 km (vom Filter „Abstand zur Erdmitte“ schon verworfen). Tempo-Grenze fehlt noch.
+- **Vorschläge k5.2:** Bodenhöhe der ebenen Fläche aus dem unteren Rand (10-%-Quantil oder Minimum), kleiner Sicherheitsabstand (0,3 bis 0,5 m), solange die Drohne steht, Tempo-Grenze. Neue Messung mit echtem Gelände (VWS oder Inset aus NRW-Höhen) angeboten.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
