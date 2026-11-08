@@ -12,7 +12,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', show: { dop: true, bld: true, trees: true, water: true, far: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -242,7 +242,10 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   if (!p.dop && srcs[0].kind === 'wms') {   // Luftbild des Höhendienstes, sonst Relief schattiert auf Gras
     say('Luftbild vom Höhendienst', 0.9);
     const get = rwNet(signal).get;
-    p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.main, get).catch(e => { if (signal && signal.aborted) throw e; rw.photoErr = String(e.message || e); return null; }) || rwShadeImage(p.meta, p.q);
+    rw.photoErr = '';
+    p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.main, get).catch(e => { if (signal && signal.aborted) throw e; rw.photoErr = String(e.message || e); return null; });
+    rw.photoOk = !!p.dop;   // für die Geländezeile im Menü
+    if (!p.dop) p.dop = rwShadeImage(p.meta, p.q);
     if (p.far && !p.far.dop) p.far.dop = await rwWmsPhoto(srcs[0], farBox(a), a.crs, RW_WMS_IMG.far, get).catch(() => null);
   }
   rwApply(p, { live: true, ...x }); rw.stored = null;
