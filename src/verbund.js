@@ -50,6 +50,8 @@ export function vbUnitsGeo(dis, o = {}) {
     if (seen.get(key(e)) > 1) { skipped++; continue; }
     const ap = disAppearanceRead(e.appearance);
     if (ap.off) continue;   // abgemeldet (deaktiviert)
+    // Nur Plattformen (1) und Lebewesen (3): Geschosse (2) melden sich kurz als eigene Einheit (k5.2, 08.11.2026), nicht zeigen
+    if (e.type[0] !== 1 && e.type[0] !== 3) continue;
     const base = disBaseOf(e.type, table), vel = e.vel || [0, 0, 0];
     if (Math.hypot(...vel) > (disBaseInfo(base).dom === 2 ? P.vAir : P.vGround)) { skipped++; continue; }
     const [lat, lon, he] = disFromEcef(...e.pos), [hdg, pitch, roll] = disEulerToHpr(lat, lon, ...e.ori);

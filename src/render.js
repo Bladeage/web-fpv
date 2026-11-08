@@ -19,8 +19,8 @@ import { osdOn } from './osd.js';
 import { targets } from './targets.js';
 import { vehicles, buildVehicle, VEH_COLORS } from './vehicles.js';
 import { MOTORS, PHYS, history } from './physics.js';
-import { disBaseMesh, disPreviewLayout, DIS_SIDE } from './distypes.js';
-import { vb } from './verbund.js';
+import { disBaseMesh, disBaseParts, disPreviewLayout, DIS_SIDE } from './distypes.js';
+import { vb, vbGun, VB_FX } from './verbund.js';
 const baseGl = new Map();   // VBS-Grundtypen: Netz je Typ, beim ersten Zeichnen hochgeladen
 
 /* ---------- WebGL ---------- */
@@ -34,7 +34,7 @@ export const gl = glc.getContext('webgl2', { antialias: true, powerPreference: '
 export const glLost = { on: false, since: 0 };
 glc.addEventListener('webglcontextlost', e => { e.preventDefault(); glLost.on = true; glLost.since = performance.now(); });
 glc.addEventListener('webglcontextrestored', () => {
-  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null; baseGl.clear();
+  trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null; baseGl.clear(); partGl.clear(); flashMesh = tracerGl = null;
   terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null; rwGlVer = -1; tileGlVer = -1;
   initGL(); resize(); glLost.on = false;
 });
@@ -390,7 +390,8 @@ void main(){
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
+const partGl = new Map();   // DIS-Einheiten: Teile je Grundtyp
 const SUN = vNorm([0.45, 0.8, 0.3]);
 // Sonne in der echten Welt: passend zu den Schatten im Luftbild (die sind eingebacken; vorher widersprachen beleuchtete
 // Fassaden und Bodenschatten). Gemessen am Luftbild von Monschau (08.11.2026, Skript: je LoD2-Gebäude die dunkelste
@@ -899,19 +900,62 @@ export function render(dt) {
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   }
   // Verbund mit VBS (D3): Einheiten aus VBS als Grundtypen, Lage aus Kurs, Nicken, Rollen; zerstörte dunkel und schief
-  if (rw.on && vb.units.length) {
+  // Einheiten in Teilen (Prompt 154): Wanne, Turm (dreht um tp nach dem Azimut aus DIS), Rohr (hebt sich um gp). Je Grundtyp
+  // einmal hochgeladen. Beschädigt etwas dunkler. Danach Schüsse und Einschläge (vb.fx) und Mündungsfeuer.
+  if (rw.on && (vb.units.length || vb.fx.length)) {
+    const drawMesh = (g, m) => { if (!g) return; gl.uniformMatrix4fv(P.u.uModel, false, m); gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count); };
+    const flashes = [];
     for (const u of vb.units) {
-      let g = baseGl.get(u.base);
-      if (!g) { g = upload(disBaseMesh(u.base)); baseGl.set(u.base, g); }
-      const c = u.dead ? DIS_SIDE.dead : DIS_SIDE[u.force] || DIS_SIDE[0];
+      let g = partGl.get(u.base);
+      if (!g) { const p = disBaseParts(u.base); g = { p, hull: p.hull && upload(p.hull), turret: p.turret && upload(p.turret), gun: p.gun && upload(p.gun) }; partGl.set(u.base, g); }
+      const c = u.dead ? DIS_SIDE.dead : DIS_SIDE[u.force] || DIS_SIDE[0], pos = [u.x, u.y, u.z];
       let q = qMul(qAxis([0, 1, 0], u.yaw), qMul(qAxis([1, 0, 0], u.pitch), qAxis([0, 0, 1], -u.roll)));
       if (u.dead) q = qMul(q, qAxis([0, 0, 1], 0.12));
       gl.uniform1f(P.u.uHeat, u.dead ? 0.4 : 0.75);
-      gl.uniform4f(P.u.uOver, c[0], c[1], c[2], u.dead ? 0.75 : 0.45);
-      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, [u.x, u.y, u.z]));
-      gl.bindVertexArray(g.vao); gl.drawArrays(gl.TRIANGLES, 0, g.count);
+      gl.uniform4f(P.u.uOver, c[0]*(u.damaged ? 0.7 : 1), c[1]*(u.damaged ? 0.7 : 1), c[2]*(u.damaged ? 0.7 : 1), u.dead ? 0.75 : 0.45);
+      drawMesh(g.hull, mFromQT(q, pos));
+      // Turm: Punkt p -> pos + q*tp + qt*(p - tp); Rohr: pos + q*tp + qt*(gp - tp) + qg*(p - gp)
+      const tp = g.p.tp || [0, 0, 0], qt = qMul(q, qAxis([0, 1, 0], -(u.az || 0))), qg = qMul(qt, qAxis([1, 0, 0], u.el || 0));
+      const at = vAdd(pos, qRot(q, tp));
+      drawMesh(g.turret, mFromQT(qt, vSub(at, qRot(qt, tp))));
+      if (g.gun) { const ag = vAdd(at, qRot(qt, vSub(g.p.gp, tp))); drawMesh(g.gun, mFromQT(qg, vSub(ag, qRot(qg, g.p.gp)))); }
+      if (vb.now - u.fireT < VB_FX.flash) { const G = vbGun(u); if (G) flashes.push([G.muzzle, 0.6 + 0.4*Math.random()]); }
     }
-    gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
+    // Schüsse: Mündungsfeuer am Abschussort (falls der Schütze nicht bekannt ist), Leuchtspur in Flugrichtung.
+    // Einschläge: Feuerball wächst (0,3 s), dann Rauch, der steigt und schrumpft (bis 1,5 s). Größen geschätzt.
+    const lines = [];
+    for (const f of vb.fx) {
+      const age = vb.now - f.t;
+      if (f.kind === 'fire') {
+        if (age < VB_FX.flash && !vb.units.some(u => u.id === f.from)) flashes.push([[f.x, f.y, f.z], 0.8]);
+        const sp = Math.hypot(f.v[0], f.v[1], f.v[2]);
+        if (age < VB_FX.tracer && sp > 1) { const d = vScale(f.v, 1/sp), a = vAdd([f.x, f.y, f.z], vScale(f.v, age)); lines.push(a, vSub(a, vScale(d, Math.min(25, sp*age + 0.5)))); }
+      } else if (age < VB_FX.blast) {
+        const k = age/VB_FX.blast, fire = age < 0.3;
+        flashes.push([[f.x, f.y + (fire ? 0.5 : 1 + 4*k), f.z], fire ? 0.8 + 6*age : 2.6*(1 - k) + 0.4, fire ? [1, 0.6, 0.2] : [0.35, 0.35, 0.35]]);
+      }
+    }
+    if (flashes.length) {
+      if (!flashMesh) { const m = new MeshBuilder(); m.blob([0, 0, 0], [1, 1, 1], [1, 1, 1]); flashMesh = upload(new Float32Array(m.d)); }
+      gl.uniform1f(P.u.uHeat, 1);
+      for (const [p, r, col] of flashes) {
+        const c = col || [1, 0.85, 0.4], m = mFromQT([0, 0, 0, 1], p);
+        for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) m[i] *= r;
+        gl.uniform4f(P.u.uOver, c[0], c[1], c[2], 1); drawMesh(flashMesh, m);
+      }
+    }
+    if (lines.length) {
+      if (!tracerGl) { tracerGl = { vao: gl.createVertexArray(), buf: gl.createBuffer() }; gl.bindVertexArray(tracerGl.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tracerGl.buf);
+        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24); }
+      const d = new Float32Array(lines.length*10);
+      lines.forEach((p, i) => d.set([p[0], p[1], p[2], 0, 1, 0, 1, 0.8, 0.35, 1], i*10));
+      gl.bindVertexArray(tracerGl.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tracerGl.buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
+      gl.uniformMatrix4fv(P.u.uModel, false, mIdent()); gl.uniform1f(P.u.uHeat, 1); gl.uniform4f(P.u.uOver, 1, 0.8, 0.35, 1);
+      gl.drawArrays(gl.LINES, 0, lines.length);
+    }
+    gl.uniform1f(P.u.uHeat, 0); gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
   }
   // Drohne (Rumpf nur in der Verfolgerkamera, Propeller auch im Kamerabild)
   gl.uniform1f(P.u.uHeat, 0.7);

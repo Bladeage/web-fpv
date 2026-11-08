@@ -207,6 +207,12 @@ Je Ort ein Radpanzer, ein Schützenpanzer, ein Soldat (VBS als Host mit World Se
 - **(c) Bezugspunkt (gesichert):** praktisch der Boden (−0,11 bis 0 m).
 - **Ergebnis:** Fabians 0,4 bis 3 m am Flughafen kommen fast ganz aus der Standardkarte (+2,2 m) plus Geoid (+0,25 m): Unsere gelandete Drohne lag etwa 2,5 m unter dem VBS-Boden. Auf dem Inset läge sie 0,3 bis 0,6 m darüber und bliebe sichtbar.
 
+## Waffen, Turm und Rohr (08.11.2026, Prompt 154; Messung k5.2 mit VBS als Host)
+
+- **Gemessen (k5.2):** Panzer senden 18 variable Parameter (alle gelenkig). 4107 Turm-Azimut relativ zur Wanne, positiv nach rechts, −180° bis +180° (geprüft bei 90°, −160°, −45°); 4429 Rohr-Elevation am Turm; dazu Raten (4108, 4430) und weitere Stationen. Beim Drehen etwa 30 PDUs je Sekunde. Fire 96 Byte und Detonation 104 Byte wie nach DIS 6 erwartet (unser Leser liest die Proben richtig: Schütze, Ziel, Munitionsart, Tempo, Ort, Ergebnis). Kein Mündungsfeuer-Bit im Erscheinungsbild. Geschosse melden sich kurz als eigene Einheit (Art 2). Mehr Detonation- als Fire-PDUs. Mitschnitte nur lokal bei k5.2.
+- **Umgesetzt:** Modelle in Teilen (Wanne, Turm, Rohr), Turm dreht nach 4107, Rohr hebt sich nach 4429 (letzter Wert bleibt, wenn eine PDU sie nicht trägt). Mündungsfeuer am Rohr des Schützen, Leuchtspur in Flugrichtung, Einschlag als Feuerball und Rauch (Größen geschätzt). Beschriftung „SCHIESST“ (1 s nach einem Schuss) und „ZIELT AUF DICH“ (Rohr bis 3° auf die Drohne). Geschosse (Art 2) und andere Arten außer Plattform und Lebewesen werden nicht als Einheit gezeigt.
+- **Offen:** Vorzeichen der Elevation nur schwach geprüft (VBS hob das Rohr im Test kaum). Hinweis k5.2: Bei mehreren Sendern immer nach Site, App und Entity unterscheiden (machen wir).
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
