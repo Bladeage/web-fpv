@@ -207,6 +207,15 @@ Je Ort ein Radpanzer, ein Schützenpanzer, ein Soldat (VBS als Host mit World Se
 - **(c) Bezugspunkt (gesichert):** praktisch der Boden (−0,11 bis 0 m).
 - **Ergebnis:** Fabians 0,4 bis 3 m am Flughafen kommen fast ganz aus der Standardkarte (+2,2 m) plus Geoid (+0,25 m): Unsere gelandete Drohne lag etwa 2,5 m unter dem VBS-Boden. Auf dem Inset läge sie 0,3 bis 0,6 m darüber und bliebe sichtbar.
 
+
+### Nachtrag: Inset Cologne Airport aus NRW-Daten (08.11.2026, Messung k5.2)
+
+- Fabian hat in VBS ein Inset importiert, gebaut mit aoi2vbs4 aus denselben NRW-Daten (DGM1 1 m, DOP 20 cm, LoD2, OSM-Straßen). Gebiet 7,124 bis 7,152° O, 50,857 bis 50,875° N.
+- Höhen über dem Ellipsoid, NRW-DGM1 (Versatz +46,861 m am Gebietszentrum) gegen `Blue_hgt` des World Servers an 6 Punkten: Abweichung 0,05 bis 0,24 m (gesichert, gemessen). Am DIS-Testpunkt 50,868 / 7,138: 120,32 gegen 120,42 m.
+- Vorher (Standardkarte) lag der VBS-Boden dort bei 122,9 m, unsere gelandete Drohne bei 120,4 m. Jetzt liegt der VBS-Boden bei 120,4 m.
+- Unsere feste Geoidhöhe 47 m statt 46,86 m macht dort etwa 0,14 m aus.
+- Folge: Auf Flächen mit Inset aus NRW-Daten braucht es keinen Ausgleich; „Kartendaten laden“ und Höhendienst passen dort zusammen. Auf der Standardkarte bleibt der Unterschied von etwa 2,5 m.
+- Offen: Flugtest mit Fabian auf dem Inset (Höhendienst mit Luftbild ab Version 1.196).
 ## Waffen, Turm und Rohr (08.11.2026, Prompt 154; Messung k5.2 mit VBS als Host)
 
 - **Gemessen (k5.2):** Panzer senden 18 variable Parameter (alle gelenkig). 4107 Turm-Azimut relativ zur Wanne, positiv nach rechts, −180° bis +180° (geprüft bei 90°, −160°, −45°); 4429 Rohr-Elevation am Turm; dazu Raten (4108, 4430) und weitere Stationen. Beim Drehen etwa 30 PDUs je Sekunde. Fire 96 Byte und Detonation 104 Byte wie nach DIS 6 erwartet (unser Leser liest die Proben richtig: Schütze, Ziel, Munitionsart, Tempo, Ort, Ergebnis). Kein Mündungsfeuer-Bit im Erscheinungsbild. Geschosse melden sich kurz als eigene Einheit (Art 2). Mehr Detonation- als Fire-PDUs. Mitschnitte nur lokal bei k5.2.

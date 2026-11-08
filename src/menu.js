@@ -428,7 +428,7 @@ function disMsg(force = false) {
   const t = cfg.rwSrc === 'dis' ? 'Gelände: ebene Fläche, keine Daten.'
     : viaWms ? 'Gelände: Höhendienst ' + disHost(rw.liveDis.wms.hgt.url) + (rw.photoOk ? ', mit Luftbild, ohne Häuser.' : ', ohne Luftbild und Häuser.') + (rw.meta && rw.meta.hMax - rw.meta.hMin < 2 ? ' Hier nur flach.' : '')
       + (rw.photoErr ? ' Luftbild: ' + rw.photoErr.slice(0, 70) : '')
-    : flown ? 'Gelände: Kartendaten ' + (rw.liveSrcs || []).map(x => x.split(' (')[0]).join(', ') + '.' + (w && w.src ? ' Höhen weichen von VBS ab.' : '')
+    : flown ? 'Gelände: Kartendaten ' + (rw.liveSrcs || []).map(x => x.split(' (')[0]).join(', ') + '.' + (w && w.src ? ' Höhen können von VBS abweichen.' : '')
     : !disWmsList().length ? 'Kein Höhendienst eingetragen. „Dorthin“ nimmt Kartendaten oder eine ebene Fläche.'
     : wmsBusy && !w ? 'Suche Höhendienst …'
     : w && w.src ? 'Höhendienst gefunden: ' + disHost(w.url) + ', Ebene ' + w.layer + '. „Dorthin“ nimmt ihn.'
