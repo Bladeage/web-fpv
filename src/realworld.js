@@ -423,6 +423,15 @@ export function rwNear(x, z, R) {
 // Gewässer (Basis-DLM): Bitmaske meta.water.n x n (1 m), Zeile 0 = Norden. Die Wasseroberfläche liegt auf dem
 // Höhenmodell (dort ist es die Wasserlinie) plus WATER_UP; als flacher Spiegel, das Ufer bildet das Gelände.
 export const WATER_UP = 0.25;
+// Wasserprüfung für eine Kachel aus Maske und Raster (Weltkoordinaten, Kachelmitte bei dx, dz). Für die Bäume eines frisch
+// geladenen Gebiets statt waterAt: das liest aus rw.main, und das ist beim Übernehmen noch das alte Gebiet (beim Start lädt
+// main.js immer erst Monschau; jeder spätere Ort prüfte seine Bäume gegen die Monschau-Maske, Prüfbericht 08.11.2026).
+export function rwWetFn(bits, w, dx, dz) {
+  if (!bits || !w) return () => false;
+  const S = rw.size;
+  return (x, z) => { const i = Math.floor((x - dx + S/2)/w.res), j = Math.floor((z - dz + S/2)/w.res), b = j*w.n + i;
+    return i >= 0 && j >= 0 && i < w.n && j < w.n && (bits[b >> 3] >> (b & 7) & 1) === 1; };
+}
 export function waterAt(x, z) {
   if (!rw.on) return false;
   const T = rwTileAt(x, z) || rw.main, bits = T ? T.water : rw.water, w = T ? T.wmeta : rw.meta && rw.meta.water;
@@ -432,7 +441,10 @@ export function waterAt(x, z) {
   const b = j*w.n + i;
   return (bits[b >> 3] >> (b & 7) & 1) === 1;
 }
-// Netz für das Wasser: je Rasterzeile zusammenhängende Strecken als Vierecke, Höhe aus dem Gelände. Schlicht blaugrau.
+// Netz für das Wasser: Raster 2 m über den nassen Zellen, Höhe aus dem Gelände. Alpha WATER_A kennzeichnet Wasser für den
+// Shader (dort: Luftbild des Flusses getönt, Spiegelung, Wellen); die Farbe ist nur die Tönung. Die Länge der Normale trägt
+// 1 + Anteil nasser Zellen um die Ecke (0 am Ufer, 1 im Fluss): der Shader blendet damit den Rand weich ins Ufer.
+export const WATER_A = 0.7;
 export function rwWaterMesh(T = rw.main) {
   const out = [], w = T ? T.wmeta : rw.meta && rw.meta.water, bits = T ? T.water : rw.water, ox = T ? T.dx : 0, oz = T ? T.dz : 0;
   if (!bits || !w) return new Float32Array(0);
@@ -449,22 +461,23 @@ export function rwWaterMesh(T = rw.main) {
   }
   // Bodenhöhe je nasser Zelle nur einmal rechnen (jede wird von bis zu 80 Ecken gefragt; groundH ist die gezeichnete Fläche)
   const hc = new Float32Array(n*n).fill(NaN), cellH = (i, j) => { const k = j*n + i; let v = hc[k]; if (v !== v) v = hc[k] = groundH((i + 0.5)*res - h + ox, (j + 0.5)*res - h + oz); return v; };
-  const lvl = new Float32Array(m*m).fill(NaN);
+  const lvl = new Float32Array(m*m).fill(NaN), shore = new Float32Array(m*m);
   for (let gj = 0; gj < m; gj++) for (let gi = 0; gi < m; gi++) {
     if (!near[gj*m + gi]) continue;
     const ci = Math.round(gi*G/res), cj = Math.round(gj*G/res);
-    let lo = Infinity;
-    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) lo = Math.min(lo, cellH(ci + x, cj + y));
+    let lo = Infinity, nw = 0;
+    for (let y = -5; y <= 5; y++) for (let x = -5; x <= 5; x++) if (x*x + y*y <= 25 && wet(ci + x, cj + y)) { lo = Math.min(lo, cellH(ci + x, cj + y)); if (Math.abs(x) <= 2 && Math.abs(y) <= 2) nw++; }
     const x = gi*G - h + ox, z = gj*G - h + oz;   // über Wasser: dem Flussbett folgen (Wehre, Gefälle); am Ufer: tiefster Wert, damit das Gelände den Rand bildet
     if (lo < Infinity) lvl[gj*m + gi] = (wet(ci, cj) ? Math.max(lo, groundH(x, z)) : lo) + WATER_UP;
+    shore[gj*m + gi] = nw/25;   // Anteil nasser Zellen in 5 x 5 m um die Ecke
   }
-  const col = [0.24, 0.38, 0.5];
+  const col = [0.20, 0.30, 0.38];   // Tönung über dem Luftbild: graublau, gedämpft (Schätzung, Flusswasser im Mittelgebirge)
   for (let gj = 0; gj + 1 < m; gj++) for (let gi = 0; gi + 1 < m; gi++) {
     const k = [gj*m + gi, gj*m + gi + 1, (gj + 1)*m + gi + 1, (gj + 1)*m + gi];
     if (k.some(q => Number.isNaN(lvl[q]))) continue;
-    const P = q => [(q % m)*G - h + ox, lvl[q], Math.floor(q/m)*G - h + oz];
+    const P = q => [(q % m)*G - h + ox, lvl[q], Math.floor(q/m)*G - h + oz, 1 + shore[q]];
     const [a, b, c, d] = k.map(P);
-    for (const p of [a, d, c, a, c, b]) out.push(p[0], p[1], p[2], 0, 1, 0, col[0], col[1], col[2], 1);
+    for (const p of [a, d, c, a, c, b]) out.push(p[0], p[1], p[2], 0, p[3], 0, col[0], col[1], col[2], WATER_A);
   }
   rw.on = on;
   return new Float32Array(out);
@@ -524,8 +537,9 @@ export function rwNearName(x, z, r = 30) {
 // die Gebäudenummer. t16: Bäume x, z, Höhe, Kronenradius in dm, Fuß auf dem Gelände.
 export function rwModels(b16, t16) {
   const on = rw.on; rw.on = true;   // Bodenhöhe der Bäume braucht das Gelände
+  // Wasser aus den neuen Daten (rwWetFn), nicht waterAt: das sähe hier noch das alte rw.main
   rw.main = { i: 0, j: 0, dx: 0, dz: 0, n: rw.n, cell: rw.cell, h: rw.h, water: rw.water, wmeta: rw.meta.water, dop: rw.dop,
-    ...rwTileModels(b16, t16, rw.meta, 0, 0, 0, groundH, waterAt) };
+    ...rwTileModels(b16, t16, rw.meta, 0, 0, 0, groundH, rwWetFn(rw.water, rw.meta.water, 0, 0)) };
   rw.bldId = rw.main.bldId; rw.bldInfo = rw.main.bldInfo;
   rw.on = on;
   rwRebuild();
@@ -533,15 +547,25 @@ export function rwModels(b16, t16) {
 // Gebäude und Bäume einer Kachel aus den gepackten Daten (wie realworld/<name>.bld/.trees), verschoben um (dx, dy, dz) in die Welt.
 // hAt(x, z) liefert die Bodenhöhe für den Fuß der Bäume (Weltkoordinaten). wet(x, z): Wasser dort? Dann ist die „Baumspitze“
 // kein Baum, sondern meist eine Brücke (Oberfläche minus Gelände über dem Fluss, z. B. Hohenzollernbrücke Köln).
+// Geprüft wird nicht nur die Spitze: Sie liegt im 2-m-Raster der Oberfläche (±1 m unscharf), darum auch 8 Punkte in 1,5 m
+// Abstand. Dazu: Liegt Wasser im Kronenkreis und der Fuß unter dessen Spiegel, steht der Baum im Flussbett (Uferböschung,
+// Brückenrand); Nutzer sah Stämme im Wasser (Monschau: 49 Spitzen, dazu etwa 30 Kronen von 3 031).
 export function rwTileModels(b16, t16, meta, dx, dy, dz, hAt, wet = () => false) {
   const nt = meta.roofTris + meta.wallTris, tris = new Float32Array(nt*9);
   for (let i = 0; i < nt*9; i += 3) { tris[i] = b16[i]/10 + dx; tris[i + 1] = b16[i + 1]/10 + dy; tris[i + 2] = b16[i + 2]/10 + dz; }
-  const bldId = b16.slice(nt*9, nt*9 + nt), nb = meta.buildings || 0;   // je Gebäude: Fassadenklasse (0 bis 6) + 16 x Flachdach
+  const bldId = b16.slice(nt*9, nt*9 + nt), nb = meta.buildings || 0;   // je Gebäude: Fassadenklasse (0 bis 8) + 16 x Flachdach
   const bldInfo = b16.length >= nt*10 + nb && nb ? b16.slice(nt*10, nt*10 + nb) : null, trees = [];
+  const wetTree = (x, z, r, y0) => {
+    for (let k = 0; k < 8; k++) { const a = k*Math.PI/4; if (wet(x + Math.cos(a)*1.5, z + Math.sin(a)*1.5)) return true; }
+    const R = Math.ceil(r);
+    for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) if (i*i + j*j <= r*r && wet(x + i, z + j) && y0 < hAt(x + i, z + j) + WATER_UP) return true;
+    return false;
+  };
   for (let k = 0; k + 3 < t16.length; k += 4) {
     const x = t16[k]/10 + dx, z = t16[k + 1]/10 + dz, h = t16[k + 2]/10, r = t16[k + 3]/10;
     if (wet(x, z)) continue;
     const y0 = hAt(x, z);
+    if (wetTree(x, z, r, y0)) continue;
     const ch = Math.min(h*0.65, Math.max(2, h - 1.5));   // Krone: obere zwei Drittel, Stamm darunter (Schätzung)
     trees.push({ x, z, y0, h, r, boxes: [
       { c: [x, y0 + (h - ch)/2, z], h: [0.15 + h*0.006, (h - ch)/2, 0.15 + h*0.006], cs: 1, sn: 0 },   // Stamm
@@ -569,8 +593,9 @@ const WALLS = [[0.84, 0.82, 0.78], [0.82, 0.77, 0.68], [0.74, 0.73, 0.71], [0.78
 const ROOFS = [[0.26, 0.28, 0.32], [0.3, 0.31, 0.35], [0.48, 0.24, 0.18], [0.24, 0.25, 0.28], [0.42, 0.41, 0.4]];
 const FLAT = [[0.42, 0.42, 0.41], [0.34, 0.34, 0.35], [0.47, 0.45, 0.41]];
 const WALL_BY = { 3: [[0.66, 0.68, 0.7], [0.52, 0.58, 0.64], [0.76, 0.74, 0.68], [0.48, 0.52, 0.56]], 4: [[0.42, 0.3, 0.2], [0.36, 0.26, 0.18], [0.5, 0.38, 0.26]],
-  6: [[0.58, 0.53, 0.47], [0.52, 0.49, 0.45], [0.62, 0.58, 0.52]], 7: [[0.94, 0.92, 0.87]] };
-// Wand-Alpha: Klasse k (0 bis 7, 7 = Fachwerk) und Sockelhöhe y (-190 bis 190 m). Der Shader rechnet zurück.
+  6: [[0.58, 0.53, 0.47], [0.52, 0.49, 0.45], [0.62, 0.58, 0.52]], 7: [[0.94, 0.92, 0.87]], 8: [[0.62, 0.62, 0.6]] };   // 8 Brücke: Beton (Schätzung)
+const BRIDGE_ROOF = [0.56, 0.56, 0.54];   // Brückendeck: grau, Asphalt/Beton (Schätzung); das Luftbild liefert den Rest
+// Wand-Alpha: Klasse k (0 bis 8, 7 = Fachwerk, 8 = Brücke) und Sockelhöhe y (-190 bis 190 m). Der Shader rechnet zurück.
 export const rwWallNl = e => 2 + clamp(e, 0, 99)/100;
 export const rwWallAlpha = (y, k = 0) => 0.132 + k*0.04 + (clamp(y, -190, 190) + 190)/380*0.035;
 export function rwModelMesh(S = rw.main) {
@@ -609,14 +634,18 @@ export function rwModelMesh(S = rw.main) {
   const top = new Map();   // höchster Punkt je Gebäude (für Fachwerk nur bei niedrigen Häusern)
   for (let t = 0; t < nt; t++) { const id = S.bldId ? S.bldId[t] : 0, y = Math.max(T[t*9 + 1], T[t*9 + 4], T[t*9 + 7]); top.set(id, Math.max(top.get(id) ?? -1e9, y)); }
   const kind = id => {   // Fassadenklasse; Fachwerk (7) für etwa ein Drittel der niedrigen Wohnhäuser (Annahme: typisch für Monschau, nicht aus den Daten)
-    const k = S.bldInfo ? S.bldInfo[id] & 15 : 0;
-    return (k === 0 || k === 1) && (top.get(id) - (base.get(id) ?? 0)) < 13 && hash(id + 311) < 0.35 ? 7 : k;
+    const k = S.bldInfo ? S.bldInfo[id] & 15 : 0, hb = top.get(id) - (base.get(id) ?? 0);
+    // Brücken (8): LoD2 NRW führt sie als Platten von 1,2 bis 1,6 m Dicke (bldg:function 53001_1800). Gebiete, die vor dieser
+    // Klasse gepackt wurden (eingebettetes Monschau, gespeicherte Orte), haben sie als Klasse 0: dort gilt jede Platte unter 2 m
+    // als Brücke (kein Haus ist so niedrig; Schätzung). Vorher wurden Brücken als Wohnhaus gezeichnet, ein Drittel mit Fachwerk.
+    if (k === 8 || (k === 0 && hb < 2)) return 8;
+    return (k === 0 || k === 1) && hb < 13 && hash(id + 311) < 0.35 ? 7 : k;
   };
   for (let t = 0; t < nt; t++) {
     const o = t*9, a = [T[o], T[o + 1], T[o + 2]], b = [T[o + 3], T[o + 4], T[o + 5]], c = [T[o + 6], T[o + 7], T[o + 8]], id = S.bldId ? S.bldId[t] : 0;
     const flat = S.bldInfo && S.bldInfo[id] & 16, k = kind(id), pal = WALL_BY[k] || WALLS;
     // Dach: Alpha 0,6 = Dachfläche aus dem Luftbild; die Farbe hier gilt nur außerhalb des Bildes und als leichte Beimischung
-    if (t < nr) tri(a, b, c, flat || k === 2 ? FLAT[Math.floor(hash(id)*FLAT.length)] : ROOFS[Math.floor(hash(id)*ROOFS.length)], 0.6, true);
+    if (t < nr) tri(a, b, c, k === 8 ? BRIDGE_ROOF : flat || k === 2 ? FLAT[Math.floor(hash(id)*FLAT.length)] : ROOFS[Math.floor(hash(id)*ROOFS.length)], 0.6, true);
     else {   // Wand: Länge der Normale = 2 + Traufhöhe über dem Sockel / 100 (der Shader liest sie zurück)
       const b0 = base.get(id) ?? 0;
       tri(a, b, c, pal[Math.floor(hash(id + 77)*pal.length)], rwWallAlpha(b0, k), false, rwWallNl(eave[t] - b0));
@@ -748,9 +777,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const n = p.meta.n, h = new Float32Array(n*n);
   for (let k = 0; k < n*n; k++) h[k] = p.meta.hMin + p.q[k]*p.meta.hScale - m.hHome;
   const T = { i, j, dx: i*S, dz: j*S, n, cell: S/n, h, water: x.water || null, wmeta: p.meta.water || null, dop: p.dop, key, place: p.meta.place };
-  const w = T.wmeta;
-  const wet = (wx, wz) => { if (!T.water || !w) return false; const i = Math.floor((wx - T.dx + S/2)/w.res), j = Math.floor((wz - T.dz + S/2)/w.res), b = j*w.n + i;
-    return i >= 0 && j >= 0 && i < w.n && j < w.n && (T.water[b >> 3] >> (b & 7) & 1) === 1; };
+  const wet = rwWetFn(T.water, T.wmeta, T.dx, T.dz);
   // Bäume auf die gezeichnete Fläche, wie sie mit dieser Kachel aussieht (Ränder zur Umgebung eingeschlossen): Kachel dafür kurz
   // eintragen (ohne Warten dazwischen, die Physik sieht das nicht). Vorher: eigene Höhen ohne Rand, Bäume am Rand schwebten (Nr. 6).
   const code = tileCode(i, j), had = tileByCode.get(code), on = rw.on;

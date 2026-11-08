@@ -108,8 +108,10 @@ export function findTrees(dgm, dom, roofs, n, bbox) {
 }
 // Gebäudenutzung (ALKIS-Gebäudefunktion, steht in LoD2 als bldg:function) -> Fassadenklasse. Bedeutung der Codes geprüft
 // gegen den ALKIS-WFS NRW (Feld „funktion“ als Text). 0 Wohnen, 1 Wohnen mit Laden, 2 Garage/Überdachung, 3 Gewerbe,
-// 4 Landwirtschaft, 5 öffentlich, 6 Kirche/Burg/Turm. Unbekannt: Wohnen.
+// 4 Landwirtschaft, 5 öffentlich, 6 Kirche/Burg/Turm, 8 Brücke (AX_BauwerkImVerkehrsbereich 53001, in LoD2 NRW als Platte,
+// gesichert an Monschau 08.11.2026). Unbekannt: Wohnen. (7 vergibt das Netz selbst: Fachwerk.)
 export function bldClass(fn) {
+  if (/^53001_/.test(fn)) return 8;
   if (/^31001_(1100)$/.test(fn)) return 1;
   if (/^31001_246\d$|^51009_/.test(fn)) return fn === '31001_2461' || fn === '31001_2462' ? 3 : 2;
   if (/^31001_2[0-6]\d\d$/.test(fn)) return 3;

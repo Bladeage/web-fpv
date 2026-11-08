@@ -107,7 +107,7 @@ uniform vec4 uOver;
 uniform float uFogD, uAlpha, uGfx, uSize;
 uniform vec2 uOrigin;
 uniform sampler2D uGround, uFar;
-uniform float uVision, uHeat, uPhoto, uFarOn, uFarSize;
+uniform float uVision, uHeat, uPhoto, uFarOn, uFarSize, uTime;
 uniform vec2 uFarOrigin;
 uniform vec4 uEdgeOpen;   // echte Welt: Ränder der Kachel ohne Nachbarn (W, O, N, S), nur dort weich ins Umgebungsbild
 out vec4 o;
@@ -149,6 +149,7 @@ vec3 stoneCol(vec3 c, float u, float h){ float s = stoneAt(u, h); return s < 0.0
 vec3 facade(vec3 c, vec3 p, vec3 n, float base, float k, vec3 cam, float eave){
   vec2 t = normalize(vec2(-n.z, n.x) + 1e-5);
   float u = dot(p.xz, t), h = p.y - base;
+  if (k == 8.0) return c*(0.94 + 0.12*vnoise(vec2(u, h)*0.8));   // Brücke: Beton, leicht fleckig; keine Fenster, kein Sockel, kein Fachwerk
   // je Haus etwas anders (aus der Sockelhöhe, die je Gebäude verschieden ist): Feldbreite, Geschosshöhe, Fenstergröße, Sockel
   float bq = floor(base*4.0 + 0.5)*0.25;   // gerundet: die Sockelhöhe schwankt je Pixel minimal, die Zufallswerte dürfen das nicht verstärken
   float b1 = hash(vec2(bq*0.317 + 1.3, 2.1)), b2 = hash(vec2(7.7, bq*0.191)), b3 = hash(vec2(bq*0.037 + 5.1, bq*0.41));
@@ -213,10 +214,15 @@ vec3 vis(vec3 col){
   if (uVision < 1.5) return vec3(mix(0.12 + 0.30*l, 0.97, uHeat));
   return vec3(0.25, 1.0, 0.35)*(0.05 + 0.6*l + 0.25*uHeat);
 }
+// Echte Welt: Dunst, der in Tälern (unter der Kamera) dichter ist, und blassere Farben mit der Entfernung.
+// Zahlen Schätzung: 150 m Talhöhe, Dunst über 900 m, Entsättigung über 2,5 km, höchstens 45 %.
+float rwHaze(float d, float dy){ return (1.0 - exp(-d/900.0))*(0.05 + 0.10*clamp(dy/150.0, 0.0, 1.0)); }
+vec3 rwPale(vec3 col, float d){ return mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), 0.45*(1.0 - exp(-d/2500.0))); }
 void main(){
   vec3 n = normalize(vNor);
   vec3 c = vCol.rgb;
-  bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5;
+  bool ground = vCol.a < 0.125, wall = vCol.a >= 0.125 && vCol.a < 0.5, full = uGfx > 1.5;
+  float dCam = length(vW - uCam);
   if (ground && uPhoto > 0.5) {   // echte Welt: Luftbild im Gebiet (25 m weicher Rand), außen das Luftbild der Umgebung (L5a), ganz außen gerechneter Boden
     vec2 uv = (vW.xz - uOrigin)/uSize;
     vec4 dd = mix(vec4(1e5), vec4(uv.x, 1.0 - uv.x, uv.y, 1.0 - uv.y)*uSize, uEdgeOpen);
@@ -233,7 +239,26 @@ void main(){
       c = mix(far, texture(uGround, clamp(uv, 0.0, 1.0), 3.0).rgb, smoothstep(-1.0, 25.0, e));
       c = mix(c, vec3(0.20, 0.30, 0.15), 0.15);
       n = normalize(n + vec3(0.0, 1.3, 0.0));
+    } else if (full && dCam < 15.0) {   // „Schön“: feines Korn nah am Boden; das Luftbild (0,25 m je Pixel) verwischt unter 10 m. Stärke 0,22: Schätzung
+      float g = vnoise(vW.xz*7.0)*0.6 + vnoise(vW.xz*19.0)*0.4;
+      c *= 1.0 + (g - 0.5)*0.22*(1.0 - smoothstep(8.0, 15.0, dCam));
     }
+  }
+  // Wasser (echte Welt, Alpha 0,7): Luftbild des Flusses mit leichter Tönung, Spiegelung des Horizonts zum flachen Blick hin
+  // (Fresnel), leichte Wellen und Sonnenglanz. Die Länge der Normale trägt 1 + Anteil Wasser um die Ecke: Rand weich ins Ufer.
+  bool rwWater = uPhoto > 0.5 && vCol.a > 0.68 && vCol.a < 0.72;
+  float wGlint = 0.0, wAlpha = 1.0;
+  if (rwWater) {
+    vec2 uv = (vW.xz - uOrigin)/uSize;
+    c = mix(texture(uGround, clamp(uv, 0.0, 1.0)).rgb, c, 0.35);   // 65 % Luftbild, 35 % Tönung (Schätzung)
+    vec3 v = normalize(uCam - vW);
+    vec2 wp = vW.xz*1.7 + uTime*vec2(0.25, 0.18);   // Wellen etwa 0,6 m, langsam ziehend (Schätzung)
+    vec3 wn = normalize(vec3(vnoise(wp) - 0.5, 4.0, vnoise(wp.yx + 3.1) - 0.5));
+    float fr = pow(1.0 - max(dot(v, wn), 0.0), 3.0);
+    c = mix(c, uFog, 0.12 + 0.55*fr);
+    wGlint = pow(max(dot(reflect(-v, wn), uSun), 0.0), 160.0)*0.7;
+    n = normalize(wn + vec3(0.0, 2.0, 0.0));
+    wAlpha = clamp(length(vNor) - 1.0, 0.0, 1.0);
   }
   bool rwWall = wall && uPhoto > 0.5, rwRoof = uPhoto > 0.5 && vCol.a > 0.55 && vCol.a < 0.65;
   vec2 wi = wallInfo(vCol.a);
@@ -258,13 +283,13 @@ void main(){
     c = mix(c, uOver.rgb, uOver.a);
     float dif = max(dot(n, uSun), 0.0);
     vec3 amb = mix(vec3(0.30,0.29,0.26), vec3(0.52,0.60,0.70), 0.5 + 0.5*n.y);
-    vec3 col = c * (amb + dif*vec3(1.0,0.96,0.88)*0.72) + uOver.rgb*uOver.a*0.35;
-    float d = length(vW - uCam);
+    vec3 col = c * (amb + dif*vec3(1.0,0.96,0.88)*0.72) + uOver.rgb*uOver.a*0.35 + vec3(1.0, 0.95, 0.85)*wGlint;
+    float d = dCam;
     float f = 1.0 - exp(-pow(d*uFogD, 1.6));
-    o = vec4(vis(mix(col, uFog, clamp(f, 0.0, 1.0))), uAlpha);
+    if (uPhoto > 0.5) { col = rwPale(col, d); f += rwHaze(d, uCam.y - vW.y); }
+    o = vec4(vis(mix(col, uFog, clamp(f, 0.0, 1.0))), uAlpha*wAlpha);
     return;
   }
-  bool full = uGfx > 1.5;
   if (ground && uPhoto < 0.5) {
     c = groundProc(vW.xz, full ? 1.0 : 0.0);
     if (full) {   // im vorberechneten Bereich (mit Schatten und Wegen) die Textur, zum Rand hin weich in den gerechneten Boden
@@ -288,13 +313,14 @@ void main(){
   float ao = 1.0;
   if (!ground && uPhoto < 0.5) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
   if (rwWall) ao = mix(0.6, 1.0, smoothstep(0.0, 1.5, vW.y - wi.y));   // echte Welt: Abdunklung ab dem Sockel
-  vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5;
-  float d = length(vW - uCam);
+  vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5 + vec3(1.0, 0.95, 0.85)*wGlint;
+  float d = dCam;
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
   float hz = full && uPhoto < 0.5 ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/450.0))*0.12 : 0.0;   // Dunst nah am Boden
+  if (uPhoto > 0.5) { col = rwPale(col, d); hz = rwHaze(d, uCam.y - vW.y); }   // echte Welt: Taldunst und blasse Ferne
   col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + hz, 0.0, 1.0));
   col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);   // ACES-Näherung
-  o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), uAlpha);
+  o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), uAlpha*wAlpha);
 }`;
 const SKY_VS = `#version 300 es
 layout(location=0) in vec2 aP;
@@ -365,6 +391,14 @@ let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
 let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null;
 const SUN = vNorm([0.45, 0.8, 0.3]);
+// Sonne in der echten Welt: passend zu den Schatten im Luftbild (die sind eingebacken; vorher widersprachen beleuchtete
+// Fassaden und Bodenschatten). Gemessen am Luftbild von Monschau (08.11.2026, Skript: je LoD2-Gebäude die dunkelste
+// Richtung 1 bis 3 m neben dem Grundriss, 145 Gebäude mit deutlichem Schatten): Schatten fallen nach Azimut 1° (Norden),
+// die Sonne steht also im Süden (181°), Befliegung um die Mittagszeit. Sonnenhöhe: aus Schattenlängen nicht verlässlich
+// (Nachbarhäuser und Hang kürzen die Schatten, Messung ergab 55 bis 72°, über dem Höchststand in NRW); Annahme 45°,
+// typisch für Frühjahrsbefliegungen (März/April) in NRW (Schätzung). Für andere Orte und Bildflüge kann beides abweichen.
+const SUN_RW = vNorm([-Math.sin(Math.PI/180)*Math.cos(Math.PI/4), Math.sin(Math.PI/4), Math.cos(Math.PI/180)*Math.cos(Math.PI/4)]);   // x Ost, z Süd
+const sunDir = () => rw.on ? SUN_RW : SUN;
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
 const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
 
@@ -476,7 +510,7 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = worldData || (worldData = buildWorld());   // buildWorld füllt Hindernisse und Tore und darf nur einmal laufen (Neuaufbau nach Grafikverlust)
@@ -620,7 +654,8 @@ export function render(dt) {
   gl.useProgram(PS.p);
   gl.uniformMatrix4fv(PS.u.uInv, false, mInv(vp));
   gl.uniform3fv(PS.u.uCam, eye); gl.uniform3fv(PS.u.uFog, FOG);
-  gl.uniform3fv(PS.u.uZen, ZEN); gl.uniform3fv(PS.u.uSun, SUN);
+  const S = sunDir();
+  gl.uniform3fv(PS.u.uZen, ZEN); gl.uniform3fv(PS.u.uSun, S);
   const VIS = cfg.vision === 'thermal' ? 1 : cfg.vision === 'night' ? 2 : 0;   // Bildmodus (V1)
   gl.uniform1f(PS.u.uVision, VIS);
   const GFX = cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2;
@@ -633,9 +668,9 @@ export function render(dt) {
   gl.useProgram(P.p);
   gl.uniformMatrix4fv(P.u.uVP, false, vp);
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
-  gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
+  gl.uniform3fv(P.u.uSun, S); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
   gl.uniform1f(P.u.uFogD, rw.on ? (rw.far ? 1/2200 : 1/700) : GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel (Einfach unverändert). Echte Welt: klare Sicht, Nebel verdeckt erst den Rand
-  gl.uniform1f(P.u.uGfx, GFX);
+  gl.uniform1f(P.u.uGfx, GFX); gl.uniform1f(P.u.uTime, performance.now()/1000);
   gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
   gl.uniform1f(P.u.uSize, GROUND.size); gl.uniform2f(P.u.uOrigin, GROUND.origin[0], GROUND.origin[1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, groundTex); gl.uniform1i(P.u.uGround, 0);
@@ -743,7 +778,7 @@ export function render(dt) {
     const blobs = [];
     // Höhe über dem Boden: Spielkarte y = 0, echte Welt die Bodenhöhe darunter (sonst lag der Schatten flach auf Höhe 0, Prompt 138)
     const add = (p, rx, rz, yaw) => { const g = rw.on ? groundH(p[0], p[2]) : 0, h = p[1] - g;
-      if (h < 40) blobs.push([p[0] - SUN[0]/SUN[1]*h, p[2] - SUN[2]/SUN[1]*h, rx*(1 + h*0.03), rz*(1 + h*0.03), yaw, 0.5*Math.max(0, 1 - h/30), g]); };
+      if (h < 40) blobs.push([p[0] - S[0]/S[1]*h, p[2] - S[2]/S[1]*h, rx*(1 + h*0.03), rz*(1 + h*0.03), yaw, 0.5*Math.max(0, 1 - h/30), g]); };
     { const hg = sim.p[1] - (rw.on ? groundH(sim.p[0], sim.p[2]) : 0);   // eigener Schatten; im Kamerabild erst ab 0,5 m (am Boden deckte er den unteren Rand zu)
       if (cfg.cam !== 'fpv' || (hg > 0.5 && hg < 20)) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0); }
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
@@ -984,13 +1019,15 @@ function drawTerrain() {
   gl.bindVertexArray(terrain.vao);
   gl.drawElements(gl.TRIANGLES, terrain.n, gl.UNSIGNED_INT, 0);
   if (farGl) { gl.bindVertexArray(farGl.vao); gl.drawElements(gl.TRIANGLES, farGl.n, gl.UNSIGNED_INT, 0); }
-  // Gewässer: schlichte Fläche über dem Flussbett (Basis-DLM)
+  // Gewässer (Basis-DLM): Fläche über dem Flussbett; der Shader tönt das Luftbild darunter und spiegelt den Horizont.
+  // Mit Blending, damit der Rand (Alpha aus dem Wasseranteil je Ecke) weich ins Ufer läuft; leicht nach vorn gezogen,
+  // damit der Spiegel in der Ferne nicht mit dem Flussbett flackert. Das Luftbild der Kachel muss dabei gebunden sein.
+  const drawWater = m => { if (!m || !m.count) return;
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
+    gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count);
+    gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.BLEND); };
   if (!waterGl && rw.water) waterGl = upload(rwWaterMesh());
-  if (waterGl && waterGl.count) {   // leicht nach vorn gezogen, damit der Spiegel in der Ferne nicht mit dem Flussbett flackert
-    gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
-    gl.bindVertexArray(waterGl.vao); gl.drawArrays(gl.TRIANGLES, 0, waterGl.count);
-    gl.disable(gl.POLYGON_OFFSET_FILL);
-  }
+  drawWater(waterGl);
   // Gebäude und Bäume, ein Netz
   if (!rwModelGl && rw.main) rwModelGl = upload(rwModelMesh());
   if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
@@ -1001,7 +1038,7 @@ function drawTerrain() {
     gl.uniform2f(P.u.uOrigin, T.dx - rw.size/2, T.dz - rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(T.i, T.j));
     gl.bindTexture(gl.TEXTURE_2D, g.tex || groundTex);
     gl.bindVertexArray(g.terrain.vao); gl.drawElements(gl.TRIANGLES, g.terrain.n, gl.UNSIGNED_INT, 0);
-    if (g.water && g.water.count) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4); gl.bindVertexArray(g.water.vao); gl.drawArrays(gl.TRIANGLES, 0, g.water.count); gl.disable(gl.POLYGON_OFFSET_FILL); }
+    drawWater(g.water);
     gl.bindVertexArray(g.model.vao); gl.drawArrays(gl.TRIANGLES, 0, g.model.count);
   }
   gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(0, 0)); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
@@ -1016,11 +1053,11 @@ function drawTerrain() {
 // Lens-Flare: nur ab „Mittel“, im normalen Bild, wenn die Sonne im Bild steht und kein Hindernis davor ist.
 // Je näher die Sonne an der Bildmitte, desto stärker. Weiches Ein- und Ausblenden (0,15 s), damit es nicht flackert.
 function drawFlare(vp, eye, asp, GFX, VIS, dt) {
-  const c = [0, 1, 2, 3].map(i => vp[i]*SUN[0] + vp[4 + i]*SUN[1] + vp[8 + i]*SUN[2]);   // Richtung (w = 0): Sonne unendlich weit
+  const S = sunDir(), c = [0, 1, 2, 3].map(i => vp[i]*S[0] + vp[4 + i]*S[1] + vp[8 + i]*S[2]);   // Richtung (w = 0): Sonne unendlich weit
   let want = 0;
   if (GFX > 0 && VIS === 0 && c[3] > 0) {
     const x = c[0]/c[3], y = c[1]/c[3], r = Math.hypot(x*asp, y);
-    if (Math.abs(x) < 1.1 && Math.abs(y) < 1.1 && (rw.on || (!rayBlocked(eye, SUN, 400, colliders) && !rayBlocked(eye, SUN, 400, town))))
+    if (Math.abs(x) < 1.1 && Math.abs(y) < 1.1 && (rw.on || (!rayBlocked(eye, S, 400, colliders) && !rayBlocked(eye, S, 400, town))))
       want = clamp(1.25 - r*0.7, 0, 1);
     flareP[0] = x; flareP[1] = y;
   }

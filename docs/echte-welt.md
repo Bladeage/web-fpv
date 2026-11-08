@@ -329,3 +329,15 @@ Gesichert = auf amtlicher Seite gelesen oder mit Origin bladeage.github.io gepr�
 - Andere Bundesländer: nicht jeder Dienst erlaubt CORS. „Prüfen“ zeigt es; sonst bleibt nur der Weg über das Werkzeug (vorab laden und einbetten).
 - LoD2 hat viele kleine Flächen; die Kollision prüft die Dreiecke genau (Raster 8 m), in Innenstädten sind es über 100 000.
 - Handy: großes Luftbild (4096², bei kleinerer Höchstgröße der Grafikkarte wird es verkleinert) und viele Gebäude-Dreiecke kosten Speicher und Leistung.
+
+## Wasser, Bäume, Brücken, Licht (08.11.2026, Prompt 152, umgesetzt von Fable)
+
+- **Wasser mit Luftbild:** Wasser-Ecken tragen Alpha 0,7 als Kennung. Der Shader mischt 65 % Luftbild mit 35 % Tönung, Spiegelung zum Horizont (Fresnel), leichte Wellen (`uTime`) und Sonnenglanz. Gilt für Startgebiet und Kacheln, beide Grafikstufen.
+- **Weiche Uferkante:** je Wasser-Ecke Anteil nasser Zellen in 5 x 5 m; daraus das Alpha, Wasser mit Blending.
+- **Bäume nicht im Wasser:** Fehler behoben: Beim Laden eines Gebiets prüfte `rwModels` die Bäume gegen die Wassermaske des vorherigen Gebiets (bei jedem live geladenen Ort die von Monschau). Jetzt eigene Maske (`rwWetFn`). Zusätzlich fällt ein Baum weg, wenn die Spitze oder ein Punkt in 1,5 m nass ist oder Wasser im Kronenkreis liegt und der Fuß unter dessen Spiegel steht. Monschau: 2955 statt 2982 Bäume.
+- **Brücken:** LoD2-Funktion `53001_*` ist Klasse 8 (grauer Beton, keine Fenster, kein Fachwerk). Für ältere Daten: Klasse 0 unter 2 m Höhe gilt als Brücke (Schätzung).
+- **Sonne passend zum Luftbild:** Schatten neben 145 Gebäuden in Monschau fallen nach Norden, also Sonne im Süden (gemessen). Sonnenhöhe 45° ist eine Schätzung (Frühjahrsbefliegung). Nur in der echten Welt.
+- **Feines Bodendetail:** nur Grafik „Schön“, bis 15 m Abstand.
+- **Dunst und Tiefe:** Dunst mit Entfernung und unterhalb der Kamera, blassere Farben bis 2,5 km (Zahlen geschätzt).
+- **Nicht umgesetzt (nicht gewählt):** Kronen an Gebäuden kürzen (Kronen können weiter vom Ufer in Brücken ragen), Bäche als Wasser, grünere oder rundere Kronen, stufenweises Laden.
+- **Geprüft:** 4 neue Tests (`test/rwtrees.test.mjs`); Vorher-Nachher-Bilder an der Rur in Monschau; Bildrate in der Software-Grafik ohne messbaren Verlust.
