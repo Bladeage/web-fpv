@@ -161,3 +161,42 @@ export async function wmsProbe(list, lat, lon, net) {
   }
   return bad;
 }
+// ---- Luftbild des Höhendienstes (Nutzer, Prompt 173: Orthofoto in VBS eingefügt, kam nicht an) ----
+// Ebene wählen: Name oder Titel nennt ein Bild (photo, ortho, luftbild, dop, imagery), aber keine Höhe, kein Relief, keine
+// Vegetation, keine Höhen-Kodierung. Partner: Blue_ortho_photo (gemessen von k5.2, PNG, etwa 5,6 s je Kachel 256 x 256).
+export function wmsPickPhoto(caps) {
+  const yes = /photo|ortho|luftbild|dop|imagery/i, no = /hgt|height|elev|dem|relief|shaded|veg|alb|srf|rgba/i;
+  const c = caps.layers.filter(l => yes.test(l.name + ' ' + l.title) && !no.test(l.name));
+  return [...c.filter(l => /photo/i.test(l.name)), ...c.filter(l => !/photo/i.test(l.name))].map(l => l.name);
+}
+// Luftbild-Ebene eines Dienstes: eingetragen (src.img; '' = keins), sonst aus den Fähigkeiten (Laufzeit-Zwischenspeicher je Adresse)
+const wmsPhotos = new Map();
+export async function wmsPhotoOf(src, get) {
+  if (typeof src.img === 'string') return src.img;
+  if (wmsPhotos.has(src.hgt.url)) return wmsPhotos.get(src.hgt.url);
+  const caps = wmsCapsParse(new TextDecoder().decode(bytesOf(await get(src.hgt.url + (src.hgt.url.includes('?') ? '&' : '?') + 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0'))));
+  const l = wmsPickPhoto(caps)[0] || '', f = caps.formats.includes('image/jpeg') ? 'image/jpeg' : 'image/png';
+  wmsPhotos.set(src.hgt.url, l); wmsPhotos.set(src.hgt.url + '#f', f);
+  return l;
+}
+// Kacheln des Luftbilds für das UTM-Quadrat bbox in Zone zone, etwa px Bildpunkte je Seite: geografisches Rechteck (EPSG:4326)
+// mit 1 % Rand, auf ganze Kacheln. Liefert { tiles: [{ tx, ty, bytes }], nx, ny, T, geo, corners } mit den Ecken des UTM-Quadrats
+// (NW, NE, SW) als Bildpunkte im Mosaik; daraus entzerrt das Hauptprogramm (Canvas) affin auf das Quadrat (über 1 km bis 10 km fast
+// affin, wie beim Stützgitter der Höhen). Ohne DOM.
+export async function wmsFetchPhoto(src, layer, bbox, zone, px, get, format) {
+  const T = src.hgt.tile || WMS.tile, g = geoBoxOf(bbox, zone, (bbox[2] - bbox[0])*0.01), side = bbox[2] - bbox[0];
+  const midLat = (g.minLat + g.maxLat)/2, wM = (g.maxLon - g.minLon)*111320*Math.cos(midLat*Math.PI/180), hM = (g.maxLat - g.minLat)*111320;
+  const nx = Math.max(1, Math.ceil(px*wM/side/T)), ny = Math.max(1, Math.ceil(px*hM/side/T)), W = nx*T, H = ny*T;
+  const fx = (g.maxLon - g.minLon)/W, fy = (g.maxLat - g.minLat)/H, f = format || wmsPhotos.get(src.hgt.url + '#f') || 'image/png';
+  const jobs = [], tiles = [];
+  for (let ty = 0; ty < ny; ty++) for (let tx = 0; tx < nx; tx++) jobs.push([tx, ty]);
+  const one = async ([tx, ty]) => {
+    const tb = { minLon: g.minLon + tx*T*fx, maxLon: g.minLon + (tx + 1)*T*fx, maxLat: g.maxLat - ty*T*fy, minLat: g.maxLat - (ty + 1)*T*fy };
+    const u8 = bytesOf(await get(wmsHgtUrl(src.hgt.url, layer, tb, T, T, f))), err = wmsError(u8);
+    if (err) throw new Error('Luftbild des Höhendienstes: ' + err);
+    tiles.push({ tx, ty, bytes: u8 });
+  };
+  for (let i = 0; i < jobs.length; i += WMS.par) await Promise.all(jobs.slice(i, i + WMS.par).map(one));
+  const at = (e, n) => { const [lat, lon] = fromUtm(e, n, zone); return [(lon - g.minLon)/fx, (g.maxLat - lat)/fy]; };
+  return { tiles, nx, ny, T, geo: g, corners: [at(bbox[0], bbox[3]), at(bbox[2], bbox[3]), at(bbox[0], bbox[1])] };
+}

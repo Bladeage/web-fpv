@@ -2,6 +2,7 @@
 // Höhenebene als unkomprimiertes Einkanal-GeoTIFF (32-Bit-Gleitkomma) einer bekannten Fläche. Prüft Achsenreihenfolge (EPSG:4326,
 // Breite zuerst) und Größe. o: { fail (Fehler-XML), size (falsche Größe), empty (nur Füllwerte), log }
 import { createServer } from 'node:http';
+import { deflateSync, crc32 } from 'node:zlib';
 
 export const surface = (lat, lon) => 100 + 2000*(lat - 50.9) + 1500*(lon - 7.0) + 3*Math.sin(lat*2000) + 2*Math.cos(lon*1500);
 export const ERSATZ_CAPS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -26,12 +27,28 @@ export function tiffF32(w, h, data, nodata = null) {
   for (let k = 0; k < w*h; k++) b.writeFloatLE(data[k], dataOff + k*4);
   return b;
 }
+// Luftbild-Ebene Test_photo (Prompt 173): PNG mit Schachbrett je 0,001° (hell/dunkel) und rotem Raster alle 0,005°, damit man
+// die Entzerrung auf das UTM-Quadrat sieht
+export const photoAt = (lat, lon) => { const k = (Math.floor(lat*1000) + Math.floor(lon*1000)) & 1, line = Math.abs(lat*200 - Math.round(lat*200)) < 0.02 || Math.abs(lon*200 - Math.round(lon*200)) < 0.02;
+  return line ? [220, 40, 40] : k ? [120, 160, 90] : [70, 110, 60]; };
+export function pngRGB(w, h, px) {
+  const raw = Buffer.alloc((w*3 + 1)*h);
+  for (let y = 0; y < h; y++) { raw[y*(w*3 + 1)] = 0; for (let x = 0; x < w; x++) { const c = px(x, y), o = y*(w*3 + 1) + 1 + x*3; raw[o] = c[0]; raw[o + 1] = c[1]; raw[o + 2] = c[2]; } }
+  const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]), c = Buffer.alloc(4); c.writeUInt32BE(crc32(td) >>> 0); return Buffer.concat([l, td, c]); };
+  const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 2;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ih), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 export function startErsatz(o = {}) {
   const calls = [];
   const srv = createServer((req, res) => {
     const u = new URL(req.url, 'http://x'), q = Object.fromEntries([...u.searchParams].map(([k, v]) => [k.toUpperCase(), v]));
     calls.push(q);
     if (q.REQUEST === 'GetCapabilities') { res.writeHead(200, { 'content-type': 'text/xml', 'access-control-allow-origin': '*' }); res.end(ERSATZ_CAPS); return; }
+    if (q.REQUEST === 'GetMap' && q.LAYERS === 'Test_photo' && q.CRS === 'EPSG:4326' && !o.fail) {
+      const [minLat, minLon, maxLat, maxLon] = q.BBOX.split(',').map(Number), w = +q.WIDTH, h = +q.HEIGHT;
+      res.writeHead(200, { 'content-type': 'image/png', 'access-control-allow-origin': '*' });
+      res.end(pngRGB(w, h, (x, y) => photoAt(maxLat - (y + 0.5)*(maxLat - minLat)/h, minLon + (x + 0.5)*(maxLon - minLon)/w))); return;
+    }
     if (q.REQUEST !== 'GetMap' || q.LAYERS !== 'Test_hgt' || q.CRS !== 'EPSG:4326' || o.fail) {
       res.writeHead(200, { 'content-type': 'text/xml' }); res.end('<?xml version="1.0"?><ServiceExceptionReport><ServiceException code="LayerNotDefined">Ebene unbekannt</ServiceException></ServiceExceptionReport>'); return;
     }

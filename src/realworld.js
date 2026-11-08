@@ -4,14 +4,15 @@
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp, ptTriDist } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
-import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart } from './rwload.js';
+import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart, RW_FAR } from './rwload.js';
+import { wmsPhotoOf, wmsFetchPhoto } from './rwwms.js';
 import { deLandAt, deMap, deLandBox } from './demap.js';
 import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, show: { dop: true, bld: true, trees: true, water: true, far: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', show: { dop: true, bld: true, trees: true, water: true, far: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -195,6 +196,17 @@ async function rwFetch(a, srcs, say, signal, opt, store) {
 }
 // Eingaben für rwModelMesh (Netz der Gebäude und Bäume einer Kachel), ohne den Rest der Kachel: geht an den Worker
 export const rwMeshInput = S => ({ tris: S.tris, nr: S.nr, bldId: S.bldId, bldInfo: S.bldInfo, trees: S.trees.map(t => ({ x: t.x, z: t.z, y0: t.y0, r: t.r, boxes: t.boxes.map(b => ({ c: b.c, h: b.h })) })) });
+// Luftbild des Höhendienstes (Nutzer, Prompt 173): Kacheln in Breite und Länge holen (rwwms), entzerren im Hauptprogramm
+// (rw.photoWarp aus menu.js, Canvas; ohne sie und ohne Bildebene: null, dann schattiertes Relief). px Bildpunkte je Seite, klein
+// gehalten, weil der Partner langsam liefert (gemessen etwa 5,6 s je Kachel 256 x 256): Startgebiet und Kacheln 2 m, Umgebung 25 m.
+export const RW_WMS_IMG = { main: 512, tile: 512, far: 400 };
+export async function rwWmsPhoto(src, bbox, crs, px, get) {
+  if (!rw.photoWarp || !src || src.kind !== 'wms') return null;
+  const layer = await wmsPhotoOf(src, get);
+  if (!layer) return null;
+  return rw.photoWarp(await wmsFetchPhoto(src, layer, bbox, +(crs.match(/258(\d\d)/) || [0, 32])[1], px, get), px);
+}
+const farBox = (a, size = RW_FAR.size) => { const ec = (a.bbox[0] + a.bbox[2])/2, nc = (a.bbox[1] + a.bbox[3])/2; return [ec - size/2, nc - size/2, ec + size/2, nc + size/2]; };
 export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null, po = {}) {
   const plan = rwPlan(lat, lon, rwSources(), po);
   rw.liveDis = po.wms || po.dis ? { wms: po.wms || null, dis: !!po.dis } : null;   // Kacheln und Umgebung planen mit denselben Quellen
@@ -227,7 +239,12 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
     await rwLandData(srcs[0], store, (t, f) => say('Gewässer und Orte, einmalig: ' + t, 0.97), signal).catch(e => { if (signal && signal.aborted) throw e; rw.landErr = String(e.message || e); });
   const x = await rwExtras(p, srcs[0], store);
-  if (!p.dop && srcs[0].kind === 'wms') p.dop = rwShadeImage(p.meta, p.q);   // ohne Luftbild: Relief schattiert auf Gras
+  if (!p.dop && srcs[0].kind === 'wms') {   // Luftbild des Höhendienstes, sonst Relief schattiert auf Gras
+    say('Luftbild vom Höhendienst', 0.9);
+    const get = rwNet(signal).get;
+    p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.main, get).catch(e => { if (signal && signal.aborted) throw e; rw.photoErr = String(e.message || e); return null; }) || rwShadeImage(p.meta, p.q);
+    if (p.far && !p.far.dop) p.far.dop = await rwWmsPhoto(srcs[0], farBox(a), a.crs, RW_WMS_IMG.far, get).catch(() => null);
+  }
   rwApply(p, { live: true, ...x }); rw.stored = null;
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
   if (store) {
@@ -853,7 +870,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
     if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
     p = await rwFetch(a, srcs, say, signal, opt, store);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
-    if (!p.dop && srcs[0].kind === 'wms') p.dop = rwShadeImage(p.meta, p.q);   // ohne Luftbild: Relief schattiert
+    if (!p.dop && srcs[0].kind === 'wms') p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.tile, rwNet(signal).get).catch(() => null) || rwShadeImage(p.meta, p.q);   // Luftbild des Höhendienstes, sonst Relief
     x = await rwExtras(p, srcs[0], store);
     if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });
   }
@@ -915,6 +932,7 @@ export async function rwLoadFar(cx, cz, store, signal) {
     if (rw.work) try { F = await rw.work('far', { a, src }, () => {}, signal); } catch (e) { if (!e.noWorker) throw e; }
     if (!F) F = await rwFetchFar(a, src, rwNet(signal).get);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
+    if (!F.dop && src.kind === 'wms') F.dop = await rwWmsPhoto(src, farBox(a), a.crs, RW_WMS_IMG.far, rwNet(signal).get).catch(() => null);
     if (store) await store.put(key, { meta: { place: 'Umgebung ' + lat.toFixed(3) + ', ' + lon.toFixed(3), buildings: 0, trees: 0, far: F.meta }, farq: F.q, fardop: F.dop || null,
       q: null, b16: null, t16: null, dop: null, lat, lon, srcs: [src.name], tile: true });
   }

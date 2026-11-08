@@ -295,6 +295,22 @@ async function mergeImg(imgs, cells) {
   });
   return new Uint8Array(await (await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9))).arrayBuffer());
 }
+// Luftbild des Höhendienstes entzerren (Prompt 173): Kacheln (geografisch, EPSG:4326) zum Mosaik zusammensetzen und affin auf das
+// UTM-Quadrat abbilden. ph.corners: Ecken NW, NE, SW des Quadrats im Mosaik. Ergebnis: JPEG N x N (Zeile 0 = Norden).
+async function photoWarp(ph, N) {
+  const W = ph.nx*ph.T, H = ph.ny*ph.T, mos = document.createElement('canvas'); mos.width = W; mos.height = H;
+  const mc = mos.getContext('2d');
+  for (const t of ph.tiles) { const bm = await createImageBitmap(new Blob([t.bytes])).catch(() => null); if (bm) { mc.drawImage(bm, t.tx*ph.T, t.ty*ph.T); bm.close && bm.close(); } }
+  // Mosaik = P0 + A·Ausgabe mit A = [(P1 - P0)/N, (P2 - P0)/N]; der Canvas braucht die Umkehrung (Mosaik -> Ausgabe)
+  const [P0, P1, P2] = ph.corners, a = (P1[0] - P0[0])/N, b = (P1[1] - P0[1])/N, c = (P2[0] - P0[0])/N, d = (P2[1] - P0[1])/N, det = a*d - b*c;
+  const ia = d/det, ib = -b/det, ic = -c/det, id = a/det, out = document.createElement('canvas'); out.width = out.height = N;
+  const oc = out.getContext('2d');
+  oc.fillStyle = '#6f8f4f'; oc.fillRect(0, 0, N, N);   // Lücken: Grasgrün
+  oc.setTransform(ia, ib, ic, id, -(ia*P0[0] + ic*P0[1]), -(ib*P0[0] + id*P0[1]));
+  oc.drawImage(mos, 0, 0);
+  return new Uint8Array(await (await new Promise(r => out.toBlob(r, 'image/jpeg', 0.88))).arrayBuffer());
+}
+rw.photoWarp = photoWarp;
 // Gespeicherte Orte (L4): Auswahl lädt sofort aus dem Speicher
 async function rwSavedFill() {
   const list = (await storeAll('info')).filter(x => !x.tile).sort((a, b) => b.date - a.date), sel = $('rwSaved');   // ohne nachgeladene Kacheln

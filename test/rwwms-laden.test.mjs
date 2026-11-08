@@ -74,3 +74,38 @@ test('W3: Gefundener Dienst gilt vor der Landesquelle, auch in NRW; Kacheln plan
     assert.equal(p.srcs.length, 1); assert.equal(p.srcs[0].hgt.layer, 'X_hgt'); assert.equal(p.srcs[0].crs, 'EPSG:25832');
   } finally { rw.userSources = old; }
 });
+
+test('Prompt 173: Luftbild des Höhendienstes: Ebene wählen, Kacheln und Ecken, im Ladeweg statt Relief, nichts gespeichert', async t => {
+  const { wmsPickPhoto, wmsCapsParse, wmsFetchPhoto } = await import('../src/rwwms.js');
+  const { ERSATZ_CAPS } = await import('./wms-ersatz.mjs');
+  const partner = wmsCapsParse('<Layer><Name>Blue_hgt</Name></Layer><Layer><Name>Blue_ortho_photo</Name></Layer><Layer><Name>Blue_ortho_height</Name></Layer><Layer><Name>Blue_shaded_relief</Name></Layer><Layer><Name>Blue_ortho_vegetation_height_rgb</Name></Layer>');
+  assert.deepEqual(wmsPickPhoto(partner), ['Blue_ortho_photo']);
+  assert.deepEqual(wmsPickPhoto(wmsCapsParse(ERSATZ_CAPS)), ['Test_photo']);
+  const E = startErsatz(); await E.ready; t.after(() => E.close());
+  const src = wms(E.url, 'all'), [E0, N0] = toUtm(50.9, 7.0, 32), bbox = [E0 - 500, N0 - 500, E0 + 500, N0 + 500];
+  const net = (await import('../src/realworld.js')).rwNet(null, 5000).get;
+  const ph = await wmsFetchPhoto(src, 'Test_photo', bbox, 32, 512, net);
+  assert.equal(ph.tiles.length, ph.nx*ph.ny); assert.ok(ph.nx >= 2 && ph.ny >= 2, ph.nx + ' x ' + ph.ny);
+  assert.ok(ph.tiles.every(x => x.bytes[0] === 0x89 && x.bytes[1] === 0x50), 'PNG');
+  const [nw, ne, sw] = ph.corners, W = ph.nx*ph.T, H = ph.ny*ph.T;
+  for (const c of ph.corners) assert.ok(c[0] > 0 && c[0] < W && c[1] > 0 && c[1] < H, 'Ecke im Mosaik');
+  // Gitter-Nord ist gegen geografisch Nord gedreht (Meridiankonvergenz, Länge 7° in Zone 32: etwa (7 - 9)·sin 50,9° = -1,55°);
+  // im Mosaik (Zeilen nach Süden) liegt die Nordost-Ecke darum höher als die Nordwest-Ecke
+  const rot = Math.atan2(ne[1] - nw[1], ne[0] - nw[0])*180/Math.PI;
+  assert.ok(Math.abs(rot + 1.55) < 0.1, 'Drehung ' + rot.toFixed(2) + '°');
+  assert.ok(sw[1] > nw[1] + 400, 'Südwest-Ecke unter der Nordwest-Ecke');
+  // Ladeweg: Bild kommt vom Entzerren (Attrappe), Startgebiet und Umgebung, kein Speichern
+  const old = rw.userSources, oldW = rw.photoWarp, calls = [], puts = [];
+  const store = { get: async () => null, put: async k => (puts.push(k), true), land: async () => null, landPut: async () => true, landHas: async () => false };
+  try {
+    rw.userSources = [src]; rw.photoWarp = async (p, N) => { calls.push([p.tiles.length, N]); return new Uint8Array([0xff, 0xd8, N & 255]); };
+    await rwLoadLive(50.9, 7.0, () => {}, undefined, null, store);
+    assert.ok(calls.length >= 1 && calls[0][1] === 512, 'Startgebiet 512 Bildpunkte');
+    assert.deepEqual([...rw.dop], [0xff, 0xd8, 0], 'Luftbild statt Relief');
+    assert.ok(rw.farDop && rw.farDop[0] === 0xff, 'Umgebung mit Luftbild');
+    assert.equal(puts.length, 0);
+    rw.photoWarp = null;   // ohne Entzerren (Node, Worker): Relief wie bisher
+    await rwLoadLive(50.9, 7.0, () => {}, undefined, null, store);
+    assert.equal(rw.dop[0], 0x42, 'Relief als BMP');
+  } finally { rw.userSources = old; rw.photoWarp = oldW; }
+});
