@@ -9,8 +9,9 @@
    - Ort der Übung (vbCenter): Mitte der empfangenen Einheiten, damit der Flug dort beginnen kann.
    - Getrennt: alle 3 s neuer Versuch. Hängt der Aufbau (Browser fragt nach dem lokalen Netz), meldet vbBridge „wartet“.
    Werte aus SISO-REF-010 über dis.js und distypes.js. Reprinted with permission from SISO Inc. */
-import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence, disDeadReckon } from './dis.js';
-import { disBaseInfo, disBaseOf } from './distypes.js';
+import { DIS_FPV, disEncodeES, disDecode, disFromSim, disState, disNeedSend, disTimestamp, disFromEcef, disEulerToHpr, disEcefToNed, disAppearanceRead, disConvergence, disDeadReckon, disArticulation, DIS_PDU } from './dis.js';
+import { qMul, qAxis, qRot } from './math.js';
+import { disBaseInfo, disBaseOf, disBaseParts } from './distypes.js';
 import { toUtm } from './geo.js';
 import { rw, rwLatLon, groundH } from './realworld.js';
 
@@ -20,7 +21,7 @@ import { rw, rwLatLon, groundH } from './realworld.js';
 // behalten, bis sie sich abmelden (Optionen; für Partner, die nur beim Anlegen senden, etwa das Gateway von VBS 26.1.3). Vorgabe: Löschen
 // nach timeout (13 s, wie die DIS-Regel mit 5 s Herzschlag).
 export const VB = { url: 'ws://localhost:8642', retry: 3, hang: 15, wait: 2, maxUnits: 50, range: 5000, timeout: 13, undulation: 47, exercise: 1, port: 3000, entity: 1, everyUnits: 0.2, keep: false };
-export const vb = { ws: null, state: 'aus', err: '', units: [], dis: new Map(), last: null, tTry: -1e9, tUnits: 0, tBuild: -1e9, sent: 0, info: null, now: 0, seen: 'suche' };   // seen: letztes Ergebnis für das Menü (bleibt während eines neuen Versuchs stehen)
+export const vb = { ws: null, state: 'aus', err: '', units: [], dis: new Map(), last: null, tTry: -1e9, tUnits: 0, tBuild: -1e9, sent: 0, info: null, now: 0, seen: 'suche', fx: [], fired: new Map() };   // fx: Schüsse und Einschläge (Kartenkoordinaten), fired: Einheit -> Zeit des letzten Schusses   // seen: letztes Ergebnis für das Menü (bleibt während eines neuen Versuchs stehen)
 // Die Windows-Brücke, eingebettet vom Build (Datei bruecke/fpv-dis-bruecke.cmd), für den Download im DIS-Modus
 export const VB_BRUECKE = '%%BRUECKE_CMD%%';
 
@@ -55,7 +56,7 @@ export function vbUnitsGeo(dis, o = {}) {
     const still = e.dra === 1 || ap.frozen, v = still ? [0, 0, 0] : disEcefToNed(lat, lon, vel);
     // e: die PDU selbst, für das Weiterrechnen nach ihrem Verfahren (vbPlace); mark: Name (Marking), damaged: beschädigt
     out.push({ id: e.site + ':' + e.app + ':' + e.entity, base, force: e.force, lat, lon, h: he - N, hdg, pitch, roll, vn: [v[0], v[1], -v[2]],
-      dead: ap.damage === 3, damaged: ap.damage === 1 || ap.damage === 2, mark: (e.marking || '').trim(), t: e.t || 0, e: still ? null : e });
+      dead: ap.damage === 3, damaged: ap.damage === 1 || ap.damage === 2, mark: (e.marking || '').trim(), t: e.t || 0, e: still ? null : e, az: e.art ? e.art.az : null, el: e.art ? e.art.el : null });
   }
   const ground = out.filter(u => disBaseInfo(u.base).dom !== 2), mh = vbMedian(ground.map(u => u.h));
   const L = ground.length >= 2 ? out.filter(u => disBaseInfo(u.base).dom === 2 || u.h >= mh - P.below) : out;
@@ -83,7 +84,7 @@ export const vbOwnPdu = (cur, t) => disEncodeES({ ...DIS_FPV, ...cur, exercise: 
 export function vbLocal(u) {
   const z = vbZone(), b = rw.meta.bbox, [E, N] = toUtm(u.lat, u.lon, z), g = disConvergence(u.lat, u.lon, z), cg = Math.cos(g), sg = Math.sin(g);
   const vn = u.vn || [0, 0, 0], ng = vn[0]*cg + vn[1]*sg, eg = -vn[0]*sg + vn[1]*cg;   // geografisch -> Gitter
-  return { id: u.id, base: u.base, force: u.force, dead: !!u.dead, damaged: !!u.damaged, mark: u.mark || '', air: disBaseInfo(u.base).dom === 2, x: E - (b[0] + b[2])/2, z: (b[1] + b[3])/2 - N, y: u.h - rw.meta.hHome,
+  return { id: u.id, base: u.base, force: u.force, dead: !!u.dead, damaged: !!u.damaged, mark: u.mark || '', az: u.az ?? null, el: u.el ?? null, air: disBaseInfo(u.base).dom === 2, x: E - (b[0] + b[2])/2, z: (b[1] + b[3])/2 - N, y: u.h - rw.meta.hHome,
     yaw: -((u.hdg || 0) - g), pitch: u.pitch || 0, roll: u.roll || 0, v: [eg, vn[2], -ng], t0: u.t || 0, e: u.e || null };
 }
 export function vbTake(list, me = [0, 0, 0]) {
@@ -129,9 +130,46 @@ function vbMessage(e) {
     return;
   }
   const d = disDecode(new Uint8Array(e.data));
-  if (!d || d.pduType !== 1 || d.exercise !== VB.exercise) return;
+  if (!d || d.exercise !== VB.exercise) return;
+  if (d.pduType === DIS_PDU.fire || d.pduType === DIS_PDU.det) { vbShot(d); return; }
+  if (d.pduType !== 1) return;
   if (d.site === DIS_FPV.site && d.app === DIS_FPV.app) return;   // eigene Pakete (Broadcast kommt zurück)
-  vb.dis.set(d.site + ':' + d.app + ':' + d.entity, { ...d, t: vb.now });
+  // Turm und Rohr: aus dieser PDU, sonst die letzten bekannten Werte (nicht jede PDU muss sie tragen)
+  const k = d.site + ':' + d.app + ':' + d.entity, old = vb.dis.get(k), a = disArticulation(d.params), oa = old && old.art;
+  d.art = { az: a.az ?? (oa ? oa.az : null), el: a.el ?? (oa ? oa.el : null) };
+  vb.dis.set(k, { ...d, t: vb.now });
+}
+// Schuss (Fire PDU) und Einschlag (Detonation PDU) als kurzer Effekt in Kartenkoordinaten. Der Schütze bekommt die Zeit des
+// Schusses (Mündungsfeuer an seinem Rohr); ein Schuss zeigt außerdem eine Leuchtspur in Flugrichtung.
+export const VB_FX = { keep: 2, flash: 0.15, tracer: 0.6, blast: 1.5 };
+function vbShot(d) {
+  if (!rw.on || !rw.meta || !vbSane(d.pos)) return;
+  const [lat, lon, he] = disFromEcef(...d.pos), v = disEcefToNed(lat, lon, d.vel || [0, 0, 0]);
+  const L = vbLocal({ id: 'fx', base: 'other', lat, lon, h: he - VB.undulation, vn: [v[0], v[1], -v[2]] });
+  const kind = d.pduType === DIS_PDU.fire ? 'fire' : 'det', from = d.shooter.site + ':' + d.shooter.app + ':' + d.shooter.entity;
+  vb.fx.push({ kind, x: L.x, y: L.y, z: L.z, v: L.v, t: vb.now, from });
+  if (kind === 'fire') vb.fired.set(from, vb.now);
+  if (vb.fx.length > 64) vb.fx.splice(0, vb.fx.length - 64);
+}
+// Richtung des Rohrs und Mündung in Kartenkoordinaten (Lage der Einheit, dann Turm um die Hochachse, dann Rohr um die
+// Querachse; wie render.js). null ohne Rohr. Azimut nach rechts = Drehung um +Y mit negativem Winkel (vorn ist -Z).
+const partsOf = new Map();
+export function vbGun(u) {
+  let p = partsOf.get(u.base);
+  if (!p) { p = disBaseParts(u.base); partsOf.set(u.base, p); }
+  if (!p.gp) return null;
+  const q = qMul(qAxis([0, 1, 0], u.yaw), qMul(qAxis([1, 0, 0], u.pitch), qAxis([0, 0, 1], -u.roll))), qt = qMul(q, qAxis([0, 1, 0], -(u.az || 0))), qg = qMul(qt, qAxis([1, 0, 0], u.el || 0));
+  const tp = p.tp || [0, 0, 0], gpRel = [p.gp[0] - tp[0], p.gp[1] - tp[1], p.gp[2] - tp[2]], o = qRot(q, tp), og = qRot(qt, gpRel), dir = qRot(qg, [0, 0, -1]);
+  const base = [u.x + o[0] + og[0], u.y + o[1] + og[1], u.z + o[2] + og[2]];
+  return { dir, muzzle: [base[0] + dir[0]*p.gl, base[1] + dir[1]*p.gl, base[2] + dir[2]*p.gl] };
+}
+// Zielt die Einheit auf uns? Rohr zeigt bis auf 3° auf den Punkt me (Schätzung: Streuung der Anzeige, nicht der Waffe)
+export const VB_AIM = 3*Math.PI/180;
+export function vbAims(u, me) {
+  const g = vbGun(u);
+  if (!g) return false;
+  const d = [me[0] - g.muzzle[0], me[1] - g.muzzle[1], me[2] - g.muzzle[2]], n = Math.hypot(...d) || 1;
+  return Math.acos(Math.max(-1, Math.min(1, (d[0]*g.dir[0] + d[1]*g.dir[1] + d[2]*g.dir[2])/n))) < VB_AIM;
 }
 // link: Verbindung halten (DIS-Modus gewählt); send: eigene Drohne senden (Flug in der echten Welt läuft)
 export function vbStep(t, s, st, link, send = link) {
@@ -160,9 +198,10 @@ export function vbStep(t, s, st, link, send = link) {
     if (!VB.keep) for (const [k, e] of vb.dis) if (t - e.t > VB.timeout) vb.dis.delete(k);
     vb.units = live ? vbTake(vbUnitsGeo(vb.dis), s.p) : [];
   }
-  for (const u of vb.units) vbPlace(u, t - u.t0);
+  for (const u of vb.units) { vbPlace(u, t - u.t0); u.fireT = vb.fired.get(u.id) ?? -1e9; u.aims = !u.dead && vbAims(u, s.p); }
+  while (vb.fx.length && t - vb.fx[0].t > VB_FX.keep) vb.fx.shift();
 }
-export function vbClose() { const ws = vb.ws; vb.ws = null; vb.units = []; vb.dis.clear(); vb.info = null; if (ws) try { ws.close(); } catch (e) {} }
+export function vbClose() { const ws = vb.ws; vb.ws = null; vb.units = []; vb.dis.clear(); vb.info = null; vb.fx = []; vb.fired.clear(); if (ws) try { ws.close(); } catch (e) {} }
 // Zustand der Brücke für das Menü: 'läuft' | 'wartet' (Aufbau hängt, etwa Frage nach dem lokalen Netz) | 'nicht gefunden' | 'suche'.
 // Ein Browser sieht nur, ob die Brücke läuft, nicht ob sie installiert ist.
 export function vbBridge() {

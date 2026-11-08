@@ -14,6 +14,12 @@ export const DIS_ES_LEN = 144;
 export const DIS_FPV = { type: [1, 2, 78, 50, 7, 0, 0], fallback: [1, 2, 0, 50, 0, 0, 0], site: 1, app: 200, entity: 1, force: 1, marking: 'FPV1', exercise: 1, version: 6 };
 // Bewegungsvorhersage: 1 Static, 2 FPW, 3 RPW, 4 RVW, 5 FVW (F feste Lage, R Lage dreht, P nur Tempo, V mit Beschleunigung, W Weltachsen)
 export const DIS_DR = { static: 1, fpw: 2, rpw: 3, rvw: 4, fvw: 5 };
+// Gelenkige Teile (Articulated Parts, SISO-REF-010): Parametertyp = Klasse + Messgröße. Klasse 4096 Hauptturm 1, 4416 Hauptrohr 1;
+// Messgröße 11 Azimut, 13 Elevation (Radiant). Azimut positiv nach rechts (um die Hochachse nach unten), Elevation positiv nach
+// oben. Reprinted with permission from SISO Inc. Vorzeichen bei VBS noch nicht gemessen (Mitschnitt bei k5.2 angefragt).
+export const DIS_ART = { turretAz: 4096 + 11, gunEl: 4416 + 13 };
+// PDU-Typen: 1 Entity State, 2 Fire, 3 Detonation; Längen nach DIS 6 (open-dis)
+export const DIS_PDU = { es: 1, fire: 2, det: 3, fireLen: 96, detLen: 104 };
 // Senden: Herzschlag 5 s (Gateway, k5.2), Schwellen 1 m und 3° (Werte aus KDIS, nicht aus der Norm)
 export const DIS_SEND = { heartbeat: 5, pos: 1, ang: 3*Math.PI/180 };
 
@@ -94,12 +100,12 @@ export function disTimestamp(ms, absolute = false) {
 // e: { version, exercise, site, app, entity, force, type[7], alt[7], vel[3] (m/s, ECEF), pos[3] (m, ECEF), ori[3] (psi, theta,
 // phi), appearance, dra, accel[3] (m/s², ECEF), angVel[3] (rad/s, Körperachsen), marking, capabilities, timestamp }
 export function disEncodeES(e) {
-  const b = new Uint8Array(DIS_ES_LEN), v = new DataView(b.buffer), t7 = (o, a) => { v.setUint8(o, a[0]); v.setUint8(o + 1, a[1]); v.setUint16(o + 2, a[2]); for (let i = 3; i < 7; i++) v.setUint8(o + i + 1, a[i]); };
+  const np = (e.params || []).length, b = new Uint8Array(DIS_ES_LEN + 16*np), v = new DataView(b.buffer), t7 = (o, a) => { v.setUint8(o, a[0]); v.setUint8(o + 1, a[1]); v.setUint16(o + 2, a[2]); for (let i = 3; i < 7; i++) v.setUint8(o + i + 1, a[i]); };
   v.setUint8(0, e.version ?? 6); v.setUint8(1, e.exercise ?? 1); v.setUint8(2, 1); v.setUint8(3, 1);   // PDU-Typ 1 Entity State, Familie 1
-  v.setUint32(4, e.timestamp ?? 0); v.setUint16(8, DIS_ES_LEN);
+  v.setUint32(4, e.timestamp ?? 0); v.setUint16(8, b.length);
   if ((e.version ?? 6) >= 7) v.setUint8(10, e.status ?? 0);   // DIS 7: PDU-Status; DIS 6: Füllbyte
   v.setUint16(12, e.site); v.setUint16(14, e.app); v.setUint16(16, e.entity);
-  v.setUint8(18, e.force ?? 0); v.setUint8(19, 0);   // keine variablen Parameter
+  v.setUint8(18, e.force ?? 0); v.setUint8(19, (e.params || []).length);   // Zahl der variablen Parameter (je 16 Byte ab 144)
   t7(20, e.type); t7(28, e.alt || e.type);
   for (let i = 0; i < 3; i++) v.setFloat32(36 + i*4, (e.vel || [0, 0, 0])[i]);
   for (let i = 0; i < 3; i++) v.setFloat64(48 + i*8, e.pos[i]);
@@ -111,7 +117,46 @@ export function disEncodeES(e) {
   const m = String(e.marking || '').slice(0, 11);
   for (let i = 0; i < m.length; i++) v.setUint8(129 + i, m.charCodeAt(i) & 127);
   v.setUint32(140, e.capabilities ?? 0);
+  // Variable Parameter: Art (0 gelenkig, 1 angehängt), Änderungszähler, Teil hängt an, Parametertyp, Wert (float32, Rest frei)
+  (e.params || []).forEach((p, i) => { const o = DIS_ES_LEN + 16*i; v.setUint8(o, p.kind ?? 0); v.setUint8(o + 1, p.change ?? 0); v.setUint16(o + 2, p.attached ?? 0);
+    v.setUint32(o + 4, p.type); v.setFloat32(o + 8, p.value ?? 0); });
   return b;
+}
+// Gemeinsamer Kopf von Fire und Detonation: Kennungen (Site, App, Entity) von Schütze, Ziel, Munition, Ereignis
+const disId = (v, o) => ({ site: v.getUint16(o), app: v.getUint16(o + 2), entity: v.getUint16(o + 4) });
+const setId = (v, o, x = {}) => { v.setUint16(o, x.site || 0); v.setUint16(o + 2, x.app || 0); v.setUint16(o + 4, x.entity || 0); };
+// Munition (Burst Descriptor, 16 Byte): Art (7 Werte wie Entity Type), Gefechtskopf, Zünder, Menge, Kadenz
+const disBurst = (v, o) => ({ type: [v.getUint8(o), v.getUint8(o + 1), v.getUint16(o + 2), v.getUint8(o + 4), v.getUint8(o + 5), v.getUint8(o + 6), v.getUint8(o + 7)],
+  warhead: v.getUint16(o + 8), fuse: v.getUint16(o + 10), quantity: v.getUint16(o + 12), rate: v.getUint16(o + 14) });
+function setBurst(v, o, m = {}) {
+  const t = m.type || [2, 0, 0, 0, 0, 0, 0];   // Art 2 Munition
+  v.setUint8(o, t[0]); v.setUint8(o + 1, t[1]); v.setUint16(o + 2, t[2]); for (let i = 3; i < 7; i++) v.setUint8(o + i + 1, t[i]);
+  v.setUint16(o + 8, m.warhead || 0); v.setUint16(o + 10, m.fuse || 0); v.setUint16(o + 12, m.quantity ?? 1); v.setUint16(o + 14, m.rate || 0);
+}
+function disHead(v, type, len, x) { v.setUint8(0, x.version ?? 6); v.setUint8(1, x.exercise ?? 1); v.setUint8(2, type); v.setUint8(3, 2); v.setUint32(4, x.timestamp ?? 0); v.setUint16(8, len); }   // Familie 2 Kampf
+// Fire PDU (Schuss): f = { shooter, target, munition, event, pos (ECEF), burst, vel (ECEF m/s), range }
+export function disEncodeFire(f) {
+  const b = new Uint8Array(DIS_PDU.fireLen), v = new DataView(b.buffer);
+  disHead(v, DIS_PDU.fire, b.length, f); setId(v, 12, f.shooter); setId(v, 18, f.target); setId(v, 24, f.munition); setId(v, 30, f.event);
+  v.setUint32(36, f.mission || 0); for (let i = 0; i < 3; i++) v.setFloat64(40 + i*8, f.pos[i]);
+  setBurst(v, 64, f.burst); for (let i = 0; i < 3; i++) v.setFloat32(80 + i*4, (f.vel || [0, 0, 0])[i]); v.setFloat32(92, f.range || 0);
+  return b;
+}
+// Detonation PDU (Einschlag): d = { shooter, target, munition, event, vel, pos (ECEF), burst, rel (Ort zum Ziel), result }
+export function disEncodeDetonation(d) {
+  const b = new Uint8Array(DIS_PDU.detLen), v = new DataView(b.buffer);
+  disHead(v, DIS_PDU.det, b.length, d); setId(v, 12, d.shooter); setId(v, 18, d.target); setId(v, 24, d.munition); setId(v, 30, d.event);
+  for (let i = 0; i < 3; i++) v.setFloat32(36 + i*4, (d.vel || [0, 0, 0])[i]);
+  for (let i = 0; i < 3; i++) v.setFloat64(48 + i*8, d.pos[i]);
+  setBurst(v, 72, d.burst); for (let i = 0; i < 3; i++) v.setFloat32(88 + i*4, (d.rel || [0, 0, 0])[i]);
+  v.setUint8(100, d.result ?? 0);
+  return b;
+}
+// Turm und Rohr aus den variablen Parametern: { az, el } in Radiant, fehlende Werte null
+export function disArticulation(params) {
+  const out = { az: null, el: null };
+  for (const p of params || []) if (p.kind === 0) { if (p.type === DIS_ART.turretAz) out.az = p.value; else if (p.type === DIS_ART.gunEl) out.el = p.value; }
+  return out;
 }
 // PDU lesen: Kopf immer; Entity State (Typ 1) vollständig; andere Typen nur der Kopf. Zu kurz oder kaputt: null.
 export function disDecode(buf) {
@@ -119,15 +164,22 @@ export function disDecode(buf) {
   if (u8.length < 12) return null;
   const v = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   const h = { version: v.getUint8(0), exercise: v.getUint8(1), pduType: v.getUint8(2), family: v.getUint8(3), timestamp: v.getUint32(4), length: v.getUint16(8) };
+  if (h.pduType === DIS_PDU.fire && u8.length >= DIS_PDU.fireLen) return { ...h, shooter: disId(v, 12), target: disId(v, 18), munition: disId(v, 24), event: disId(v, 30),
+    pos: [0, 1, 2].map(i => v.getFloat64(40 + i*8)), burst: disBurst(v, 64), vel: [0, 1, 2].map(i => v.getFloat32(80 + i*4)), range: v.getFloat32(92) };
+  if (h.pduType === DIS_PDU.det && u8.length >= DIS_PDU.detLen) return { ...h, shooter: disId(v, 12), target: disId(v, 18), munition: disId(v, 24), event: disId(v, 30),
+    vel: [0, 1, 2].map(i => v.getFloat32(36 + i*4)), pos: [0, 1, 2].map(i => v.getFloat64(48 + i*8)), burst: disBurst(v, 72), rel: [0, 1, 2].map(i => v.getFloat32(88 + i*4)), result: v.getUint8(100) };
   if (h.pduType !== 1) return h;
   if (u8.length < DIS_ES_LEN) return null;
   const t7 = o => [v.getUint8(o), v.getUint8(o + 1), v.getUint16(o + 2), v.getUint8(o + 4), v.getUint8(o + 5), v.getUint8(o + 6), v.getUint8(o + 7)];
   const f3 = (o, w) => [0, 1, 2].map(i => w === 8 ? v.getFloat64(o + i*8) : v.getFloat32(o + i*4));
+  const params = [];   // variable Parameter (Turm, Rohr, angehängte Teile), soweit die PDU sie enthält
+  for (let i = 0, n = v.getUint8(19); i < n && DIS_ES_LEN + 16*(i + 1) <= u8.length; i++) { const o = DIS_ES_LEN + 16*i;
+    params.push({ kind: v.getUint8(o), change: v.getUint8(o + 1), attached: v.getUint16(o + 2), type: v.getUint32(o + 4), value: v.getFloat32(o + 8) }); }
   let marking = '';
   for (let i = 0; i < 11; i++) { const c = v.getUint8(129 + i); if (!c) break; marking += String.fromCharCode(c); }
   return { ...h, status: h.version >= 7 ? v.getUint8(10) : 0, site: v.getUint16(12), app: v.getUint16(14), entity: v.getUint16(16), force: v.getUint8(18), nParams: v.getUint8(19),
     type: t7(20), alt: t7(28), vel: f3(36, 4), pos: f3(48, 8), ori: f3(72, 4), appearance: v.getUint32(84), dra: v.getUint8(88),
-    accel: f3(104, 4), angVel: f3(116, 4), marking, capabilities: v.getUint32(140) };
+    accel: f3(104, 4), angVel: f3(116, 4), marking, capabilities: v.getUint32(140), params };
 }
 
 // ---- Bewegungsvorhersage (Dead Reckoning) und Senderegel ----

@@ -82,47 +82,70 @@ export function disBaseTable(text) {
   return m;
 }
 
-// Modell eines Grundtyps: Mitte am Boden, vorn = -Z, oben = +Y (wie die übrigen Modelle). Farben neutral (Oliv, Grau);
-// die Seite färbt das Zeichnen ein (uOver). Einfache Formen: Wanne, Ketten oder Räder, Turm, Rohr, Rotor.
-export function disBaseMesh(id) {
-  const mb = new MeshBuilder(), b = disBaseInfo(id), [L, W, H] = b.size, l = L/2, w = W/2;
-  const OL = [0.42, 0.45, 0.32], DK = [0.12, 0.12, 0.13], GL = [0.2, 0.28, 0.35], GR = [0.55, 0.57, 0.6], LT = [0.7, 0.72, 0.74];
-  const box = (x, y, z, hx, hy, hz, c = OL) => mb.box([x, y, z], [hx, hy, hz], 0, c);
-  const tracks = h => { for (const s of [-1, 1]) box(s*(w - 0.35), h/2, 0, 0.35, h/2, l*0.95, DK); };
-  const wheels = (n, r) => { for (let i = 0; i < n; i++) { const z = -l*0.75 + i*(1.5*l)/(n - 1); for (const s of [-1, 1]) mb.cyl([s*(w - 0.15), r, z], r, 0.15, 12, DK, 'x'); } };
-  const gun = (y, z0, len, r) => mb.cyl([0, y, z0 - len/2], r, len/2, 8, DK, 'z');
-  const rotor = (y, r) => { box(0, y, 0, r, 0.04, 0.14, DK); box(0, y, 0, 0.14, 0.04, r, DK); mb.cyl([0, y - 0.25, 0], 0.12, 0.25, 8, DK); };
+// Modell eines Grundtyps in Teilen: Wanne (hull), Turm (turret, dreht um tp) und Rohr (gun, hebt sich um gp). Mitte am Boden,
+// vorn = -Z, oben = +Y (wie die übrigen Modelle). Farben neutral (Oliv, Grau); die Seite färbt das Zeichnen ein (uOver).
+// Einfache Formen mit wenigen Dreiecken (Lightweight, Nutzer Prompt 154): Wanne mit schräger Front, Ketten mit Laufrollen
+// oder Räder, Turm, Rohr, Rotor. tp, gp: Drehpunkte; gl: Rohrlänge (Mündung = gp + gl nach vorn). Fahrzeuge ohne Turm: nur hull.
+export function disBaseParts(id) {
+  const H = new MeshBuilder(), T = new MeshBuilder(), G = new MeshBuilder(), b = disBaseInfo(id), [L, W, Hh] = b.size, l = L/2, w = W/2;
+  const OL = [0.42, 0.45, 0.32], OD = [0.34, 0.37, 0.26], DK = [0.12, 0.12, 0.13], GL = [0.2, 0.28, 0.35], GR = [0.55, 0.57, 0.6], LT = [0.7, 0.72, 0.74];
+  let tp = null, gp = null, gl = 0;
+  const box = (m, x, y, z, hx, hy, hz, c = OL) => m.box([x, y, z], [hx, hy, hz], 0, c);
+  // Kasten mit schräger Front: Oberkante vorn um f nach hinten versetzt (Glacis, Turmfront)
+  const wedge = (m, x, y, z, hx, hy, hz, f, c = OL) => {
+    const P = (px, py, pz) => [x + px, y + py, z + pz], fz = -hz + f;
+    const a = [P(-hx, -hy, -hz), P(hx, -hy, -hz), P(hx, -hy, hz), P(-hx, -hy, hz)], t = [P(-hx, hy, fz), P(hx, hy, fz), P(hx, hy, hz), P(-hx, hy, hz)];
+    m.quad(a[3], a[2], t[2], t[3], c); m.quad(a[1], a[0], t[0], t[1], c); m.quad(a[2], a[1], t[1], t[2], c); m.quad(a[0], a[3], t[3], t[0], c);
+    m.quad(t[3], t[2], t[1], t[0], c); m.quad(a[0], a[1], a[2], a[3], c);
+  };
+  // Ketten mit 5 Laufrollen je Seite (Rollen nur angedeutet, 6 Seiten)
+  const tracks = h => { for (const s of [-1, 1]) { box(H, s*(w - 0.35), h/2, 0, 0.35, h/2, l*0.95, DK);
+    for (let i = 0; i < 5; i++) H.cyl([s*(w + 0.01), h*0.4, -l*0.7 + i*l*0.35], h*0.32, 0.03, 6, OD, 'x'); } };
+  const wheels = (n, r) => { for (let i = 0; i < n; i++) { const z = -l*0.75 + i*(1.5*l)/(n - 1); for (const s of [-1, 1]) H.cyl([s*(w - 0.15), r, z], r, 0.15, 10, DK, 'x'); } };
+  // Turm um (0, y, z) und Rohr ab Mündungsbremse gp nach vorn
+  const turret = (y, z, hx, hy, hz, front) => { tp = [0, y, z]; wedge(T, 0, y, z, hx, hy, hz, front); };
+  const gun = (y, z0, len, r) => { gp = [0, y, z0]; gl = len; G.cyl([0, y, z0 - len/2], r, len/2, 8, DK, 'z'); G.box([0, y, z0 + 0.15], [r*2.2, r*2.2, 0.25], 0, OD); };
+  const rotor = (y, r) => { box(H, 0, y, 0, r, 0.04, 0.14, DK); box(H, 0, y, 0, 0.14, 0.04, r, DK); H.cyl([0, y - 0.25, 0], 0.12, 0.25, 8, DK); };
   switch (id) {
-    case 'kpz': tracks(1.1); box(0, 1.35, 0, w*0.82, 0.45, l*0.9); box(0, 2.1, 0.4, w*0.6, 0.35, l*0.42); gun(2.1, -l*0.4, 5.0, 0.12); break;
-    case 'spzk': tracks(1.1); box(0, 1.7, 0, w*0.85, 0.75, l*0.92); box(0, 2.7, 0.3, w*0.4, 0.3, l*0.25); gun(2.7, -l*0.2, 2.5, 0.07); break;
-    case 'spzr': wheels(4, 0.6); box(0, 1.75, 0, w*0.95, 0.75, l*0.95); box(0, 2.75, 0.4, w*0.4, 0.25, l*0.22); gun(2.75, -l*0.1, 2.6, 0.07); break;
-    case 'tpz': wheels(3, 0.6); box(0, 1.6, 0, w*0.95, 0.7, l*0.95); box(0, 2.0, -l*0.75, w*0.9, 0.25, l*0.18, GL); break;
-    case 'aufkl': wheels(2, 0.5); box(0, 1.1, 0, w*0.95, 0.55, l*0.95); box(0, 1.65, 0.3, w*0.6, 0.12, l*0.4); mb.cyl([0, 2.0, 0.8], 0.06, 0.25, 6, DK); break;   // kurze Antenne (Mast eingefahren)
-    case 'pio': tracks(1.1); box(0, 1.6, 0.4, w*0.85, 0.6, l*0.75); box(0, 0.7, -l - 0.3, w*1.05, 0.55, 0.12, DK); box(0.6, 2.6, 0.5, 0.18, 0.18, l*0.7, DK); break;   // Räumschild, Kranarm
-    case 'lkw': wheels(3, 0.55); box(0, 1.6, -l*0.75, w*0.95, 0.75, l*0.22); box(0, 2.0, -l*0.95, w*0.9, 0.3, 0.05, GL); box(0, 1.9, l*0.2, w, 0.85, l*0.72, GR); break;
-    case 'pkw': wheels(2, 0.38); box(0, 0.8, 0, w*0.95, 0.4, l*0.95); box(0, 1.45, 0.3, w*0.85, 0.3, l*0.5, GL); break;
-    case 'art': tracks(1.1); box(0, 1.45, 0, w*0.85, 0.55, l*0.92); box(0, 2.4, 0.6, w*0.8, 0.55, l*0.45); gun(2.5, -l*0.1, 8.0, 0.11); break;
-    case 'rak': tracks(1.0); box(0, 1.3, -l*0.55, w*0.85, 0.5, l*0.35); box(0, 1.2, l*0.25, w*0.85, 0.4, l*0.6);
-      mb.box([0, 2.2, l*0.3], [w*0.8, 0.5, l*0.5], 0, GR); break;
-    case 'flak': tracks(1.1); box(0, 1.45, 0, w*0.85, 0.55, l*0.92); box(0, 2.4, 0.3, w*0.7, 0.45, l*0.35);
-      for (const s of [-1, 1]) mb.cyl([s*(w*0.85), 2.6, -l*0.2], 0.07, 1.8, 6, DK, 'z'); mb.cyl([0, 3.05, 1.2], 0.6, 0.05, 12, LT); break;
-    case 'khs': mb.cyl([0, 1.6, 0], 0.65, l*0.55, 10, OL, 'z'); box(0, 1.1, l*0.75, 0.15, 0.3, l*0.35); box(0, 1.5, 0, w*0.6, 0.06, 0.5); box(0, 2.0, -l*0.25, 0.5, 0.3, 1.0, GL); rotor(2.8, 6.5); break;
-    case 'ths': mb.cyl([0, 2.0, -0.5], 1.4, l*0.4, 12, OL, 'z'); box(0, 2.2, l*0.65, 0.3, 0.4, l*0.3); box(0, 2.3, -l*0.45, 1.1, 0.6, 0.6, GL);
-      for (const s of [-1, 1]) for (const z of [-2, 2]) mb.cyl([s*1.1, 0.35, z], 0.35, 0.15, 10, DK, 'x'); rotor(4.0, 8.0); break;
-    case 'flz': mb.cyl([0, 1.8, 0], 0.8, l*0.9, 10, GR, 'z'); mb.box([0, 1.7, 0.8], [w, 0.1, 2.2], 0, GR); mb.box([0, 1.9, l*0.75], [2.6, 0.08, 1.0], 0, GR);
-      mb.box([0, 3.0, l*0.8], [0.08, 1.2, 1.0], 0, GR); mb.box([0, 2.4, -l*0.55], [0.5, 0.35, 1.2], 0, GL);
-      for (const [x, z] of [[0, -l*0.6], [-1.6, 1], [1.6, 1]]) mb.cyl([x, 0.45, z], 0.3, 0.1, 8, DK, 'x'); break;
-    case 'uavf': mb.cyl([0, 1.0, 0], 0.4, l*0.9, 8, LT, 'z'); mb.box([0, 1.1, 0], [w, 0.06, 0.6], 0, LT); mb.box([0, 1.4, l*0.8], [0.06, 0.5, 0.4], 0, LT);
-      mb.cyl([0, 1.0, l*0.95], 0.25, 0.05, 8, DK, 'z'); for (const z of [-l*0.6, l*0.4]) mb.cyl([0, 0.3, z], 0.12, 0.3, 6, DK); break;   // Fahrwerk bis zum Boden
-    case 'uavm': box(0, 0.25, 0, 0.12, 0.06, 0.12, DK); for (const s of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { mb.box([s[0]*0.2, 0.25, s[1]*0.2], [0.24, 0.02, 0.02], s[0]*s[1] > 0 ? -Math.PI/4 : Math.PI/4, DK);
-      mb.cyl([s[0]*0.35, 0.3, s[1]*0.35], 0.15, 0.01, 12, LT); } break;
-    case 'boot': mb.box([0, 0.6, 0.6], [w, 0.6, l*0.85], 0, GR); for (const s of [-1, 1]) mb.box([s*w*0.5, 0.6, -l*0.75], [w*0.5, 0.6, l*0.3], s*0.35, GR);
-      box(0, 1.7, 0.8, w*0.6, 0.5, l*0.3, LT); box(0, 1.9, 0.2, w*0.55, 0.2, 0.05, GL); break;
-    case 'person': for (const s of [-1, 1]) box(s*0.1, 0.42, 0, 0.08, 0.42, 0.09); box(0, 1.15, 0, 0.2, 0.32, 0.11); box(0, 1.62, 0, 0.11, 0.13, 0.11, [0.75, 0.6, 0.5]);
-      for (const s of [-1, 1]) box(s*0.27, 1.12, 0, 0.06, 0.3, 0.06); break;
-    default: box(0, H/2, 0, w, H/2, l, LT);   // unbekannt: Quader
+    case 'kpz': tracks(1.1); wedge(H, 0, 1.35, 0, w*0.82, 0.45, l*0.9, 0.9); turret(2.1, 0.4, w*0.6, 0.35, l*0.42, 0.6); gun(2.1, -l*0.4 + 0.4, 5.0, 0.12); break;
+    case 'spzk': tracks(1.1); wedge(H, 0, 1.7, 0, w*0.85, 0.75, l*0.92, 1.2); turret(2.7, 0.3, w*0.4, 0.3, l*0.25, 0.4); gun(2.7, -l*0.25 + 0.3, 2.5, 0.07); break;
+    case 'spzr': wheels(4, 0.6); wedge(H, 0, 1.75, 0, w*0.95, 0.75, l*0.95, 1.0); turret(2.75, 0.4, w*0.4, 0.25, l*0.22, 0.35); gun(2.75, -l*0.22 + 0.4, 2.6, 0.07); break;
+    case 'tpz': wheels(3, 0.6); wedge(H, 0, 1.6, 0, w*0.95, 0.7, l*0.95, 0.9); box(H, 0, 2.0, -l*0.75, w*0.9, 0.25, l*0.18, GL); box(H, 0.4, 2.45, 0.3, 0.12, 0.15, 0.5, DK); break;   // Waffenstation
+    case 'aufkl': wheels(2, 0.5); wedge(H, 0, 1.1, 0, w*0.95, 0.55, l*0.95, 0.8); box(H, 0, 1.65, 0.3, w*0.6, 0.12, l*0.4); H.cyl([0, 2.0, 0.8], 0.06, 0.25, 6, DK); break;   // kurze Antenne (Mast eingefahren)
+    case 'pio': tracks(1.1); box(H, 0, 1.6, 0.4, w*0.85, 0.6, l*0.75); box(H, 0, 0.7, -l - 0.3, w*1.05, 0.55, 0.12, DK); box(H, 0.6, 2.6, 0.5, 0.18, 0.18, l*0.7, DK); break;   // Räumschild, Kranarm
+    case 'lkw': wheels(3, 0.55); box(H, 0, 1.6, -l*0.75, w*0.95, 0.75, l*0.22); box(H, 0, 2.0, -l*0.95, w*0.9, 0.3, 0.05, GL); box(H, 0, 1.9, l*0.2, w, 0.85, l*0.72, GR); break;
+    case 'pkw': wheels(2, 0.38); box(H, 0, 0.8, 0, w*0.95, 0.4, l*0.95); wedge(H, 0, 1.45, 0.3, w*0.85, 0.3, l*0.5, 0.5, GL); break;
+    case 'art': tracks(1.1); box(H, 0, 1.45, 0, w*0.85, 0.55, l*0.92); turret(2.4, 0.6, w*0.8, 0.55, l*0.45, 0.3); gun(2.5, -l*0.45 + 0.6, 8.0, 0.11); break;
+    case 'rak': tracks(1.0); box(H, 0, 1.3, -l*0.55, w*0.85, 0.5, l*0.35); box(H, 0, 1.2, l*0.25, w*0.85, 0.4, l*0.6);
+      H.box([0, 2.2, l*0.3], [w*0.8, 0.5, l*0.5], 0, GR); break;
+    case 'flak': tracks(1.1); box(H, 0, 1.45, 0, w*0.85, 0.55, l*0.92); turret(2.4, 0.3, w*0.7, 0.45, l*0.35, 0.3);
+      gp = [0, 2.6, -l*0.35 + 0.3]; gl = 3.6; for (const s of [-1, 1]) G.cyl([s*(w*0.85), 2.6, gp[2] - 1.8], 0.07, 1.8, 6, DK, 'z'); T.cyl([0, 3.05, 1.2], 0.6, 0.05, 12, LT); break;
+    case 'khs': H.cyl([0, 1.6, 0], 0.65, l*0.55, 10, OL, 'z'); box(H, 0, 1.1, l*0.75, 0.15, 0.3, l*0.35); box(H, 0, 1.5, 0, w*0.6, 0.06, 0.5); box(H, 0, 2.0, -l*0.25, 0.5, 0.3, 1.0, GL);
+      for (const s of [-1, 1]) box(H, s*w*0.55, 1.3, 0, 0.18, 0.18, 0.7, DK); rotor(2.8, 6.5); break;   // Waffenträger
+    case 'ths': H.cyl([0, 2.0, -0.5], 1.4, l*0.4, 12, OL, 'z'); box(H, 0, 2.2, l*0.65, 0.3, 0.4, l*0.3); box(H, 0, 2.3, -l*0.45, 1.1, 0.6, 0.6, GL);
+      for (const s of [-1, 1]) for (const z of [-2, 2]) H.cyl([s*1.1, 0.35, z], 0.35, 0.15, 10, DK, 'x'); rotor(4.0, 8.0); break;
+    case 'flz': H.cyl([0, 1.8, 0], 0.8, l*0.9, 10, GR, 'z'); H.box([0, 1.7, 0.8], [w, 0.1, 2.2], 0, GR); H.box([0, 1.9, l*0.75], [2.6, 0.08, 1.0], 0, GR);
+      H.box([0, 3.0, l*0.8], [0.08, 1.2, 1.0], 0, GR); H.box([0, 2.4, -l*0.55], [0.5, 0.35, 1.2], 0, GL);
+      for (const [x, z] of [[0, -l*0.6], [-1.6, 1], [1.6, 1]]) H.cyl([x, 0.45, z], 0.3, 0.1, 8, DK, 'x'); break;
+    case 'uavf': H.cyl([0, 1.0, 0], 0.4, l*0.9, 8, LT, 'z'); H.box([0, 1.1, 0], [w, 0.06, 0.6], 0, LT); H.box([0, 1.4, l*0.8], [0.06, 0.5, 0.4], 0, LT);
+      H.cyl([0, 1.0, l*0.95], 0.25, 0.05, 8, DK, 'z'); for (const z of [-l*0.6, l*0.4]) H.cyl([0, 0.3, z], 0.12, 0.3, 6, DK); break;   // Fahrwerk bis zum Boden
+    case 'uavm': box(H, 0, 0.25, 0, 0.12, 0.06, 0.12, DK); for (const s of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { H.box([s[0]*0.2, 0.25, s[1]*0.2], [0.24, 0.02, 0.02], s[0]*s[1] > 0 ? -Math.PI/4 : Math.PI/4, DK);
+      H.cyl([s[0]*0.35, 0.3, s[1]*0.35], 0.15, 0.01, 12, LT); } break;
+    case 'boot': H.box([0, 0.6, 0.6], [w, 0.6, l*0.85], 0, GR); for (const s of [-1, 1]) H.box([s*w*0.5, 0.6, -l*0.75], [w*0.5, 0.6, l*0.3], s*0.35, GR);
+      box(H, 0, 1.7, 0.8, w*0.6, 0.5, l*0.3, LT); box(H, 0, 1.9, 0.2, w*0.55, 0.2, 0.05, GL); break;
+    case 'person': for (const s of [-1, 1]) box(H, s*0.1, 0.42, 0, 0.08, 0.42, 0.09); box(H, 0, 1.15, 0, 0.2, 0.32, 0.11); box(H, 0, 1.62, 0, 0.11, 0.13, 0.11, [0.75, 0.6, 0.5]);
+      for (const s of [-1, 1]) box(H, s*0.27, 1.12, 0, 0.06, 0.3, 0.06);
+      gp = [0.18, 1.3, -0.15]; gl = 0.9; box(G, 0.18, 1.3, -0.5, 0.03, 0.05, 0.4, DK); break;   // Gewehr vor der Brust
+    default: box(H, 0, Hh/2, 0, w, Hh/2, l, LT);   // unbekannt: Quader
   }
-  return new Float32Array(mb.d);
+  const f = m => m.d.length ? new Float32Array(m.d) : null;
+  return { hull: f(H), turret: f(T), gun: f(G), tp, gp, gl };
+}
+// Ganzes Modell in einem Stück (Turm und Rohr in Grundstellung), etwa für die Vorschau
+export function disBaseMesh(id) {
+  const p = disBaseParts(id), parts = [p.hull, p.turret, p.gun].filter(Boolean), out = new Float32Array(parts.reduce((n, a) => n + a.length, 0));
+  let o = 0; for (const a of parts) { out.set(a, o); o += a.length; }
+  return out;
 }
 
 // Vorschau „VBS-Grundtypen“ (Modus unter Spezial): Aufstellung auf einer freien Fläche der Spielkarte (110 x 50 m,

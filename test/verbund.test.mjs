@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { createSocket } from 'node:dgram';
 import { rw, rwApply, rwLatLon, groundH, rwFlat, rwFlatImage, rwPlan } from '../src/realworld.js';
-import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet } from '../src/verbund.js';
+import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet, vbGun, vbAims } from '../src/verbund.js';
 import { createBridge } from '../tools/dis-bruecke.mjs';
 import * as D from '../src/dis.js';
 
@@ -81,6 +81,25 @@ test('DIS-Modus: Weiterrechnen nach dem Verfahren der PDU (Kurve und Lage), Temp
     const fall = ent(22, la, lo, meta.hHome + 47, { vel: down.map(v => v*1800) }), jet = ent(23, la, lo, meta.hHome + 3000, { vel: east.map(v => v*600), type: [1, 2, 225, 1, 0, 0, 0] });
     const L = vbUnitsGeo(new Map([['f', fall], ['j', jet]]));
     assert.deepEqual(L.map(x => x.id.split(':')[2]), ['23']); assert.equal(L.skipped, 1);
+  } finally { rw.on = false; }
+});
+
+test('DIS-Modus: Turm und Rohr aus den Parametern, Rohrrichtung, „zielt auf dich“', () => {
+  rw.on = true;
+  try {
+    const [la, lo] = rwLatLon(0, -100), g = D.disConvergence(la, lo);
+    // Panzer steht mit Kurs Gitter-Nord, Turm 90° nach rechts (Osten), Rohr 10° hoch
+    const e = ent(31, la, lo, meta.hHome + 47, { dra: 1 }); e.ori = D.disHprToEuler(la, lo, g, 0, 0);
+    e.art = D.disArticulation(D.disDecode(D.disEncodeES({ ...e, params: [{ type: D.DIS_ART.turretAz, value: Math.PI/2 }, { type: D.DIS_ART.gunEl, value: 10*Math.PI/180 }] })).params);
+    const u = vbTake(vbUnitsGeo(new Map([['a', e]])), [0, 0, -100])[0]; vbPlace(u, 0);
+    near(u.az, Math.PI/2, 1e-6); near(u.el, 0.1745, 1e-3);
+    const G = vbGun(u);
+    near(G.dir[0], Math.cos(0.1745), 1e-3, 'Rohr zeigt nach Osten (+x)'); near(G.dir[1], Math.sin(0.1745), 1e-3, 'und 10° hoch'); near(G.dir[2], 0, 1e-3);
+    const me = [G.muzzle[0] + G.dir[0]*200, G.muzzle[1] + G.dir[1]*200, G.muzzle[2] + G.dir[2]*200];
+    assert.ok(vbAims(u, me), 'zielt auf einen Punkt in Rohrrichtung'); assert.ok(!vbAims(u, [me[0], me[1] + 30, me[2]]), '30 m daneben: nein');
+    // ohne Parameter: Grundstellung nach vorn (Norden = -z)
+    const u0 = vbTake(vbUnitsGeo(new Map([['b', { ...e, art: null }]])), [0, 0, -100])[0]; vbPlace(u0, 0);
+    near(vbGun(u0).dir[2], -1, 1e-3, 'Grundstellung vorn');
   } finally { rw.on = false; }
 });
 
@@ -161,6 +180,14 @@ test('DIS-Modus: Gesamtlauf Simulator <-> Brücke <-> DIS-Netz (Drohne gesendet,
   assert.ok(dt > 0.2 && Math.abs(u.x - ex) < 0.6 && Math.abs(u.z + 80) < 2, 'weitergeschoben: ' + u.x.toFixed(2) + ' statt ' + ex.toFixed(2) + ', ' + u.z.toFixed(2));
   near(u.y, groundH(u.x, u.z), 1e-6, 'auf unserem Boden');
   assert.equal(vbLabel(true), 'DIS 1');
+  // Schuss und Einschlag des Panzers: Effekte an der richtigen Stelle, Schütze markiert
+  const [fl, fo] = rwLatLon(60, -80), shot = createSocket('udp4');
+  await new Promise(r => shot.send(D.disEncodeFire({ exercise: 1, shooter: { site: 1, app: 10601, entity: 13 }, pos: D.disToEcef(fl, fo, meta.hHome + 47 + 2), vel: east.map(x => x*900), range: 1000 }), b.udpPort, '127.0.0.1', r));
+  await new Promise(r => shot.send(D.disEncodeDetonation({ exercise: 1, shooter: { site: 1, app: 10601, entity: 13 }, pos: D.disToEcef(...rwLatLon(160, -80), meta.hHome + 47), result: 5 }), b.udpPort, '127.0.0.1', r));
+  shot.close(); await wait(300);
+  const fire = vb.fx.find(f => f.kind === 'fire'), det = vb.fx.find(f => f.kind === 'det');
+  assert.ok(fire && Math.hypot(fire.x - 60, fire.z + 80) < 1 && fire.v[0] > 800, 'Schuss mit Leuchtspur nach Osten'); assert.ok(det && Math.hypot(det.x - 160, det.z + 80) < 1, 'Einschlag');
+  assert.ok(tt - vb.units[0].fireT < 1, 'Panzer schießt');
   const c = vbCenter(); near(c.lat, plat, 1e-7); near(c.h, meta.hHome, 1e-3);
   // Brücke weg: „nicht gefunden“
   b.close(); await wait(300);
