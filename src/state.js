@@ -13,7 +13,7 @@ export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: t
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
   ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal',
-  rwSrc: 'emb', rwLL: '', rwSources: [], rwStream: true, verbund: false, disPort: 3000, disEx: 1, disLL: '', disH: 0, disKeep: false, warhead: 'none',   // verbund: DIS-Modus über die Brücke; Port, Übung; Einheiten behalten bis zur Abmeldung; Ort und Höhe (NHN) der Übung für rwSrc 'dis'
+  rwSrc: 'emb', rwLL: '', rwSources: [], rwStream: true, verbund: false, disPort: 3000, disEx: 1, disLL: '', disH: 0, disKeep: false, warhead: 'none', flight: 'course', world: 'map', tac: 'recon',   // verbund: DIS-Modus über die Brücke; Port, Übung; Einheiten behalten bis zur Abmeldung; Ort und Höhe (NHN) der Übung für rwSrc 'dis'
     // echte Welt: eingebettetes Monschau oder Ort per Koordinate laden; eigene Quellen (L3)
   // Raten wie Betaflight „Actual“: [Mitte °/s, Maximum °/s, Expo %], für Rollen/Nicken und Gieren. Gelten für beide Regler.
   // Vorgabe nahe der früheren Kurve (max. 450 °/s), nicht die Betaflight-Vorgabe 70/670/0 (für Einsteiger zu steil).
@@ -64,6 +64,16 @@ export function keyName(code) {
 let storedCfg = {};
 try { storedCfg = JSON.parse(localStorage.getItem(STORE_CFG) || '{}') || {}; } catch (e) {}
 Object.assign(cfg, storedCfg);
+cfgMigrate(cfg);
+// Menü mit Flugart und Welt (Etappe T1): alte Wahl „Echte Welt“ (scen 'real') wird Welt 'real' mit Freiflug, die Vorschau der
+// Grundtypen ist kein Modus mehr. Alte DIS-Wahl (verbund) bleibt: Startort „DIS-Übung“.
+export function cfgMigrate(c) {
+  if (c.scen === 'real') { c.world = 'real'; c.scen = 'free'; }
+  if (c.scen === 'vbs') c.scen = 'gates';
+  if (c.flight !== 'course' && c.flight !== 'tactical') c.flight = 'course';
+  if (c.world !== 'map' && c.world !== 'real') c.world = 'map';
+  return c;
+}
 // Raten: Ältere Einstellungen kannten nur cfg.rate (max. Drehrate). Daraus Mitte, Maximum und Expo ableiten.
 if (!storedCfg.rates && storedCfg.rate) { const r = Math.min(900, Math.max(200, +storedCfg.rate || 450)), t = x => Math.round(x/10)*10;
   cfg.rates = { rp: [t(r*0.55), t(r), 45], yaw: [t(r*0.42), t(r*0.65), 30] }; }

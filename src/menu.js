@@ -18,7 +18,24 @@ import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
 import { VB, vb, vbBridge, vbCenter, vbSet, VB_BRUECKE } from './verbund.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
-const SPECIAL = new Set(['real', 'vbs']);   // Modi im Reiter „Spezial“: echte Welt, Vorschau der DIS-Grundtypen
+// Menüführung (Etappe T1, docs/plan-taktischer-flug.md): Flugart im Hauptmenü (cfg.flight: Parcours oder Taktisch), auf Schritt 1
+// die Welt (cfg.world: Spielkarte oder echte Welt) und der Modus. Der Modus heißt intern weiter cfg.scen (Parcours) bzw. cfg.tac
+// (Taktisch). In der echten Welt gibt es bis zu den Etappen T2 und T3 nur den Freiflug (Szenario 'real').
+// Taktische Modi: bis Etappe T4 verhalten sie sich wie die Jagd-Modi; „Gemischt“ und Ziele in der echten Welt folgen (T5, T6).
+export const TAC = [
+  { id: 'recon', name: 'Aufklärung', scen: 'free', worlds: ['map', 'real'], info: 'Frei fliegen und beobachten. Mit Wirkmittel zündet die Drohne bei Kontakt.' },
+  { id: 'ground', name: 'Ziele Boden', scen: 'hunt2', worlds: ['map'], info: 'Fahrzeuge auf der Spielkarte. Die Wirkung der Wirkmittel auf Fahrzeuge folgt mit der nächsten Etappe.' },
+  { id: 'air', name: 'Ziele Luft', scen: 'hunt3', worlds: ['map'], info: 'Fluggeräte über der Spielkarte. Die Wirkung der Wirkmittel folgt.' },
+  { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
+];
+const COURSE_REAL = ['free'];   // Parcours in der echten Welt (wächst mit T2 und T3)
+const isReal = () => cfg.world === 'real';
+// Szenario, das beim Start läuft
+export function flightScen() {
+  if (isReal()) return 'real';
+  if (cfg.flight === 'tactical') { const t = TAC.find(x => x.id === cfg.tac) || TAC[0]; return t.scen || 'free'; }
+  return cfg.scen === 'real' || cfg.scen === 'vbs' ? 'gates' : cfg.scen;
+}
 
 export const $ = id => document.getElementById(id);
 export const menu = $('menu');
@@ -84,23 +101,22 @@ function syncStyle() {
 export function syncMenu() {
   press('#fcSeg button', b => b.dataset.fc === (cfg.fc || 'own'));
   setMode(cfg.mode);
-  const sc = SCENARIOS.find(x => x.id === cfg.scen);
-  // DIS-Modus = echte Welt im Verbund mit einem DIS-Partner (cfg.verbund); eigener Knopf unter Spezial
-  const dis = cfg.scen === 'real' && !!cfg.verbund;
-  press('#scenList button, #specList button', b => b.dataset.id === 'dis' ? dis : b.dataset.id === cfg.scen && !(b.dataset.id === 'real' && dis));
-  // Reiter: „Spezial“ für echte Welt (später DIS), sonst „Modi“
-  const spec = SPECIAL.has(cfg.scen);
-  document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String((b.dataset.mtab === 'spec') === spec)));
-  $('modeStd').hidden = spec; $('modeSpec').hidden = !spec;
-  $('courseInfo').textContent = sc.info; $('specInfo').textContent = !spec ? '' : dis ? DIS_INFO : sc.info;
+  // Schritt 1: Titel nach Flugart, Welt-Schalter, Modus-Liste (nach Flugart und Welt gefiltert), Startort in der echten Welt.
+  // DIS-Übung (experimentell) = Startort in der echten Welt (cfg.verbund), in beiden Flugarten.
+  const tac = cfg.flight === 'tactical', real = isReal(), dis = real && !!cfg.verbund, run = flightScen(), sc = SCENARIOS.find(x => x.id === run);
+  $('modeTitle').textContent = tac ? 'Taktischer Flug' : 'Parcours';
+  document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
+  buildModeList();
+  const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
+  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real ? 'Freiflug in echtem Gelände. Weitere Modi in der echten Welt folgen.' : sc.info;
+  $('modeSpec').hidden = !real;
   $('disOpts').hidden = !dis; syncDis();
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';
-  $('courseOpts').hidden = cfg.scen === 'gates' || cfg.scen === 'free' || cfg.scen === 'real' || cfg.scen === 'vbs';
-  $('rwOpts').hidden = cfg.scen !== 'real';
-  press('#rwSeg button', b => b.dataset.src === cfg.rwSrc);
-  $('rwLive').hidden = cfg.rwSrc !== 'live';
+  $('courseOpts').hidden = run === 'gates' || run === 'free' || run === 'real' || run === 'vbs';
+  press('#rwSeg button', b => b.dataset.start === (dis ? 'dis' : cfg.rwSrc === 'live' ? 'live' : 'emb'));
+  $('rwLive').hidden = dis || cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
-  if (!rwBusy) $('rwMsg').textContent = cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + ', ebene Fläche ohne Kartendaten.'
+  if (!rwBusy) $('rwMsg').textContent = dis && cfg.rwSrc !== 'dis' ? '' : cfg.rwSrc === 'dis' ? 'Start am Ort der Übung: ' + (cfg.disLL || '?') + ', ebene Fläche ohne Kartendaten.'
     : cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
     : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
       + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
@@ -108,8 +124,8 @@ export function syncMenu() {
     : 'Zum Beispiel 50.7753, 6.0839, oder auf der Karte wählen. 15 bis 200 MB, danach gespeichert.';
   rwLock();
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
-  $('huntOpts').hidden = cfg.scen !== 'hunt' && cfg.scen !== 'hunt2' && cfg.scen !== 'hunt3';
-  const total = cfg.scen === 'hunt2' ? 7 : cfg.scen === 'hunt3' ? 6 : 9;
+  $('huntOpts').hidden = run !== 'hunt' && run !== 'hunt2' && run !== 'hunt3';
+  const total = run === 'hunt2' ? 7 : run === 'hunt3' ? 6 : 9;
   $('huntX').max = total; cfg.huntX = Math.min(cfg.huntX, total);
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von ' + total;
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);
@@ -141,8 +157,8 @@ export function syncMenu() {
   press('#visionSeg button', b => b.dataset.vision === (cfg.vision || 'normal'));
   press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
-  // Wirkmittel (Prompt 157): nur in der echten Welt (DIS-Übung oder Ort); zündet bei Kontakt
-  $('whSeg').hidden = cfg.scen !== 'real';
+  // Wirkmittel (Prompt 157): nur im Taktischen Flug (T1); zündet bei Kontakt
+  $('whSeg').hidden = !tac;
   press('#whSeg button', b => b.dataset.wh === (cfg.warhead || 'none'));
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));
@@ -271,29 +287,51 @@ async function rwSavedFill() {
 }
 const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1]; };
 async function start() {
-  if (cfg.scen === 'real' && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
-  if (cfg.scen === 'real' && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
+  const real = isReal();
+  if (real && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
+  if (real && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
     say('Lade Gebiet …', 60);
     if (!await rwLiveRun()) { say('Ort nicht geladen, fliege Monschau. ' + $('rwMsg').textContent, 5); await rwLoadEmbedded(); }
     else say('Gebiet geladen', 1.5);
   }
-  if (cfg.scen === 'real' && cfg.rwSrc === 'dis') disFlat();   // Ort der DIS-Übung ohne Kartendaten
-  if (cfg.scen === 'real' && cfg.rwSrc === 'emb' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
-  if (cfg.scen === 'real' && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
-  if (cfg.scen === 'real' && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
-  setScenario(cfg.scen); applyDrone(cfg.drone); saveCfg();
-  game.scenRun = cfg.scen;
+  if (real && cfg.rwSrc === 'dis') disFlat();   // Ort der DIS-Übung ohne Kartendaten
+  if (real && cfg.rwSrc === 'emb' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
+  if (real && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
+  if (real && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
+  run(flightScen());
+}
+// Flug mit Szenario id beginnen (auch die Vorschau der Grundtypen, ohne die Wahl im Menü zu ändern)
+function run(id) {
+  setScenario(id); applyDrone(cfg.drone); saveCfg();
+  game.scenRun = id;
   respawn(); resume();
 }
+// Modus-Liste nach Flugart und Welt: Parcours auf der Spielkarte alle Modi außer echte Welt und Vorschau; Parcours in der
+// echten Welt die platzierbaren (heute Freiflug); Taktisch die vier Aufgaben, nicht verfügbare gesperrt mit Grund im Titel
+let listKey = '';
+function buildModeList() {
+  const tac = cfg.flight === 'tactical', real = isReal(), key = cfg.flight + '|' + cfg.world, box = $('scenList');
+  if (key !== listKey) {
+    listKey = key; box.textContent = '';
+    const items = tac ? TAC.map(t => ({ id: t.id, name: t.name, off: !t.worlds.includes(cfg.world) }))
+      : SCENARIOS.filter(x => x.id !== 'real' && x.id !== 'vbs' && (!real || COURSE_REAL.includes(x.id))).map(x => ({ id: x.id, name: x.name, off: false }));
+    for (const it of items) {
+      const b = addChoice(box, it.name, '', () => { if (tac) cfg.tac = it.id; else cfg.scen = it.id; saveCfg(); syncMenu(); fitPanel(); });
+      b.dataset.id = it.id; b.disabled = it.off; if (it.off) b.title = 'Folgt mit einer der nächsten Etappen';
+    }
+  }
+  // gewählter Modus muss in der Liste sein; sonst den ersten verfügbaren nehmen
+  const ok = [...box.querySelectorAll('button')].filter(b => !b.disabled).map(b => b.dataset.id), cur = tac ? cfg.tac : cfg.scen;
+  if (!ok.includes(cur) && ok.length) { if (tac) cfg.tac = ok[0]; else if (!real) cfg.scen = ok[0]; }
+  press('#scenList button', b => b.dataset.id === (tac ? cfg.tac : real ? 'free' : cfg.scen));
+}
 
-for (const x of SCENARIOS) addChoice($(SPECIAL.has(x.id) ? 'specList' : 'scenList'), x.name, '', () => { rwAbort(); cfg.scen = x.id; if (x.id === 'real') { cfg.verbund = false; if (cfg.rwSrc === 'dis') cfg.rwSrc = 'emb'; } if (!SPECIAL.has(x.id)) cfg.lastStd = x.id; saveCfg(); syncMenu(); }).dataset.id = x.id;
 // DIS-Modus (Nutzer, Prompt 143 und 145): echte Welt im Verbund mit einem DIS-Partner. Zeigt, ob die Brücke läuft (die
 // Verbindung hält vbStep in der Hauptschleife), sonst Download der Windows-Brücke. Ein Browser sieht nur, ob die Brücke läuft,
 // nicht ob sie installiert ist. Mit Einheiten in der Übung: Flug an ihrem Ort (Kartendaten, wenn eine Quelle ihn abdeckt,
 // sonst ebene Fläche auf der Höhe der Einheiten).
-const DIS_INFO = 'Echte Welt im Verbund: Die Drohne erscheint beim DIS-Partner, seine Einheiten hier. Dazu läuft eine Brücke auf diesem Rechner.';
-{ const b = addChoice($('specList'), 'DIS', '', () => { rwAbort(); cfg.scen = 'real'; cfg.verbund = true; saveCfg(); syncMenu(); }); b.dataset.id = 'dis';
-  $('specList').insertBefore(b, $('specList').querySelector('[data-id=vbs]')); }
+// Experimentell (DIS-Abschluss, docs/dis-abschluss.md): bekannte Grenzen im Hinweis.
+const DIS_INFO = 'DIS-Übung (experimentell): Die Drohne erscheint beim Partner, seine Einheiten hier. Der Partner greift die Drohne meist nicht an und übernimmt keinen Schaden.';
 vbSet({ port: cfg.disPort || 3000, exercise: cfg.disEx || 1, keep: !!cfg.disKeep });
 // Frage des Browsers nach dem lokalen Netz (Chrome: „local-network-access“): 'prompt', 'denied', 'granted' oder '' (unbekannt)
 let lna = '';
@@ -327,7 +365,7 @@ function syncDis() {
 }
 let disShown = '';
 setInterval(() => {   // jede Sekunde, solange der DIS-Modus im Menü gewählt ist
-  if (menu.hidden || screen !== 'mode' || cfg.scen !== 'real' || !cfg.verbund) return;
+  if (menu.hidden || screen !== 'mode' || !isReal() || !cfg.verbund) return;
   syncDis();
   const k = $('disOpts').textContent + $('disGet').hidden + $('disSets').hidden;
   if (k !== disShown) { disShown = k; fitPanel(); }
@@ -368,15 +406,24 @@ function disFlat() {
   if (!ll) return;
   if (!(rw.live && rw.meta && rw.meta.flat && rw.liveAt && rw.liveAt[0] === ll[0] && rw.liveAt[1] === ll[1] && rw.meta.hHome === cfg.disH)) rwFlat(ll[0], ll[1], cfg.disH || 0);
 }
-// Reiter wechseln: „Spezial“ wählt die echte Welt, „Modi“ den zuletzt gewählten normalen Modus
+// Welt wechseln (Spielkarte, echte Welt); beim Verlassen der echten Welt laufendes Laden abbrechen
 document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('click', () => {
-  const spec = b.dataset.mtab === 'spec';
-  if (spec && !SPECIAL.has(cfg.scen)) { cfg.lastStd = cfg.scen; cfg.scen = 'real'; }
-  if (!spec && SPECIAL.has(cfg.scen)) { rwAbort(); cfg.scen = cfg.lastStd && !SPECIAL.has(cfg.lastStd) ? cfg.lastStd : 'gates'; }
+  if (b.dataset.world === cfg.world) return;
+  if (b.dataset.world !== 'real') rwAbort();
+  cfg.world = b.dataset.world; saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
+}));
+// Flugart aus dem Hauptmenü
+for (const id of ['go', 'goTac']) $(id).addEventListener('click', () => { cfg.flight = $(id).dataset.flight; saveCfg(); syncMenu(); show('mode'); });
+// Vorschau der DIS-Grundtypen (aus dem DIS-Block): Spielkarte mit den 18 Modellen, Wahl im Menü bleibt
+$('disBases').addEventListener('click', () => { rwAbort(); run('vbs'); });
+document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
+// Startort: Monschau, Ort laden oder DIS-Übung (Verbund; den Ort setzt dort „Dort fliegen“)
+document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventListener('click', () => {
+  const v = b.dataset.start;
+  if (v === 'dis') { cfg.verbund = true; }
+  else { if (v !== cfg.rwSrc) rwAbort(); cfg.verbund = false; cfg.rwSrc = v; }
   saveCfg(); syncMenu(); rwSavedFill(); fitPanel();
 }));
-document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
-document.querySelectorAll('#rwSeg button[data-src]').forEach(b => b.addEventListener('click', () => { if (b.dataset.src !== cfg.rwSrc) rwAbort(); cfg.rwSrc = b.dataset.src; saveCfg(); syncMenu(); rwSavedFill(); }));
 let srcFrom = 'mode';   // Optionen der echten Welt: „Fertig“ führt dorthin zurück, woher man kam
 $('rwOpt').addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); });   // Optionen der echten Welt (Daten, Quellen)
 $('srcDone').addEventListener('click', () => show(srcFrom));
@@ -566,7 +613,6 @@ export function updGpUI() {
 }
 buildGpRows();
 document.querySelectorAll('#menu [data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)));
-$('go').addEventListener('click', () => show('mode'));
 // Drohne: Feinwerte als eigene Ansicht statt der Vorlagen
 function showFine(on) {
   document.querySelector('section[data-screen=drone] .basic').hidden = on;
@@ -577,7 +623,7 @@ function showFine(on) {
 $('bFine').addEventListener('click', () => showFine(document.querySelector('section[data-screen=drone] .fine').hidden));
 // Reiter in den Einstellungen
 function showTab(id) {
-  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
+  document.querySelectorAll('.tabs button[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === id)));   // nur Reiter der Einstellungen (nicht Welt, nicht Quellen)
   document.querySelectorAll('.tabpane').forEach(p => { p.hidden = p.dataset.pane !== id; });
   keyLearn.fn = null;
   fitPanel();

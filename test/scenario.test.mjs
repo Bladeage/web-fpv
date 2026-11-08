@@ -171,3 +171,10 @@ test('Ringe und Slalom: bei jedem Start neue Anordnung, jede besteht die Prüfun
   assert.notDeepEqual(rings[0].c, a, 'ohne festen Startwert bei jedem Start neu');
   setLayoutSeed(7);
 });
+
+test('Menü T1: alte Einstellungen werden umgestellt (Echte Welt als Welt, Vorschau kein Modus, DIS bleibt)', async () => {
+  const { cfgMigrate } = await import('../src/state.js');
+  assert.deepEqual(cfgMigrate({ scen: 'real', verbund: true }), { scen: 'free', world: 'real', verbund: true, flight: 'course' });
+  assert.deepEqual(cfgMigrate({ scen: 'vbs' }), { scen: 'gates', flight: 'course', world: 'map' });
+  assert.deepEqual(cfgMigrate({ scen: 'hunt2', flight: 'tactical', world: 'real' }), { scen: 'hunt2', flight: 'tactical', world: 'real' });
+});

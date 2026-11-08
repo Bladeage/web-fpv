@@ -23,7 +23,8 @@
       <h1 id="mt">FPV-Simulator<small>Modus wählen, Drohne wählen, fliegen</small></h1>
       <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
       <button id="bResume" class="primary" hidden>Weiterfliegen</button>
-      <button id="go" class="primary">Neuer Flug</button>
+      <button id="go" class="primary" data-flight="course" title="Tore, Ringe, Jagd, Lieferung. Spielkarte oder echte Welt">Parcours-Flug</button>
+      <button id="goTac" class="secondary" data-flight="tactical" title="Wirkmittel gegen Ziele. Spielkarte oder echte Welt">Taktischer Flug</button>
       <button class="secondary" data-go="settings">Einstellungen</button>
       <p class="best" id="bestTxt"></p>
       <p class="hint firsthint" id="firstHint">Steuerung: Tastatur (W A S D und Pfeile), Touch oder Funke. Mehr unter Einstellungen → Hilfe.</p>
@@ -32,8 +33,8 @@
 
     <section data-screen="mode" hidden>
       <p class="stepno">Schritt 1 von 2</p>
-      <h1>Modus</h1>
-      <div class="tabs tabs2" id="modeTabs" role="tablist"><button data-mtab="std">Standard</button><button data-mtab="spec">Spezial</button></div>
+      <h1 id="modeTitle">Parcours</h1>
+      <div class="tabs tabs2" id="modeTabs" role="tablist"><button data-world="map" title="Gebaute Karte mit Kurs und Stadt">Spielkarte</button><button data-world="real" title="Echtes Gelände mit Luftbild, Häusern und Bäumen">Echte Welt</button></div>
       <div id="modeStd">
         <div class="list grid2" id="scenList"></div>
         <p class="hint" id="courseInfo"></p>
@@ -46,16 +47,15 @@
         </div>
       </div>
       <div id="modeSpec" hidden>
-        <div class="list grid2" id="specList"></div>
-        <p class="hint" id="specInfo"></p>
-        <div id="disOpts" class="disopts" hidden>
-          <p class="hint" id="disSt"></p>
-          <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
-          <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Am Ort der Übung starten" disabled>Dort fliegen</button></div>
-        </div>
         <div id="rwOpts">
-          <p class="grp">Startort</p>
-          <div class="seg small seg3" id="rwSeg"><button data-src="emb" title="Eingebaut, geht ohne Netz">Monschau</button><button data-src="live" title="Beliebiger Ort in Deutschland">Ort laden</button><button id="rwOpt" title="Daten, Export und Import, Quellen">Optionen</button></div>
+          <p class="grp">Startort <button class="linkbtn grplink" id="rwOpt" title="Daten, Export und Import, Quellen">Optionen ›</button></p>
+          <div class="seg small seg3" id="rwSeg"><button data-start="emb" title="Eingebaut, geht ohne Netz">Monschau</button><button data-start="live" title="Beliebiger Ort in Deutschland">Ort laden</button><button data-start="dis" title="Ort und Einheiten eines DIS-Partners, experimentell">DIS-Übung</button></div>
+          <div id="disOpts" class="disopts" hidden>
+            <p class="hint" id="disSt"></p>
+            <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
+            <div class="dissets" id="disSets" hidden><label>Port <input type="text" id="disPort" inputmode="numeric" maxlength="5" autocomplete="off"></label><label>Übung <input type="text" id="disEx" inputmode="numeric" maxlength="3" autocomplete="off"></label><button class="secondary" id="disHere" title="Am Ort der Übung starten" disabled>Dort fliegen</button></div>
+            <button class="linkbtn" id="disBases" title="Die 18 Modelle für Einheiten aus DIS auf der Spielkarte ansehen">Grundtypen ansehen ›</button>
+          </div>
           <div id="rwLive" class="rwlive">
             <input type="text" id="rwLL" placeholder="Breite, Länge" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
             <button class="secondary" id="rwMap">Karte</button>

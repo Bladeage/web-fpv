@@ -34,7 +34,7 @@ gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 setScenario(cfg.scen); game.scenRun = cfg.scen;
 // Gelände der echten Welt im Hintergrund entpacken; war sie zuletzt gewählt, danach dort neu starten
-rwLoadEmbedded().then(() => { if (cfg.scen === 'real' && rw.ready && !rw.on) { setScenario('real'); respawn(); } });
+rwLoadEmbedded().then(() => { if (cfg.world === 'real' && rw.ready && !rw.on) { setScenario('real'); respawn(); } });
 applyDrone(cfg.drone);
 respawn();
 
@@ -92,7 +92,7 @@ function frame(now) {
   }
   // DIS-Modus: Verbindung halten, solange er gewählt ist (auch im Menü: Brücke und Einheiten der Übung anzeigen); die eigene
   // Drohne nur im Flug der echten Welt senden, auch in der Pause (die Brücke hält den Herzschlag)
-  const disOn = !!cfg.verbund && cfg.scen === 'real';
+  const disOn = !!cfg.verbund && cfg.world === 'real';
   vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && game.scenRun === 'real');
   combat();
   render(dt);
