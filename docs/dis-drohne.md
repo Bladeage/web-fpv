@@ -145,6 +145,15 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **Menütext:** Für `.cmd` fragt Windows mit „Ausführen“, nicht mit den SmartScreen-Begriffen.
 - **Nicht prüfbar:** Hinweis zur Browser-Frage (Freigabe aus D4 gespeichert). FPV1 per SQF in VBS nicht auffindbar (wie in D4).
 
+## D6 Ursachen auf der VBS-Seite (08.11.2026, k5.2, nur gelesen und gemessen)
+
+- **Kernbefund:** Jede Entity des Gateways sendet entweder nur eine PDU beim Anlegen und dann nie wieder, oder sie sendet alle 5 s, aber immer mit dem Inhalt vom Anlegen. Welche weitersenden, wechselt von Lauf zu Lauf. Wir verwerfen nach 13 s ohne PDU, daher mal 3, mal 2 Soldaten.
+- **Fehlende Einheiten:** Gesendet wird nur mit Zuordnung der Klasse (BroadcastUnknownExternalType 0). Der Spieler und die Besatzung (eine Soldatenklasse) senden nie, haben aber DIS-Nummern: vermutlich fehlt die Zuordnung dieser Klasse (nicht geprüft, Gateway-Datenbank unberührt). Mitfahrer außer dem Fahrer sendet das Gateway laut Hilfe grundsätzlich nicht. Ein besetztes Fahrzeug sendet nur beim Anlegen, nach dem Absitzen wieder, aber eingefroren. Auffällig, Bedeutung offen: UnitPublishSubscribeTable mit Stellen 29 und 30 auf 0.
+- **Platzhalter-Ort:** 50,352586 N, 16,644234 E ist der Ankerpunkt der Gegner-Gruppe in der Missionsdatei (Ort beim Anlegen). Die Höhe ist bei Personen aus dem Editor falsch (5,5 m über NN statt 331 m, Herkunft offen). Per Skript angelegte Soldaten melden die richtige Höhe, aber nur eine PDU.
+- **Doku 26.1:** kein ausdrücklicher Hinweis zum Einfrieren. Mögliche Fundstellen: Dead-Reckoning-Vorgaben geändert (Maintenance 26.1), Entity-Nummern auch für Mitfahrer und nicht freigegeben (passt zur Geisternummer 3), „High Performance Mode“ (Standard an; vermutet LightweightMode) schränkt Eingriffe aus Editor und SQF ein.
+- **FPV1 in VBS:** per SQF nicht auffindbar. Laut Hilfe zeigt die Gateway-Oberfläche (Active Entities, http://localhost:4100/Gateway/index.html) Ort und Klasse; im Testclient dort 404. Ersatz: Ort per ECEFToASL mit der Geländehöhe vergleichen.
+- **Vorschlag k5.2 (nur nach Fabians Wort):** Lauf mit LightweightMode 0 mit Blick auf „eine PDU, dann Stille“; Zuordnung der eigenen Soldatenklasse in der Gateway-Oberfläche prüfen.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
