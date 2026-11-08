@@ -135,6 +135,16 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **Geprüft:** Node-Tests (Relais mit Portwechsel, Einheiten aus DIS, Ort der Übung, ebene Fläche, Gesamtlauf mit Weiterschieben, Übung 2 übergangen). PowerShell 7 unter Linux mit Portwechsel. Im Browser mit der PowerShell-Brücke und einem DIS-Ersatz bei 50,352 N, 16,640 E: Menü zeigt 4 Einheiten (Platzhalter übergangen), „Dort fliegen“, Flug auf ebener Fläche (EPSG:25833), Einheiten im Bild, Drohne auf 358,9 m über dem Ellipsoid wie die Einheiten, „DIS 4“ im OSD. Menü passt in vier Größen, mit und ohne Brücke.
 - **Offen:** Probe mit VBS auf dem VBS-Rechner (k5.2). Vermutet: Die eingefrorenen Orte der VBS-Fahrzeuge liegen am Startort der Mission; Personen mit Platzhalter-Ort fallen heraus oder verschieben den Median kaum.
 
+## D5 Probe mit VBS, universeller DIS-Modus (08.11.2026, k5.2, Version 1.149)
+
+- **Geht:** Brücke, Menü, Portwechsel (Port 3001: keine Einheiten), Flug auf ebener Fläche, „DIS 5“ im OSD, FPV1 in VBS angelegt und beim Schließen gelöscht. Download über Chrome: Zone 3; beim Start der klassische Dialog „Datei öffnen – Sicherheitswarnung“ mit „Ausführen“, kein SmartScreen.
+- **Fehler 1, Ort der Übung:** VBS hat 8 Einheiten, per DIS kommen 5. Drei davon (Gegenseite, Appearance 0x2010000) stehen auf exakt demselben Punkt 50,352586 N, 16,644234 E, hEll 48,9 m (Platzhalter; in VBS stehen die Soldaten bei 50,3572 N, hEll etwa 368 m). Sie bestimmen den Median: „Dort fliegen“ landet dort, Bodenhöhe 320 m zu tief, FPV1 steht in VBS etwa 325 m unter Grund. Ein Fahrzeug mit Besatzung und der Spieler fehlen in DIS ganz (VBS-Seite).
+- **Fehler 2, Übung:** Nach dem Wechsel auf Übung 2 zeigte das Menü weiter 5 Einheiten (alte Liste bleibt bis zum Löschen nach 13 s stehen).
+- **Fehler 3:** Nach „Dort fliegen“ war das Feld Übung ausgegraut (Ursache offen).
+- **Hinweis:** Pausiert VBS ohne Fokus, kommen keine PDUs; nach 13 s zeigt das Menü „Noch keine Einheiten“, „Dort fliegen“ ist aus.
+- **Menütext:** Für `.cmd` fragt Windows mit „Ausführen“, nicht mit den SmartScreen-Begriffen.
+- **Nicht prüfbar:** Hinweis zur Browser-Frage (Freigabe aus D4 gespeichert). FPV1 per SQF in VBS nicht auffindbar (wie in D4).
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
