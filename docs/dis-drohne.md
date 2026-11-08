@@ -193,6 +193,20 @@ Vorgabe Fabian: Das DIS-Plugin soll mit jedem DIS-Partner gehen, ohne VBS-Bezug.
 - **Unplausible Einheiten:** Soldaten mit minus 2490 km, fallende Objekte mit minus 156 km (vom Filter „Abstand zur Erdmitte“ schon verworfen). Tempo-Grenze fehlt noch.
 - **Vorschläge k5.2:** Bodenhöhe der ebenen Fläche aus dem unteren Rand (10-%-Quantil oder Minimum), kleiner Sicherheitsabstand (0,3 bis 0,5 m), solange die Drohne steht, Tempo-Grenze. Neue Messung mit echtem Gelände (VWS oder Inset aus NRW-Höhen) angeboten.
 
+## Ursache des Höhenunterschieds (08.11.2026, Messung k5.2 mit Fabians OK, Auswertung web-fpv)
+
+Je Ort ein Radpanzer, ein Schützenpanzer, ein Soldat (VBS als Host mit World Server). NRW-DGM1 an denselben Punkten aus dem WCS gelesen (Skript im Scratchpad).
+
+| Ort | VBS-Gelände (m ü. NN) | NRW-DGM1 | VBS minus NRW | Geoid VBS | Bezugspunkt über Grund |
+|---|---|---|---|---|---|
+| Flughafen, VBS-Standardkarte | 75,74 / 75,87 / 75,85 | 73,47 / 73,63 / 73,78 | +2,27 / +2,24 / +2,07 | 47,25 | −0,09 / −0,10 / 0,00 |
+| Köln, Inset aus NRW-DGM1 | 47,31 / 47,01 / 47,10 | 47,89 / 47,52 / 47,38 | −0,58 / −0,51 / −0,28 | 47,00 | −0,04 / −0,11 / 0,00 |
+
+- **(a) Gelände (gesichert):** Die VBS-Standardkarte liegt am Flughafen etwa 2,2 m über dem echten Gelände (DGM1). Das Inset liegt 0,3 bis 0,6 m darunter.
+- **(b) Geoid (gesichert):** VBS rechnet mit einer Geoidhöhe, die sich mit dem Ort ändert (47,25 m am Flughafen, 47,00 m beim Inset). Wir nehmen fest 47 m: am Flughafen 0,25 m zu wenig, beim Inset passend. Modell von VBS unbelegt.
+- **(c) Bezugspunkt (gesichert):** praktisch der Boden (−0,11 bis 0 m).
+- **Ergebnis:** Fabians 0,4 bis 3 m am Flughafen kommen fast ganz aus der Standardkarte (+2,2 m) plus Geoid (+0,25 m): Unsere gelandete Drohne lag etwa 2,5 m unter dem VBS-Boden. Auf dem Inset läge sie 0,3 bis 0,6 m darüber und bliebe sichtbar.
+
 ## Lizenz: was ins öffentliche Repo darf
 
 - **Ja:** einzelne SISO-Werte und unsere Zuordnung zu den Grundtypen, mit dem Vermerk „Reprinted with permission from SISO Inc.“ im Code und in diesem Dokument. Grund: SISO-REF-010 erlaubt Kopie und abgeleitete Werke mit diesem Vermerk (XML für alle Zwecke, Dokumentation nichtkommerziell; gesichert). Keine Rechtsberatung.
