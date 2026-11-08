@@ -108,7 +108,7 @@ export function syncMenu() {
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && run === 'real' ? 'Freiflug in echtem Gelände. Weitere Modi in der echten Welt folgen.' : real && run === 'rings' ? '8 Ringe in der Luft, frei von Häusern und Bäumen. Bei jedem Start neu angeordnet.' : sc.info;
+  $('courseInfo').textContent = dis ? DIS_INFO : tac ? t.info : real && run === 'real' ? 'Freiflug in echtem Gelände. Weitere Modi in der echten Welt folgen.' : real && run === 'rings' ? 'Zwei Kurse mit je 8 Ringen (orange am Start, blau weiter weg). Es zählt der Kurs, durch dessen ersten Ring du zuerst fliegst.' : sc.info;
   $('modeSpec').hidden = !real;
   $('disOpts').hidden = !dis; syncDis();
   $('droneHint').textContent = (DRONES[cfg.drone.preset] || DRONES['5']).info + ' Propeller: blau = langsam, rot = schnell.';

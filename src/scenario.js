@@ -38,6 +38,9 @@ export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem W
 // quer zur Linie vom vorigen zum nächsten Ring; wegen der Höhenunterschiede sind die Ringe geneigt.
 const RING_H = [4, 7, 11, 6, 13, 9, 5, 8];
 export const RING_TUBE = 0.1;   // Rohrradius in m
+// In der echten Welt dickeres Rohr, damit die Ringe aus der Ferne zu sehen sind (Nutzer, Prompt 165: „ich finde keine“;
+// Schätzung: 0,22 m ist bei 60 m Abstand etwa 2 Pixel breit)
+export const ringTube = () => rw.on ? 0.22 : RING_TUBE;
 // Schwierigkeit (cfg.diff): Ringradius bis Rohrmitte, Slalom-Fenster, Landung (Grenzgeschwindigkeit, halbe Plattformbreite) in m und m/s, Tempo der Ziel-Drohnen (Faktor)
 // Leicht: Jagd mit Ballons (balloons), sonst vorerst wie Normal; weitere Erleichterungen folgen in Runden (J0).
 // Normal: das frühere „Leicht“. Schwer: das frühere „Mittel“.
@@ -138,12 +141,28 @@ export function ringsReal(R) {
   const W = placeReal(), c = game.home, cs = ringChain(W, c, 8, R) || ringCircle(W, c, 8);
   return framesFromCenters(cs);
 }
+// Zweiter Kurs im Gebiet (Prompt 166: zwei Ringparcours im 1 x 1 km): Mitte 150 bis 400 m vom Start in zufälliger Richtung, im
+// Gebiet mit 60 m Rand, nicht über Wasser, mindestens 60 m von jedem Ring des ersten Kurses. Enger (15 bis 45 m um die Mitte) und
+// höher (5 bis 25 m über dem Boden, über Baumkronen; gemessen in Monschau: so passt eine Kette an 34 von 64 Stellen statt 10).
+// Bis 30 Mitten; sonst kein zweiter Kurs.
+export const ringsAlt = [];
+export function ringsRealSecond(R, first) {
+  const W = placeReal(), h = game.home, B = W.bounds;
+  for (let k = 0; k < 30; k++) {
+    const a = R()*2*Math.PI, d = 150 + 250*R(), c = [h[0] + Math.sin(a)*d, h[1] - Math.cos(a)*d];
+    if (c[0] < B[0] + 60 || c[0] > B[2] - 60 || c[1] < B[1] + 60 || c[1] > B[3] - 60 || W.wet(c[0], c[1])) continue;
+    const cs = ringChain(W, c, 8, R, { tries: 150, rMin: 15, rMax: 45, hMin: 5, hMax: 25 });
+    if (cs && cs.every(p => first.every(g => Math.hypot(p[0] - g.c[0], p[2] - g.c[2]) > 60))) return framesFromCenters(cs);
+  }
+  return [];
+}
 // Startwert für die Anordnung: null = bei jedem Start neu (Zufall), Zahl = feste Anordnung (Tests)
 let layoutSeed = null;
 export function setLayoutSeed(n) { layoutSeed = n; }
 function newLayout() {
   const R = rng(layoutSeed ?? Math.floor(Math.random()*1e9));
   rings.length = 0; rings.push(...(rw.on ? ringsReal(R) : makeRings(R)));
+  ringsAlt.length = 0; if (rw.on) ringsAlt.push(...ringsRealSecond(R, rings));
   poles.length = 0; poles.push(...makeSlalom(R));
   poleCols = poles.map(p => ({ c: p.c, h: [0.08, SLALOM_H/2, 0.08], cs: 1, sn: 0 }));
   scen.version++;   // Modell neu bauen
@@ -199,16 +218,19 @@ function advance(count) {
   if (s.next === count) finish(s.t - s.lapStart);
 }
 
+const ringPassed = (g, a, b) => { const p = crossed(a, b, g.c, g.n); if (!p) return false; const d = vSub(p, g.c); return vLen(vSub(d, vScale(g.n, vDot(d, g.n)))) < diff().ringR - ringTube(); };
 function checkRing(a, b) {
   if (st.done) return;
-  const g = rings[game.sim.next], p = crossed(a, b, g.c, g.n);
-  if (!p) return;
-  const d = vSub(p, g.c);
-  if (vLen(vSub(d, vScale(g.n, vDot(d, g.n)))) < diff().ringR - RING_TUBE) advance(rings.length);
+  // Zwei Kurse (echte Welt): Wer zuerst durch den ersten Ring des zweiten Kurses fliegt, fliegt diesen Kurs
+  if (game.sim.next === 0 && ringsAlt.length && ringPassed(ringsAlt[0], a, b)) {
+    const A = rings.slice(); rings.length = 0; rings.push(...ringsAlt); ringsAlt.length = 0; ringsAlt.push(...A); scen.version++;
+    advance(rings.length); return;
+  }
+  if (ringPassed(rings[game.sim.next], a, b)) advance(rings.length);
 }
 function collideRings(h) {
-  const s = game.sim, lim = RING_TUBE + PHYS.radius;
-  for (const g of rings) {
+  const s = game.sim, lim = ringTube() + PHYS.radius;
+  for (const g of [...rings, ...ringsAlt]) {
     const d = vSub(s.p, g.c);
     if (vLen(d) > diff().ringR + lim) continue;
     const inPlane = vSub(d, vScale(g.n, vDot(d, g.n))), l = vLen(inPlane);
@@ -355,7 +377,7 @@ export function scenLabel() {
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
   if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
-  if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
+  if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}` + (s.next === 0 && ringsAlt.length ? ' · 2 KURSE' : '');
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;
   return 'LANDEN';
 }
@@ -381,7 +403,10 @@ export function scenTarget() {
     for (const t of targets) if (t.state === 'fly') { const d = vLen(vSub(t.p, s.p)); if (d < bd) { bd = d; best = t.p; } }
     return best;
   }
-  if (scen.id === 'rings') return rings[s.next].c;
+  if (scen.id === 'rings') {   // vor dem ersten Ring: der nähere Startring der beiden Kurse
+    if (s.next === 0 && ringsAlt.length && vLen(vSub(ringsAlt[0].c, s.p)) < vLen(vSub(rings[0].c, s.p))) return ringsAlt[0].c;
+    return rings[s.next].c;
+  }
   if (scen.id === 'slalom') { const g = poles[s.next]; return [g.c[0] + g.r[0]*g.side*2, 2, g.c[2] + g.r[2]*g.side*2]; }
   return [PAD.c[0], 0.5, PAD.c[2]];
 }
@@ -403,7 +428,8 @@ function torus(mb, g, col) {
   const at = (u, v) => {
     const cu = Math.cos(u), su = Math.sin(u), cv = Math.cos(v), sv = Math.sin(v);
     const radial = vAdd(vScale(g.e1, cu), vScale(g.e2, su));
-    return { p: vAdd(g.c, vAdd(vScale(radial, diff().ringR + RING_TUBE*cv), vScale(g.n, RING_TUBE*sv))),
+    const tb = ringTube();
+    return { p: vAdd(g.c, vAdd(vScale(radial, diff().ringR + tb*cv), vScale(g.n, tb*sv))),
              o: vAdd(vScale(radial, cv), vScale(g.n, sv)) };
   };
   for (let i = 0; i < U; i++) for (let j = 0; j < V; j++) {
@@ -417,6 +443,7 @@ export function buildScenario() {
   const mb = new MeshBuilder(), parts = [];
   const part = f => { const start = mb.count; f(); parts.push({ start, count: mb.count - start }); };
   if (scen.id === 'rings') for (const g of rings) part(() => torus(mb, g, [1.0, 0.72, 0.1]));
+  if (scen.id === 'rings') for (const g of ringsAlt) part(() => torus(mb, g, [0.3, 0.75, 1.0]));   // zweiter Kurs blau
   if (scen.id === 'slalom') for (const g of poles) part(() => {
     mb.box(g.c, [0.08, SLALOM_H/2, 0.08], g.yaw, [0.92, 0.92, 0.9]);
     const fc = [g.c[0] + g.r[0]*g.side*0.33, SLALOM_H - 0.25, g.c[2] + g.r[2]*g.side*0.33];
