@@ -12,7 +12,7 @@ export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: t
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
-  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal',
+  ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal', night: false,
   rwSrc: 'emb', rwLL: '', rwSources: [], rwStream: true, rwShow: {}, verbund: false, disPort: 3000, disEx: 1, disLL: '', disH: 0, disKeep: false, warhead: 'none', flight: 'course', world: 'map', tac: 'recon',   // verbund: DIS-Modus über die Brücke; Port, Übung; Einheiten behalten bis zur Abmeldung; Ort und Höhe (NHN) der Übung für rwSrc 'dis'
     // echte Welt: eingebettetes Monschau oder Ort per Koordinate laden; eigene Quellen (L3)
   // Raten wie Betaflight „Actual“: [Mitte °/s, Maximum °/s, Expo %], für Rollen/Nicken und Gieren. Gelten für beide Regler.

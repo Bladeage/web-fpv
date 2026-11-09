@@ -53,6 +53,7 @@ export function ambStep(h, c, rand = Math.random) {
   amb.jets = amb.jets.filter(j => j.run < AMB.jetSpan);
   amb.tJet -= h;
   if (amb.jets.length < AMB.jets && amb.tJet <= 0) { amb.jets.push(newJet(c, rand)); amb.tJet = rr(rand, AMB.jetGap); }
+  if (cfg.night) return;   // nachts keine Schwärme und Greifvögel (N1); Flugzeuge blinken am Himmel
   // Schwarm
   amb.tFlock -= h;
   if (!amb.flock && amb.tFlock <= 0) amb.flock = newFlock(c, rand);

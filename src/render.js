@@ -10,6 +10,7 @@ import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh, BIRD_SCALE } from './birds.js';
 import { amb, ambJetDirs } from './ambient.js';
+import { dayState } from './daylight.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -115,8 +116,12 @@ uniform vec4 uOver;
 uniform float uFogD, uAlpha, uGfx, uSize;
 uniform vec2 uOrigin;
 uniform sampler2D uGround, uFar;
-uniform float uVision, uHeat, uPhoto, uFarOn, uFarSize, uTime;
+uniform float uVision, uHeat, uPhoto, uFarOn, uFarSize, uTime, uNight;
 uniform vec2 uFarOrigin;
+// Nachtmodus (N1): Selbstleuchten dieses Bildpunkts (Fenster, Lichter), Farbe und Wärme fürs Wärmebild. Global, damit facade()
+// und vis() ihre Signatur behalten. Am Tag bleibt alles 0.
+float gEmit = 0.0, gHeat = 0.0;
+vec3 gEmitC = vec3(1.0, 0.78, 0.45);
 uniform vec4 uEdgeOpen;   // echte Welt: Ränder der Kachel ohne Nachbarn (W, O, N, S), nur dort weich ins Umgebungsbild
 out vec4 o;
 ${NOISE}
@@ -194,6 +199,9 @@ vec3 facade(vec3 c, vec3 p, vec3 n, float base, float k, vec3 cam, float eave){
   float fr = pow(1.0 - abs(dot(v, n)), 3.0);
   vec3 glass = mix(vec3(0.10, 0.13, 0.17), vec3(0.55, 0.66, 0.78), 0.25 + 0.6*fr);
   glass = mix(glass, vec3(0.78, 0.74, 0.62), step(0.78, hs)*0.5*step(k, 1.5));   // manche Wohnungsfenster mit hellem Vorhang
+  // Nachts beleuchtet (N1): etwa jedes dritte Wohnungsfenster, jedes fünfte bei Gewerbe und Amt, nie Garage, Scheune, Kirche
+  float litK = (k < 1.5 || k == 7.0) ? 0.35 : (k == 3.0 || k == 5.0) ? 0.2 : 0.0, lit = (1.0 - step(litK, hs))*uNight;
+  glass = mix(glass, step(0.78, hs) > 0.5 ? vec3(0.95, 0.8, 0.6) : vec3(1.0, 0.85, 0.55), lit);
   vec3 doorC = k == 4.0 ? c*0.62 : vec3(0.42, 0.43, 0.44)*(0.9 + 0.1*step(0.5, fract(f.y*cell.y/0.3)));   // Scheunentor / Garagentor mit Lamellen
   // Fachwerk: dunkle Balken auf Geschossen, Brüstung, Pfosten an Feldrand und Fenstern, Streben neben den Fenstern
   if (k == 7.0 && !stoneBase) {
@@ -212,6 +220,7 @@ vec3 facade(vec3 c, vec3 p, vec3 n, float base, float k, vec3 cam, float eave){
   avg = mix(avg, vec3(0.3, 0.34, 0.4), 0.17*(1.0 - step(1.5, k)*step(k, 2.5)));
   float fade = clamp(1.6 - max(fw.x, fw.y)*3.0, 0.0, 1.0);   // ab ~0,5 Felder je Pixel: Muster aus
   c = mix(avg, pat, fade);
+  gEmit = uNight*mix(litK*0.12*below, win*lit, fade); gHeat = 0.15*gEmit;   // weit weg: mittleres Glimmen der Fassade
   float plinth = 1.0 - smoothstep(0.45, 0.55, h);
   return mix(c, c*vec3(0.55, 0.53, 0.5), plinth*step(k, 5.5));
 }
@@ -219,8 +228,9 @@ vec3 facade(vec3 c, vec3 p, vec3 n, float base, float k, vec3 cam, float eave){
 vec3 vis(vec3 col){
   if (uVision < 0.5) return col;
   float l = dot(col, vec3(0.299, 0.587, 0.114));
-  if (uVision < 1.5) return vec3(mix(0.12 + 0.30*l, 0.97, uHeat));
-  return vec3(0.25, 1.0, 0.35)*(0.05 + 0.6*l + 0.25*uHeat);
+  if (uVision < 1.5) return vec3(mix(0.12 + 0.30*l, 0.97, max(uHeat, gHeat)));   // Lichter warm, beleuchtete Fenster etwas wärmer
+  // Nachtsicht: nachts verstärkt das Gerät das Restlicht stark, Lichtquellen überstrahlen (N1); am Tag wie bisher
+  return vec3(0.25, 1.0, 0.35)*min(0.05 + (uNight > 0.5 ? 4.5 : 0.6)*l + 0.25*uHeat + 2.5*gEmit, 1.6);
 }
 // Echte Welt: Dunst, der in Tälern (unter der Kamera) dichter ist, und blassere Farben mit der Entfernung.
 // Zahlen Schätzung: 150 m Talhöhe, Dunst über 900 m, Entsättigung über 2,5 km, höchstens 45 %.
@@ -288,15 +298,20 @@ void main(){
     float nn = sin(p.x*0.07)*sin(p.y*0.05) + sin(p.x*0.013 + p.y*0.021);
     c *= 0.94 + 0.06*nn;
   }
+  // Lichtkennung Alpha 0,75 (Scheinwerfer, Rücklichter, später Laternen): nachts selbstleuchtend, am Tag normale Fläche
+  if (uNight > 0.5 && vCol.a > 0.74 && vCol.a < 0.76) { gEmit = 1.0; gEmitC = vCol.rgb; gHeat = 0.6; }
+  if (uNight > 0.5) wGlint *= 0.3;   // Mond glänzt schwächer als die Sonne
   if (uGfx < 0.5) {
     c = mix(c, uOver.rgb, uOver.a);
     float dif = max(dot(n, uSun), 0.0);
-    vec3 amb = mix(vec3(0.30,0.29,0.26), vec3(0.52,0.60,0.70), 0.5 + 0.5*n.y);
-    vec3 col = c * (amb + dif*vec3(1.0,0.96,0.88)*0.72) + uOver.rgb*uOver.a*0.35 + vec3(1.0, 0.95, 0.85)*wGlint;
+    vec3 amb = mix(vec3(0.30,0.29,0.26), vec3(0.52,0.60,0.70), 0.5 + 0.5*n.y), lc = vec3(1.0,0.96,0.88)*0.72;
+    if (uNight > 0.5) { amb *= vec3(0.07, 0.08, 0.12); lc = vec3(0.25, 0.30, 0.45)*0.2; }   // Nacht: schwaches bläuliches Restlicht (Schätzung)
+    vec3 col = c * (amb + dif*lc) + uOver.rgb*uOver.a*0.35 + vec3(1.0, 0.95, 0.85)*wGlint;
     float d = dCam;
     float f = 1.0 - exp(-pow(d*uFogD, 1.6));
-    if (uPhoto > 0.5) { col = rwPale(col, d); f += rwHaze(d, uCam.y - vW.y); }
-    o = vec4(vis(mix(col, uFog, clamp(f, 0.0, 1.0))), uAlpha*wAlpha);
+    if (uPhoto > 0.5) { col = rwPale(col, d); f += rwHaze(d, uCam.y - vW.y)*(1.0 - 0.5*uNight); }
+    col = mix(col, uFog, clamp(f, 0.0, 1.0)) + gEmitC*gEmit*(1.0 - 0.7*clamp(f, 0.0, 1.0));
+    o = vec4(vis(col), uAlpha*wAlpha);
     return;
   }
   if (ground && uPhoto < 0.5) {
@@ -311,7 +326,9 @@ void main(){
     vec2 w = vec2(vW.x + vW.z, vW.y);
     vec2 f = fract(w/vec2(2.6, 3.0));
     float win = step(0.3, f.x)*step(f.x, 0.7)*step(0.35, f.y)*step(f.y, 0.75)*step(1.2, vW.y);
-    c = mix(c, vec3(0.16, 0.22, 0.30), win*0.85);
+    float lit = (1.0 - step(0.3, hash(floor(w/vec2(2.6, 3.0)))))*uNight;   // nachts etwa jedes dritte Fenster hell (N1)
+    c = mix(c, mix(vec3(0.16, 0.22, 0.30), vec3(1.0, 0.85, 0.55), lit), win*0.85);
+    gEmit = win*lit*0.85; gHeat = 0.15*gEmit;
     c *= mix(0.75, 1.0, smoothstep(0.0, 0.8, vW.y));
   }
   // Lineares Licht, warme Sonne, kühler Himmel, Abdunklung am Boden, Tone-Mapping, sRGB
@@ -322,12 +339,15 @@ void main(){
   float ao = 1.0;
   if (!ground && uPhoto < 0.5) ao = mix(0.45, 1.0, smoothstep(0.0, 1.5, vW.y)) * (n.y < -0.5 ? 0.6 : 1.0);
   if (rwWall) ao = mix(0.6, 1.0, smoothstep(0.0, 1.5, vW.y - wi.y));   // echte Welt: Abdunklung ab dem Sockel
-  vec3 col = base*(amb*ao + dif*vec3(1.0, 0.88, 0.70)*1.5) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5 + vec3(1.0, 0.95, 0.85)*wGlint;
+  vec3 lc = vec3(1.0, 0.88, 0.70)*1.5;
+  if (uNight > 0.5) { amb *= vec3(0.06, 0.08, 0.12); lc = vec3(0.25, 0.30, 0.45)*0.25; }   // Nacht: Mondlicht bläulich und schwach (Schätzung)
+  vec3 col = base*(amb*ao + dif*lc) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5 + vec3(1.0, 0.95, 0.85)*wGlint;
   float d = dCam;
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
   float hz = full && uPhoto < 0.5 ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/450.0))*0.12 : 0.0;   // Dunst nah am Boden
-  if (uPhoto > 0.5) { col = rwPale(col, d); hz = rwHaze(d, uCam.y - vW.y); }   // echte Welt: Taldunst und blasse Ferne
+  if (uPhoto > 0.5) { col = rwPale(col, d); hz = rwHaze(d, uCam.y - vW.y)*(1.0 - 0.5*uNight); }   // echte Welt: Taldunst und blasse Ferne
   col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + hz, 0.0, 1.0));
+  col += pow(gEmitC, vec3(2.2))*gEmit*1.4*(1.0 - 0.7*clamp(f + hz, 0.0, 1.0));   // Licht: nur leicht vom Nebel gedämpft
   col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);   // ACES-Näherung
   o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), uAlpha*wAlpha);
 }`;
@@ -340,7 +360,7 @@ precision highp float;
 in vec2 vP;
 uniform mat4 uInv;
 uniform vec3 uCam, uFog, uZen, uSun;
-uniform float uVision, uGfx, uTime;
+uniform float uVision, uGfx, uTime, uNight;   // nachts ist uSun die Richtung zum Mond
 uniform vec4 uJa0, uJb0, uJa1, uJb1;   // Flugzeuge (ambient.js): Richtung zum Rumpf und zum Ende des Kondensstreifens, w = Deckkraft
 out vec4 o;
 ${NOISE}
@@ -350,6 +370,7 @@ vec3 contrail(vec3 c, vec3 d, vec4 A, vec4 B){
   if (A.w <= 0.0) return c;
   vec3 nr = cross(A.xyz, B.xyz); float L = length(nr);
   float hd = acos(clamp(dot(d, A.xyz), -1.0, 1.0));
+  if (uNight > 0.5) return mix(c, vec3(1.0), smoothstep(0.003, 0.0012, hd)*step(0.5, fract(uTime*1.2))*A.w);   // nachts: nur Blinklicht
   c = mix(c, vec3(0.62, 0.64, 0.68), smoothstep(0.0022, 0.0010, hd)*A.w);   // Rumpf als kleiner heller Punkt (etwa 1 Bildpunkt)
   if (L < 1e-6) return c;
   nr /= L;
@@ -374,9 +395,21 @@ void main(){
   float t = clamp(d.y, 0.0, 1.0);
   vec3 c = mix(uFog, uZen, pow(t, 0.55));
   float s = max(dot(d, uSun), 0.0);
-  // Sonne: Scheibe (etwa 1 Grad), heller Rand darum, weiter Schein
-  float disc = smoothstep(0.99982, 0.99990, s);
-  c += vec3(1.0,0.92,0.75) * (pow(s, 900.0)*1.2 + pow(s, 14.0)*0.12);
+  // Sonne: Scheibe (etwa 1 Grad), heller Rand darum, weiter Schein. Nachts der Mond: Scheibe, schwacher Hof, dazu Sterne.
+  float disc = smoothstep(0.99982, 0.99990, s), sl = 0.0;
+  if (uNight < 0.5) c += vec3(1.0,0.92,0.75) * (pow(s, 900.0)*1.2 + pow(s, 14.0)*0.12);
+  else {
+    if (uGfx > 1.5) c += vec3(0.5, 0.55, 0.7)*pow(s, 30.0)*0.08;
+    if (uGfx > 0.5 && d.y > 0.0) {   // Sterne: Zelle von etwa 0,2 Grad, jede 250. leuchtet, Helligkeit zufällig, Schön mit Funkeln
+      vec2 g = vec2(atan(d.z, d.x), asin(clamp(d.y, -1.0, 1.0)))*280.0, f = fract(g) - 0.5;
+      float h = hash(floor(g));
+      if (h > 0.996) {
+        float st = smoothstep(0.35, 0.08, length(f))*(0.35 + 0.65*fract(h*731.0))*smoothstep(0.02, 0.15, d.y);
+        if (uGfx > 1.5) st *= 0.75 + 0.25*sin(uTime*3.0 + h*900.0);
+        c += vec3(0.9, 0.92, 1.0)*st; sl += st;
+      }
+    }
+  }
   if (uGfx > 0.5 && d.y > 0.0) {   // Wolken nur ab „Mittel“, „Einfach“ bleibt unverändert schnell
     vec2 p = d.xz/(d.y + 0.12)*1.6 + uTime*vec2(0.006, 0.0025);
     float n = fbm(p, uGfx > 1.5 ? 5 : 3);
@@ -384,12 +417,14 @@ void main(){
     cov *= smoothstep(0.9993, 0.9965, s);   // Wolken lassen die Sonne frei (sonst blendet der Lens-Flare durch Wolken)
     vec3 cc = mix(vec3(0.70, 0.75, 0.83), vec3(0.98, 0.98, 1.0), smoothstep(0.48, 0.85, n));
     cc += vec3(0.20, 0.15, 0.08)*pow(s, 6.0);   // zur Sonne hin warm aufgehellt
+    if (uNight > 0.5) { cc = mix(vec3(0.10, 0.11, 0.14), vec3(0.16, 0.17, 0.2), smoothstep(0.48, 0.85, n)); cov *= 0.7; sl *= 1.0 - cov; }   // nachts dunkelgrau, Sterne dahinter
     c = mix(c, cc, cov*0.85);
   }
   if (d.y > 0.0) { c = contrail(c, d, uJa0, uJb0); c = contrail(c, d, uJa1, uJb1); }
-  c = mix(c, vec3(1.0, 0.98, 0.92)*1.6, disc);
-  if (uVision > 1.5) c = vec3(0.02, 0.07, 0.03) + vec3(0.03, 0.10, 0.04)*(1.0 - t);   // Nachtsicht: fast schwarz-grün
-  else if (uVision > 0.5) c = vec3(0.10 + 0.08*(1.0 - t));                            // Wärmebild: kalter Himmel dunkel
+  c = mix(c, uNight > 0.5 ? vec3(0.85, 0.87, 0.92) : vec3(1.0, 0.98, 0.92)*1.6, disc);
+  sl += disc*uNight;
+  if (uVision > 1.5) c = vec3(0.02, 0.07, 0.03) + vec3(0.03, 0.10, 0.04)*(1.0 - t) + vec3(0.25, 1.0, 0.35)*sl*0.8;   // Nachtsicht: fast schwarz-grün, Sterne und Mond hell
+  else if (uVision > 0.5) c = vec3((0.10 + 0.08*(1.0 - t))*(1.0 - 0.3*uNight));             // Wärmebild: kalter Himmel dunkel, nachts kälter
   o = vec4(c, 1.0);
 }`;
 // Lens-Flare: schwache farbige Spiegelungen auf der Linie Sonne -> Bildmitte, dazu ein feiner Lichtstreifen.
@@ -430,7 +465,6 @@ const SUN = vNorm([0.45, 0.8, 0.3]);
 const SUN_RW = vNorm([-Math.sin(Math.PI/180)*Math.cos(Math.PI/4), Math.sin(Math.PI/4), Math.cos(Math.PI/180)*Math.cos(Math.PI/4)]);   // x Ost, z Süd
 const sunDir = () => rw.on ? SUN_RW : SUN;
 const PATH = new Float32Array(COURSE.flatMap(c => [c[0], c[1]]).concat([0, 0]));   // Wege im Boden: Kurs als Linienzug
-const FOG = [0.80, 0.86, 0.90], ZEN = [0.30, 0.52, 0.80];
 
 function compile(type, src) {
   const s = gl.createShader(type);
@@ -540,8 +574,8 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime']);
-  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime', 'uJa0', 'uJb0', 'uJa1', 'uJb1']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime', 'uNight']);
+  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime', 'uJa0', 'uJb0', 'uJa1', 'uJb1', 'uNight']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = worldData || (worldData = buildWorld());   // buildWorld füllt Hindernisse und Tore und darf nur einmal laufen (Neuaufbau nach Grafikverlust)
   staticCount = w.staticCount; groundCount = w.groundCount;
@@ -676,16 +710,17 @@ export function render(dt) {
   lastVP = vp;
 
   gl.viewport(0, 0, W, H);
-  gl.clearColor(FOG[0], FOG[1], FOG[2], 1);
+  const DS = dayState(cfg.night, sunDir()), FOGN = DS.fog;   // Tageszeit (N1): Licht, Nebel, Himmel
+  gl.clearColor(FOGN[0], FOGN[1], FOGN[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   // Himmel
   gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
   gl.useProgram(PS.p);
   gl.uniformMatrix4fv(PS.u.uInv, false, mInv(vp));
-  gl.uniform3fv(PS.u.uCam, eye); gl.uniform3fv(PS.u.uFog, FOG);
-  const S = sunDir();
-  gl.uniform3fv(PS.u.uZen, ZEN); gl.uniform3fv(PS.u.uSun, S);
+  gl.uniform3fv(PS.u.uCam, eye); gl.uniform3fv(PS.u.uFog, FOGN);
+  const S = DS.light;
+  gl.uniform3fv(PS.u.uZen, DS.zen); gl.uniform3fv(PS.u.uSun, S); gl.uniform1f(PS.u.uNight, DS.night);
   const VIS = cfg.vision === 'thermal' ? 1 : cfg.vision === 'night' ? 2 : 0;   // Bildmodus (V1)
   gl.uniform1f(PS.u.uVision, VIS);
   const GFX = cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2;
@@ -700,7 +735,7 @@ export function render(dt) {
   gl.useProgram(P.p);
   gl.uniformMatrix4fv(P.u.uVP, false, vp);
   gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
-  gl.uniform3fv(P.u.uSun, S); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOG);
+  gl.uniform3fv(P.u.uSun, S); gl.uniform3fv(P.u.uCam, eye); gl.uniform3fv(P.u.uFog, FOGN); gl.uniform1f(P.u.uNight, DS.night);
   gl.uniform1f(P.u.uFogD, rw.on ? (rw.far ? 1/2200 : 1/700) : GFX ? 1/380 : 1/260);   // Mittel und Schön: weniger dichter Nebel (Einfach unverändert). Echte Welt: klare Sicht, Nebel verdeckt erst den Rand
   gl.uniform1f(P.u.uGfx, GFX); gl.uniform1f(P.u.uTime, performance.now()/1000);
   gl.uniform1f(P.u.uVision, VIS); gl.uniform1f(P.u.uHeat, 0);   // Wärme je Objekt: 0 kalt, 1 heiß (Motoren)
@@ -838,7 +873,7 @@ export function render(dt) {
       const m = mFromQT(qAxis([0,1,0], yaw), [x, (rw.on ? groundH(x, z) : g0) + 0.02, z]);
       for (const i of [0, 1, 2]) m[i] *= rx*k/dr;
       for (const i of [8, 9, 10]) m[i] *= rz*k/dr;
-      gl.uniformMatrix4fv(P.u.uModel, false, m); gl.uniform1f(P.u.uAlpha, a*al*0.6);
+      gl.uniformMatrix4fv(P.u.uModel, false, m); gl.uniform1f(P.u.uAlpha, a*al*0.6*(cfg.night ? 0.4 : 1));   // nachts schwach (Mond)
       gl.drawArrays(gl.TRIANGLES, 0, discMesh.count);
     }
     gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND);
@@ -1143,7 +1178,7 @@ function drawTerrain() {
 function drawFlare(vp, eye, asp, GFX, VIS, dt) {
   const S = sunDir(), c = [0, 1, 2, 3].map(i => vp[i]*S[0] + vp[4 + i]*S[1] + vp[8 + i]*S[2]);   // Richtung (w = 0): Sonne unendlich weit
   let want = 0;
-  if (GFX > 0 && VIS === 0 && c[3] > 0) {
+  if (GFX > 0 && VIS === 0 && c[3] > 0 && !cfg.night) {   // nachts kein Lens-Flare
     const x = c[0]/c[3], y = c[1]/c[3], r = Math.hypot(x*asp, y);
     if (Math.abs(x) < 1.1 && Math.abs(y) < 1.1 && (rw.on || (!rayBlocked(eye, S, 400, colliders) && !rayBlocked(eye, S, 400, town))))
       want = clamp(1.25 - r*0.7, 0, 1);

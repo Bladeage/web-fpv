@@ -166,7 +166,7 @@ export function syncMenu() {
   $('batMin').value = cfg.batMin; $('batMinV').textContent = cfg.batMin.toFixed(2) + ' V';
   $('fov').value = cfg.fov; $('fovV').textContent = cfg.fov + '°';
   $('vol').value = Math.round((cfg.vol ?? 0.7)*100); $('volV').textContent = Math.round((cfg.vol ?? 0.7)*100) + ' %';
-  $('needArm').checked = cfg.needArm;
+  $('needArm').checked = cfg.needArm; $('night').checked = !!cfg.night;
   $('autoRes').checked = cfg.autoRes;
   $('infBat').checked = cfg.infBat;
   $('ghost').checked = cfg.ghost; $('trail').checked = cfg.trail;
@@ -584,6 +584,7 @@ $('trail').addEventListener('change', e => { cfg.trail = e.target.checked; saveC
 for (const [id, st] of Object.entries(STYLES)) addChoice($('styleSeg'), st.name, '', () => { Object.assign(cfg, st.set); saveCfg(); syncMenu(); }).dataset.id = id;
 $('autoRes').addEventListener('change', e => { cfg.autoRes = e.target.checked; saveCfg(); });
 $('needArm').addEventListener('change', e => { cfg.needArm = e.target.checked; saveCfg(); });
+$('night').addEventListener('change', e => { cfg.night = e.target.checked; saveCfg(); });   // Tageszeit (N1), auch im Flug über das Pause-Menü
 $('tilt').addEventListener('input', e => { cfg.tilt = +e.target.value; $('tiltV').textContent = cfg.tilt + '°'; saveCfg(); });
 // Raten: Zahl begrenzen, speichern und an Betaflight geben. Maximum nie unter der Mitte.
 document.querySelectorAll('#rates input').forEach(el => el.addEventListener('change', () => {

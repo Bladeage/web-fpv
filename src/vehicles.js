@@ -124,8 +124,9 @@ export function buildVehicle() {
     mb.cyl([x*(w + 0.005), 0.33, z*(l - 0.68)], 0.17, 0.02, 10, [0.6, 0.6, 0.62], 'x');
   }
   for (const x of [-1, 1]) {
-    mb.box([x*(w - 0.25), 0.7, -l - 0.01], [0.18, 0.07, 0.02], 0, [1.0, 0.96, 0.75]);   // Scheinwerfer (vorn = -Z)
-    mb.box([x*(w - 0.22), 0.72, l + 0.01], [0.16, 0.06, 0.02], 0, [0.85, 0.08, 0.06]);   // Rücklichter
+    // Alpha 0,75 = Licht: leuchtet nachts selbst (Shader, N1), am Tag eine normale Fläche
+    mb.box([x*(w - 0.25), 0.7, -l - 0.01], [0.18, 0.07, 0.02], 0, [1.0, 0.96, 0.75, 0.75]);   // Scheinwerfer (vorn = -Z)
+    mb.box([x*(w - 0.22), 0.72, l + 0.01], [0.16, 0.06, 0.02], 0, [0.85, 0.08, 0.06, 0.75]);   // Rücklichter
   }
   return new Float32Array(mb.d);
 }
