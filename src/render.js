@@ -9,9 +9,10 @@ import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
 import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh, BIRD_SCALE } from './birds.js';
-import { amb, ambJetDirs } from './ambient.js';
+import { amb, ambJetDirs, ambOn } from './ambient.js';
 import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
+import { rwLamps } from './roads.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -38,7 +39,7 @@ export const glLost = { on: false, since: 0 };
 glc.addEventListener('webglcontextlost', e => { e.preventDefault(); glLost.on = true; glLost.since = performance.now(); });
 glc.addEventListener('webglcontextrestored', () => {
   trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null; baseGl.clear(); partGl.clear(); flashMesh = tracerGl = null;
-  terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = null; rwGlVer = -1; tileGlVer = -1;
+  terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = lampGl = null; rwGlVer = -1; tileGlVer = -1;
   initGL(); resize(); glLost.on = false;
 });
 
@@ -300,7 +301,7 @@ void main(){
     c *= 0.94 + 0.06*nn;
   }
   // Lichtkennung Alpha 0,75 (Scheinwerfer, Rücklichter, später Laternen): nachts selbstleuchtend, am Tag normale Fläche
-  if (uNight > 0.5 && vCol.a > 0.74 && vCol.a < 0.76) { gEmit = 1.0; gEmitC = vCol.rgb; gHeat = 0.6; }
+  if (uNight > 0.5 && vCol.a > 0.74 && vCol.a < 0.76) { float m = max(max(vCol.r, vCol.g), vCol.b); gEmit = pow(m, 2.2); gEmitC = vCol.rgb/max(m, 1e-3); gHeat = 0.6*m; }   // Stärke aus dem hellsten Farbanteil, gekrümmt: Lichtscheiben laufen zum Rand weich aus (sonst harte Kante)
   if (uNight > 0.5) wGlint *= 0.3;   // Mond glänzt schwächer als die Sonne
   if (uGfx < 0.5) {
     c = mix(c, uOver.rgb, uOver.a);
@@ -454,7 +455,7 @@ void main(){
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, beamMesh = null, lampGl = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
 const partGl = new Map();   // DIS-Einheiten: Teile je Grundtyp
 const SUN = vNorm([0.45, 0.8, 0.3]);
 // Sonne in der echten Welt: passend zu den Schatten im Luftbild (die sind eingebacken; vorher widersprachen beleuchtete
@@ -583,6 +584,11 @@ export function initGL() {
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
   vehMesh = upload(buildVehicle());
+  { // Lichtkegel vor einem Auto (N2, Schön): Fläche auf der Straße 2,3 bis 12 m vor dem Wagen, vorn warm, hinten 0 (Alpha 0,75 = Licht)
+    const n = [0.62, 0.55, 0.4, 0.75], f = [0, 0, 0, 0.75], y = 0.06, d = [];
+    const v = (x, z, c) => d.push(x, y, z, 0, 1, 0, c[0], c[1], c[2], c[3]);
+    v(-1.0, -2.3, n); v(1.0, -2.3, n); v(3.0, -12, f); v(-1.0, -2.3, n); v(3.0, -12, f); v(-3.0, -12, f);
+    beamMesh = upload(new Float32Array(d)); }
   { const mb = new MeshBuilder(); mb.box([0, 0, 0], [0.07, 0.05, 0.07], 0, [0.62, 0.45, 0.28]); pkgMesh = upload(new Float32Array(mb.d)); }   // Paket
   balloonMesh = upload(buildBalloonMesh());
   for (const k of ['plane', 'heli', 'hexa']) airMesh[k] = upload(buildAircraftMesh(k));
@@ -974,6 +980,27 @@ export function render(dt) {
       gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniform1f(P.u.uHeat, 0);
+  }
+  // Nacht in der echten Welt (N2): Straßenlaternen in Ortslagen (ab Mittel) und Lichtkegel vor den Autos (Schön). Masten und Köpfe
+  // normal, Lichtscheiben am Boden additiv ohne Tiefen-Eintrag. Im Wärmebild keine Scheiben (Licht ist nicht warm).
+  if (cfg.night && rw.on && GFX > 0 && ambOn()) {
+    const L = rw.show.lamps !== false ? rwLamps() : null;
+    if (L && (!lampGl || lampGl.key !== L.key)) { if (lampGl) freeGl(lampGl); lampGl = upload(L.data); lampGl.key = L.key; }
+    gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
+    if (L) { gl.bindVertexArray(lampGl.vao); gl.drawArrays(gl.TRIANGLES, 0, L.solid); }
+    if (VIS !== 1) {
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -16);
+      if (L) gl.drawArrays(gl.TRIANGLES, L.solid, L.count - L.solid);
+      if (GFX > 1 && traffic.cars.length) {
+        gl.bindVertexArray(beamMesh.vao);
+        for (const a of traffic.cars) {
+          gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(qAxis([0,1,0], a.yaw), qAxis([1,0,0], a.pitch)), [a.x, a.y, a.z]));
+          gl.drawArrays(gl.TRIANGLES, 0, beamMesh.count);
+        }
+        gl.uniformMatrix4fv(P.u.uModel, false, mIdent());
+      }
+      gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.disable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    }
   }
   // Vorschau VBS-Grundtypen (Modus unter Spezial): Modelle nach Seite eingefärbt, zerstörte dunkel und schief
   if (scen.id === 'vbs') {

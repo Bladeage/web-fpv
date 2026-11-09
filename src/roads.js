@@ -3,7 +3,8 @@
    Monschau, später Achsen aus ALKIS-Flächen (S2) oder anderen Ländern (Nutzer, Prompt 184: Straßen und Autos überall, wo es
    Straßenlinien gibt). Daraus: Knoten und Kanten, Zufallswege, Fahrspur rechts, Höhenprofil mit Brücken und Hindernissen.
    Ohne DOM, in Node testbar. */
-import { rw, groundH, rwNear, waterAt, placeReal, WATER_UP } from './realworld.js';
+import { rw, groundH, rwNear, placeReal, rwPlace, WATER_UP } from './realworld.js';
+import { MeshBuilder } from './world.js';
 
 // m; w Fahrbahnbreite ohne Angabe (Schätzung Ortsstraße); clear, r: Prüfkugel für das Auto (Mitte 1,2 m hoch, Radius 0,9 m)
 export const ROADS = { snap: 1.5, w: 5.5, step: 2, clear: 1.2, r: 0.9, ford: 12, deck: 12 };
@@ -161,4 +162,56 @@ export function rwRoads() {
   for (const T of (rw.tiles && rw.tiles.values()) || []) if (T.roads) list.push(...T.roads);
   cache = { key, G: list.length ? roadGraph(list) : null };
   return cache.G;
+}
+
+// Straßenlaternen (Etappe N2, Plan 1.2): alle every Meter entlang jeder Kante, Seite wechselnd, Versatz halbe Fahrbahnbreite +
+// 0,6 m, nur innerhalb einer Ortslage (so stehen sie in Städten und Dörfern, nicht an Feldwegen), nicht im Wasser, nicht in
+// Gebäuden oder Bäumen. Rückgabe [[x, z], …]. Abstand 35 m: Schätzung für Ortsstraßen.
+export const LAMP = { every: 35, side: 0.6, mast: 5, head: 0.3, disc: 6 };
+export function lampSpots(G, every = LAMP.every, W = placeReal()) {
+  const out = []; let side = 1;
+  for (const E of G.edges) {
+    let s = every/2, acc = 0;
+    for (let i = 0; i < E.pts.length - 1; i++) {
+      const a = E.pts[i], b = E.pts[i + 1], L = Math.sqrt(dist2(a, b)); if (L < 1e-6) continue;
+      const nx = -(b[1] - a[1])/L, nz = (b[0] - a[0])/L;   // rechts der Kante
+      while (s <= acc + L) {
+        const t = (s - acc)/L, off = side*(E.w/2 + LAMP.side), x = a[0] + (b[0] - a[0])*t + nx*off, z = a[1] + (b[1] - a[1])*t + nz*off;
+        const pl = rwPlace(x, z);
+        if (pl && pl.d === 0 && !W.wet(x, z) && W.free([x, groundH(x, z) + 2.5, z], 0.25)) { out.push([x, z]); side = -side; }
+        s += every;
+      }
+      acc += L;
+    }
+  }
+  return out;
+}
+// Netz der Laternen: Masten (dunkelgrau, Alpha 1) und Köpfe (warmweiß, Alpha 0,75 = Licht), danach die Lichtscheiben am Boden
+// (Achteck, Mitte warm, Rand 0, Alpha 0,75; der Grafikteil zeichnet sie additiv). Ecken der Scheibe folgen dem Gelände.
+// Rückgabe: { data, solid (Ecken der Masten und Köpfe), count }
+export function lampMesh(spots) {
+  const mb = new MeshBuilder(), mast = [0.22, 0.22, 0.24], head = [1.0, 0.88, 0.62, 0.75];
+  for (const [x, z] of spots) {
+    const g = groundH(x, z);
+    mb.box([x, g + LAMP.mast/2, z], [0.06, LAMP.mast/2, 0.06], 0, mast);
+    mb.box([x, g + LAMP.mast + 0.08, z], [LAMP.head/2, 0.08, LAMP.head/2], 0, head);
+  }
+  const solid = mb.count, N = 8, R = LAMP.disc, mid = [0.75, 0.6, 0.36, 0.75], rim = [0, 0, 0, 0.75];
+  for (const [x, z] of spots) {
+    const c = [x, groundH(x, z) + 0.08, z];
+    const P = k => { const a = k*2*Math.PI/N, px = x + Math.cos(a)*R, pz = z + Math.sin(a)*R; return [px, groundH(px, pz) + 0.08, pz]; };
+    for (let k = 0; k < N; k++) {
+      const p = P(k), q = P(k + 1), d = mb.d;
+      for (const [v, col] of [[c, mid], [q, rim], [p, rim]]) d.push(v[0], v[1], v[2], 0, 1, 0, col[0], col[1], col[2], col[3]);
+    }
+  }
+  return { data: new Float32Array(mb.d), solid, count: mb.count };
+}
+// Laternen der aktuellen Welt, zwischengespeichert wie der Graph (gebaut erst bei Bedarf, also nur nachts)
+let lampCache = { key: '', L: null };
+export function rwLamps() {
+  const G = rwRoads(); if (!G) return null;
+  const key = rw.ver + ':' + rw.tileVer;
+  if (lampCache.key !== key) { const spots = lampSpots(G); lampCache = { key, L: spots.length ? { spots, ...lampMesh(spots), key } : null }; }
+  return lampCache.L;
 }

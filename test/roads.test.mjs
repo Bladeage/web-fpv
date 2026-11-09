@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { cfg } from '../src/state.js';
-import { rw, rwApply, rwSetShow, groundH, placeReal } from '../src/realworld.js';
-import { roadGraph, roadWalk, laneOffset, laneProfile, roadH, rwRoads, ROADS } from '../src/roads.js';
+import { rw, rwApply, rwSetShow, groundH, placeReal, rwPlace } from '../src/realworld.js';
+import { roadGraph, roadWalk, laneOffset, laneProfile, roadH, rwRoads, ROADS, lampSpots, lampMesh, rwLamps, LAMP } from '../src/roads.js';
 import { traffic, trafficStep, TRAFFIC } from '../src/traffic.js';
 import { rng } from '../src/world.js';
 
@@ -84,4 +84,30 @@ test('Verkehr: Autos erscheinen, fahren auf der Spur im Tempo, nicht in DIS und 
   rwSetShow({ traffic: false }); rw.on = true; trafficStep(0.05, c, null, R); assert.equal(traffic.cars.length, 0, 'Schalter aus');
   assert.equal(rw.showOff, false, 'Verkehr aus sperrt keine Bestzeit');
   rwSetShow({}); rw.on = false;
+});
+
+test('Laternen (N2): in Ortslagen, Abstand etwa 35 m, neben der Fahrbahn; Köpfe und Lichtscheiben mit Lichtkennung', () => {
+  load();
+  const G = rwRoads(), S = lampSpots(G);
+  assert.ok(S.length > 60 && S.length < 400, S.length + ' Laternen');
+  const W = placeReal();
+  for (const [x, z] of S) {
+    assert.equal(rwPlace(x, z).d, 0, 'in einer Ortslage'); assert.ok(!W.wet(x, z), 'trocken');
+    // Abstand zur nächsten Achse: halbe Breite + 0,6 m (± 1 m)
+    let d = Infinity; for (const E of G.edges) for (let i = 0; i < E.pts.length - 1; i++) {
+      const a = E.pts[i], b = E.pts[i + 1], ex = b[0] - a[0], ez = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0])*ex + (z - a[1])*ez)/(ex*ex + ez*ez || 1)));
+      d = Math.min(d, Math.hypot(x - a[0] - ex*t, z - a[1] - ez*t)); }
+    assert.ok(d < ROADS.w/2 + LAMP.side + 1, 'neben der Straße: ' + d.toFixed(2));
+  }
+  // Abstand zur nächsten anderen Laterne meist um 35 m (Seiten wechseln: diagonal etwas mehr), nie unter 10 m an einer Kante
+  const nn = S.map((p, i) => Math.min(...S.filter((_, j) => j !== i).map(q => Math.hypot(q[0] - p[0], q[1] - p[1]))));
+  nn.sort((a, b) => a - b); const med = nn[nn.length >> 1];
+  assert.ok(med > 25 && med < 45, 'Median Abstand ' + med.toFixed(1));
+  const M = lampMesh(S.slice(0, 3)), al = i => M.data[i*10 + 9];
+  assert.equal(M.count - M.solid, 3*8*3, 'drei Scheiben aus 8 Dreiecken');
+  let heads = 0; for (let i = 0; i < M.solid; i++) if (Math.abs(al(i) - 0.75) < 1e-6) heads++;
+  assert.equal(heads, 3*36, 'Köpfe leuchten');
+  for (let i = M.solid; i < M.count; i++) assert.ok(Math.abs(al(i) - 0.75) < 1e-6, 'Scheiben leuchten');
+  const L = rwLamps(); assert.ok(L && L.spots.length === S.length && rwLamps() === L, 'zwischengespeichert');
+  rw.on = false;
 });
