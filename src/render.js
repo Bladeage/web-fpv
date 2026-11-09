@@ -9,7 +9,8 @@ import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
 import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh, BIRD_SCALE } from './birds.js';
-import { amb, ambJetDirs, ambOn } from './ambient.js';
+import { amb, ambJetDirs, ambOn, buildHotAirMesh, buildGliderMesh, BALLOON_COLS } from './ambient.js';
+import { boats, buildBoatMesh, boatYaw, BOAT } from './boats.js';
 import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
@@ -455,7 +456,7 @@ void main(){
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, beamMesh = null, lampGl = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, beamMesh = null, boatMesh = {}, hotAirMesh = [], gliderMesh = null, lampGl = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
 const partGl = new Map();   // DIS-Einheiten: Teile je Grundtyp
 const SUN = vNorm([0.45, 0.8, 0.3]);
 // Sonne in der echten Welt: passend zu den Schatten im Luftbild (die sind eingebacken; vorher widersprachen beleuchtete
@@ -584,6 +585,8 @@ export function initGL() {
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
   vehMesh = upload(buildVehicle());
+  for (const k of Object.keys(BOAT.kinds)) boatMesh[k] = upload(buildBoatMesh(k));   // Belebung L2: Boote, Ballon, Segler
+  hotAirMesh = BALLOON_COLS.map(c => upload(buildHotAirMesh(c))); gliderMesh = upload(buildGliderMesh());
   { // Lichtkegel vor einem Auto (N2, Schön): Fläche auf der Straße 2,3 bis 12 m vor dem Wagen, vorn warm, hinten 0 (Alpha 0,75 = Licht)
     const n = [0.62, 0.55, 0.4, 0.75], f = [0, 0, 0, 0.75], y = 0.06, d = [];
     const v = (x, z, c) => d.push(x, y, z, 0, 1, 0, c[0], c[1], c[2], c[3]);
@@ -981,6 +984,22 @@ export function render(dt) {
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniform1f(P.u.uHeat, 0);
   }
+  // Belebung der echten Welt (L2): Boote auf dem Wasser, Heißluftballon, Segelflieger
+  for (const b of boats.list) {
+    const m = boatMesh[b.kind]; gl.bindVertexArray(m.vao); gl.uniform1f(P.u.uHeat, BOAT.kinds[b.kind].heat);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], boatYaw(b.head)), [b.x, b.y, b.z]));
+    gl.drawArrays(gl.TRIANGLES, 0, m.count);
+  }
+  if (amb.balloon) {
+    const B = amb.balloon, m = hotAirMesh[Math.max(0, BALLOON_COLS.indexOf(B.col))];
+    gl.bindVertexArray(m.vao); gl.uniform1f(P.u.uHeat, 0.5);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT([0, 0, 0, 1], B.p)); gl.drawArrays(gl.TRIANGLES, 0, m.count);
+  }
+  if (amb.glider) {
+    const G = amb.glider; gl.bindVertexArray(gliderMesh.vao); gl.uniform1f(P.u.uHeat, 0.3);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(qAxis([0,1,0], G.yaw), qAxis([0,0,1], G.roll)), G.p)); gl.drawArrays(gl.TRIANGLES, 0, gliderMesh.count);
+  }
+  gl.uniform1f(P.u.uHeat, 0);
   // Nacht in der echten Welt (N2): Straßenlaternen in Ortslagen (ab Mittel) und Lichtkegel vor den Autos (Schön). Masten und Köpfe
   // normal, Lichtscheiben am Boden additiv ohne Tiefen-Eintrag. Im Wärmebild keine Scheiben (Licht ist nicht warm).
   if (cfg.night && rw.on && GFX > 0 && ambOn()) {
