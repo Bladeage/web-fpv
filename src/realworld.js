@@ -12,7 +12,7 @@ import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -27,10 +27,10 @@ export function rwInit(meta, q) {
 // Ebenen (Reiter „Debug“ in den Optionen der echten Welt, Nutzer Prompt 166/167, docs/plan-ebenen.md): zum Abschalten für
 // Fehlersuche und schwache Geräte. Wirken beim Übernehmen und Zeichnen, nicht beim Laden (der Speicherschlüssel eines Orts kennt
 // sie nicht). Höhen bleiben immer an: Physik, Gebäude und Lader brauchen sie. rw.last hält die Daten zum erneuten Übernehmen.
-export const RW_SHOW = [['dop', 'Luftbild'], ['bld', 'Gebäude'], ['trees', 'Bäume'], ['water', 'Gewässer'], ['far', 'Umgebung bis 10 km']];
+export const RW_SHOW = [['dop', 'Luftbild'], ['bld', 'Gebäude'], ['trees', 'Bäume'], ['water', 'Gewässer'], ['far', 'Umgebung bis 10 km'], ['traffic', 'Verkehr (Autos)']];
 export function rwSetShow(s = {}) {
   rw.show = Object.fromEntries(RW_SHOW.map(([k]) => [k, s[k] !== false]));
-  rw.showOff = RW_SHOW.some(([k]) => !rw.show[k]);
+  rw.showOff = RW_SHOW.some(([k]) => k !== 'traffic' && !rw.show[k]);   // Verkehr ist nur Belebung: aus sperrt keine Bestzeit
   if (rw.last) { const on = rw.on; rwApply(rw.last.p, rw.last.x); rw.on = on; }
 }
 export function rwApply(p, x = {}) {

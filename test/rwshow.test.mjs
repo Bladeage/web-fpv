@@ -33,5 +33,5 @@ test('Debug-Ebenen: ausblenden und wieder einblenden, Höhen unverändert, keine
   assert.equal(rw.trees.length, nTrees, 'Bäume zurück, gleich viele (Prüfung gegen echtes Wasser)');
   rwSetShow({ water: false }); assert.equal(rw.trees.length, nTrees, 'Bäume auch ohne Ebene Gewässer nicht im Wasser');
   rwSetShow({}); rw.on = false; assert.equal(bestOk(), true, 'außerhalb der echten Welt immer Bestzeit');
-  assert.deepEqual(RW_SHOW.map(r => r[0]), ['dop', 'bld', 'trees', 'water', 'far']);
+  assert.deepEqual(RW_SHOW.map(r => r[0]), ['dop', 'bld', 'trees', 'water', 'far', 'traffic']);
 });

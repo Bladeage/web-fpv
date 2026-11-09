@@ -18,7 +18,7 @@ function offsetPath(idx, off) {
     return [c[0] + nx/l*off, c[1] + nz/l*off];
   });
 }
-function makeRoute(pts, loop) {
+export function makeRoute(pts, loop) {   // pts [x, z] oder [x, z, y] (Straßen der echten Welt mit Höhe)
   const segs = [];
   const n = loop ? pts.length : pts.length - 1;
   for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; segs.push(Math.hypot(b[0] - a[0], b[1] - a[1])); }
@@ -54,7 +54,7 @@ export function routeAt(r, s) {
     if (s <= r.segs[i] || i === r.segs.length - 1) {
       const a = r.pts[i], b = r.pts[(i + 1) % r.pts.length], t = Math.min(1, s/r.segs[i]);
       const yaw = Math.atan2(-(b[0] - a[0]), -(b[1] - a[1])) + (back ? Math.PI : 0);
-      return { x: a[0] + (b[0] - a[0])*t, z: a[1] + (b[1] - a[1])*t, yaw };
+      return { x: a[0] + (b[0] - a[0])*t, z: a[1] + (b[1] - a[1])*t, yaw, y: a.length > 2 ? a[2] + (b[2] - a[2])*t : 0 };
     }
     s -= r.segs[i];
   }

@@ -11,6 +11,7 @@ import { EGGS, buildEggMesh } from './eggs.js';
 import { birds, birdPitch, birdFlap, buildBirdMesh, BIRD_SCALE } from './birds.js';
 import { amb, ambJetDirs } from './ambient.js';
 import { dayState } from './daylight.js';
+import { traffic } from './traffic.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -863,6 +864,7 @@ export function render(dt) {
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
     if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, 0, v.z], 1.15, 2.3, v.yaw);
+    for (const a of traffic.cars) add([a.x, a.y, a.z], 1.15, 2.3, a.yaw);
     if (scen.id === 'follow') { const L = followLead(); add([L.x, 0, L.z], 1.15, 2.3, L.yaw); }
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
@@ -962,6 +964,16 @@ export function render(dt) {
       gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Verkehr der echten Welt (S1): Zufallsautos auf den Straßen, Farbe je Auto, warmer Motor; nachts leuchten die Lichter (Alpha 0,75)
+  if (traffic.cars.length) {
+    gl.bindVertexArray(vehMesh.vao); gl.uniform1f(P.u.uHeat, 0.85);
+    for (const a of traffic.cars) {
+      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(qAxis([0,1,0], a.yaw), qAxis([1,0,0], a.pitch)), [a.x, a.y, a.z]));
+      gl.uniform4f(P.u.uOver, a.col[0], a.col[1], a.col[2], 0.6);
+      gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
+    }
+    gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniform1f(P.u.uHeat, 0);
   }
   // Vorschau VBS-Grundtypen (Modus unter Spezial): Modelle nach Seite eingefärbt, zerstörte dunkel und schief
   if (scen.id === 'vbs') {
