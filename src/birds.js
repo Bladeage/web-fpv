@@ -8,9 +8,11 @@ import { colliders, MeshBuilder } from './world.js';
 import { TOWN } from './town.js';
 import { obstDist } from './targets.js';
 import { rw, groundH, rwNear, waterAt } from './realworld.js';
+import { cfg } from './state.js';
 
 // Schätzungen nach einer Taube: Fluggeschwindigkeit 8 m/s, flieht ab 8 m Abstand. n: Anzahl auf der Karte.
-export const BIRD = { n: 7, speed: 8, scare: 8, flee: 40, hopH: 0.08 };
+// nReal: in der echten Welt mehr einzelne Vögel (Nutzer, Prompt 178), nicht in der DIS-Übung
+export const BIRD = { n: 7, nReal: 14, speed: 8, scare: 8, flee: 40, hopH: 0.08 };
 export const birds = [];
 let birdSpots = [];
 
@@ -90,7 +92,8 @@ function birdFlyTo(b, spot, rand) {
 export function initBirds(rand = Math.random, avoid = [0, 0, 0]) {
   birdSpots = birdSpotsFind(rand, avoid);
   birds.length = 0;
-  for (let i = 0; i < BIRD.n; i++) {
+  const nb = rw.on && !cfg.verbund ? BIRD.nReal : BIRD.n;
+  for (let i = 0; i < nb; i++) {
     const b = { p: [0, 0, 0], yaw: rand()*Math.PI*2, col: i % 3, flap: rand()*6, spot: null, state: 'perch', t: 0, next: 0, hop: 0, peck: 0, wing: 0 };
     birds.push(b);
     let s = null;
@@ -143,8 +146,17 @@ export const birdPitch = b => b.state === 'fly' ? 0.25*(b.climb || 0) : b.state 
 export const birdFlap = b => b.state === 'fly' && b.wing ? Math.sin(b.flap*2*Math.PI*5)*0.9 : b.state === 'fly' ? 0.1 : null;
 // Modell (Ursprung zwischen den Füßen, vorn = -z). part: 'body' oder 'wing' (rechter Flügel, Gelenk im Ursprung, nach +x).
 // Drei Arten nach Farbe: Taube grau, Spatz braun, Amsel schwarz mit gelbem Schnabel. Größe als Schätzung (Taube, 25 cm lang).
-const BIRD_COLORS = [[[0.55, 0.56, 0.62], [0.42, 0.43, 0.5], [0.9, 0.55, 0.3]], [[0.6, 0.45, 0.3], [0.45, 0.32, 0.2], [0.35, 0.3, 0.25]], [[0.12, 0.12, 0.13], [0.08, 0.08, 0.09], [1, 0.75, 0.1]]];
-export function buildBirdMesh(kind, part) {
+// Dazu für die Belebung (ambient.js): 3 Gans (graubraun), 4 Greifvogel (Bussard, braun), 5 kleiner Schwarmvogel (Star, dunkel).
+// Größe über s: Gans etwa 1,6 m Spannweite (s 2,7), Bussard etwa 1,2 m (s 2,1), Star (s 0,85); Schätzungen.
+const BIRD_COLORS = [[[0.55, 0.56, 0.62], [0.42, 0.43, 0.5], [0.9, 0.55, 0.3]], [[0.6, 0.45, 0.3], [0.45, 0.32, 0.2], [0.35, 0.3, 0.25]], [[0.12, 0.12, 0.13], [0.08, 0.08, 0.09], [1, 0.75, 0.1]],
+  [[0.5, 0.47, 0.42], [0.33, 0.31, 0.28], [0.15, 0.15, 0.15]], [[0.48, 0.36, 0.24], [0.33, 0.23, 0.15], [0.85, 0.75, 0.2]], [[0.16, 0.16, 0.2], [0.1, 0.1, 0.13], [0.8, 0.7, 0.2]]];
+export const BIRD_SCALE = { 3: 2.7, 4: 2.1, 5: 0.85 };
+export function buildBirdMesh(kind, part, s = 1) {
+  const d = birdMeshRaw(kind, part);
+  if (s !== 1) for (let i = 0; i < d.length; i += 10) { d[i] *= s; d[i + 1] *= s; d[i + 2] *= s; }
+  return d;
+}
+function birdMeshRaw(kind, part) {
   const mb = new MeshBuilder(), [body, dark, beak] = BIRD_COLORS[kind % BIRD_COLORS.length], leg = [0.6, 0.45, 0.3];
   if (part === 'wing') { mb.box([0.13, 0, 0], [0.13, 0.006, 0.055], 0, dark); mb.box([0.27, 0, 0], [0.03, 0.005, 0.035], 0, dark); return new Float32Array(mb.d); }
   mb.box([0, 0.065, 0], [0.045, 0.04, 0.1], 0, body);            // Rumpf

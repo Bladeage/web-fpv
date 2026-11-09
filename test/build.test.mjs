@@ -61,5 +61,5 @@ test('Prüfbericht Nr. 9: Betaflight, Deutschlandkarte und Kartenebenen gepackt 
   assert.ok(back(/const BF_WASM = '([^']+)'/).equals(readFileSync(new URL('sitl/betaflight.wasm', root))), 'Betaflight gleich');
   assert.ok(back(/const DE_DATA = '([^']+)'/).equals(readFileSync(new URL('realworld/germany.json', root))), 'Karte gleich');
   assert.ok(back(/features: '([^']+)'/).equals(readFileSync(new URL('realworld/monschau.features.json', root))), 'Kartenebenen gleich');
-  assert.ok(html.length < 7.75e6, 'Datei ' + (html.length/1e6).toFixed(2) + ' MB (vorher 8,04 MB; W2 WMS-Höhendienst etwa 6 KB)');
+  assert.ok(html.length < 7.8e6, 'Datei ' + (html.length/1e6).toFixed(2) + ' MB (vorher 8,04 MB; W2 WMS-Höhendienst etwa 6 KB, Belebung der echten Welt etwa 8 KB)');
 });

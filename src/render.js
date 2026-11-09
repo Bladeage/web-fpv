@@ -8,7 +8,8 @@ import { VEH_HALF } from './vehicles.js';
 import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
 import { town, buildTownMesh } from './town.js';
 import { EGGS, buildEggMesh } from './eggs.js';
-import { birds, birdPitch, birdFlap, buildBirdMesh } from './birds.js';
+import { birds, birdPitch, birdFlap, buildBirdMesh, BIRD_SCALE } from './birds.js';
+import { amb, ambJetDirs } from './ambient.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -333,8 +334,27 @@ in vec2 vP;
 uniform mat4 uInv;
 uniform vec3 uCam, uFog, uZen, uSun;
 uniform float uVision, uGfx, uTime;
+uniform vec4 uJa0, uJb0, uJa1, uJb1;   // Flugzeuge (ambient.js): Richtung zum Rumpf und zum Ende des Kondensstreifens, w = Deckkraft
 out vec4 o;
 ${NOISE}
+// Kondensstreifen: Großkreis-Stück zwischen Rumpf (a) und Ende (b) am Himmel; schmal am Rumpf, breiter und blasser mit dem Alter.
+// Rechnet nur nahe am Streifen weiter (Abstand zur Großkreis-Ebene), sonst kostet es fast nichts.
+vec3 contrail(vec3 c, vec3 d, vec4 A, vec4 B){
+  if (A.w <= 0.0) return c;
+  vec3 nr = cross(A.xyz, B.xyz); float L = length(nr);
+  float hd = acos(clamp(dot(d, A.xyz), -1.0, 1.0));
+  c = mix(c, vec3(0.62, 0.64, 0.68), smoothstep(0.0022, 0.0010, hd)*A.w);   // Rumpf als kleiner heller Punkt (etwa 1 Bildpunkt)
+  if (L < 1e-6) return c;
+  nr /= L;
+  float dist = abs(dot(d, nr));
+  if (dist > 0.01) return c;
+  vec3 pr = normalize(d - nr*dot(d, nr));
+  float ab = acos(clamp(dot(A.xyz, B.xyz), -1.0, 1.0)), ta = acos(clamp(dot(A.xyz, pr), -1.0, 1.0)), tb = acos(clamp(dot(pr, B.xyz), -1.0, 1.0));
+  if (ta + tb > ab + 1e-4) return c;
+  float u = ta/max(ab, 1e-5), w = mix(0.0015, 0.008, u);   // Breite in Radiant: frisch etwa 40 m, alt etwa 200 m auf 25 km (Schätzung)
+  float k = smoothstep(w, w*0.25, dist)*smoothstep(0.0, 0.015, u)*(1.0 - smoothstep(0.55, 1.0, u))*A.w*(0.85 - 0.35*u);
+  return mix(c, vec3(0.97, 0.97, 1.0), k);
+}
 // Wolken: Rauschen in mehreren Größen (fbm), auf eine Ebene hoch über der Karte projiziert
 float fbm(vec2 p, int n){
   float a = 0.5, r = 0.0;
@@ -359,6 +379,7 @@ void main(){
     cc += vec3(0.20, 0.15, 0.08)*pow(s, 6.0);   // zur Sonne hin warm aufgehellt
     c = mix(c, cc, cov*0.85);
   }
+  if (d.y > 0.0) { c = contrail(c, d, uJa0, uJb0); c = contrail(c, d, uJa1, uJb1); }
   c = mix(c, vec3(1.0, 0.98, 0.92)*1.6, disc);
   if (uVision > 1.5) c = vec3(0.02, 0.07, 0.03) + vec3(0.03, 0.10, 0.04)*(1.0 - t);   // Nachtsicht: fast schwarz-grün
   else if (uVision > 0.5) c = vec3(0.10 + 0.08*(1.0 - t));                            // Wärmebild: kalter Himmel dunkel
@@ -513,7 +534,7 @@ function buildBalloonMesh() {
 }
 export function initGL() {
   P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime']);
-  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime']);
+  PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime', 'uJa0', 'uJb0', 'uJa1', 'uJb1']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = worldData || (worldData = buildWorld());   // buildWorld füllt Hindernisse und Tore und darf nur einmal laufen (Neuaufbau nach Grafikverlust)
   staticCount = w.staticCount; groundCount = w.groundCount;
@@ -525,7 +546,7 @@ export function initGL() {
   for (const k of ['plane', 'heli', 'hexa']) airMesh[k] = upload(buildAircraftMesh(k));
   townMesh = upload(buildTownMesh());   // kleine Stadt mit Testecken
   eggMesh = EGGS.map((e, i) => upload(buildEggMesh(i)));   // Ostereier
-  birdMesh = [0, 1, 2].map(k => ({ body: upload(buildBirdMesh(k, 'body')), wing: upload(buildBirdMesh(k, 'wing')) }));   // Vögel
+  birdMesh = [0, 1, 2, 3, 4, 5].map(k => ({ body: upload(buildBirdMesh(k, 'body', BIRD_SCALE[k] || 1)), wing: upload(buildBirdMesh(k, 'wing', BIRD_SCALE[k] || 1)) }));   // Vögel, dazu Gans, Greifvogel, Star (ambient.js)
   pilotMesh = { body: upload(buildPilotMesh('body')), head: upload(buildPilotMesh('head')) };   // Pilot mit Funke
   // Propeller: vorne rot, hinten dunkelgrau (Farbe im Netz, damit das Licht das Blatt formt statt einer flachen Tönung)
   rotorMesh = { front: upload(buildRotorMesh(ROTOR_RED)), rear: upload(buildRotorMesh(ROTOR_DARK)) };
@@ -662,6 +683,8 @@ export function render(dt) {
   gl.uniform1f(PS.u.uVision, VIS);
   const GFX = cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2;
   gl.uniform1f(PS.u.uGfx, GFX); gl.uniform1f(PS.u.uTime, performance.now()/1000);
+  { const J = ambJetDirs(eye);   // Flugzeuge mit Kondensstreifen (nur echte Welt, nicht DIS)
+    [['uJa0', 'uJb0'], ['uJa1', 'uJb1']].forEach(([ka, kb], i) => { const j = J[i]; gl.uniform4f(PS.u[ka], ...(j ? j.a : [0, 1, 0]), j ? j.alpha : 0); gl.uniform4f(PS.u[kb], ...(j ? j.b : [0, 1, 0]), 0); }); }
   gl.bindVertexArray(skyVao);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
@@ -708,6 +731,18 @@ export function render(dt) {
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qAxis([0,0,1], f)), vAdd(sh, qRot(q, [0.04, 0, 0]))));
     gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qMul(qAxis([0,1,0], Math.PI), qAxis([0,0,1], f))), vAdd(sh, qRot(q, [-0.04, 0, 0]))));
+    gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
+  }
+  // Belebung der echten Welt (ambient.js, nicht DIS): Schwarm und Greifvögel, gleiche Teile wie die Vögel, größer (BIRD_SCALE)
+  for (const b of amb.birds) {
+    const m = birdMesh[b.kind], s = BIRD_SCALE[b.kind] || 1, q = qAxis([0,1,0], b.yaw);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, b.p));
+    gl.bindVertexArray(m.body.vao); gl.drawArrays(gl.TRIANGLES, 0, m.body.count);
+    const f = b.glide ? 0.12 : Math.sin(b.flap*2*Math.PI)*0.8, sh = vAdd(b.p, qRot(q, [0, 0.09*s, 0]));
+    gl.bindVertexArray(m.wing.vao);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qAxis([0,0,1], f)), vAdd(sh, qRot(q, [0.04*s, 0, 0]))));
+    gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qMul(q, qMul(qAxis([0,1,0], Math.PI), qAxis([0,0,1], f))), vAdd(sh, qRot(q, [-0.04*s, 0, 0]))));
     gl.drawArrays(gl.TRIANGLES, 0, m.wing.count);
   }
   // Pilot hinter dem Startplatz: Körper dreht um die Hochachse, Kopf dazu seitlich und nach oben (Drehpunkt im Hals)

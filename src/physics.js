@@ -9,6 +9,7 @@ import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
 import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
+import { ambInit } from './ambient.js';
 import { rw, groundH, groundN, rwNear, waterAt, WATER_UP } from './realworld.js';
 // Bestzeit nur mit allen Ebenen der echten Welt (Reiter „Debug“): ohne Gebäude oder Umgebung ist der Kurs leichter
 export const bestOk = () => !(rw.on && rw.showOff);
@@ -144,6 +145,7 @@ export function respawn() {
   task.reset();
   cfg.vision = 'normal';   // Neustart (R, Neuer Flug): Bild wieder normal, nicht Wärmebild oder Nachtsicht (Nutzer)
   initBirds(Math.random, game.sim.p);   // Vögel bei jedem Start neu und zufällig verteilen
+  ambInit(game.sim.p);   // echte Welt (nicht DIS): Schwärme, Greifvögel, Flugzeuge mit Kondensstreifen
 }
 // Nur die Drohne neu an den Start setzen (Jagd nach Treffer). Szenario, Zeit, Akku und Scharf-Zustand bleiben.
 export function respawnDrone() {

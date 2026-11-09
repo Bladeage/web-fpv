@@ -59,6 +59,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/bf.js` | Betaflight als Flugregler (WebAssembly aus `sitl/`, GPLv3) |
 | `src/town.js`, `src/aircraft.js`, `src/balloon.js` | Kleine Stadt mit Testecken, Flugzeuge der Jagd, Ballon |
 | `src/eggs.js`, `src/birds.js`, `src/pilot.js` | Ostereier, Vögel, Pilot mit Funke hinter dem Startplatz |
+| `src/ambient.js` | Belebung der echten Welt (nicht DIS): Gänse und Vogelschwärme, kreisende Greifvögel, Flugzeuge mit Kondensstreifen (im Himmel-Shader) |
 | `src/render.js`, `src/hud.js`, `src/audio.js`, `src/menu.js` | WebGL, OSD, Ton, Menü |
 | `src/geo.js` | GeoTIFF lesen, UTM und WGS84 umrechnen, CityGML (LoD2) lesen |
 | `src/realworld.js` | Echte Welt: Gelände, Gebäude, Bäume, Wasser, Netze; Laden eingebettet oder live, Quellenplanung an Grenzen |
@@ -85,7 +86,7 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `sitl/` | Quellen und Build-Skript für Betaflight als WebAssembly |
 | `test/` | Tests mit `node:test` |
 
-`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwwms`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `place` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `ambient`, `pilot`, `geo`, `realworld`, `rwload`, `rwwms`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `place` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
 
 ## Daten „Echte Welt“
 

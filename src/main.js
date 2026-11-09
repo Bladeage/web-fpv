@@ -17,6 +17,7 @@ import { setScenario } from './scenario.js';
 import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
+import { ambStep, amb } from './ambient.js';
 import { stepPilot } from './pilot.js';
 import { mapPagePos } from './mapui.js';
 import { rw, rwLoadEmbedded, rwStreamStep } from './realworld.js';
@@ -69,6 +70,7 @@ function frame(now) {
     updTouch();
     updSignal(dt);
     stepBirds(dt, game.sim.p);
+    ambStep(dt, game.sim.p);
     // Echte Welt (L5b): etwa jede Sekunde prüfen, ob eine Kachel nachzuladen oder zu entladen ist
     if (rw.on && (streamT -= dt) <= 0) {
       streamT = 1; rw.stream = cfg.rwStream !== false;
@@ -113,4 +115,4 @@ if (!gl) {
   catch (e) { $('glErr').hidden = false; $('glErr').textContent = 'Grafikfehler: ' + e.message; $('go').disabled = true; $('bStart').disabled = true; }
 }
 // Testzugang für automatische Prüfungen
-window.__fpv = { rw, mapPagePos, get sim() { return game.sim; }, get state() { return game.state; }, get armed() { return game.armed; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };
+window.__fpv = { rw, amb, mapPagePos, get sim() { return game.sim; }, get state() { return game.state; }, get armed() { return game.armed; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };
