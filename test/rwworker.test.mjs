@@ -54,3 +54,13 @@ test('Etappe 5: Gebiet im Worker laden (Abrufe, Raster, Gebäude, Bäume) gleich
   const { r: e } = await bad.send({ id: 3, job: 'area', a, srcs: [NRW], opt: { far: false, cells: null, lod2: false } });
   assert.match(e.err, /Keine Verbindung zu www\.wcs\.nrw\.de/);
 });
+
+test('S2: Straßen im Worker (POST an den WFS, Mittellinien zurück)', async () => {
+  assert.ok(src.includes('function roadAxes') && src.includes("m.job === 'roads'"), 'rwroads.js im Worker');
+  const xml = readFileSync(new URL('./fixtures/alkis-strassen.gml', import.meta.url), 'utf8'), seen = [];
+  const w = startWorker(async (u, init = {}) => { seen.push(init.method || 'GET'); return new Response(xml, { status: 200 }); });
+  const { r } = await w.send({ id: 7, job: 'roads', r: RW_SOURCES[0].roads, bbox: [304450, 5603750, 304750, 5604050] });
+  assert.ok(!r.err, r.err);
+  assert.deepEqual(seen, ['POST']);
+  assert.ok(r.out.length > 5 && r.out.every(a => a.name && a.pts.length > 1), r.out.length + ' Linien');
+});

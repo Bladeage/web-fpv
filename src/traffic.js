@@ -32,8 +32,8 @@ export function newCar(G, c, fwd, rand = Math.random) {
 // Ein Schritt: c Drohne, fwd Blickrichtung [x, z] (Einheitsvektor) oder null. Höchstens ein neues Auto je Schritt.
 export function trafficStep(h, c, fwd, rand = Math.random) {
   if (!trafficOn()) { traffic.cars.length = 0; return; }
-  const G = rwRoads(), key = rw.ver + ':' + rw.tileVer;
-  if (traffic.key !== key) { traffic.key = key; traffic.cars.length = 0; }   // anderes Gebiet oder Kachel: neu verteilen
+  const G = rwRoads(), key = String(rw.ver);
+  if (traffic.key !== key) { traffic.key = key; traffic.cars.length = 0; }   // anderes Gebiet: neu verteilen (neue Kacheln und Straßen: Autos fahren weiter)
   for (const a of traffic.cars) {
     const ahead = routeAt(a.route, Math.min(a.s + 2, a.route.len)), slope = (ahead.y - a.y)/2;
     a.v = a.v0*Math.max(0.4, 1 - 2.5*Math.max(0, slope));   // bergauf langsamer, mindestens 40 %

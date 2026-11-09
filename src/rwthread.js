@@ -7,7 +7,7 @@ import { rw } from './realworld.js';
 // rwworker.js: nur, damit der Build den Worker-Teil mitnimmt; wkMain läuft im Worker
 import { wkMain } from './rwworker.js';
 
-const WK_MODS = ['math.js', 'geo.js', 'rwwms.js', 'rwload.js', 'demap.js', 'rwdlm.js', 'realworld.js', 'rwstore.js', 'rwworker.js'];
+const WK_MODS = ['math.js', 'geo.js', 'rwwms.js', 'rwload.js', 'demap.js', 'rwdlm.js', 'rwroads.js', 'realworld.js', 'rwstore.js', 'rwworker.js'];
 const wk = { w: null, seq: 0, wait: new Map(), dead: false };
 // Quelltext des Workers aus dem Bundle (Abschnitte mit Kopfzeile je Datei, in Abhängigkeitsreihenfolge). Die Kopfzeile
 // steht hier nur zusammengesetzt im Code, sonst würde dieser Text selbst als Abschnitt erkannt.

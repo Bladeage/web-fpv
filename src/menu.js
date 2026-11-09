@@ -263,7 +263,7 @@ function rwLock() {
   if (cfg.verbund) syncDis();   // „Dorthin“ ist während des Ladens auch gesperrt
 }
 // Meldungen des Ladens: in der DIS-Übung in die Geländezeile der DIS-Seite, sonst unter „Ort laden“
-const msgEl = () => isDis() ? $('disGround') : msgEl();
+const msgEl = () => isDis() ? $('disGround') : $('rwMsg');   // vorher rief sich msgEl hier selbst auf (Endlosschleife beim Laden eines Orts, seit dem Menü-Umbau)
 async function rwLiveDo() {
   const ll = parseLatLon(cfg.rwLL);
   if (!ll) { msgEl().textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }

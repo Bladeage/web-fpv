@@ -65,6 +65,7 @@ export function roadGraph(list, snap = ROADS.snap) {
   for (const P of parts) {
     const len = polyLen(P.pts); if (len < 0.5) continue;
     const a = nodeAt(P.pts[0]), b = nodeAt(P.pts[P.pts.length - 1]), e = edges.length;
+    if (a === b && len < 8) continue;   // kleine Schleife an einer Kreuzung (Gewirr aus Flächen-Achsen)
     edges.push({ a, b, pts: P.pts, len, name: P.name, w: P.w });
     nodes[a].e.push(e); if (b !== a) nodes[b].e.push(e);
   }
@@ -156,7 +157,7 @@ const trimTail = (out, wet) => out.slice(0, Math.max(0, out.length - Math.ceil(w
 let cache = { key: '', G: null };
 export function rwRoads() {
   if (!rw.on) return null;
-  const key = rw.ver + ':' + rw.tileVer;
+  const key = rw.ver + ':' + rw.tileVer + ':' + rw.roadVer;
   if (cache.key === key) return cache.G;
   const list = [...((rw.features && rw.features.roads) || [])];
   for (const T of (rw.tiles && rw.tiles.values()) || []) if (T.roads) list.push(...T.roads);
@@ -211,7 +212,7 @@ export function lampMesh(spots) {
 let lampCache = { key: '', L: null };
 export function rwLamps() {
   const G = rwRoads(); if (!G) return null;
-  const key = rw.ver + ':' + rw.tileVer;
+  const key = rw.ver + ':' + rw.tileVer + ':' + rw.roadVer;
   if (lampCache.key !== key) { const spots = lampSpots(G); lampCache = { key, L: spots.length ? { spots, ...lampMesh(spots), key } : null }; }
   return lampCache.L;
 }

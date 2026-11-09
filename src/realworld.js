@@ -8,11 +8,12 @@ import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSource
 import { wmsPhotoOf, wmsFetchPhoto } from './rwwms.js';
 import { deLandAt, deMap, deLandBox } from './demap.js';
 import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
+import { rwRoadsFetch } from './rwroads.js';
 
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true, lamps: true }, showOff: false, last: null };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true, lamps: true }, showOff: false, last: null, roadVer: 0, roadErr: '' };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -133,13 +134,13 @@ export const RW_STALL = 30000;
 export function rwNet(signal, stall = RW_STALL) {
   const host = u => u.split('/')[2];
   // Je Abruf eigener Abbruch: durch den Aufrufer (signal) oder durch Stillstand. kick() setzt die Uhr zurück.
-  const go = async (u, fn) => {
+  const go = async (u, fn, init = {}) => {
     const ac = new AbortController(), onAbort = () => ac.abort();
     let late = false, timer = 0;
     const kick = () => { clearTimeout(timer); timer = setTimeout(() => { late = true; ac.abort(); }, stall); };
     if (signal) { if (signal.aborted) ac.abort(); else signal.addEventListener('abort', onAbort); }
     kick();
-    try { const r = await fetch(u, { signal: ac.signal }); kick(); return await fn(r, n => kick()); }
+    try { const r = await fetch(u, { ...init, signal: ac.signal }); kick(); return await fn(r, n => kick()); }
     catch (e) {
       if (late) throw new Error(host(u) + ' antwortet nicht (' + stall/1000 + ' s ohne Daten)');
       if (e.name === 'AbortError' || ac.signal.aborted) throw new Error('Abgebrochen');
@@ -157,8 +158,25 @@ export function rwNet(signal, stall = RW_STALL) {
     return b;
   });
   const text = (u, prog) => go(u, async (r, kick) => { if (r.status === 404) return null; if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await readBody(r, both(prog, kick))); });
-  return { get, text };
+  // POST mit Text (WFS-Anfrage mit Filter, S2). Content-Type text/plain: kein CORS-Vorabruf nötig
+  const post = (u, body, prog) => go(u, async (r, kick) => { if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await readBody(r, both(prog, kick))); },
+    { method: 'POST', body, headers: { 'Content-Type': 'text/plain' } });
+  return { get, text, post };
 }
+// Straßen eines Gebiets (S2) im Hintergrund-Thread laden und in Mittellinien umwandeln (sonst im Hauptprogramm). null ohne Quelle.
+export async function rwRoadsGet(src, bbox, signal) {
+  if (!src || !src.roads) return null;
+  if (rw.work) { try { return await rw.work('roads', { r: src.roads, bbox }, undefined, signal); } catch (e) { if (!e.noWorker) throw e; } }
+  return rwRoadsFetch(src.roads, bbox, rwNet(signal));
+}
+// Straßen nachträglich: Der Ort erscheint sofort, die Autos einige Sekunden später. Ergebnis nur, wenn das Gebiet noch dasselbe ist.
+function rwRoadsLater(src, bbox, done) {
+  if (!src || !src.roads || (rw.liveDis && rw.liveDis.dis)) return;   // DIS-Übung: kein Verkehr
+  const ver = rw.ver;
+  rwRoadsGet(src, bbox).then(list => { if (list && rw.ver === ver) { done(list); rw.roadVer++; rw.roadErr = ''; } }).catch(e => { rw.roadErr = String(e && e.message || e); });
+}
+// Achsen um (dx, dz) verschieben (Kachel: gespeichert relativ zur eigenen Mitte)
+const roadShift = (list, dx, dz) => list.map(r => ({ ...r, pts: r.pts.map(p => [p[0] + dx, p[1] + dz]) }));
 // Gebiet 1 x 1 km um Breite/Länge live von den Diensten laden (L1, mehrere Quellen L3).
 // say(Schritt, Anteil) meldet den Fortschritt; signal bricht ab; mergeImg setzt Luftbilder an Grenzen zusammen (Browser).
 // Bei Fehler bleibt das alte Gebiet erhalten.
@@ -235,6 +253,10 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
       if (far) { saved.farq = far.q; saved.fardop = far.dop; saved.meta.far = far.meta; }
     }
     rwApply(saved, { live: true, ...x }); rw.stored = null;
+    if (!(x.features && x.features.roads)) rwRoadsLater(srcs[0], saved.meta.bbox, list => {   // gespeichert vor S2: Straßen nachholen
+      rw.features = x.features = { ...(x.features || {}), roads: list };
+      if (store) store.put(key, { ...saved, water: x.water || saved.water || null, features: x.features }).catch(() => {});
+    });
     if ((x.water && !saved.water) || moved || far) rw.stored = await store.put(key, { ...saved, ...x });   // Landesdaten oder Umgebung kamen später dazu oder Start neu
     rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = true; rw.liveDlm = !!srcs[0].dlm;
     return rw;
@@ -258,12 +280,18 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   }
   rwApply(p, { live: true, ...x }); rw.stored = null;
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
+  let rec = null;
   if (store) {
     say('speichern', 0.98);
     if (p.far) p.meta.far = p.far.meta;   // Umgebung flach speichern (farq, fardop), Beschreibung in meta.far
-    rw.stored = await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: x.features || null,
-      farq: p.far ? p.far.q : null, fardop: p.far ? p.far.dop : null, lat, lon, srcs: rw.liveSrcs });
+    rec = { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: x.features || null,
+      farq: p.far ? p.far.q : null, fardop: p.far ? p.far.dop : null, lat, lon, srcs: rw.liveSrcs };
+    rw.stored = await store.put(key, rec);
   }
+  rwRoadsLater(srcs[0], p.meta.bbox, list => {
+    rw.features = x.features = { ...(x.features || {}), roads: list };
+    if (store && rec) store.put(key, { ...rec, features: x.features }).catch(() => {});
+  });
   return rw;
 }
 // Ort ohne Kartendaten (Nutzer, Prompt 145: Flug am Ort einer DIS-Übung, etwa auf einem erfundenen Gelände des Partners):
@@ -876,7 +904,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs, startNear: [ec, nc], name: 'kachel', place: lat.toFixed(5) + ', ' + lon.toFixed(5), attribution: '', dopN: RW_STREAM.dop };
   const key = rwAreaKey(lat, lon, srcs) + '|kachel';
   // schon geladen? als Kachel oder als gespeicherter Ort an genau dieser Stelle (der hat sogar das schärfere Luftbild)
-  let p = store ? (await store.get(key)) || (await store.get(rwAreaKey(lat, lon, srcs))) : null, x = {};
+  let p = store ? (await store.get(key)) || (await store.get(rwAreaKey(lat, lon, srcs))) : null, x = {}, rec = null;
   if (p && p.meta) {
     x = p.water || p.features ? { water: p.water, features: p.features } : await rwExtras(p, srcs[0], store);
     if (p.tile && store.touch) store.touch(key);   // wieder genutzt: bleibt länger im Zwischenspeicher
@@ -888,12 +916,21 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
     if (signal && signal.aborted) throw new Error('Abgebrochen');
     if (!p.dop && srcs[0].kind === 'wms') p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.tile, rwNet(signal).get).catch(() => null) || rwShadeImage(p.meta, p.q);   // Luftbild des Höhendienstes, sonst Relief
     x = await rwExtras(p, rwExtraSrc(srcs[0], lat, lon), srcs[0].kind === 'wms' ? landStore : store);
-    if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });
+    rec = { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true };
+    if (store) await store.put(key, rec);
   }
   // Höhen relativ zum Startplatz des Startgebiets; Gebäude sind relativ zum eigenen Startplatz gepackt (dy gleicht aus)
   const n = p.meta.n, h = new Float32Array(n*n);
   for (let k = 0; k < n*n; k++) h[k] = p.meta.hMin + p.q[k]*p.meta.hScale - m.hHome;
   const T = { i, j, dx: i*S, dz: j*S, n, cell: S/n, h, water: rw.show.water ? x.water || null : null, wmeta: p.meta.water || null, dop: rw.show.dop ? p.dop : null, key, place: p.meta.place };
+  // Straßen der Kachel (S2): gespeichert relativ zur Kachelmitte; fehlen sie, im Hintergrund laden und danach speichern
+  const saved = p.roads || (p.features && p.features.roads);
+  if (saved) T.roads = roadShift(saved, T.dx, T.dz);
+  else rwRoadsLater(srcs[0], a.bbox, list => {
+    if (![...rw.tiles.values()].includes(T)) return;
+    T.roads = roadShift(list, T.dx, T.dz);
+    if (store) store.put(key, { ...(rec || p), roads: list }).catch(() => {});
+  });
   const wet = rwWetFn(x.water || null, T.wmeta, T.dx, T.dz);
   // Bäume auf die gezeichnete Fläche, wie sie mit dieser Kachel aussieht (Ränder zur Umgebung eingeschlossen): Kachel dafür kurz
   // eintragen (ohne Warten dazwischen, die Physik sieht das nicht). Vorher: eigene Höhen ohne Rand, Bäume am Rand schwebten (Nr. 6).

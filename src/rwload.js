@@ -14,6 +14,9 @@ export const RW_SOURCES = [{
   lod2: { url: 'https://www.opengeodata.nrw.de/produkte/geobasis/3dg/lod2_gml/lod2_gml/LoD2_32_{E}_{N}_1_NW.gml', tileKm: 1 },
   // Landesdaten (L4): Basis-DLM als ein ZIP; Gewässerflächen und Ortslagen einmal laden (zusammen 60 MB, gesichert 06.11.2026)
   dlm: { url: 'https://www.opengeodata.nrw.de/produkte/geobasis/lm/akt/basis-dlm/basis-dlm_EPSG25832_Shape.zip', water: 'gew01_f.shp', places: ['sie01_f.shp', 'sie01_f.dbf'], mb: 60 },
+  // Straßen (S2): ALKIS vereinfacht, Flächen der Nutzung Straßenverkehr; daraus Mittellinien (rwroads.js). Gesichert 09.11.2026:
+  // POST mit Filter, Monschau 148 Flächen, 277 KB, 1,7 s; Feldnamen brauchen den Präfix ave: (ohne: 400 „InvalidParameterValue“)
+  roads: { url: 'https://www.wfs.nrw.de/geobasis/wfs_nw_alkis_vereinfacht', type: 'ave:Nutzung', ns: 'http://repository.gdi-de.org/schemas/adv/produkt/alkis-vereinfacht/2.0', field: 'nutzart', value: 'Straßenverkehr', epsg: 25832 },
   attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
 }, {
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.

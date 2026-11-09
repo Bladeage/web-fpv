@@ -63,3 +63,8 @@ test('Prüfbericht Nr. 9: Betaflight, Deutschlandkarte und Kartenebenen gepackt 
   assert.ok(back(/features: '([^']+)'/).equals(readFileSync(new URL('realworld/monschau.features.json', root))), 'Kartenebenen gleich');
   assert.ok(html.length < 7.9e6, 'Datei ' + (html.length/1e6).toFixed(2) + ' MB (vorher 8,04 MB; W2 WMS-Höhendienst etwa 6 KB, Belebung der echten Welt etwa 8 KB, Nacht, Straßen und Verkehr etwa 40 KB; Grenze 7,9 MB ab N2)');
 });
+
+test('Menü: Meldestelle beim Laden eines Orts ruft sich nicht selbst auf (Fehler seit dem Menü-Umbau, gefunden in S2)', () => {
+  const m = readFileSync(new URL('../src/menu.js', import.meta.url), 'utf8').match(/const msgEl = \(\) => ([^;]*);/);
+  assert.ok(m && !/msgEl\(\)/.test(m[1]), m && m[1]);
+});
