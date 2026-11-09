@@ -165,6 +165,14 @@ export function rwNet(signal, stall = RW_STALL) {
 // store (Browser, L4): { get(key), put(key, rec), land(key) } – gespeicherte Gebiete und Landesdaten. Ohne store: immer laden.
 export const rwAreaKey = (lat, lon, srcs) => lat.toFixed(5) + ',' + lon.toFixed(5) + '|' + srcs.map(s => s.name).join('+');
 // Gewässer und Ortsnamen aus gespeicherten Landesdaten der Hauptquelle (nur gleiches Koordinatensystem). Setzt meta.water.
+// Gewässer und Ortsnamen auch über dem Gelände eines Höhendienstes (Nutzer, Prompt 178: „mir fehlt das Wasser“): Der Höhendienst hat
+// keine Landesdaten; genommen wird die Landesquelle am Ort, wenn sie dasselbe Koordinatensystem hat. Gelesen wird nur aus dem
+// Speicher der Landesdaten (Basis-DLM, einmal geladen), gespeichert wird vom Höhendienst nichts.
+export function rwExtraSrc(src, lat, lon) {
+  if (!src || src.kind !== 'wms') return src;
+  const pl = rwPlan(lat, lon, rwSources().filter(x => x.kind !== 'wms'), {}), s = pl && pl.srcs[0];
+  return s && s.kind !== 'wms' && s.dlm && s.crs === src.crs ? s : null;
+}
 export async function rwExtras(p, src, store) {
   const d = src && src.dlm, out = {};
   if (!store || !d || p.meta.crs !== src.crs) return out;
@@ -211,7 +219,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   const plan = rwPlan(lat, lon, rwSources(), po);
   rw.liveDis = po.wms || po.dis ? { wms: po.wms || null, dis: !!po.dis } : null;   // Kacheln und Umgebung planen mit denselben Quellen
   if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
-  const { srcs, area: a } = plan, key = rwAreaKey(lat, lon, srcs);
+  const { srcs, area: a } = plan, key = rwAreaKey(lat, lon, srcs), landStore = store;
   if (srcs[0].store === false) store = null;   // Quelle darf nicht gespeichert werden (Lizenz): nur Arbeitsspeicher
   const saved = store ? await store.get(key) : null;
   if (saved && saved.meta) {   // schon gespeichert: ohne Netz, sofort
@@ -238,7 +246,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   // Gewässer und Ortsnamen: Landesdaten beim ersten Ort automatisch (Nutzer, Prompt 121); schon vorhandene nicht noch einmal
   if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
     await rwLandData(srcs[0], store, (t, f) => say('Gewässer und Orte, einmalig: ' + t, 0.97), signal).catch(e => { if (signal && signal.aborted) throw e; rw.landErr = String(e.message || e); });
-  const x = await rwExtras(p, srcs[0], store);
+  const x = await rwExtras(p, rwExtraSrc(srcs[0], lat, lon), srcs[0].kind === 'wms' ? landStore : store);
   if (!p.dop && srcs[0].kind === 'wms') {   // Luftbild des Höhendienstes, sonst Relief schattiert auf Gras
     say('Luftbild vom Höhendienst', 0.9);
     const get = rwNet(signal).get;
@@ -859,6 +867,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   if (!plan) throw new Error('keine Quelle');
   const srcs = plan.srcs.filter(s => s.crs === m.crs);
   if (!srcs.length) throw new Error('anderes Koordinatensystem');
+  const landStore = store;   // Landesdaten (Gewässer) liest auch der Höhendienst daraus
   if (srcs[0].store === false) store = null;   // nur Arbeitsspeicher (Lizenz der Quelle)
   const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs, startNear: [ec, nc], name: 'kachel', place: lat.toFixed(5) + ', ' + lon.toFixed(5), attribution: '', dopN: RW_STREAM.dop };
   const key = rwAreaKey(lat, lon, srcs) + '|kachel';
@@ -874,7 +883,7 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
     p = await rwFetch(a, srcs, say, signal, opt, store);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
     if (!p.dop && srcs[0].kind === 'wms') p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.tile, rwNet(signal).get).catch(() => null) || rwShadeImage(p.meta, p.q);   // Luftbild des Höhendienstes, sonst Relief
-    x = await rwExtras(p, srcs[0], store);
+    x = await rwExtras(p, rwExtraSrc(srcs[0], lat, lon), srcs[0].kind === 'wms' ? landStore : store);
     if (store) await store.put(key, { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true });
   }
   // Höhen relativ zum Startplatz des Startgebiets; Gebäude sind relativ zum eigenen Startplatz gepackt (dy gleicht aus)

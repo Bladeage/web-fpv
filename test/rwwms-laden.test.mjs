@@ -109,3 +109,20 @@ test('Prompt 173: Luftbild des Höhendienstes: Ebene wählen, Kacheln und Ecken,
     assert.equal(rw.dop[0], 0x42, 'Relief als BMP');
   } finally { rw.userSources = old; rw.photoWarp = oldW; }
 });
+
+test('Prompt 178: Gewässer und Ortsnamen auch über dem Gelände des Höhendienstes (Landesdaten lesen, nichts speichern)', async t => {
+  const { rwExtraSrc } = await import('../src/realworld.js');
+  const E = startErsatz(); await E.ready; t.after(() => E.close());
+  const old = rw.userSources, oldW = rw.photoWarp, asked = [], puts = [];
+  const store = { get: async () => null, put: async k => (puts.push(k), true), land: async k => (asked.push(k), null), landPut: async () => true, landHas: async () => true };
+  try {
+    rw.userSources = [wms(E.url, 'all')]; rw.photoWarp = null;
+    const w = rwPlan(50.9, 7.0).srcs[0];
+    assert.equal(w.kind, 'wms');
+    assert.equal(rwExtraSrc(w, 50.9, 7.0).id, 'nrw', 'in NRW: Landesquelle für Gewässer');
+    assert.equal(rwExtraSrc({ ...w, crs: 'EPSG:25831' }, 48.85, 2.35), null, 'außerhalb: keine');
+    await rwLoadLive(50.9, 7.0, () => {}, undefined, null, store);
+    assert.ok(asked.some(k => k.includes(RW_SOURCES[0].dlm.water)), 'Gewässer aus den Landesdaten abgefragt: ' + asked.join(', '));
+    assert.equal(puts.length, 0, 'vom Höhendienst nichts gespeichert');
+  } finally { rw.userSources = old; rw.photoWarp = oldW; }
+});
