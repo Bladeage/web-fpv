@@ -9,6 +9,7 @@ import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
 import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources, RW_SHOW } from './realworld.js';
+import { rwRoads, roadLenNear } from './roads.js';
 import { wmsProbe } from './rwwms.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
@@ -27,7 +28,8 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
   { id: 'recon', name: 'Aufklärung', scen: 'free', worlds: ['map', 'real'], info: 'Frei fliegen und beobachten. Mit Wirkmittel zündet die Drohne bei Kontakt.' },
-  { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map'], info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.' },
+  { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map', 'real'], roads: true, info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.',
+    infoReal: '7 Fahrzeuge auf den Straßen: grau am Straßenrand, blau langsam, rot schnell. Bei jedem Start neu verteilt.' },
   { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',
     infoReal: '9 Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt.' },
   { id: 'air', name: 'Flugzeuge', scen: 'hunt3', worlds: ['map', 'real'], info: '6 Luftziele: Starrflügler (3 Punkte), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).',
@@ -35,18 +37,27 @@ export const TAC = [
   { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
 ];
 const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3'];   // nicht im Parcours (Prompt 176)
-const COURSE_REAL = ['free', 'rings', 'landing', 'deliver'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung)
+const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
+const ROAD_MODES = ['hunt2', 'follow'];   // brauchen in der echten Welt Straßen (S3)
+// Straßen im Startgebiet: mindestens 500 m (Monschau eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
+const roadsOk = () => roadLenNear(rwRoads(true), [0, 0], rw.size*0.75) >= 500;
+const NO_ROADS = 'Für diesen Ort gibt es keine Straßen (nur NRW; nach dem Laden einige Sekunden warten)';
 // Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
 const REAL_INFO = {
   real: 'Freiflug in echtem Gelände.',
   rings: '8 Ringe zufällig im Gebiet verteilt, bei jedem Start neu. Die Raute zeigt den nächsten Ring.',
   landing: 'Plattform auf einem flachen, freien Platz 60 bis 150 m vom Start, bei jedem Start neu. Sanft landen, 1 s ruhig stehen.',
-  deliver: 'Paket am orangen Platz neben dem Start holen, zu den blauen Plätzen bringen. Plätze flach und frei, bei jedem Start neu.' };
+  deliver: 'Paket am orangen Platz neben dem Start holen, zu den blauen Plätzen bringen. Plätze flach und frei, bei jedem Start neu.',
+  follow: 'Dem orangen Auto auf echten Straßen folgen: 4 bis 12 m Abstand, 1,5 bis 10 m über der Straße. 30 s im Band.' };
 // DIS-Übung (Flugart im Hauptmenü, docs/plan-menue.md) ist immer echte Welt; cfg.world bleibt die Wahl für Parcours und Taktisch
 const isDis = () => cfg.flight === 'dis';
 const isReal = () => cfg.world === 'real' || isDis();
 // Szenario, das beim Start läuft
 export function flightScen() {
+  const s = flightScen0();
+  return isReal() && ROAD_MODES.includes(s) && !roadsOk() ? 'real' : s;   // ohne Straßen: Freiflug statt Ziele auf der Spielkarte
+}
+function flightScen0() {
   if (isDis()) return 'real';   // DIS-Übung: nur der Inhalt des Partners, keine Parcours- oder Jagdziele (Nutzer, Prompt 173)
   if (cfg.flight === 'tactical') {   // echte Welt: Freiflug heißt dort 'real'; Modi ohne echte Welt fliegen frei
     const t = TAC.find(x => x.id === cfg.tac) || TAC[0], s = t.scen || 'free';
@@ -358,14 +369,14 @@ function run(id, real = false) {
 // echten Welt die platzierbaren (heute Freiflug); Taktisch die vier Aufgaben, nicht verfügbare gesperrt mit Grund im Titel
 let listKey = '';
 function buildModeList() {
-  const tac = cfg.flight === 'tactical', real = isReal(), key = cfg.flight + '|' + cfg.world, box = $('scenList');
+  const tac = cfg.flight === 'tactical', real = isReal(), rok = !real || roadsOk(), key = cfg.flight + '|' + cfg.world + '|' + rok, box = $('scenList');
   if (key !== listKey) {
     listKey = key; box.textContent = '';
-    const items = tac ? TAC.map(t => ({ id: t.id, name: t.name, off: !t.worlds.includes(cfg.world) }))
-      : SCENARIOS.filter(x => x.id !== 'real' && x.id !== 'vbs' && !COURSE_HUNT.includes(x.id) && (!real || COURSE_REAL.includes(x.id))).map(x => ({ id: x.id, name: x.name, off: false }));
+    const items = tac ? TAC.map(t => ({ id: t.id, name: t.name, off: !t.worlds.includes(cfg.world) || (t.roads && !rok), why: t.roads && !rok && t.worlds.includes(cfg.world) ? NO_ROADS : '' }))
+      : SCENARIOS.filter(x => x.id !== 'real' && x.id !== 'vbs' && !COURSE_HUNT.includes(x.id) && (!real || COURSE_REAL.includes(x.id))).map(x => ({ id: x.id, name: x.name, off: ROAD_MODES.includes(x.id) && !rok, why: NO_ROADS }));
     for (const it of items) {
       const b = addChoice(box, it.name, '', () => { if (tac) cfg.tac = it.id; else cfg.scen = it.id; saveCfg(); syncMenu(); fitPanel(); });
-      b.dataset.id = it.id; b.disabled = it.off; if (it.off) b.title = 'Folgt mit einer der nächsten Etappen';
+      b.dataset.id = it.id; b.disabled = it.off; if (it.off) b.title = it.why || 'Folgt mit einer der nächsten Etappen';
     }
   }
   // gewählter Modus muss in der Liste sein; sonst den ersten verfügbaren nehmen
@@ -465,6 +476,9 @@ async function disTerrain(land) {
   await rwReplace();
 }
 let disShown = '';
+// Straßen kommen bei geladenen Orten einige Sekunden nach dem Laden (S2): Modusliste dann neu, damit Fahrzeuge und Verfolgung frei werden
+let roadsShown = null;
+setInterval(() => { if (menu.hidden || !isReal() || isDis()) return; const r = roadsOk(); if (r !== roadsShown) { roadsShown = r; syncMenu(); } }, 1000);
 setInterval(() => {   // jede Sekunde, solange der DIS-Modus im Menü gewählt ist
   if (menu.hidden || screen !== 'dis' || !isDis()) return;
   syncDis();

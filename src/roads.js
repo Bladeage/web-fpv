@@ -5,6 +5,7 @@
    Ohne DOM, in Node testbar. */
 import { rw, groundH, rwNear, placeReal, rwPlace, WATER_UP } from './realworld.js';
 import { MeshBuilder } from './world.js';
+import { makeRoute } from './vehicles.js';
 
 // m; w Fahrbahnbreite ohne Angabe (Schätzung Ortsstraße); clear, r: Prüfkugel für das Auto (Mitte 1,2 m hoch, Radius 0,9 m)
 export const ROADS = { snap: 1.5, w: 5.5, step: 2, clear: 1.2, r: 0.9, ford: 12, deck: 12 };
@@ -155,8 +156,8 @@ const trimTail = (out, wet) => out.slice(0, Math.max(0, out.length - Math.ceil(w
 // Graph der aktuellen Welt (Startgebiet und Kacheln), zwischengespeichert bis sich das Gebiet ändert. Quelle: rw.features.roads
 // (eingebettetes Monschau) und je Kachel T.roads (ab S2); fehlt beides, ist der Graph leer.
 let cache = { key: '', G: null };
-export function rwRoads() {
-  if (!rw.on) return null;
+export function rwRoads(menu = false) {   // menu: auch vor dem Start (Gebiet geladen, echte Welt noch nicht eingeschaltet)
+  if (!rw.on && !(menu && rw.ready)) return null;
   const key = rw.ver + ':' + rw.tileVer + ':' + rw.roadVer;
   if (cache.key === key) return cache.G;
   const list = [...((rw.features && rw.features.roads) || [])];
@@ -215,4 +216,46 @@ export function rwLamps() {
   const key = rw.ver + ':' + rw.tileVer + ':' + rw.roadVer;
   if (lampCache.key !== key) { const spots = lampSpots(G); lampCache = { key, L: spots.length ? { spots, ...lampMesh(spots), key } : null }; }
   return lampCache.L;
+}
+
+// Taktischer Flug und Verfolgung (S3, Plan 2.7): Fahrspuren als Zufallswege mit Höhenprofil, Startkante d0 bis d1 m vom Startplatz
+// home [x, z], Länge min bis max m; jede Startkante nur einmal. Gleiches Format wie ROUTES in vehicles.js (Punkte [x, z, y]).
+export function roadRoutes(G, home, n, R = Math.random, opt = {}) {
+  const W = placeReal(), out = [], used = new Set(), min = opt.min ?? 300, max = opt.max ?? 800, d0 = opt.d0 ?? 100, d1 = opt.d1 ?? 400;
+  for (let k = 0; k < 400 && out.length < n; k++) {
+    const e = Math.floor(R()*G.edges.length); if (used.has(e)) continue;
+    const E = G.edges[e], m = E.pts[E.pts.length >> 1], d = Math.hypot(m[0] - home[0], m[1] - home[1]);
+    if (d < d0 || d > d1) continue;
+    const w = roadWalk(G, e, R() < 0.5 ? 0 : 1, min + R()*(max - min), R);
+    const prof = laneProfile(laneOffset(w.pts, laneOff(w.w)), w.pts, W);
+    if (prof.length < 2) continue;
+    const r = makeRoute(prof, false); if (r.len < Math.min(150, min)) continue;
+    used.add(e); out.push(r);
+  }
+  return out;
+}
+// Parkplätze am Straßenrand: Versatz Spur + 1,6 m, eben (Höhenunterschied über 4 m Länge unter 0,6 m), frei, trocken, 12 m Abstand
+// untereinander, 60 bis 400 m vom Start. Rückgabe [[x, z, yaw, y], …] (yaw wie routeAt: Modell schaut nach -z).
+export function parkSpots(G, home, n, R = Math.random) {
+  const W = placeReal(), out = [];
+  for (let k = 0; k < 600 && out.length < n; k++) {
+    // Stelle zufällig entlang der ganzen Kante (nicht je Abschnitt: kurze Abschnitte an Kurven fielen sonst weg)
+    const E = G.edges[Math.floor(R()*G.edges.length)]; if (E.len < 10) continue;
+    let s = 5 + R()*(E.len - 10), i = 0, a, b, L;
+    for (;; i++) { a = E.pts[i]; b = E.pts[i + 1]; L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (s <= L || i >= E.pts.length - 2) break; s -= L; }
+    if (L < 1e-6) continue;
+    const dx = (b[0] - a[0])/L, dz = (b[1] - a[1])/L, t = Math.min(1, s/L), sd = R() < 0.5 ? 1 : -1, off = sd*(laneOff(E.w) + 1.6);
+    const x = a[0] + (b[0] - a[0])*t - dz*off, z = a[1] + (b[1] - a[1])*t + dx*off, d = Math.hypot(x - home[0], z - home[1]);
+    if (d < 60 || d > 400 || W.wet(x, z) || out.some(p => Math.hypot(p[0] - x, p[1] - z) < 12)) continue;
+    const y = groundH(x, z);
+    if (Math.abs(groundH(x + dx*2, z + dz*2) - groundH(x - dx*2, z - dz*2)) > 0.6 || !W.free([x, y + 1.4, z], 1.2)) continue;   // Kugel 0,2 m über dem Boden (vorher 1,3 m Radius bei 1,2 m Höhe: steckte im Boden, nie frei)
+    out.push([x, z, Math.atan2(-dx, -dz) + (R() < 0.5 ? 0 : Math.PI), y]);
+  }
+  return out;
+}
+// Straßenlänge im Startgebiet (Kanten mit Mitte im Umkreis r um c [x, z]): Menü gibt Fahrzeuge und Verfolgung ab 500 m frei
+export function roadLenNear(G, c, r) {
+  let s = 0; if (!G) return 0;
+  for (const E of G.edges) { const m = E.pts[E.pts.length >> 1]; if (Math.hypot(m[0] - c[0], m[1] - c[1]) < r) s += E.len; }
+  return s;
 }

@@ -13,13 +13,14 @@ import { gl, glLost, initGL, render, resize, toggleCam, cycleVision } from './re
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
-import { setScenario } from './scenario.js';
+import { setScenario, scen, followLead } from './scenario.js';
 import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
 import { ambStep, amb } from './ambient.js';
 import { trafficStep, traffic } from './traffic.js';
 import { boatsStep, boats } from './boats.js';
+import { vehicles } from './vehicles.js';
 import { stepPilot } from './pilot.js';
 import { mapPagePos } from './mapui.js';
 import { rw, rwLoadEmbedded, rwStreamStep } from './realworld.js';
@@ -74,7 +75,8 @@ function frame(now) {
     stepBirds(dt, game.sim.p);
     ambStep(dt, game.sim.p);
     { const q = game.sim.q, fx = -2*(q[0]*q[2] + q[3]*q[1]), fz = -(1 - 2*(q[0]*q[0] + q[1]*q[1])), fl = Math.hypot(fx, fz);   // Blickrichtung (-z der Drohne) für den Verkehr
-      trafficStep(dt, game.sim.p, fl > 0.1 ? [fx/fl, fz/fl] : null); }
+      if (scen.id === 'hunt2' || scen.id === 'follow') traffic.cars.length = 0;   // Jagd und Verfolgung: kein Zufallsverkehr (Verwechslung mit den Zielen)
+      else trafficStep(dt, game.sim.p, fl > 0.1 ? [fx/fl, fz/fl] : null); }
     boatsStep(dt, game.sim.p);
     // Echte Welt (L5b): etwa jede Sekunde prüfen, ob eine Kachel nachzuladen oder zu entladen ist
     if (rw.on && (streamT -= dt) <= 0) {
@@ -120,4 +122,4 @@ if (!gl) {
   catch (e) { $('glErr').hidden = false; $('glErr').textContent = 'Grafikfehler: ' + e.message; $('go').disabled = true; $('bStart').disabled = true; }
 }
 // Testzugang für automatische Prüfungen
-window.__fpv = { rw, amb, traffic, boats, mapPagePos, get sim() { return game.sim; }, get state() { return game.state; }, get armed() { return game.armed; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };
+window.__fpv = { rw, amb, traffic, boats, vehicles, followLead, mapPagePos, get sim() { return game.sim; }, get state() { return game.state; }, get armed() { return game.armed; }, set throttle(v) { game.throttle = v; }, inp, cfg, gates, step, respawn, resume };

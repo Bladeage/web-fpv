@@ -872,9 +872,9 @@ export function render(dt) {
       if (cfg.cam !== 'fpv' || (hg > 0.5 && hg < 20)) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0); }
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
-    if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, 0, v.z], 1.15, 2.3, v.yaw);
+    if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, v.y || 0, v.z], 1.15, 2.3, v.yaw);
     for (const a of traffic.cars) add([a.x, a.y, a.z], 1.15, 2.3, a.yaw);
-    if (scen.id === 'follow') { const L = followLead(); add([L.x, 0, L.z], 1.15, 2.3, L.yaw); }
+    if (scen.id === 'follow') { const L = followLead(); add([L.x, L.y || 0, L.z], 1.15, 2.3, L.yaw); }
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4);
     gl.uniform4f(P.u.uOver, 0, 0, 0, 1);
@@ -906,7 +906,7 @@ export function render(dt) {
   }
   // Ballons (Stufe „Leicht“): Kugel in der Ballonfarbe, Leine als Linie zum Ziel
   if ((scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') && diff().balloons) {
-    const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : scen.id === 'hunt3' ? aircraft.map(t => [t.bal, vSub(t.p, [0, 0.4, 0])]) : vehicles.map(v => [v.bal, [v.x, VEH_HALF[1]*2, v.z]]);
+    const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : scen.id === 'hunt3' ? aircraft.map(t => [t.bal, vSub(t.p, [0, 0.4, 0])]) : vehicles.map(v => [v.bal, [v.x, (v.y || 0) + VEH_HALF[1]*2, v.z]]);
     gl.uniform1f(P.u.uHeat, 0.35);
     gl.bindVertexArray(balloonMesh.vao);
     const lines = [];
@@ -941,14 +941,14 @@ export function render(dt) {
         gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
         gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
         gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24); }
-      const pts = L.trail.concat([[L.x, 0.4, L.z]]), d = new Float32Array(pts.length*10);
+      const pts = L.trail.concat([[L.x, (L.y || 0) + 0.4, L.z]]), d = new Float32Array(pts.length*10);
       pts.forEach((p, i) => d.set([p[0], p[1], p[2], 0, 1, 0, 1, 0.6, 0.1, 1], i*10));
       gl.bindVertexArray(tether.vao); gl.bindBuffer(gl.ARRAY_BUFFER, tether.buf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
       gl.uniformMatrix4fv(P.u.uModel, false, mIdent()); gl.uniform4f(P.u.uOver, 1, 0.6, 0.1, 1);
       gl.drawArrays(gl.LINE_STRIP, 0, pts.length);
     }
     gl.bindVertexArray(vehMesh.vao);
-    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], L.yaw), [L.x, 0, L.z]));
+    gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(qAxis([0,1,0], L.yaw), [L.x, L.y || 0, L.z]));
     gl.uniform4f(P.u.uOver, 1.0, 0.5, 0.05, L.ok ? 0.75 : 0.55); gl.uniform1f(P.u.uHeat, 0.85);
     gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniform1f(P.u.uHeat, 0);
@@ -967,7 +967,7 @@ export function render(dt) {
     for (const v of vehicles) {
       gl.uniform1f(P.u.uHeat, v.state === 'hit' ? 0.5 : v.kind === 'parked' ? 0.45 : 0.85);   // fahrend: warmer Motor
       const q = qMul(qAxis([0,1,0], v.yaw), qAxis([0,0,1], v.tilt));
-      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, [v.x, v.tilt*0.6, v.z]));
+      gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(q, [v.x, (v.y || 0) + v.tilt*0.6, v.z]));
       const c = v.state === 'hit' ? [0.08, 0.08, 0.08] : VEH_COLORS[v.kind];
       gl.uniform4f(P.u.uOver, c[0], c[1], c[2], v.state === 'hit' ? 0.75 : 0.55);
       gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);

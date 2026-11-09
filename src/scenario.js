@@ -13,6 +13,7 @@ import { TOWN } from './town.js';
 import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
 import { rw, rwNearName, placeReal, groundH } from './realworld.js';
+import { rwRoads, roadRoutes, parkSpots } from './roads.js';
 import { ringChain, ringCircle, freeAir, airRegions, airCircle, airWaypoints, flatSpot } from './place.js';
 import { osdOn } from './osd.js';
 import { DIS_PREVIEW } from './distypes.js';
@@ -162,7 +163,17 @@ const DROP_HOLD = 0.8;                      // so lange tief und langsam über d
 export const dropOrder = [];
 // Verfolgung: Auto auf der inneren Runde, Tempo wechselt (Schätzung 5 bis 13 m/s, Schwierigkeit skaliert)
 export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
-const lead = { s: 0, t: 0, x: 0, z: 0, yaw: 0, ok: false, dist: 0, trail: [], trailT: 0 };
+const lead = { s: 0, t: 0, x: 0, y: 0, z: 0, yaw: 0, ok: false, dist: 0, trail: [], trailT: 0, route: null };
+// Echte Welt (S3): Fahrzeuge der Jagd auf den Straßen (3 geparkt, 4 fahrend) und das Auto der Verfolgung auf einem langen Weg,
+// der 30 bis 150 m vom Startplatz beginnt. Ohne Straßen leer (das Menü sperrt die Modi dann).
+export function vehLayoutReal(R) {
+  const G = rwRoads(), h = rw.meta.home;
+  return G ? { parked: parkSpots(G, h, 3, R), routes: roadRoutes(G, h, 4, R) } : { parked: [], routes: [] };
+}
+export function leadRouteReal(R) {
+  const G = rwRoads(); if (!G) return null;
+  return roadRoutes(G, rw.meta.home, 1, R, { min: 2000, max: 3500, d0: 30, d1: 150 })[0] || roadRoutes(G, rw.meta.home, 1, R, { min: 1500, max: 3000, d0: 0, d1: 400 })[0] || null;
+}
 export const followLead = () => lead;
 
 // Landeplattform: Mitte des Abschnitts von Tor 3 zu Tor 4, flach am Boden. In der echten Welt ein flacher Platz (T3); c[1] = Boden.
@@ -234,9 +245,9 @@ function reset() {
     dropOrder.length = 0; dropOrder.push(...idx.slice(0, DELIVER_N));
     scen.version++;
   }
-  if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; const r = routeAt(ROUTES[0], 0); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw; }
   st.hits = 0; const lr = () => rng(layoutSeed ?? Math.floor(Math.random()*1e9));
-  if (scen.id === 'hunt') initTargets(diff().huntSpeed, rw.on ? huntLayoutReal(lr()) : null); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed, rw.on ? airLayoutReal(lr()) : null); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+  if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; lead.route = rw.on ? leadRouteReal(lr()) : null; const r = routeAt(lead.route || ROUTES[0], 0); lead.x = r.x; lead.y = r.y; lead.z = r.z; lead.yaw = r.yaw; }
+  if (scen.id === 'hunt') initTargets(diff().huntSpeed, rw.on ? huntLayoutReal(lr()) : null); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed, rw.on ? vehLayoutReal(lr()) : null); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed, rw.on ? airLayoutReal(lr()) : null); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
@@ -358,13 +369,13 @@ function checkFollow(a, b, h) {
   if (st.takeoff !== null) {
     lead.t += h;
     lead.s += (9 + 4*Math.sin(lead.t*0.25))*(diff().followSpeed ?? diff().huntSpeed)*h;
-    const r = routeAt(ROUTES[0], lead.s); lead.x = r.x; lead.z = r.z; lead.yaw = r.yaw;
+    const r = routeAt(lead.route || ROUTES[0], lead.s); lead.x = r.x; lead.y = r.y; lead.z = r.z; lead.yaw = r.yaw;
     if (diff().leadTrail && (!lead.trail.length || lead.t - lead.trailT > 0.2)) {   // Leuchtspur: alle 0,2 s ein Punkt, höchstens 8 s
-      lead.trail.push([lead.x, 0.4, lead.z]); lead.trailT = lead.t; if (lead.trail.length > 40) lead.trail.shift();
+      lead.trail.push([lead.x, lead.y + 0.4, lead.z]); lead.trailT = lead.t; if (lead.trail.length > 40) lead.trail.shift();
     }
   }
   lead.dist = Math.hypot(s.p[0] - lead.x, s.p[2] - lead.z);
-  const alt = s.p[1] - PHYS.foot;
+  const alt = s.p[1] - PHYS.foot - lead.y;   // Höhe über der Straße des Autos (echte Welt: Gelände)
   lead.ok = st.takeoff !== null && lead.dist >= FOLLOW.dMin && lead.dist <= (diff().followMax || FOLLOW.dMax) && alt >= FOLLOW.hMin && alt <= FOLLOW.hMax;
   if (lead.ok) st.inBand += h;
   if (st.inBand >= FOLLOW.need) finish(s.t - st.takeoff);
@@ -423,10 +434,10 @@ export function scenTarget() {
   if (scen.id === 'gates') return gates[s.next] ? gates[s.next].c : null;
   if (st.done || scen.id === 'free' || scen.id === 'vbs' || scen.id === 'real') return null;   // Freiflug: kein Ziel (vorher zeigte die echte Welt auf den Landeplatz der Spielkarte)
   if (scen.id === 'deliver') { const t = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP; return [t[0], t[1] + 0.6, t[2]]; }
-  if (scen.id === 'follow') return [lead.x, 1.5, lead.z];
+  if (scen.id === 'follow') return [lead.x, lead.y + 1.5, lead.z];
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
     let best = null, bd = 1e9;
-    for (const v of vehicles) if (v.state !== 'hit') { const d = Math.hypot(v.x - s.p[0], v.z - s.p[2]); if (d < bd) { bd = d; best = [v.x, VEH_HALF[1]*2, v.z]; } }
+    for (const v of vehicles) if (v.state !== 'hit') { const d = Math.hypot(v.x - s.p[0], v.z - s.p[2]); if (d < bd) { bd = d; best = [v.x, v.y + VEH_HALF[1]*2, v.z]; } }
     return best;
   }
   if (scen.id === 'hunt3') {   // nächstes noch fliegendes Luftziel

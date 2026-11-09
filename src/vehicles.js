@@ -68,13 +68,16 @@ const VEH_SETUP = [
   ['slow', 5, 4, 1], ['slow', 6, 5, 1], ['fast', 14, 6, 1], ['fast', 16, 0, -1]
 ];
 export const vehicles = [];
-export function initVehicles(speedScale = 1) {
+// lay (echte Welt, S3): { parked: [[x, z, yaw, y]], routes: [Spur mit Höhe] } aus roads.js (parkSpots, roadRoutes); sonst Spielkarte.
+// Tempo auf Straßen wie auf der Karte: zwei langsame (5 und 6 m/s), zwei schnelle (14 und 16 m/s), Schätzung.
+export function initVehicles(speedScale = 1, lay = null) {
   vehicles.length = 0;
-  for (const [kind, speed, at, dir] of VEH_SETUP) {
-    const v = { kind, speed: speed*speedScale, dir: dir || 1, s: 0, x: 0, z: 0, yaw: 0, state: 'drive', tilt: 0, route: null };
-    if (kind === 'parked') { [v.x, v.z, v.yaw] = at; v.state = 'park'; }
-    else { v.route = ROUTES[at]; const r = routeAt(v.route, 0); v.x = r.x; v.z = r.z; v.yaw = r.yaw + (v.dir < 0 ? Math.PI : 0); }
-    v.bal = newBalloon([v.x, VEH_HALF[1]*2, v.z], vehicles.length);   // Ballon für Stufe „Leicht“, über dem Dach
+  const setup = lay ? [...lay.parked.map(p => ['parked', 0, p]), ...lay.routes.map((r, i) => [i < 2 ? 'slow' : 'fast', [5, 6, 14, 16][i] ?? 10, r, 1])] : VEH_SETUP;
+  for (const [kind, speed, at, dir] of setup) {
+    const v = { kind, speed: speed*speedScale, dir: dir || 1, s: 0, x: 0, y: 0, z: 0, yaw: 0, state: 'drive', tilt: 0, route: null };
+    if (kind === 'parked') { [v.x, v.z, v.yaw] = at; v.y = at[3] || 0; v.state = 'park'; }
+    else { v.route = typeof at === 'number' ? ROUTES[at] : at; const r = routeAt(v.route, 0); v.x = r.x; v.z = r.z; v.y = r.y; v.yaw = r.yaw + (v.dir < 0 ? Math.PI : 0); }
+    v.bal = newBalloon([v.x, v.y + VEH_HALF[1]*2, v.z], vehicles.length);   // Ballon für Stufe „Leicht“, über dem Dach
     vehicles.push(v);
   }
 }
@@ -82,7 +85,7 @@ export function initVehicles(speedScale = 1) {
 // Schneidet die Strecke a->b (Drohne, um Radius r vergrößert) das Fahrzeug? Slab-Test im Fahrzeugsystem.
 function hitsVehicle(v, a, b, r) {
   const cs = Math.cos(v.yaw), sn = Math.sin(v.yaw);
-  const loc = p => { const dx = p[0] - v.x, dz = p[2] - v.z; return [dx*cs - dz*sn, p[1] - VEH_HALF[1], dx*sn + dz*cs]; };
+  const loc = p => { const dx = p[0] - v.x, dz = p[2] - v.z; return [dx*cs - dz*sn, p[1] - v.y - VEH_HALF[1], dx*sn + dz*cs]; };
   const p = loc(a), q = loc(b);
   let t0 = 0, t1 = 1;
   for (let i = 0; i < 3; i++) {
@@ -104,9 +107,9 @@ export function stepVehicles(h, a, b, r = 0.15, balloons = false) {
     if (v.state === 'drive') {
       v.s += v.speed*v.dir*h;
       const p = routeAt(v.route, v.s);
-      v.x = p.x; v.z = p.z; v.yaw = p.yaw + (v.dir < 0 ? Math.PI : 0);
+      v.x = p.x; v.y = p.y; v.z = p.z; v.yaw = p.yaw + (v.dir < 0 ? Math.PI : 0);
     }
-    if (v.bal) stepBalloon(v.bal, [v.x, VEH_HALF[1]*2, v.z], h);
+    if (v.bal) stepBalloon(v.bal, [v.x, v.y + VEH_HALF[1]*2, v.z], h);
     if (v.state !== 'hit' && (balloons ? popBalloon(v.bal, a, b, r) : hitsVehicle(v, a, b, r))) { v.state = 'hit'; v.tilt = 0.25; hits++; }
   }
   return hits;
