@@ -703,7 +703,8 @@ export function rwModelMesh(S = rw.main) {
     if (l < 1e-9) return;   // Dreieck ohne Fläche (kommt in LoD2 vor): unsichtbar, weglassen
     n = n.map(v => v/l);
     if (up && n[1] < 0) n = n.map(v => -v);
-    for (const p of [a, b, c]) { out[w] = p[0]; out[w + 1] = p[1]; out[w + 2] = p[2]; out[w + 3] = n[0]*nl; out[w + 4] = n[1]*nl; out[w + 5] = n[2]*nl; out[w + 6] = col[0]; out[w + 7] = col[1]; out[w + 8] = col[2]; out[w + 9] = al; w += 10; }
+    const L = typeof nl === 'number' ? [nl, nl, nl] : nl;   // Länge der Normale je Punkt (Kronen: je Punkt eigener Höhenanteil)
+    for (let k = 0; k < 3; k++) { const p = k === 0 ? a : k === 1 ? b : c, q = L[k]; out[w] = p[0]; out[w + 1] = p[1]; out[w + 2] = p[2]; out[w + 3] = n[0]*q; out[w + 4] = n[1]*q; out[w + 5] = n[2]*q; out[w + 6] = col[0]; out[w + 7] = col[1]; out[w + 8] = col[2]; out[w + 9] = al; w += 10; }
   };
   const hash = i => { const k = Math.sin(i*12.9898 + 4.1)*43758.5453; return k - Math.floor(k); };
   const base = new Map();   // tiefster Punkt je Gebäude (Sockel)
@@ -756,11 +757,14 @@ export function rwModelMesh(S = rw.main) {
     const y0c = cr.c[1] - cr.h[1], hc = 2*cr.h[1], r = tr.r, rot = tr.x*0.7 + tr.z*1.3, col = [0.3, 0.4, 0.25], N = 8;
     const ringAt = (f, rr) => Array.from({ length: N }, (_, i) => { const a = rot + i*2*Math.PI/N; return [tr.x + Math.cos(a)*rr, y0c + f*hc, tr.z + Math.sin(a)*rr]; });
     const R = [ringAt(0.2, r*0.8), ringAt(0.45, r), ringAt(0.75, r*0.7)], bot = [tr.x, y0c + 0.05*hc, tr.z], top = [tr.x, y0c + hc, tr.z];
+    // Länge der Normale je Punkt = 1 + Höhenanteil (Unterseite 0,05, Ringe 0,2 / 0,45 / 0,75, Spitze 1): der Shader lässt die
+    // Krone damit im Wind schwingen, gemeinsame Punkte bewegen sich gleich (keine Risse)
+    const F = [1.2, 1.45, 1.75];
     for (let i = 0; i < N; i++) {
       const j = (i + 1) % N;
-      tri(R[0][j], R[0][i], bot, col, 0.08, false);
-      for (let k = 0; k < 2; k++) { tri(R[k][i], R[k][j], R[k + 1][j], col, 0.08, false); tri(R[k][i], R[k + 1][j], R[k + 1][i], col, 0.08, false); }
-      tri(R[2][i], R[2][j], top, col, 0.08, true);
+      tri(R[0][j], R[0][i], bot, col, 0.08, false, [F[0], F[0], 1.05]);
+      for (let k = 0; k < 2; k++) { tri(R[k][i], R[k][j], R[k + 1][j], col, 0.08, false, [F[k], F[k], F[k + 1]]); tri(R[k][i], R[k + 1][j], R[k + 1][i], col, 0.08, false, [F[k], F[k + 1], F[k + 1]]); }
+      tri(R[2][i], R[2][j], top, col, 0.08, true, [F[2], F[2], 2]);
     }
   }
   return out.slice(0, w);

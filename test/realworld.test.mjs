@@ -144,6 +144,15 @@ test('Echte Welt: Netz mit Fassaden (Sockelhöhe im Alpha), Dächer und Kronen',
   assert.equal(bad, 0);
   assert.ok(wall >= (T().length/9 - rw.meta.roofTris)*3*0.95 && roof >= rw.meta.roofTris*3*0.95 && trunk > 0 && crown > rw.trees.length*48*3 - 1, `Wände ${wall}, Dach ${roof}, Stamm ${trunk}, Krone ${crown}`);
   assert.equal(eaveOk, wall, 'jede Wand trägt ihre Traufhöhe in der Länge der Normale');
+  // Wind (L1): Kronenpunkte tragen 1 + Höhenanteil in der Länge der Normale, die Spitze schwingt am meisten, oben mehr als unten
+  let cOk = 0, hiY = 0, loY = 0, hiN = 0, loN = 0;
+  for (let i = 0; i < n; i++) {
+    const a = v[i*10 + 9]; if (!(a > 0.07 && a < 0.1)) continue;
+    const nl = Math.hypot(v[i*10 + 3], v[i*10 + 4], v[i*10 + 5]); if (nl >= 1.04 && nl <= 2.001) cOk++;
+    if (nl > 1.9) { hiY += v[i*10 + 1]; hiN++; } else if (nl < 1.1) { loY += v[i*10 + 1]; loN++; }
+  }
+  assert.equal(cOk, crown, 'Kronen: Länge der Normale 1,05 bis 2');
+  assert.ok(hiN > 0 && loN > 0 && hiY/hiN > loY/loN, 'Spitze liegt höher als die Unterseite');
   // Traufe: bei den meisten Wänden mindestens 2 m über dem Sockel, nie über dem höchsten Punkt des Gebäudes
   let tall = 0; for (let i = 0; i < n; i += 3) { const a = v[i*10 + 9]; if (a < 0.125 || a >= 0.5) continue; if ((Math.hypot(v[i*10 + 3], v[i*10 + 4], v[i*10 + 5]) - 2)*100 > 2) tall++; }
   assert.ok(tall/(wall/3) > 0.8, 'Traufe über 2 m: ' + (tall/(wall/3)*100).toFixed(0) + ' %');

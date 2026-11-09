@@ -45,9 +45,16 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNor;
 layout(location=2) in vec4 aCol;
 uniform mat4 uVP, uModel;
+uniform float uTime, uGfx;
 out vec3 vNor; out vec4 vCol; out vec3 vW;
 void main(){
   vec4 w = uModel * vec4(aPos, 1.0);
+  // Baumkronen im Wind (Prompt 180, L1): die Länge der Normale trägt 1 + Höhenanteil in der Krone (unten fest, Spitze schwingt am
+  // meisten). Ausschlag bis etwa 0,2 m, langsame Böe plus leichtes Zittern, Phase je Ort. Nur ab „Mittel“. Zahlen: Schätzung.
+  if (uGfx > 0.5 && aCol.a > 0.07 && aCol.a < 0.1) {
+    float f = clamp(length(aNor) - 1.0, 0.0, 1.0), ph = aPos.x*0.21 + aPos.z*0.17;
+    w.xz += f*(vec2(0.9, 0.35)*0.18*sin(uTime*0.9 + ph) + 0.05*sin(uTime*2.6 + ph));
+  }
   vW = w.xyz; vNor = mat3(uModel) * aNor; vCol = aCol;
   gl_Position = uVP * w;
   // Flache Platten knapp über dem Boden (Startplatz, Rasen, Landeplatz): je mm Höhe ein fester Tiefen-Vorsprung.
