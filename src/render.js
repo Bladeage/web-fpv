@@ -14,8 +14,9 @@ import { boats, buildBoatMesh, boatYaw, BOAT } from './boats.js';
 import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
+import { I3S, i3s, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
 // Umgebung, die mitwandert (Prüfbericht Nr. 16): gezeichneter Stand (Mitte, Größe, Version) und der nächste im Aufbau
 const farAt = { cx: 0, cz: 0, size: 1, ver: -1 };
@@ -49,7 +50,7 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNor;
 layout(location=2) in vec4 aCol;
 uniform mat4 uVP, uModel;
-uniform float uTime, uGfx;
+uniform float uTime, uGfx, uSink;
 out vec3 vNor; out vec4 vCol; out vec3 vW;
 void main(){
   vec4 w = uModel * vec4(aPos, 1.0);
@@ -59,6 +60,7 @@ void main(){
     float f = clamp(length(aNor) - 1.0, 0.0, 1.0), ph = aPos.x*0.21 + aPos.z*0.17;
     w.xz += f*(vec2(0.9, 0.35)*0.18*sin(uTime*0.9 + ph) + 0.05*sin(uTime*2.6 + ph));
   }
+  if (uSink > 0.0 && aCol.a < 0.03) w.y -= uSink;   // Sichtprobe 3D-Mesh (M0): Gelände unter das Mesh, sonst flackern beide
   vW = w.xyz; vNor = mat3(uModel) * aNor; vCol = aCol;
   gl_Position = uVP * w;
   // Flache Platten knapp über dem Boden (Startplatz, Rasen, Landeplatz): je mm Höhe ein fester Tiefen-Vorsprung.
@@ -430,6 +432,45 @@ void main(){
   else if (uVision > 0.5) c = vec3((0.10 + 0.08*(1.0 - t))*(1.0 - 0.3*uNight));             // Wärmebild: kalter Himmel dunkel, nachts kälter
   o = vec4(c, 1.0);
 }`;
+// Sichtprobe 3D-Mesh NRW (M0, ?mesh=1): Knoten mit Textur; Lagen relativ zur Knotenmitte (Ost, Nord, Höhe) -> Karte (x Ost, y Höhe,
+// z Süd) plus Versatz uOff. Licht wie ein Bodenpunkt des Luftbilds im Welt-Shader (Normale nach oben; Licht und Schatten stecken im
+// Bild), Dunst, blasse Ferne, Nebel, Nacht, Wärme und Nachtsicht wie dort (Stücke kopiert, für die Probe).
+const MESH_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+uniform mat4 uVP; uniform vec3 uOff;
+out vec2 vUV; out vec3 vW;
+void main(){ vec3 w = vec3(aPos.x, aPos.z, -aPos.y) + uOff; vW = w; vUV = aUV; gl_Position = uVP*vec4(w, 1.0); }`;
+const MESH_FS = `#version 300 es
+precision highp float;
+in vec2 vUV; in vec3 vW;
+uniform vec3 uCam, uFog, uSun; uniform float uFogD, uNight, uGfx, uVision; uniform sampler2D uTex;
+out vec4 o;
+float rwHaze(float d, float dy){ return (1.0 - exp(-d/900.0))*(0.05 + 0.10*clamp(dy/150.0, 0.0, 1.0)); }
+vec3 rwPale(vec3 col, float d){ return mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), 0.45*(1.0 - exp(-d/2500.0))); }
+vec3 vis(vec3 col){
+  if (uVision < 0.5) return col;
+  float l = dot(col, vec3(0.299, 0.587, 0.114));
+  if (uVision < 1.5) return vec3(0.12 + 0.30*l);
+  return vec3(0.25, 1.0, 0.35)*min(0.05 + (uNight > 0.5 ? 4.5 : 0.6)*l, 1.6);
+}
+void main(){
+  vec3 c = texture(uTex, vUV).rgb;
+  float d = length(vW - uCam), f = 1.0 - exp(-pow(d*uFogD, 1.6)), dif = max(uSun.y, 0.0);
+  if (uGfx < 0.5) {
+    vec3 amb = vec3(0.52, 0.60, 0.70), lc = vec3(1.0, 0.96, 0.88)*0.72;
+    if (uNight > 0.5) { amb *= vec3(0.07, 0.08, 0.12); lc = vec3(0.25, 0.30, 0.45)*0.2; }
+    vec3 col = rwPale(c*(amb + dif*lc), d);
+    o = vec4(vis(mix(col, uFog, clamp(f + rwHaze(d, uCam.y - vW.y)*(1.0 - 0.5*uNight), 0.0, 1.0))), 1.0);
+    return;
+  }
+  vec3 amb = vec3(0.20, 0.27, 0.40), lc = vec3(1.0, 0.88, 0.70)*1.5;
+  if (uNight > 0.5) { amb *= vec3(0.06, 0.08, 0.12); lc = vec3(0.25, 0.30, 0.45)*0.25; }
+  vec3 col = rwPale(pow(c, vec3(2.2))*(amb + dif*lc), d);
+  col = mix(col, pow(uFog, vec3(2.2))*0.85, clamp(f + rwHaze(d, uCam.y - vW.y)*(1.0 - 0.5*uNight), 0.0, 1.0));
+  col = (col*(2.51*col + 0.03))/(col*(2.43*col + 0.59) + 0.14);
+  o = vec4(vis(pow(clamp(col, 0.0, 1.0), vec3(1.0/2.2))), 1.0);
+}`;
 // Lens-Flare: schwache farbige Spiegelungen auf der Linie Sonne -> Bildmitte, dazu ein feiner Lichtstreifen.
 // Wird nur gezeichnet, wenn die Sonne im Bild und nicht verdeckt ist. Additiv, bewusst schwach.
 const FLARE_FS = `#version 300 es
@@ -455,7 +496,7 @@ void main(){
 }`;
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
-let P = null, PS = null, PF = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
+let P = null, PS = null, PF = null, PM = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
 let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, beamMesh = null, boatMesh = {}, hotAirMesh = [], gliderMesh = null, lampGl = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
 const partGl = new Map();   // DIS-Einheiten: Teile je Grundtyp
 const SUN = vNorm([0.45, 0.8, 0.3]);
@@ -577,7 +618,8 @@ function buildBalloonMesh() {
   return new Float32Array(mb.d);
 }
 export function initGL() {
-  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime', 'uNight']);
+  P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime', 'uNight', 'uSink']);
+  PM = program(MESH_VS, MESH_FS, ['uVP', 'uOff', 'uCam', 'uFog', 'uFogD', 'uSun', 'uNight', 'uGfx', 'uVision', 'uTex']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime', 'uJa0', 'uJb0', 'uJa1', 'uJb1', 'uNight']);
   PF = program(SKY_VS, FLARE_FS, ['uSunP', 'uK', 'uAsp']);
   const w = worldData || (worldData = buildWorld());   // buildWorld füllt Hindernisse und Tore und darf nur einmal laufen (Neuaufbau nach Grafikverlust)
@@ -754,7 +796,9 @@ export function render(dt) {
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.uniform1f(P.u.uPhoto, rw.on ? 1 : 0);
-  if (rw.on) drawTerrain();
+  const meshO = meshStep(vp, eye, H/(2*Math.tan(vf/2)));   // Sichtprobe 3D-Mesh (M0, nur ?mesh=1)
+  gl.uniform1f(P.u.uSink, meshShow ? I3S.sink : 0);
+  if (rw.on) drawTerrain(meshO && meshShow ? () => drawMesh(vp, eye, meshO, GFX, VIS, FOGN) : null);
   else {
   gl.bindVertexArray(worldMesh.vao);
   // Boden ohne Tiefen-Eintrag: Alles steht auf oder über ihm und wird danach gezeichnet. So können flache Platten
@@ -1105,6 +1149,7 @@ export function render(dt) {
   if (cfg.cam !== 'fpv') drawProps(md, dt);
   else if (cfg.propsView) drawPropsFpv(md, dt, vf, asp, eye, lastCamQ);
   drawFlare(vp, eye, asp, GFX, VIS, dt);
+  meshInfo();
   gl.bindVertexArray(null);
 }
 // Luftbild der echten Welt (DOP, 4096² für 1 km = 0,25 m je Pixel) als Textur mit Mipmaps; zu groß fürs Gerät: verkleinert.
@@ -1133,7 +1178,77 @@ function loadPhoto(bytes, ver, set = t => { photoTex = t; }, cap = RW_TEX.other)
 const freeGl = m => { if (m) { gl.deleteVertexArray(m.vao); if (m.buf) gl.deleteBuffer(m.buf); if (m.ib) gl.deleteBuffer(m.ib); } };
 // Echte Welt: Höhenmodell mit Luftbild, Gewässer, Gebäude (LoD2, Fassaden) und Bäume, Kartenebenen. Schreibt Tiefe.
 // Neues Gebiet (rw.ver): alle Netze und das Luftbild frei geben und neu bauen.
-function drawTerrain() {
+// Sichtprobe 3D-Mesh (M0): nur mit ?mesh=1, echte Welt, nicht DIS, Gebiet in UTM 32 (NRW). meshShow: es ist etwas zu sehen; dann
+// Gelände abgesenkt und Häuser, eigene Bäume, Wasser, Kartenlinien aus (das Mesh zeigt sie). Physik unverändert (LoD2, DGM).
+export const MESH_PROBE = typeof location !== 'undefined' && /[?&]mesh=1(&|$)/.test(location.search);
+const meshOn = () => MESH_PROBE && rw.on && !cfg.verbund && rw.meta && rw.meta.crs === 'EPSG:25832';
+let meshShow = false, meshVer = -1, meshEvictT = 0;
+const meshNet = rwNet(null, 15000);
+function meshPage(p) {
+  i3s.pages.set(p, 'load'); i3s.jobs++;
+  meshNet.text(i3sPageUrl(p)).then(t => { i3sAddPage(p, JSON.parse(t)); if (p === 0) { const r = i3s.nodes.get(0); i3s.root = r; i3s.l1 = r ? r.ch : []; } })
+    .catch(e => { i3s.pages.set(p, 'fail'); i3s.err = String(e && e.message || e); setTimeout(() => i3s.pages.delete(p), 30000); })
+    .finally(() => { i3s.jobs--; });
+}
+function meshNode(n) {
+  n.st = 'load'; i3s.jobs++;
+  Promise.all([meshNet.get(i3sGeoUrl(n.res)), meshNet.get(i3sTexUrl(n.tex))]).then(async ([g, t]) => {
+    if (g[0] === 0x1f && g[1] === 0x8b) g = new Uint8Array(await new Response(new Blob([g]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());   // ohne Content-Encoding
+    const G = i3sGeometry(g), img = await createImageBitmap(new Blob([t], { type: 'image/jpeg' }));
+    if (glLost.on) { img.close(); n.st = 'idle'; return; }
+    const vao = gl.createVertexArray(), buf = gl.createBuffer(); gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(G.pos.buffer, G.pos.byteOffset, G.vc*5), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 8, G.vc*12);
+    gl.bindVertexArray(null);
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); img.close();
+    gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const an = gl.getExtension('EXT_texture_filter_anisotropic');
+    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; n.t = performance.now()/1000; i3s.loaded++; i3s.mb += (g.byteLength + t.byteLength)/1e6;
+  }).catch(e => { n.st = 'fail'; n.fail = performance.now()/1000; i3s.err = String(e && e.message || e); }).finally(() => { i3s.jobs--; });
+}
+const meshFree = n => { if (n.gl) { gl.deleteVertexArray(n.gl.vao); gl.deleteBuffer(n.gl.buf); gl.deleteTexture(n.gl.tex); n.gl = null; } };
+// Je Bild: Auswahl, Abrufe anstoßen (höchstens I3S.para gleichzeitig), alte Knoten freigeben
+function meshStep(vp, eye, f) {
+  if (!meshOn()) { meshShow = false; return null; }
+  if (glLost.on) return null;
+  if (meshVer !== rwGlVer) { for (const n of i3s.nodes.values()) if (n.gl) { n.gl = null; n.st = 'idle'; } meshVer = rwGlVer; }   // Grafik neu (Verlust): neu laden
+  if (!i3s.pages.has(0)) meshPage(0);
+  const m = rw.meta, o = { ec: (m.bbox[0] + m.bbox[2])/2, nc: (m.bbox[1] + m.bbox[3])/2, h: m.hHome }, now = performance.now()/1000;
+  const S = i3sSelect(eye, f, i3sPlanes(vp), o, LOW_MEM ? 2.5 : I3S.q);
+  for (const p of S.pages) { if (i3s.jobs >= I3S.para) break; if (!i3s.pages.has(p)) meshPage(p); }
+  for (const [n] of S.want) { if (i3s.jobs >= I3S.para) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
+  for (const n of S.draw) n.t = now;
+  i3s.drawn = S.draw;
+  if (now - meshEvictT > 1) { meshEvictT = now; for (const n of i3sEvict(now, new Set(S.draw))) meshFree(n); }
+  meshShow = S.draw.length > 0;
+  return o;
+}
+function drawMesh(vp, eye, o, GFX, VIS, fog) {
+  gl.useProgram(PM.p);
+  gl.uniformMatrix4fv(PM.u.uVP, false, vp); gl.uniform3fv(PM.u.uCam, eye); gl.uniform3fv(PM.u.uFog, fog);
+  gl.uniform1f(PM.u.uFogD, rw.far ? 1/2200 : 1/700); gl.uniform3fv(PM.u.uSun, dayState(cfg.night, sunDir()).light); gl.uniform1f(PM.u.uNight, cfg.night ? 1 : 0);
+  gl.uniform1f(PM.u.uGfx, GFX); gl.uniform1f(PM.u.uVision, VIS); gl.activeTexture(gl.TEXTURE0); gl.uniform1i(PM.u.uTex, 0);
+  for (const n of i3s.drawn) {
+    gl.uniform3f(PM.u.uOff, n.c[0] - o.ec, n.c[2] - o.h, -(n.c[1] - o.nc));
+    gl.bindTexture(gl.TEXTURE_2D, n.gl.tex); gl.bindVertexArray(n.gl.vao); gl.drawArrays(gl.TRIANGLES, 0, n.vc);
+  }
+  gl.useProgram(P.p);
+}
+// Anzeige der Sichtprobe: Knoten, Speicher, geladene Daten, Bilder je Sekunde (gemessen über 1 s)
+let meshHud = null, fpsN = 0, fpsT = 0, fps = 0;
+function meshInfo() {
+  if (!MESH_PROBE) return;
+  const now = performance.now(); fpsN++;
+  if (now - fpsT < 1000) return;
+  fps = fpsN*1000/(now - fpsT); fpsN = 0; fpsT = now;
+  if (!meshHud) { meshHud = document.createElement('div'); meshHud.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:5;font:12px/1.3 monospace;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:6px;pointer-events:none;white-space:nowrap'; document.body.appendChild(meshHud); }
+  meshHud.textContent = 'MESH-PROBE ' + (meshOn() ? i3s.drawn.length + ' Teile, ' + Math.round(i3s.gpu) + ' MB Grafik, ' + i3s.mb.toFixed(0) + ' MB geladen' + (i3s.jobs ? ', lädt ' + i3s.jobs : '') + (i3s.err && !meshShow ? ', Fehler: ' + i3s.err.slice(0, 40) : '') : 'aus (nur echte Welt, NRW)') + ' · ' + Math.round(fps) + ' Bilder/s';
+}
+function drawTerrain(meshDraw = null) {   // meshDraw: Sichtprobe 3D-Mesh zeichnet statt Wasser, Häusern, Bäumen, Kartenlinien
   if (rwGlVer !== rw.ver) {
     [terrain, farGl, rwModelGl, waterGl, featGl].forEach(freeGl);
     for (const t of [photoTex, farTex]) if (t) gl.deleteTexture(t);
@@ -1208,10 +1323,10 @@ function drawTerrain() {
     gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count);
     gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.BLEND); };
   if (!waterGl && rw.water) waterGl = upload(rwWaterMesh());
-  drawWater(waterGl);
+  if (!meshDraw) drawWater(waterGl);
   // Gebäude und Bäume, ein Netz
   if (!rwModelGl && rw.main) rwModelGl = upload(rwModelMesh());
-  if (rwModelGl) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
+  if (rwModelGl && !meshDraw) { gl.bindVertexArray(rwModelGl.vao); gl.drawArrays(gl.TRIANGLES, 0, rwModelGl.count); }
   // Nachgeladene Kacheln: je Kachel Gelände, Wasser, Gebäude und Bäume mit eigenem Luftbild
   for (const T of rw.tiles.values()) {
     const g = tileGl.get(T);
@@ -1219,12 +1334,14 @@ function drawTerrain() {
     gl.uniform2f(P.u.uOrigin, T.dx - rw.size/2, T.dz - rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(T.i, T.j));
     gl.bindTexture(gl.TEXTURE_2D, g.tex || groundTex);
     gl.bindVertexArray(g.terrain.vao); gl.drawElements(gl.TRIANGLES, g.terrain.n, gl.UNSIGNED_INT, 0);
+    if (meshDraw) continue;
     drawWater(g.water);
     gl.bindVertexArray(g.model.vao); gl.drawArrays(gl.TRIANGLES, 0, g.model.count);
   }
+  if (meshDraw) meshDraw();
   gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(0, 0)); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
   // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder; leicht nach vorn gezogen
-  if (rw.features && osdOn(cfg.osd, 'mapLayers')) {
+  if (rw.features && osdOn(cfg.osd, 'mapLayers') && !meshDraw) {
     if (!featGl) featGl = upload(rwFeatureMesh());
     gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -400);
     gl.bindVertexArray(featGl.vao); gl.drawArrays(gl.TRIANGLES, 0, featGl.count);
