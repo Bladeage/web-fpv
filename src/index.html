@@ -52,7 +52,7 @@
           <p class="grp">Startort <button class="linkbtn grplink" id="rwOpt" title="Daten, Export und Import, Quellen">Optionen ›</button></p>
           <div class="seg small" id="rwSeg"><button data-start="emb" title="Eingebaut, geht ohne Netz">Monschau</button><button data-start="live" title="Beliebiger Ort in Deutschland">Ort laden</button></div>
           <div id="rwLive" class="rwlive">
-            <input type="text" id="rwLL" placeholder="Breite, Länge" aria-label="Breite, Länge" inputmode="decimal" autocomplete="off">
+            <input type="text" id="rwLL" placeholder="Ort, Adresse oder Breite, Länge" aria-label="Ort, Adresse oder Breite, Länge" inputmode="decimal" autocomplete="off">
             <button class="secondary" id="rwMap">Karte</button>
             <button class="secondary" id="rwGo">Laden</button>
           </div>
@@ -81,9 +81,10 @@
     <section data-screen="map" hidden>
       <h1>Ort wählen</h1>
       <div class="mapbox"><canvas id="mapCv" aria-label="Deutschlandkarte"></canvas>
+        <form class="mapsearch" id="mapFind"><input type="search" id="mapQ" placeholder="Ort oder Adresse suchen" aria-label="Ort oder Adresse suchen" autocomplete="off" enterkeyhint="search"><button id="mapGo" title="Suchen (Daten © OpenStreetMap-Mitwirkende, ODbL)">Suchen</button></form>
         <div class="mapzoom"><button id="mapIn" title="Näher">+</button><button id="mapOut" title="Weiter weg">−</button><button id="mapAll" title="Ganz Deutschland">DE</button></div></div>
       <p class="hint" id="mapInfo"></p>
-      <p class="hint mapattr">Grenzen: <a href="https://www.bkg.bund.de" target="_blank" rel="noopener">BKG</a> 2026, <a href="https://www.govdata.de/dlde/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a>, vereinfacht (<a href="https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf" target="_blank" rel="noopener">Datenquellen</a>). Karte: © GeoBasis-DE / BKG 2026, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.</p>
+      <p class="hint mapattr">Grenzen: <a href="https://www.bkg.bund.de" target="_blank" rel="noopener">BKG</a> 2026, <a href="https://www.govdata.de/dlde/by-2-0" target="_blank" rel="noopener">dl-de/by-2-0</a>, vereinfacht (<a href="https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf" target="_blank" rel="noopener">Datenquellen</a>). Karte: © GeoBasis-DE / BKG 2026, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Suche: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.</p>
       <div class="nav nav3"><button class="secondary" data-go="mode">Zurück</button><button class="secondary" id="mapSrc">Quellen</button><button class="primary" id="mapOk">Laden</button></div>
     </section>
 

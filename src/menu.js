@@ -16,6 +16,7 @@ import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
+import { geoSearch } from './geosearch.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
 import { VB, vb, vbBridge, vbCenter, vbSet, VB_BRUECKE } from './verbund.js';
@@ -108,12 +109,13 @@ function batteryIcon(cap, cells) {
 }
 function setCapIcon() { const sp = droneSpec(cfg.drone), b = $('capIco'); b.textContent = ''; b.appendChild(batteryIcon(sp.cap, sp.cells)); }
 
-// Spielstil-Karten: setzen mehrere Einstellungen auf einmal. Weicht eine ab, gilt „Eigene“.
+// Spielstil-Karten: setzen mehrere Einstellungen auf einmal. Weicht eine ab, gilt „Eigene“. Den Flugmodus (Angle, Acro) stellen
+// sie nicht um (Nutzer, Prompt 192): der bleibt die eigene Wahl des Piloten.
 const STYLES = {
-  learn:  { name: 'Lernen',      info: 'Angle, kein Schaden, Akku unendlich, Flugspur.', set: { mode: 'angle', dmg: 'off', infBat: true, trail: true, ghost: false, needArm: false } },
-  normal: { name: 'Normal',      info: 'Angle, kein Schaden, Akku normal.', set: { mode: 'angle', dmg: 'off', infBat: false, trail: false, ghost: false, needArm: false } },
-  real:   { name: 'Realistisch', info: 'Acro, Schaden realistisch, Akku normal, scharf schalten nötig.', set: { mode: 'acro', dmg: 'real', infBat: false, trail: false, ghost: false, needArm: true } },
-  god:    { name: 'Gott-Modus',  info: 'Durch Hindernisse fliegen, kein Schaden, Akku unendlich, Flugspur.', set: { mode: 'angle', dmg: 'off', infBat: true, trail: true, ghost: true, needArm: false } }
+  learn:  { name: 'Lernen',      info: 'Kein Schaden, Akku unendlich, Flugspur.', set: { dmg: 'off', infBat: true, trail: true, ghost: false, needArm: false } },
+  normal: { name: 'Normal',      info: 'Kein Schaden, Akku normal.', set: { dmg: 'off', infBat: false, trail: false, ghost: false, needArm: false } },
+  real:   { name: 'Realistisch', info: 'Schaden realistisch, Akku normal, scharf schalten nötig.', set: { dmg: 'real', infBat: false, trail: false, ghost: false, needArm: true } },
+  god:    { name: 'Gott-Modus',  info: 'Durch Hindernisse fliegen, kein Schaden, Akku unendlich, Flugspur.', set: { dmg: 'off', infBat: true, trail: true, ghost: true, needArm: false } }
 };
 const currentStyle = () => Object.keys(STYLES).find(k => Object.entries(STYLES[k].set).every(([key, v]) => cfg[key] === v)) || null;
 
@@ -276,8 +278,16 @@ function rwLock() {
 // Meldungen des Ladens: in der DIS-Übung in die Geländezeile der DIS-Seite, sonst unter „Ort laden“
 const msgEl = () => isDis() ? $('disGround') : $('rwMsg');   // vorher rief sich msgEl hier selbst auf (Endlosschleife beim Laden eines Orts, seit dem Menü-Umbau)
 async function rwLiveDo() {
-  const ll = parseLatLon(cfg.rwLL);
-  if (!ll) { msgEl().textContent = 'Bitte Breite und Länge eingeben, zum Beispiel 50.7753, 6.0839.'; return false; }
+  let ll = parseLatLon(cfg.rwLL);
+  if (!ll && /\p{L}/u.test(cfg.rwLL || '')) {   // Name oder Adresse (Prompt 192): erst suchen, dann laden
+    msgEl().textContent = 'Suche „' + cfg.rwLL + '“ …';
+    const hits = await geoSearch(cfg.rwLL, rwNet(null, 15000)).catch(e => { msgEl().textContent = 'Suche nicht erreichbar: ' + String(e && e.message || e).slice(0, 80); return null; });
+    if (!hits) return false;
+    if (!hits.length) { msgEl().textContent = 'Nichts gefunden für „' + cfg.rwLL + '“. Anders schreiben oder die Karte nutzen.'; return false; }
+    ll = [hits[0].lat, hits[0].lon]; cfg.rwLL = ll[0].toFixed(5) + ', ' + ll[1].toFixed(5); saveCfg(); syncMenu();
+    msgEl().textContent = 'Gefunden: ' + hits[0].name;
+  }
+  if (!ll) { msgEl().textContent = 'Bitte einen Ort, eine Adresse oder Breite und Länge eingeben, zum Beispiel Kölner Dom oder 50.7753, 6.0839.'; return false; }
   rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen'; rwLock();
   const t0 = performance.now();
   let ok = false;

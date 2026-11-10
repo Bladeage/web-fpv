@@ -4,11 +4,12 @@
 import { cfg } from './state.js';
 import { deMap, deLandAt, mapToScreen, mapFromScreen, mapZoom, mapClamp, mapFitGermany } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
-import { rwSources, rwPlan } from './realworld.js';
+import { rwSources, rwPlan, rwNet } from './realworld.js';
+import { geoSearch } from './geosearch.js';
 import { parseLatLon } from './format.js';
 
 const BASEMAP = 'https://sgx.geodatenzentrum.de/wms_basemapde?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=de_basemapde_web_raster_farbe&STYLES=&CRS=EPSG:25832&FORMAT=image/png';
-const M = { view: null, sel: null, bm: null, bmWant: '', bmErr: false, bmTimer: 0, pts: new Map(), moved: 0, pinch: 0, onPick: null, onLayout: null, labels: null, txt: '' };
+const M = { hit: null, hits: [], q: '', view: null, sel: null, bm: null, bmWant: '', bmErr: false, bmTimer: 0, pts: new Map(), moved: 0, pinch: 0, onPick: null, onLayout: null, labels: null, txt: '' };
 const el = id => document.getElementById(id);
 
 // Mitte jedes Landes (größter Ring, Mittel der Punkte) für die Beschriftung
@@ -75,7 +76,7 @@ function info() {
   const off = M.bmErr ? ' Hintergrundkarte nicht erreichbar, nur Grenzen.' : '';
   if (!M.sel) { el('mapInfo').textContent = 'Auf die Karte tippen, um den Mittelpunkt zu setzen. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
   const [lat, lon] = fromUtm(M.sel[0], M.sel[1]), land = deLandAt(M.sel[0], M.sel[1]), plan = rwPlan(lat, lon);
-  el('mapInfo').textContent = lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
+  el('mapInfo').textContent = (M.hit ? M.hit.name + (M.hits.length > 1 ? ' (' + (M.hits.indexOf(M.hit) + 1) + '/' + M.hits.length + ', Enter: nächster)' : '') + ' · ' : '') + lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
     + (plan ? 'Quelle: ' + plan.srcs.map(x => x.name).join(' + ') + (plan.skipped.length ? ' (ohne ' + plan.skipped.map(x => x.name).join(', ') + ': anderes Koordinatensystem)' : '')
       : 'keine Quelle hinterlegt, unter „Quellen“ eintragen') + '.' + off;
   el('mapOk').disabled = !plan;
@@ -112,11 +113,27 @@ export function mapInit(onPick, onLayout) {
     }
     M.pts.set(e.pointerId, p); mapDraw();
   });
+  // Suche (Nominatim): Treffer anspringen und als Punkt setzen; dieselbe Suche noch einmal: nächster Treffer
+  el('mapFind').addEventListener('submit', async e => {
+    e.preventDefault();
+    const q = el('mapQ').value.trim(); if (!q) return;
+    if (q === M.q && M.hits.length > 1) { M.hit = M.hits[(M.hits.indexOf(M.hit) + 1) % M.hits.length]; }
+    else {
+      el('mapInfo').textContent = 'Suche „' + q + '“ …'; el('mapGo').disabled = true;
+      try { M.hits = await geoSearch(q, rwNet(null, 15000)); }
+      catch (err) { M.hits = []; el('mapInfo').textContent = 'Suche nicht erreichbar: ' + String(err && err.message || err).slice(0, 80); layout(); return; }
+      finally { el('mapGo').disabled = false; }
+      M.q = q; M.hit = M.hits[0] || null;
+      if (!M.hit) { el('mapInfo').textContent = 'Nichts gefunden für „' + q + '“. Anders schreiben, zum Beispiel mit Ort oder Postleitzahl.'; layout(); return; }
+    }
+    const [E, N] = toUtm(M.hit.lat, M.hit.lon); M.sel = [E, N]; M.view = mapClamp({ E, N, s: 4 }); mapDraw(); info();
+  });
+  el('mapQ').addEventListener('keydown', e => e.stopPropagation());   // Tippen steuert nicht die Drohne
   const up = e => {
     if (!M.pts.has(e.pointerId)) return;
     const p = at(e), [w, h] = size();
     M.pts.delete(e.pointerId);
-    if (M.moved < 6 && !M.pinch && e.type === 'pointerup') { M.sel = mapFromScreen(M.view, w, h, p[0], p[1]); mapDraw(); info(); }
+    if (M.moved < 6 && !M.pinch && e.type === 'pointerup') { M.sel = mapFromScreen(M.view, w, h, p[0], p[1]); M.hit = null; mapDraw(); info(); }   // eigener Punkt: kein Suchtreffer mehr
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', e => { e.preventDefault(); const p = at(e), [w, h] = size(); M.view = mapZoom(M.view, w, h, p[0], p[1], Math.pow(1.25, e.deltaY/100)); mapDraw(); }, { passive: false });

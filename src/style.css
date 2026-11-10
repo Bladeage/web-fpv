@@ -210,6 +210,9 @@ details{margin-top:10px}
 .mapzoom{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px}
 .mapzoom button{width:34px;height:30px;padding:0;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:#223;font-weight:700}
 .mapattr{font-size:11px;opacity:.8}
+.mapsearch{position:absolute;left:8px;top:8px;right:52px;display:flex;gap:4px}
+.mapsearch input{flex:1;min-width:0;height:30px;padding:0 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.92);color:#223;font:inherit;font-size:14px}
+.mapsearch button{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.92);color:#223;font-weight:700}
 .mapattr a{color:inherit}
 .primary:disabled,.secondary:disabled{opacity:.45;cursor:default}   /* Karte „Laden“ ohne Punkt, „Weiter“, „Start“ und „Dort fliegen“ während des Ladens, „Dort fliegen“ ohne Einheiten */
 /* Quellen (L3): Liste und Formular */
