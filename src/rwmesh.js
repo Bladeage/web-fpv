@@ -25,6 +25,14 @@ export function i3sAddPage(p, json) {
       texel: m && m.material ? m.material.texelCountHint || 0 : 0, st: m ? 'idle' : 'none', t: 0, gl: null, fail: 0 });
   }
 }
+// Soll das Mesh geladen werden? 'on' oder der Grund dagegen: 'off' (Preset nicht Foto 3D), 'map' (Spielkarte), 'dis' (DIS-Übung),
+// 'land' (nicht NRW). probe: Adresse mit ?mesh=1 (Diagnose, erzwingt das Mesh). nrw: Gebiet liegt (teils) in NRW, in UTM 32.
+export function i3sWanted(gfx, probe, rwOn, verbund, nrw) {
+  if (gfx !== 'mesh' && !probe) return 'off';
+  if (!rwOn) return 'map';
+  if (verbund) return 'dis';
+  return nrw ? 'on' : 'land';
+}
 // Kartenkoordinaten (Mitte des Gebiets = Ursprung, x Ost, z Süd, y = Höhe über dem Startplatz): o = { ec, nc, h }
 export const i3sToMap = (c, o) => [c[0] - o.ec, c[2] - o.h, -(c[1] - o.nc)];
 // Sechs Ebenen des Sichtkegels aus der Matrix vp (spaltenweise wie WebGL), normiert; Kugeltest

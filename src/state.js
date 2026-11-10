@@ -7,6 +7,10 @@
 export const VERSION = '%%VERSION%%';
 export const STORE_CFG = 'fpvsim1.cfg';
 export const STORE_BEST = 'fpvsim1.best';
+// Grafik-Presets (Prompt 193, docs/plan-grafik-presets.md): Foto 3D = Schön plus 3D-Mesh NRW, wo es eins gibt. Stufe für den Shader:
+// Einfach 0, Mittel 1, Schön und Foto 3D 2 (Unbekanntes wie Schön).
+export const GFX_IDS = ['mesh', 'nice', 'mid', 'simple'];
+export function gfxLevel(g) { return g === 'simple' ? 0 : g === 'mid' ? 1 : 2; }
 export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
   diff: 'mid', drone: { preset: '5' }, video: 'clean', osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
@@ -75,6 +79,7 @@ cfgMigrate(cfg);
 // flight 'dis'; verbund bleibt als Flagge für main, hud und scenario und folgt nur noch flight. Die ebene Fläche (rwSrc 'dis')
 // gibt es nur in der DIS-Übung, sonst startete ein Parcours darauf.
 export function cfgMigrate(c) {
+  if (c.gfx !== undefined && !GFX_IDS.includes(c.gfx)) c.gfx = 'nice';
   if (c.scen === 'real') { c.world = 'real'; c.scen = 'free'; }
   if (c.scen === 'vbs') c.scen = 'gates';
   if (c.verbund && c.flight !== 'dis') c.flight = 'dis';   // alte Wahl „Startort DIS-Übung“ wird die Flugart DIS-Übung

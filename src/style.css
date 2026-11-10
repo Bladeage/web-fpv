@@ -240,6 +240,10 @@ details{margin-top:10px}
 .belegrow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-top:8px}
 .belegrow .secondary{margin-top:0;padding:7px 10px;font-size:14px;width:auto}
 @media (max-width:480px){ .belegrow{grid-template-columns:1fr 1fr} .belegrow select{grid-column:span 2} }
+/* Grafik: vier Presets in einer Zeile (Foto 3D, Schön, Mittel, Einfach; docs/plan-grafik-presets.md 2.1) */
+#gfxSeg{grid-template-columns:repeat(4,1fr)}
+#gfxSeg button b{white-space:nowrap}
+@media (max-width:480px){ #gfxSeg{gap:4px} #gfxSeg button{padding:10px 2px} #gfxSeg button b{font-size:14px} }
 .keypairs{display:grid;grid-template-columns:4.6em auto auto 1fr;gap:6px 10px;align-items:center;margin-top:10px;font-size:14px}
 .keypairs small{color:var(--muted);font-size:12.5px}
 #disKeepRow{margin-top:8px}

@@ -1,6 +1,6 @@
 /* Rendern mit WebGL2: Himmel, Welt, Tore, Drohne, Propeller, Kameras. */
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
-import { cfg, game, saveCfg, say, eggsFound } from './state.js';
+import { cfg, game, saveCfg, say, eggsFound, gfxLevel } from './state.js';
 import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildDisc, PROP_S } from './world.js';
 import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
@@ -14,7 +14,8 @@ import { boats, buildBoatMesh, boatYaw, BOAT } from './boats.js';
 import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
-import { I3S, i3s, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
+import { deLandAt } from './demap.js';
+import { I3S, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -775,7 +776,7 @@ export function render(dt) {
   gl.uniform3fv(PS.u.uZen, DS.zen); gl.uniform3fv(PS.u.uSun, S); gl.uniform1f(PS.u.uNight, DS.night);
   const VIS = cfg.vision === 'thermal' ? 1 : cfg.vision === 'night' ? 2 : 0;   // Bildmodus (V1)
   gl.uniform1f(PS.u.uVision, VIS);
-  const GFX = cfg.gfx === 'simple' ? 0 : cfg.gfx === 'mid' ? 1 : 2;
+  const GFX = gfxLevel(cfg.gfx);   // Foto 3D zählt als Schön (plus Mesh)
   gl.uniform1f(PS.u.uGfx, GFX); gl.uniform1f(PS.u.uTime, performance.now()/1000);
   { const J = ambJetDirs(eye);   // Flugzeuge mit Kondensstreifen (nur echte Welt, nicht DIS)
     [['uJa0', 'uJb0'], ['uJa1', 'uJb1']].forEach(([ka, kb], i) => { const j = J[i]; gl.uniform4f(PS.u[ka], ...(j ? j.a : [0, 1, 0]), j ? j.alpha : 0); gl.uniform4f(PS.u[kb], ...(j ? j.b : [0, 1, 0]), 0); }); }
@@ -1181,7 +1182,24 @@ const freeGl = m => { if (m) { gl.deleteVertexArray(m.vao); if (m.buf) gl.delete
 // Sichtprobe 3D-Mesh (M0): nur mit ?mesh=1, echte Welt, nicht DIS, Gebiet in UTM 32 (NRW). meshShow: es ist etwas zu sehen; dann
 // Gelände abgesenkt und Häuser, eigene Bäume, Wasser, Kartenlinien aus (das Mesh zeigt sie). Physik unverändert (LoD2, DGM).
 export const MESH_PROBE = typeof location !== 'undefined' && /[?&]mesh=1(&|$)/.test(location.search);
-const meshOn = () => MESH_PROBE && rw.on && !cfg.verbund && rw.meta && rw.meta.crs === 'EPSG:25832';
+// Foto 3D (G1): Preset cfg.gfx 'mesh' oder Diagnose ?mesh=1. NRW: Mitte oder eine Ecke des Gebiets in NRW (UTM 32), je Gebiet gemerkt.
+// Ohne Mesh am Ort sieht Foto 3D aus wie Schön; ein Hinweis einmal je Ort.
+let nrwKey = -1, nrwIn = false, meshSaid = '';
+function inNrw() {
+  if (nrwKey === rw.ver) return nrwIn;
+  nrwKey = rw.ver; const m = rw.meta, b = m && m.bbox;
+  nrwIn = !!b && m.crs === 'EPSG:25832' && [[(b[0] + b[2])/2, (b[1] + b[3])/2], [b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]].some(([E, N]) => deLandAt(E, N) === 'Nordrhein-Westfalen');
+  return nrwIn;
+}
+const meshWhy = () => i3sWanted(cfg.gfx, MESH_PROBE, rw.on && !!rw.meta, cfg.verbund, rw.on && inNrw());
+const meshOn = () => meshWhy() === 'on';
+function meshHint() {
+  if (cfg.gfx !== 'mesh' || !rw.on) return;
+  const why = meshWhy(), key = rw.ver + ':' + why;
+  const txt = why === 'land' ? 'Foto 3D: hier kein 3D-Mesh (nur NRW). Grafik wie Schön.' : why === 'dis' ? 'Foto 3D: nicht in der DIS-Übung. Grafik wie Schön.'
+    : why === 'on' && i3s.err && !meshShow && !i3s.jobs && i3s.loaded === 0 ? 'Foto 3D: 3D-Mesh nicht erreichbar. Grafik wie Schön.' : '';
+  if (txt && meshSaid !== key) { meshSaid = key; say(txt, 3); }
+}
 let meshShow = false, meshVer = -1, meshEvictT = 0;
 const meshNet = rwNet(null, 15000);
 function meshPage(p) {
@@ -1213,6 +1231,7 @@ function meshNode(n) {
 const meshFree = n => { if (n.gl) { gl.deleteVertexArray(n.gl.vao); gl.deleteBuffer(n.gl.buf); gl.deleteTexture(n.gl.tex); n.gl = null; } };
 // Je Bild: Auswahl, Abrufe anstoßen (höchstens I3S.para gleichzeitig), alte Knoten freigeben
 function meshStep(vp, eye, f) {
+  meshHint();
   if (!meshOn()) { meshShow = false; return null; }
   if (glLost.on) return null;
   if (meshVer !== rwGlVer) { for (const n of i3s.nodes.values()) if (n.gl) { n.gl = null; n.st = 'idle'; } meshVer = rwGlVer; }   // Grafik neu (Verlust): neu laden
