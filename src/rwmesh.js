@@ -8,12 +8,14 @@
 // Abrufe; keep Sekunden ohne Zeichnen bis zur Freigabe; nearR Umkreis der Kamera, der auch außerhalb des Bildes lädt. Schätzungen.
 export const I3S = { url: 'https://www.gis.nrw.de/geobasis/3D_mesh/SceneServer/layers/0', pageN: 64, q: 1, maxNodes: 160, gpuMB: 260, para: 6, keep: 8, nearR: 150, sink: 4 };
 // nodes: Nummer -> Knoten; pages: Seite -> 'load' | 'ok' | 'fail'; l1: Kinder der Wurzel (bekannt, sobald alle 108 Seiten da sind)
-export const i3s = { nodes: new Map(), pages: new Map(), l1: null, root: null, drawn: [], gpu: 0, err: '', jobs: 0, loaded: 0, mb: 0 };
+export const i3s = { nodes: new Map(), pages: new Map(), l1: null, root: null, drawn: [], gpu: 0, err: '', jobs: 0, loaded: 0, mb: 0, qa: 1 };
+// Grenzen am Handy (LOW_MEM, Prüfbericht Nutzer 10.11.: 701 MB Grafik, 1157 MB geladen am Handy): Schätzung nach docs/plan-3d-mesh.md 2.7
+export const I3S_LOW = { maxNodes: 80, gpuMB: 90, para: 4, texMax: 1024 };
 export const i3sPageOf = idx => Math.floor(idx/I3S.pageN);
 export const i3sPageUrl = p => I3S.url + '/nodepages/' + p;
 export const i3sGeoUrl = res => I3S.url + '/nodes/' + res + '/geometries/0';   // Puffer 0: ungepackt (per gzip übertragen), nicht Draco
 export const i3sTexUrl = res => I3S.url + '/nodes/' + res + '/textures/0';
-export function i3sReset() { i3s.nodes.clear(); i3s.pages.clear(); i3s.l1 = null; i3s.root = null; i3s.drawn = []; i3s.gpu = 0; i3s.err = ''; i3s.jobs = 0; i3s.loaded = 0; i3s.mb = 0; }
+export function i3sReset() { i3s.nodes.clear(); i3s.pages.clear(); i3s.l1 = null; i3s.root = null; i3s.drawn = []; i3s.gpu = 0; i3s.err = ''; i3s.jobs = 0; i3s.loaded = 0; i3s.mb = 0; i3s.qa = 1; }
 // Knoten einer Seite übernehmen (I3S nodePages): Mitte der Box (Ost, Nord, Höhe über NHN), Hüllkugel, Schwelle, Kinder, Ressourcen
 export function i3sAddPage(p, json) {
   i3s.pages.set(p, 'ok');
@@ -84,6 +86,17 @@ export function i3sSelect(cam, f, P, o, q = I3S.q) {
 }
 // Grafikspeicher eines Knotens (Schätzung): Puffer 20 Byte je Punkt, Textur RGBA mit Mipmaps
 export const i3sBytes = n => n.vc*20 + n.texel*4*1.33;
+// Speicher nachführen (Prüfbericht 10.11.): Braucht schon das Bild selbst mehr als drei Viertel der Grenzen, wird die Auswahl gröber
+// (Faktor qa auf die Schwelle, um 25 % je Bild, höchstens 64); unter 45 % langsam wieder feiner (5 % je Bild). Vorher wuchs der
+// Speicher über die Grenze, weil nur Teile außerhalb des Bildes freigegeben werden dürfen, und Teile luden immer wieder neu.
+export function i3sAdapt(draw) {
+  const mb = draw.reduce((s, n) => s + i3sBytes(n), 0)/1e6, n = draw.length;
+  if (mb > 0.75*I3S.gpuMB || n > 0.75*I3S.maxNodes) i3s.qa = Math.min(64, i3s.qa*1.25);
+  else if (mb < 0.45*I3S.gpuMB && n < 0.45*I3S.maxNodes) i3s.qa = Math.max(1, i3s.qa/1.05);
+  return i3s.qa;
+}
+// Neue Abrufe nur, solange Zahl und Speicher der geladenen Teile unter den Grenzen liegen
+export const i3sRoom = () => { let n = 0; for (const x of i3s.nodes.values()) if (x.st === 'ready' || x.st === 'load') n++; return n < I3S.maxNodes && i3s.gpu < I3S.gpuMB; };
 // Freigabe: lange nicht gezeichnete Knoten (feinste zuerst), bis Zahl und Speicher in den Grenzen liegen. Liefert die Knoten,
 // deren Grafik render.js löschen muss.
 export function i3sEvict(now, keepSet) {

@@ -15,7 +15,7 @@ import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
-import { I3S, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
+import { I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -1212,7 +1212,8 @@ function meshNode(n) {
   n.st = 'load'; i3s.jobs++;
   Promise.all([meshNet.get(i3sGeoUrl(n.res)), meshNet.get(i3sTexUrl(n.tex))]).then(async ([g, t]) => {
     if (g[0] === 0x1f && g[1] === 0x8b) g = new Uint8Array(await new Response(new Blob([g]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());   // ohne Content-Encoding
-    const G = i3sGeometry(g), img = await createImageBitmap(new Blob([t], { type: 'image/jpeg' }));
+    const G = i3sGeometry(g); let img = await createImageBitmap(new Blob([t], { type: 'image/jpeg' }));
+    if (I3S.texMax && img.width > I3S.texMax) { const big = img, k = I3S.texMax/big.width; img = await createImageBitmap(big, { resizeWidth: I3S.texMax, resizeHeight: Math.max(1, Math.round(big.height*k)), resizeQuality: 'high' }); big.close(); }   // Handy: kleinere Texturen
     if (glLost.on) { img.close(); n.st = 'idle'; return; }
     const vao = gl.createVertexArray(), buf = gl.createBuffer(); gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(G.pos.buffer, G.pos.byteOffset, G.vc*5), gl.STATIC_DRAW);
@@ -1225,21 +1226,23 @@ function meshNode(n) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     const an = gl.getExtension('EXT_texture_filter_anisotropic');
     if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; n.t = performance.now()/1000; i3s.loaded++; i3s.mb += (g.byteLength + t.byteLength)/1e6;
+    n.texel = img.width*img.height || n.texel; n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; i3s.gpu += i3sBytes(n)/1e6; n.t = performance.now()/1000; i3s.loaded++; i3s.mb += (g.byteLength + t.byteLength)/1e6;
   }).catch(e => { n.st = 'fail'; n.fail = performance.now()/1000; i3s.err = String(e && e.message || e); }).finally(() => { i3s.jobs--; });
 }
-const meshFree = n => { if (n.gl) { gl.deleteVertexArray(n.gl.vao); gl.deleteBuffer(n.gl.buf); gl.deleteTexture(n.gl.tex); n.gl = null; } };
+const meshFree = n => { if (n.gl) {   // Speicher zählt i3sEvict neu
+   gl.deleteVertexArray(n.gl.vao); gl.deleteBuffer(n.gl.buf); gl.deleteTexture(n.gl.tex); n.gl = null; } };
 // Je Bild: Auswahl, Abrufe anstoßen (höchstens I3S.para gleichzeitig), alte Knoten freigeben
 function meshStep(vp, eye, f) {
   meshHint();
   if (!meshOn()) { meshShow = false; return null; }
   if (glLost.on) return null;
   if (meshVer !== rwGlVer) { for (const n of i3s.nodes.values()) if (n.gl) { n.gl = null; n.st = 'idle'; } meshVer = rwGlVer; }   // Grafik neu (Verlust): neu laden
-  if (!i3s.pages.has(0)) meshPage(0);
+  if (!i3s.pages.has(0)) { if (LOW_MEM) Object.assign(I3S, I3S_LOW); meshPage(0); }
   const m = rw.meta, o = { ec: (m.bbox[0] + m.bbox[2])/2, nc: (m.bbox[1] + m.bbox[3])/2, h: m.hHome }, now = performance.now()/1000;
-  const S = i3sSelect(eye, f, i3sPlanes(vp), o, LOW_MEM ? 2.5 : I3S.q);
+  const S = i3sSelect(eye, f, i3sPlanes(vp), o, (LOW_MEM ? 2.5 : I3S.q)*i3s.qa);
+  i3sAdapt(S.draw);
   for (const p of S.pages) { if (i3s.jobs >= I3S.para) break; if (!i3s.pages.has(p)) meshPage(p); }
-  for (const [n] of S.want) { if (i3s.jobs >= I3S.para) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
+  for (const [n] of S.want) { if (i3s.jobs >= I3S.para || !i3sRoom()) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
   for (const n of S.draw) n.t = now;
   i3s.drawn = S.draw;
   if (now - meshEvictT > 1) { meshEvictT = now; for (const n of i3sEvict(now, new Set(S.draw))) meshFree(n); }

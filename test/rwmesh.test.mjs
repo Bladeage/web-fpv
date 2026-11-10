@@ -69,3 +69,21 @@ test('Geometrie: Kopf, Lagen und Texturkoordinaten; zu kurz wirft', () => {
   const odd = new Uint8Array(b.length + 1); odd.set(b, 1); assert.equal(i3sGeometry(odd.subarray(1)).uv[1], 10, 'ungerader Versatz');
   assert.throws(() => i3sGeometry(b.subarray(0, 20)), /zu kurz/);
 });
+
+test('Speicher nachführen: zu viel im Bild macht die Auswahl gröber, wenig wieder feiner; keine Abrufe über der Grenze', async () => {
+  const { i3sAdapt, i3sRoom } = await import('../src/rwmesh.js');
+  tree(); i3s.qa = 1;
+  const big = Array.from({ length: 10 }, () => ({ vc: 1e6, texel: 4e6 }));   // je etwa 41 MB: zusammen über 260 MB
+  for (let k = 0; k < 5; k++) i3sAdapt(big);
+  assert.ok(i3s.qa > 2.5, 'gröber: ' + i3s.qa.toFixed(2));
+  const q1 = i3s.qa; for (let k = 0; k < 5; k++) i3sAdapt([]);
+  assert.ok(i3s.qa < q1 && i3s.qa >= 1, 'wieder feiner');
+  for (let k = 0; k < 400; k++) i3sAdapt(big); assert.equal(i3s.qa, 64, 'höchstens 64');
+  // Gröbere Auswahl: nah am Haus mit großem qa bleibt der grobe Knoten
+  tree(); for (const k of [64, 65, 66, 67, 68]) i3s.nodes.get(k).st = 'ready';
+  const near = [0, 40, 60], P = view(near, [0, 0, 0]);
+  assert.ok(i3sSelect(near, 540, P, o, 1).draw.some(n => n.lod === 500000), 'fein bei qa 1');
+  assert.deepEqual(i3sSelect(near, 540, P, o, 1e9).draw.map(n => n.idx), [64], 'grob bei sehr großem Faktor');
+  i3s.gpu = 1000; assert.equal(i3sRoom(), false, 'über der Grenze: keine neuen Abrufe'); i3s.gpu = 0; assert.equal(i3sRoom(), true);
+  i3s.qa = 1;
+});
