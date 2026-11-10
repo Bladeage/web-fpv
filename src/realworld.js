@@ -13,7 +13,7 @@ import { rwRoadsFetch } from './rwroads.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh (tools/mesh.mjs) ist nicht eingebettet.
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true, lamps: true }, showOff: false, last: null, roadVer: 0, roadErr: '' };   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true, lamps: true }, showOff: false, last: null, roadVer: 0, roadErr: '', meshPhys: null };   // meshPhys: Kollision aus dem 3D-Mesh (Foto 3D, M2), setzt render.js   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -37,7 +37,7 @@ export function rwSetShow(s = {}) {
 export function rwApply(p, x = {}) {
   const on = rw.on, S = rw.show;
   if (!x.live) rw.liveDis = null;   // eingebettetes Gebiet: Kacheln wieder aus den Landesquellen
-  rw.last = { p, x };
+  rw.last = { p, x }; rw.meshPhys = null;
   Object.assign(rw, { tris: null, grid: null, bldId: null, bldInfo: null, trees: [], water: S.water ? x.water || null : null, features: x.features || null, dop: S.dop ? p.dop || null : null, live: !!x.live });
   rwInit(p.meta, p.q);
   // Umgebung (L5a): geladen als p.far, gespeichert flach als farq/fardop mit meta.far

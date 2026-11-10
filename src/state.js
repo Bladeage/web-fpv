@@ -116,7 +116,8 @@ export const game = {
 };
 // Bestzeit je Szenario und Welt (game.bestScen, setzt setScenario; in der echten Welt mit „.real“, Echte-Welt-Freiflug heißt
 // weiter „real“). Der Torkurs behält den alten Schlüssel.
-const bestKey = () => { const k = game.bestScen || cfg.scen; return k === 'gates' ? STORE_BEST : STORE_BEST + '.' + k; };
+// Foto 3D in der echten Welt: eigene Bestzeiten (Boden und Wände kommen dann aus dem 3D-Mesh, Prompt 195)
+const bestKey = () => { const k = game.bestScen || cfg.scen; return (k === 'gates' ? STORE_BEST : STORE_BEST + '.' + k) + (cfg.gfx === 'mesh' && cfg.world === 'real' ? '.3d' : ''); };
 export function loadBest() {
   game.best = null;
   try { const b = parseFloat(localStorage.getItem(bestKey())); if (b > 0) game.best = b; } catch (e) {}

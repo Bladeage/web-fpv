@@ -119,7 +119,7 @@ export const task = { check: checkGate, collide: null, reset() {}, early: false,
 
 function newSim() {
   return {
-    p: [game.home[0], groundH(game.home[0], game.home[1]) + PHYS.foot + 0.005, game.home[1]], v: [0, 0, 0],
+    p: [game.home[0], physGroundH(game.home[0], game.home[1]) + PHYS.foot + 0.005, game.home[1]], v: [0, 0, 0],
     q: [0, Math.sin(game.homeYaw/2), 0, Math.cos(game.homeYaw/2)], w: [0, 0, 0],
     thr: 0, t: 0, next: 0, lapStart: null, lastLap: null, grounded: true, crashMsg: '', crashT: 0,
     mah: 0, amp: 0, vpack: BAT.cells*4.2, cellRest: 4.2, flyT: 0, vrc: 0, vmin: BAT.cells*4.2,
@@ -208,7 +208,7 @@ export function step(h) {
   // 2. Aerodynamik am Rotor (gilt für alle vier gleich, außer Propwash-Rauschen)
   const vAx = vDot(s.v, up);                                  // Anströmung entlang der Rotorachse (+ = Steigflug)
   const vPerp = vSub(s.v, vScale(up, vAx)), vHor = vLen(vPerp);
-  const zr = Math.max(s.p[1] - groundH(s.p[0], s.p[2]) - PHYS.foot + PHYS.propY, mc.R*0.5);   // Rotorhöhe über Grund
+  const zr = Math.max(s.p[1] - physGroundH(s.p[0], s.p[2]) - PHYS.foot + PHYS.propY, mc.R*0.5);   // Rotorhöhe über Grund
   const ge = up[1] > 0.5 ? Math.min(1.4, 1/(1 - (mc.R/(4*zr))**2)) : 1;   // Bodeneffekt (Cheeseman-Bennett)
   const fac = [0, 0, 0, 0];
   for (let i = 0; i < 4; i++) {
@@ -262,7 +262,7 @@ export function step(h) {
     // Gieren dreht die Drohne also weiter. Alle Motoren einzeln zu kappen ginge nicht: Dann folgt die Drohne dem
     // Stick nicht, und Betaflight schaltet sich ab (Schutz gegen Durchgehen beim Start). Schub ~ Steuerwert².
     let cut = 0;
-    if ((s.grounded || s.onGround || s.p[1] - groundH(s.p[0], s.p[2]) < 0.25) && game.throttle < 0.05) {
+    if ((s.grounded || s.onGround || s.p[1] - physGroundH(s.p[0], s.p[2]) < 0.25) && game.throttle < 0.05) {
       const lim = 4*(0.6*hoverThrottle())**2, sq = c => m.reduce((t, x) => t + Math.max(0, x - c)**2, 0);
       if (sq(0) > lim) { let lo = 0, hi = 1; for (let n = 0; n < 12; n++) { const c = (lo + hi)/2; if (sq(c) > lim) lo = c; else hi = c; } cut = hi; }
     }
@@ -388,7 +388,7 @@ export function step(h) {
   const hb = hitbox(), ground = [], upB = qRot(s.q, [0, 1, 0]);
   for (let i = 0; i < hb.length; i++) {
     const [x, y, z, rad, rot, thick] = hb[i], r = qRot(s.q, [x, y, z]), pc = vAdd(s.p, r);
-    const gn = groundN(pc[0], pc[2]), gh = groundH(pc[0], pc[2]), sp = support(rad, thick, gn, upB);
+    const gn = physGroundN(pc[0], pc[2]), gh = physGroundH(pc[0], pc[2]), sp = support(rad, thick, gn, upB);
     const pen = sp.r - vDot([0, pc[1] - gh, 0], gn);   // Abstand zur Geländeebene (flach: s.p[1] + r[1])
     // Fast berührende Teile (unter 2 mm) zählen mit: Der Stoß wirkt dann in der Mitte zwischen den Füßen,
     // statt abwechselnd an einzelnen Füßen. Sonst schaukelt und dreht sich die Drohne am Boden ohne Ende.
@@ -578,8 +578,17 @@ function closestOnTri(p, a, b, c) {
 // Echte Welt: Hitbox gegen Gebäude-Dreiecke (genau an Wand und Dach) und Bäume (Quader für Stamm und Krone).
 // Schnelle Flüge: Schneidet der Weg des Schwerpunkts im letzten Schritt eine Fläche, zurück vor die Fläche (kein Durchtunneln).
 const triPt = (T, o) => [T[o], T[o + 1], T[o + 2]];
+// Foto 3D (M2): Boden und Wände aus dem 3D-Mesh, wo es um die Drohne fein geladen ist (rw.meshPhys, gesetzt von der Grafik).
+// Sonst wie bisher Geländemodell, LoD2-Gebäude und Bäume als Quader.
+export function physGroundH(x, z) { const M = rw.meshPhys; if (M) { const h = M.ground(x, z); if (h === h) return h; } return groundH(x, z); }
+export function physGroundN(x, z) {
+  if (!rw.meshPhys || !rw.meshPhys.covered(x, z)) return groundN(x, z);
+  const e = 0.5, dx = (physGroundH(x + e, z) - physGroundH(x - e, z))/(2*e), dz = (physGroundH(x, z + e) - physGroundH(x, z - e))/(2*e), l = Math.hypot(dx, 1, dz);
+  return [-dx/l, 1/l, -dz/l];
+}
 function rwCollide(prev, h) {
-  const s = game.sim, T = rw.tris, near = rwNear(s.p[0], s.p[2], Math.max(PHYS.radius, PHYS.arm + PHYS.m.R) + vLen(vSub(s.p, prev)) + 0.3);
+  const s = game.sim, R = Math.max(PHYS.radius, PHYS.arm + PHYS.m.R) + vLen(vSub(s.p, prev)) + 0.3, M = rw.meshPhys && rw.meshPhys.covered(s.p[0], s.p[2]) ? rw.meshPhys.near(s.p[0], s.p[2], R) : null;
+  const T = M ? M.T : rw.tris, near = M ? { tris: M.tris, boxes: [] } : rwNear(s.p[0], s.p[2], R);   // Mesh: steile Dreiecke statt LoD2 und Baum-Quadern
   for (const b of near.boxes) if (collide(b, h)) return true;
   if (!T || !near.tris.length) return false;
   // Durchtunneln: Strecke prev -> s.p gegen jedes nahe Dreieck (Möller-Trumbore)

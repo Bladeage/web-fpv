@@ -116,3 +116,77 @@ export function i3sGeometry(bytes) {
   if (b.byteLength < 8 + 20*vc) throw new Error('Mesh-Geometrie zu kurz');
   return { vc, pos: new Float32Array(b.buffer, b.byteOffset + 8, vc*3), uv: new Float32Array(b.buffer, b.byteOffset + 8 + 12*vc, vc*2) };
 }
+
+// ---------- Kollision aus dem Mesh (M2, Nutzer Prompt 194/195) ----------
+// Das Mesh ist 2,5D (eine Höhe je Lage, vermutet nach Katalog). Darum zwei Formen je feinem Teil, im eigenen Bezug des Teils
+// (Ost, Nord, Höhe relativ zur Mitte der Box, unabhängig vom Gebiet): ein Höhenraster für alles Flache (Straße, Dach, Krone; Zelle
+// 0,5 m, bei großen Teilen gröber, höchstens 256 je Seite) und die steilen Dreiecke (Wände, Stämme, Pfeiler) in 4-m-Zellen.
+// physR: nur Teile mit Hüllkugel bis 120 m (die feinsten Stufen) bekommen Physik. Zahlen: Schätzung.
+export const I3S_PHYS = { cell: 0.5, maxCells: 256, steep: 0.5, flat: 0.3, grid: 4, physR: 120, near: 150 };
+export function i3sPhysBuild(pos, vc) {
+  let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
+  for (let i = 0; i < vc; i++) { const e = pos[i*3], n = pos[i*3 + 1]; if (e < e0) e0 = e; if (e > e1) e1 = e; if (n < n0) n0 = n; if (n > n1) n1 = n; }
+  const cs = Math.max(I3S_PHYS.cell, (e1 - e0)/I3S_PHYS.maxCells, (n1 - n0)/I3S_PHYS.maxCells), W = Math.max(1, Math.ceil((e1 - e0)/cs)), H = Math.max(1, Math.ceil((n1 - n0)/cs));
+  const h = new Float32Array(W*H).fill(NaN), steep = [], G = I3S_PHYS.grid, cells = new Map();
+  for (let t = 0; t + 2 < vc; t += 3) {
+    const a = t*3, b = a + 3, c = a + 6, ax = pos[a], ay = pos[a + 1], az = pos[a + 2], bx = pos[b], by = pos[b + 1], bz = pos[b + 2], cx = pos[c], cy = pos[c + 1], cz = pos[c + 2];
+    const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+    const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx, nl = Math.hypot(nx, ny, nz); if (nl < 1e-9) continue;
+    const up = Math.abs(nz)/nl;   // Anteil nach oben (Höhe ist die dritte Achse)
+    if (up < I3S_PHYS.steep) {   // steil: als Dreieck behalten, in die Zellen seines Grundrisses
+      const k = steep.length/9; steep.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+      for (let j = Math.floor((Math.min(ay, by, cy) - n0)/G); j <= Math.floor((Math.max(ay, by, cy) - n0)/G); j++)
+        for (let i = Math.floor((Math.min(ax, bx, cx) - e0)/G); i <= Math.floor((Math.max(ax, bx, cx) - e0)/G); i++) { const key = j*4096 + i; if (!cells.has(key)) cells.set(key, []); cells.get(key).push(k); }
+    }
+    if (up < I3S_PHYS.flat) continue;
+    // flach genug: Zellmitten im Dreieck bekommen die höchste Höhe
+    const den = (by - cy)*(ax - cx) + (cx - bx)*(ay - cy); if (Math.abs(den) < 1e-12) continue;
+    for (let j = Math.max(0, Math.floor((Math.min(ay, by, cy) - n0)/cs)); j <= Math.min(H - 1, Math.floor((Math.max(ay, by, cy) - n0)/cs)); j++)
+      for (let i = Math.max(0, Math.floor((Math.min(ax, bx, cx) - e0)/cs)); i <= Math.min(W - 1, Math.floor((Math.max(ax, bx, cx) - e0)/cs)); i++) {
+        const px = e0 + (i + 0.5)*cs, py = n0 + (j + 0.5)*cs, u = ((by - cy)*(px - cx) + (cx - bx)*(py - cy))/den, v = ((cy - ay)*(px - cx) + (ax - cx)*(py - cy))/den;
+        if (u < -1e-6 || v < -1e-6 || u + v > 1 + 1e-6) continue;
+        const z = az*u + bz*v + cz*(1 - u - v), o = j*W + i; if (!(h[o] >= z)) h[o] = z;
+      }
+  }
+  return { e0, n0, cs, W, H, h, steep: new Float32Array(steep), cells };
+}
+// Höhe des Mesh an (x, z) in Kartenkoordinaten (o: Ursprung des Gebiets), aus den Physik-Teilen (feinster zuerst); NaN ohne Abdeckung.
+// Bilinear zwischen den Zellmitten, leere Zellen zählen nicht.
+export function i3sGroundAt(list, x, z, o) {
+  for (const n of list) {
+    const P = n.phys, le = x + o.ec - n.c[0], ln = -z + o.nc - n.c[1], fx = (le - P.e0)/P.cs - 0.5, fy = (ln - P.n0)/P.cs - 0.5;
+    if (fx < -0.5 || fy < -0.5 || fx > P.W - 0.5 || fy > P.H - 0.5) continue;
+    const i0 = Math.max(0, Math.min(P.W - 1, Math.floor(fx))), j0 = Math.max(0, Math.min(P.H - 1, Math.floor(fy))), i1 = Math.min(P.W - 1, i0 + 1), j1 = Math.min(P.H - 1, j0 + 1);
+    const tx = Math.max(0, Math.min(1, fx - i0)), ty = Math.max(0, Math.min(1, fy - j0));
+    let s = 0, w = 0;
+    for (const [i, j, k] of [[i0, j0, (1 - tx)*(1 - ty)], [i1, j0, tx*(1 - ty)], [i0, j1, (1 - tx)*ty], [i1, j1, tx*ty]]) { const v = P.h[j*P.W + i]; if (v === v && k > 0) { s += v*k; w += k; } }
+    if (w > 0) return s/w + n.c[2] - o.h;
+    const v = P.h[Math.round(fy)*P.W + Math.round(fx)]; if (v === v) return v + n.c[2] - o.h;
+  }
+  return NaN;
+}
+// Steile Dreiecke im Umkreis R um (x, z), als Feld zu je 9 Werten in Kartenkoordinaten (out wird wiederverwendet)
+export function i3sTrisNear(list, x, z, R, o, out = []) {
+  out.length = 0;
+  for (const n of list) {
+    const P = n.phys, G = I3S_PHYS.grid, le = x + o.ec - n.c[0], ln = -z + o.nc - n.c[1], seen = new Set();
+    for (let j = Math.floor((ln - R - P.n0)/G); j <= Math.floor((ln + R - P.n0)/G); j++) for (let i = Math.floor((le - R - P.e0)/G); i <= Math.floor((le + R - P.e0)/G); i++) {
+      for (const k of P.cells.get(j*4096 + i) || []) {
+        if (seen.has(k)) continue; seen.add(k);
+        const T = P.steep, b = k*9;
+        for (let q = 0; q < 3; q++) out.push(T[b + q*3] + n.c[0] - o.ec, T[b + q*3 + 2] + n.c[2] - o.h, -(T[b + q*3 + 1] + n.c[1] - o.nc));
+      }
+    }
+  }
+  return out;
+}
+// Teile für die Physik um (x, z): fertig, mit Raster, Hüllkugel bis physR, Mitte bis near + r weg; feinste (kleinste) zuerst
+export function i3sPhysList(x, z, o) {
+  const out = [];
+  for (const n of i3s.nodes.values()) {
+    if (n.st !== 'ready' || !n.phys || n.r > I3S_PHYS.physR) continue;
+    const cx = n.c[0] - o.ec, cz = -(n.c[1] - o.nc);
+    if (Math.hypot(cx - x, cz - z) < I3S_PHYS.near + n.r) out.push(n);
+  }
+  return out.sort((a, b) => a.r - b.r);
+}
