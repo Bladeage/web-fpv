@@ -12,7 +12,7 @@ import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.j
 import { TOWN } from './town.js';
 import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
-import { rw, rwNearName, placeReal, groundH } from './realworld.js';
+import { rw, rwNearName, placeReal, groundH, solidH } from './realworld.js';
 import { rwRoads, roadRoutes, parkSpots } from './roads.js';
 import { ringChain, ringCircle, freeAir, airRegions, airCircle, airWaypoints, flatSpot } from './place.js';
 import { osdOn } from './osd.js';
@@ -58,7 +58,7 @@ export const diff = () => DIFF[cfg.diff] || DIFF.mid;
 export const dropR = () => DROP_R*(diff().dropScale || 1);   // Radius der Lieferzonen nach Stufe
 // Landehilfe (Leicht): unter 5 m Höhe höchstens 1,2 m/s plus 0,5 m/s je Meter Höhe sinken (am Boden 1,2 m/s)
 function landAid(s, h) {
-  const alt = s.p[1] - PHYS.foot - (rw.on ? groundH(s.p[0], s.p[2]) : 0), vmax = 1.2 + 0.5*Math.max(0, alt);
+  const alt = s.p[1] - PHYS.foot - (rw.on ? solidH(s.p[0], s.p[2]) : 0), vmax = 1.2 + 0.5*Math.max(0, alt);
   if (!diff().landAid || alt > 5 || s.v[1] > -vmax) return;
   // Schwerkraft dieses Schritts ausgleichen und dann zügig auf die erlaubte Sinkrate bremsen (nicht darüber hinaus)
   s.v[1] = Math.min(-vmax, s.v[1] + 9.81*h + (-vmax - s.v[1])*Math.min(1, 10*h));
@@ -194,7 +194,7 @@ export function huntLayoutReal(R) {
     const p = freeAir(W, h, 30, 280, 8, 14, 2, R, 10);
     if (p && [...regions, ...statics].every(q => Math.hypot(p[0] - q[0], p[2] - q[2]) > 20)) statics.push(p);
   }
-  return { regions, statics, gh: groundH, free: W.free };
+  return { regions, statics, gh: solidH, free: W.free };
 }
 // Luftziele: Starrflügler als Achte (zwei Kreise mit 60 m, die sich berühren) und als Kreis mit 120 m um den Start, je 25 m über
 // dem höchsten Boden und frei; der Kreis mindestens 7 m über der Achte (wie auf der Spielkarte). Hubschrauber 18 bis 30 m, Sechs-
@@ -209,7 +209,7 @@ export function airLayoutReal(R) {
     const wps = airWaypoints(W, h, n, R, o);
     if (wps) rotors.push([kind, wps]);
   }
-  return { planes, rotors, gh: groundH };
+  return { planes, rotors, gh: solidH };
 }
 // Plätze: Landeplatz 60 bis 150 m vom Start (Rückfall 15 bis 400 m), Abholplatz 10 bis 30 m, 4 Lieferplätze 60 bis 200 m, je
 // 25 m auseinander. Halbe Breite 3 m (größte Stufe), damit derselbe Platz für jede Stufe passt. Ohne Fund: neben dem Start.
@@ -218,7 +218,7 @@ function spotReal(W, R, rMin, rMax, need, away = []) {
   for (let k = 0; k < 6; k++) { const p = flatSpot(W, game.home, rMin, rMax, 3, need, R, 100); if (ok(p)) return p; }
   for (let k = 0; k < 6; k++) { const p = flatSpot(W, game.home, 15, 400, 3, need, R, 100); if (ok(p)) return p; }
   const x = game.home[0] + 8 + 6*away.length, z = game.home[1];
-  return [x, groundH(x, z), z];
+  return [x, solidH(x, z), z];
 }
 function spotsReal(R) {
   const W = placeReal();

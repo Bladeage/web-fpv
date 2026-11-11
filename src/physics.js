@@ -10,7 +10,7 @@ import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
 import { ambInit } from './ambient.js';
-import { rw, groundH, groundN, rwNear, waterAt, WATER_UP } from './realworld.js';
+import { rw, groundH, groundN, rwNear, waterAt, WATER_UP, solidH } from './realworld.js';
 // Bestzeit nur mit allen Ebenen der echten Welt (Reiter „Debug“): ohne Gebäude oder Umgebung ist der Kurs leichter
 export const bestOk = () => !(rw.on && rw.showOff);
 
@@ -580,7 +580,7 @@ function closestOnTri(p, a, b, c) {
 const triPt = (T, o) => [T[o], T[o + 1], T[o + 2]];
 // Foto 3D (M2): Boden und Wände aus dem 3D-Mesh, wo es um die Drohne fein geladen ist (rw.meshPhys, gesetzt von der Grafik).
 // Sonst wie bisher Geländemodell, LoD2-Gebäude und Bäume als Quader.
-export function physGroundH(x, z) { const M = rw.meshPhys; if (M) { const h = M.ground(x, z); if (h === h) return h; } return groundH(x, z); }
+export const physGroundH = solidH;
 export function physGroundN(x, z) {
   if (!rw.meshPhys || !rw.meshPhys.covered(x, z)) return groundN(x, z);
   const e = 0.5, dx = (physGroundH(x + e, z) - physGroundH(x - e, z))/(2*e), dz = (physGroundH(x, z + e) - physGroundH(x, z - e))/(2*e), l = Math.hypot(dx, 1, dz);

@@ -61,6 +61,7 @@ function combat() {
 }
 
 /* ---------- Hauptschleife ---------- */
+let meshLaid = -1;   // Gebiet (rw.ver), für das die Aufstellung schon auf dem Mesh steht
 game.last = performance.now();
 let acc = 0;
 function frame(now) {
@@ -78,6 +79,11 @@ function frame(now) {
       if (scen.id === 'hunt2' || scen.id === 'follow') traffic.cars.length = 0;   // Jagd und Verfolgung: kein Zufallsverkehr (Verwechslung mit den Zielen)
       else trafficStep(dt, game.sim.p, fl > 0.1 ? [fx/fl, fz/fl] : null); }
     boatsStep(dt, game.sim.p);
+    // Foto 3D (Prompt 196): kommt das 3D-Mesh am Start erst nach dem Start an, Aufstellung einmal je Gebiet neu auf dem Mesh,
+    // solange die Drohne noch am Startplatz steht (Ringe, Plätze und Ziele sonst nach LoD2 und Geländemodell)
+    if (rw.meshPhys && meshLaid !== rw.ver && game.state === 'fly' && game.sim.grounded && Math.hypot(game.sim.p[0] - game.home[0], game.sim.p[2] - game.home[1]) < 2) {
+      meshLaid = rw.ver; respawn(); say('Foto 3D: Ziele und Plätze auf das 3D-Mesh gestellt', 2);
+    }
     // Echte Welt (L5b): etwa jede Sekunde prüfen, ob eine Kachel nachzuladen oder zu entladen ist
     if (rw.on && (streamT -= dt) <= 0) {
       streamT = 1; rw.stream = cfg.rwStream !== false;

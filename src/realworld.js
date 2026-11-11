@@ -624,16 +624,21 @@ export function rwFeatureMesh() {
 // Name der nächsten Straße oder des nächsten Gewässers im Umkreis r (für die Anzeige), sonst ''
 // Welt-Schnittstelle für den Platzierungsdienst (place.js): Boden, Wasser, freie Kugel (Gebäude-Dreiecke, Bäume als Quader,
 // Boden), erlaubtes Rechteck (Startgebiet, 1 x 1 km), Startplatz.
+// Feste Oberfläche (Foto 3D, M2): 3D-Mesh, wo es um die Drohne fein geladen ist (rw.meshPhys), sonst die gezeichnete Geländefläche.
+// Physik, Platzierungsdienst und Ziele nutzen sie; Wasser, Straßen und Belebung bleiben beim Geländemodell.
+export function solidH(x, z) { const M = rw.meshPhys; if (M) { const h = M.ground(x, z); if (h === h) return h; } return groundH(x, z); }
 export function placeReal() {
   const S = rw.size/2;
   const free = (p, r) => {
-    if (p[1] - r < groundH(p[0], p[2])) return false;
+    if (p[1] - r < solidH(p[0], p[2])) return false;
+    const M = rw.meshPhys && rw.meshPhys.covered(p[0], p[2]) ? rw.meshPhys.near(p[0], p[2], r + 1) : null;   // Mesh: steile Dreiecke
+    if (M) { const T = M.T; for (let o = 0; o < T.length; o += 9) if (ptTriDist(p, [T[o], T[o + 1], T[o + 2]], [T[o + 3], T[o + 4], T[o + 5]], [T[o + 6], T[o + 7], T[o + 8]]) < r) return false; return true; }
     const n = rwNear(p[0], p[2], r + 1), T = rw.tris;
     for (const t of n.tris) { const o = t*9; if (ptTriDist(p, [T[o], T[o + 1], T[o + 2]], [T[o + 3], T[o + 4], T[o + 5]], [T[o + 6], T[o + 7], T[o + 8]]) < r) return false; }
     for (const b of n.boxes) if (Math.hypot(Math.max(0, Math.abs(p[0] - b.c[0]) - b.h[0]), Math.max(0, Math.abs(p[1] - b.c[1]) - b.h[1]), Math.max(0, Math.abs(p[2] - b.c[2]) - b.h[2])) < r) return false;
     return true;
   };
-  return { groundH, wet: waterAt, free, bounds: [-S, -S, S, S], home: rw.meta.home.slice() };
+  return { groundH: solidH, wet: waterAt, free, bounds: [-S, -S, S, S], home: rw.meta.home.slice() };
 }
 export function rwNearName(x, z, r = 30) {
   const F = rw.features;

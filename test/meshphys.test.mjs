@@ -8,7 +8,7 @@ import { cfg, game } from '../src/state.js';
 import { buildWorld } from '../src/world.js';
 import { STEP, step, respawn, hoverThrottle, physGroundH } from '../src/physics.js';
 import { setScenario } from '../src/scenario.js';
-import { rw, rwApply, groundH } from '../src/realworld.js';
+import { rw, rwApply, groundH, placeReal } from '../src/realworld.js';
 import { i3sPhysBuild, i3sGroundAt, i3sTrisNear } from '../src/rwmesh.js';
 
 buildWorld();
@@ -68,4 +68,14 @@ test('Ohne Mesh wie bisher: Boden aus dem Geländemodell', () => {
   rw.meshPhys = null; rw.on = true;
   assert.equal(physGroundH(hx, hz), groundH(hx, hz));
   rw.on = false;
+});
+
+test('Platzierungsdienst sieht das Mesh: Boden aus dem Raster, kein Platz in der Mesh-Wand, frei daneben', () => {
+  rw.on = true; rw.meshPhys = meshPhys;
+  const W = placeReal();
+  assert.ok(Math.abs(W.groundH(hx, hz) - (g0 + 8)) < 0.01, 'Boden auf dem Mesh-Dach');
+  assert.equal(W.free([home[0] + 15, g0 + 3, hz], 1), false, 'in der Westwand nicht frei');
+  assert.equal(W.free([home[0] + 10, g0 + 3, hz], 1), true, '5 m davor frei');
+  assert.equal(W.free([hx, g0 + 8.5, hz], 1), false, 'im Dach nicht frei');
+  rw.meshPhys = null; rw.on = false;
 });
