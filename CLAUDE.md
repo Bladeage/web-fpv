@@ -1,6 +1,6 @@
 # Arbeitsregeln für Claude Code
 
-- Lies zuerst `docs/handover-2026-11-06.md` und `docs/PLAN.md` (Vorgeschichte: `docs/handover-2026-10-30.md`).
+- Lies zuerst `docs/handover-2026-11-11.md` und `docs/PLAN.md` (Vorgeschichte: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`).
 - Jeden Prompt des Nutzers gestrafft in `docs/prompt-historie.md` eintragen (Nr., Datum, Prompt, Ergebnis), auch Antworten auf Rückfragen. Mit dem nächsten Commit ablegen.
 - Arbeite in Etappen. Pro Sitzung genau eine Etappe: umsetzen, prüfen, committen, kurz berichten, dann anhalten und auf Freigabe warten.
 - Keine Bibliotheken, keine externen Quellen, keine CDNs. Nur HTML, CSS, JavaScript und WebGL2. Build und Tests nur mit Node-Standardmodulen.
@@ -8,7 +8,7 @@
 - Vor jedem Commit: `npm run build` und `npm test`.
 - Commits und Branches ohne Claude (Nutzer, 05.11.2026): Autor ist der Nutzer (`Fabian G <7443801+Bladeage@users.noreply.github.com>`), keine Zeilen `Co-Authored-By` oder `Claude-Session`, Branch-Namen ohne „claude“.
 - Regeln für Module in `src/` (der Build prüft sie): nur `import { a, b } from './x.js';` in einer Zeile, ohne `as`. Nur `export const|let|function|class`. Kein Name doppelt auf oberster Ebene über alle Module. Werte, die mehrere Module neu setzen, liegen in einem Objekt (zum Beispiel `game` in `state.js`).
-- Module ohne DOM bleiben ohne DOM: `math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `demap`, `ambient`, `daylight`, `roads`, `traffic`, `rwroads`, `boats`, `rwmesh`, `geosearch`. Ton und Vibration erreicht die Physik nur über `fx`.
+- Module ohne DOM bleiben ohne DOM: `math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `pilot`, `geo`, `realworld`, `rwload`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `demap`, `ambient`, `daylight`, `roads`, `traffic`, `rwroads`, `boats`, `rwmesh`, `geosearch`, `rwwms`, `place`, `rwstore`. Der Test `test/domfree.test.mjs` prüft das. Ton und Vibration erreicht die Physik nur über `fx`.
 - `test/fixtures/legacy-trace.json` ist die Referenz aus `legacy/`. Seit E1 vergleicht der Test nur noch Hindernisse, Tore und Propeller; Flugbahnen (E1) und Drohnenmodell (R1) weichen absichtlich ab.
 - Physik von DOM und WebGL trennen, damit sie in Node testbar bleibt.
 - Feste Physik-Schrittweite 1/240 s beibehalten, solange der Plan nichts anderes sagt.

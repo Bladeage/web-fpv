@@ -14,7 +14,7 @@ import { PILOT } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
 import { rw, rwNearName, placeReal, groundH, solidH } from './realworld.js';
 import { rwRoads, roadRoutes, parkSpots } from './roads.js';
-import { ringChain, ringCircle, freeAir, airRegions, airCircle, airWaypoints, flatSpot } from './place.js';
+import { ringChain, ringCircle, freeAir, airCircle, airWaypoints, flatSpot } from './place.js';
 import { osdOn } from './osd.js';
 import { DIS_PREVIEW } from './distypes.js';
 

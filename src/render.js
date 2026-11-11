@@ -18,7 +18,7 @@ import { deLandAt } from './demap.js';
 import { meshGet, meshPut, meshStoreMB } from './rwstore.js';
 import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes, i3sNextUpload } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, solidH, rwNet } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, solidH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
 // Umgebung, die mitwandert (Prüfbericht Nr. 16): gezeichneter Stand (Mitte, Größe, Version) und der nächste im Aufbau
 const farAt = { cx: 0, cz: 0, size: 1, ver: -1 };
@@ -62,7 +62,7 @@ void main(){
     float f = clamp(length(aNor) - 1.0, 0.0, 1.0), ph = aPos.x*0.21 + aPos.z*0.17;
     w.xz += f*(vec2(0.9, 0.35)*0.18*sin(uTime*0.9 + ph) + 0.05*sin(uTime*2.6 + ph));
   }
-  if (uSink > 0.0 && aCol.a < 0.03) w.y -= uSink;   // Sichtprobe 3D-Mesh (M0): Gelände unter das Mesh, sonst flackern beide
+  if (uSink > 0.0 && aCol.a < 0.03) w.y -= uSink;   // 3D-Mesh (Foto 3D): Gelände unter das Mesh, sonst flackern beide
   vW = w.xyz; vNor = mat3(uModel) * aNor; vCol = aCol;
   gl_Position = uVP * w;
   // Flache Platten knapp über dem Boden (Startplatz, Rasen, Landeplatz): je mm Höhe ein fester Tiefen-Vorsprung.
@@ -434,7 +434,7 @@ void main(){
   else if (uVision > 0.5) c = vec3((0.10 + 0.08*(1.0 - t))*(1.0 - 0.3*uNight));             // Wärmebild: kalter Himmel dunkel, nachts kälter
   o = vec4(c, 1.0);
 }`;
-// Sichtprobe 3D-Mesh NRW (M0, ?mesh=1): Knoten mit Textur; Lagen relativ zur Knotenmitte (Ost, Nord, Höhe) -> Karte (x Ost, y Höhe,
+// 3D-Mesh NRW (Foto 3D oder ?mesh=1): Knoten mit Textur; Lagen relativ zur Knotenmitte (Ost, Nord, Höhe) -> Karte (x Ost, y Höhe,
 // z Süd) plus Versatz uOff. Licht wie ein Bodenpunkt des Luftbilds im Welt-Shader (Normale nach oben; Licht und Schatten stecken im
 // Bild), Dunst, blasse Ferne, Nebel, Nacht, Wärme und Nachtsicht wie dort (Stücke kopiert, für die Probe).
 const MESH_VS = `#version 300 es
@@ -806,7 +806,7 @@ export function render(dt) {
   gl.uniform1f(P.u.uAlpha, 1);
   gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   gl.uniform1f(P.u.uPhoto, rw.on ? 1 : 0);
-  const meshO = meshStep(vp, eye, H/(2*Math.tan(vf/2)));   // Sichtprobe 3D-Mesh (M0, nur ?mesh=1)
+  const meshO = meshStep(vp, eye, H/(2*Math.tan(vf/2)));   // 3D-Mesh: Foto 3D oder ?mesh=1
   gl.uniform1f(P.u.uSink, meshShow ? I3S.sink : 0);
   if (rw.on) drawTerrain(meshO && meshShow ? () => drawMesh(vp, eye, meshO, GFX, VIS, FOGN) : null);
   else {
@@ -1201,8 +1201,8 @@ function loadPhoto(bytes, ver, set = t => { photoTex = t; }, cap = RW_TEX.other)
 const freeGl = m => { if (m) { gl.deleteVertexArray(m.vao); if (m.buf) gl.deleteBuffer(m.buf); if (m.ib) gl.deleteBuffer(m.ib); } };
 // Echte Welt: Höhenmodell mit Luftbild, Gewässer, Gebäude (LoD2, Fassaden) und Bäume, Kartenebenen. Schreibt Tiefe.
 // Neues Gebiet (rw.ver): alle Netze und das Luftbild frei geben und neu bauen.
-// Sichtprobe 3D-Mesh (M0): nur mit ?mesh=1, echte Welt, nicht DIS, Gebiet in UTM 32 (NRW). meshShow: es ist etwas zu sehen; dann
-// Gelände abgesenkt und Häuser, eigene Bäume, Wasser, Kartenlinien aus (das Mesh zeigt sie). Physik unverändert (LoD2, DGM).
+// 3D-Mesh: Foto 3D oder ?mesh=1, echte Welt in NRW, nicht DIS. meshShow: es ist etwas zu sehen; dann Gelände abgesenkt und
+// Häuser, eigene Bäume, Wasser, Kartenlinien aus (das Mesh zeigt sie). Physik aus dem Mesh, wo Teile geladen sind (M2, rw.meshPhys).
 export const MESH_PROBE = typeof location !== 'undefined' && /[?&]mesh=1(&|$)/.test(location.search);
 // Foto 3D (G1): Preset cfg.gfx 'mesh' oder Diagnose ?mesh=1. NRW: Mitte oder eine Ecke des Gebiets in NRW (UTM 32), je Gebiet gemerkt.
 // Ohne Mesh am Ort sieht Foto 3D aus wie Schön; ein Hinweis einmal je Ort.
@@ -1326,7 +1326,7 @@ function meshInfo() {
   const bot = gpuName + ' · ' + Math.round(fps) + ' Bilder/s · längstes ' + Math.round(frameShow) + ' ms · Hochladen ' + upStat.show[0] + '/s' + (upStat.show[0] ? ' (max ' + upStat.show[1].toFixed(1) + ' ms)' : '') + ' · Auflösung ' + Math.round(frameStat.scale*100) + ' %' + (frameStat.lite ? ' Spar' : '');
   meshHud.textContent = top + '\n' + bot;
 }
-function drawTerrain(meshDraw = null) {   // meshDraw: Sichtprobe 3D-Mesh zeichnet statt Wasser, Häusern, Bäumen, Kartenlinien
+function drawTerrain(meshDraw = null) {   // meshDraw: 3D-Mesh zeichnet statt Wasser, Häusern, Bäumen, Kartenlinien
   if (rwGlVer !== rw.ver) {
     [terrain, farGl, rwModelGl, waterGl, featGl].forEach(freeGl);
     for (const t of [photoTex, farTex]) if (t) gl.deleteTexture(t);

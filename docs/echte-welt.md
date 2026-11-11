@@ -103,7 +103,7 @@ Nutzer: LoD2-Gebäude sind so nicht nutzbar, Ziel ist eine Darstellung wie beim 
 - Gebäude: Grundriss und Höhe aus LoD2, je Gebäude eine Nummer (`.bld` hängt sie hinter die Ecken). Je Gebäude eine Putzfarbe (6 Töne) und eine Dachfarbe (Schiefer, Ziegel, Grau). Fassade im Shader: Geschosse 2,9 m ab dem Sockel (Sockelhöhe steckt im Alpha der Wand), Fenster mit hellem Rahmen, Glas spiegelt je nach Blickwinkel, Sockel dunkler, weit weg weich zum Mittelwert (kein Flimmern).
 - Bäume: Stamm und runde Krone (acht Seiten, drei Ringe). Farbe der Krone aus dem Luftbild darunter (unscharf gelesen), Licht weich. Das Luftbild ist ein Winterbild: Laubbäume wirken bräunlich, Nadelbäume dunkelgrün.
 - Vögel auch in der echten Welt: Plätze auf Baumspitzen, Dächern und freier Wiese bis 260 m vom Start; Flugbogen hält Abstand zum Gelände (lange Wege 20 m).
-- Das 3D-Mesh ist nicht mehr eingebettet. Werkzeug `tools/mesh.mjs` und die Dateien `realworld/monschau-mesh.*` bleiben für später.
+- Das 3D-Mesh ist nicht mehr eingebettet. (Aufräumen 11.11.2026: `tools/mesh.mjs` und `realworld/monschau-mesh.*` entfernt; ersetzt durch das live geladene Mesh in Foto 3D, `src/rwmesh.js`. Alter Stand in der Git-Historie, Commit 6dd14c6.)
 - Datei: 6,3 MB (vorher 2,8 MB mit Luftbild 2048²).
 
 ## Koordinaten und nächster Ort im OSD (erledigt 06.11.2026, Prompt 101)

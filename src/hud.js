@@ -9,7 +9,7 @@ import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget, scen, diff, rings, chargeOn, scenHasGoal } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff, chargeOn, scenHasGoal } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';

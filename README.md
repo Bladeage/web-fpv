@@ -7,7 +7,7 @@ Läuft direkt im Browser, ohne Installation. Empfohlen: Chrome oder Edge (PC), C
 Browser-Simulator für FPV-Drohnen. Reines HTML, CSS, JavaScript, WebGL2. Keine fremden Bibliotheken, einzige Ausnahme: Betaflight als Flugregler (GPLv3, siehe Lizenz).
 Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASCII).
 
-- Stand und Hintergrund: `docs/handover-2026-11-06.md` (ältere Übergabe: `docs/handover-2026-10-30.md`)
+- Stand und Hintergrund: `docs/handover-2026-11-11.md` (ältere Übergaben: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`)
 - Echte Welt (Daten, Quellen, Etappen L1 bis L5): `docs/echte-welt.md`
 - Etappenplan: `docs/PLAN.md`
 - Prompt-Historie: `docs/prompt-historie.md`
@@ -78,19 +78,20 @@ Per Doppelklick (`file://`) laden Browser keine ES-Module.
 | `src/demap.js`, `src/mapui.js`, `src/srcui.js` | Deutschlandkarte (Daten und Bedienung), Seiten „Quellen“ und „Quelle bearbeiten“ |
 | `tools/build.mjs` | Build ohne Abhängigkeiten |
 | `tools/aspx.mjs` | ASPX-Konverter (Node-Port von `tools/to_aspx.py`) |
-| `tools/realworld.mjs` | Monschau laden und in `realworld/` ablegen (derselbe Code wie das Live-Laden) |
-| `tools/water.mjs`, `tools/features.mjs` | Gewässer und Kartenebenen für Monschau aus dem Basis-DLM |
+| `tools/realworld.mjs` | Eingebaute Gebiete laden und in `realworld/` ablegen (`RW_AREA=axa` oder `monschau`; derselbe Code wie das Live-Laden) |
+| `tools/water.mjs`, `tools/features.mjs` | Gewässer und Kartenebenen für das eingebaute Gebiet aus dem Basis-DLM (`RW_AREA` wie oben) |
 | `tools/germany.mjs` | Ländergrenzen für die Deutschlandkarte (BKG VG2500) |
-| `tools/mesh.mjs` | 3D-Mesh NRW (Index, grobe Stufe); derzeit nicht eingebettet, für ein späteres Nachladen |
 | `tools/record-legacy-trace.mjs` | Nimmt Referenzdaten aus `legacy/` auf. Braucht Playwright, nicht Teil von Build und Tests. |
 | `sitl/` | Quellen und Build-Skript für Betaflight als WebAssembly |
 | `test/` | Tests mit `node:test` |
 
-`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `ambient`, `pilot`, `geo`, `realworld`, `rwload`, `rwwms`, `rwdlm`, `rwworker`, `dis`, `distypes`, `verbund`, `place` und `demap` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node.
+`math`, `format`, `state`, `world`, `physics`, `gamepad`, `scenario`, `drone`, `osd`, `signal`, `targets`, `vehicles`, `bf`, `balloon`, `aircraft`, `town`, `eggs`, `birds`, `ambient`, `pilot`, `geo`, `realworld`, `rwload`, `rwwms`, `rwdlm`, `rwworker`, `rwstore`, `dis`, `distypes`, `verbund`, `place`, `demap`, `daylight`, `roads`, `traffic`, `rwroads`, `boats`, `rwmesh` und `geosearch` laufen ohne DOM und WebGL. Die Tests importieren sie direkt in Node; `test/domfree.test.mjs` prüft die Regel.
 
 ## Daten „Echte Welt“
 
-Gelände und Luftbild von Monschau: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (https://www.govdata.de/dl-de/zero-2-0). Abgelegt in `realworld/`, geladen mit `node tools/realworld.mjs`, beim Build eingebettet. Plan: `docs/echte-welt.md`.
+Eingebautes Gebiet AXA Campus Köln (dazu Monschau für die Tests): Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (https://www.govdata.de/dl-de/zero-2-0). Abgelegt in `realworld/`, geladen mit `node tools/realworld.mjs`, beim Build eingebettet (AXA). Plan: `docs/echte-welt.md`.
+
+Grafik „Foto 3D“: 3D-Mesh NRW (Digitaler Zwilling, Geobasis NRW, dl-de/zero-2.0), live geladen und im Browser zwischengespeichert. Ortssuche: Nominatim, © OpenStreetMap-Mitwirkende (ODbL).
 
 Andere Orte lädt der Browser live (1 x 1 km): Modus „Echte Welt“ → „Ort laden“, Breite und Länge eintragen oder „Karte“ öffnen und klicken. Für NRW sind die Dienste von Geobasis NRW hinterlegt (dl-de/zero-2.0). Für andere Bundesländer trägt man die Dienste unter Karte → „Quellen“ ein (Höhen als WCS, Luftbild als WMS, Gebäude als LoD2-Kacheln); „Prüfen“ testet sie, „Exportieren“ und „Importieren“ geben sie weiter. Als zweite Art gibt es den WMS-Höhendienst (etwa den Gelände-Server einer DIS-Übung): nur Höhen, gilt für die DIS-Übung, überall oder nie, und wird nie gespeichert. An Landesgrenzen setzt das Programm mehrere Quellen zusammen. Um jedes Gebiet liegen 10 x 10 km grobes Gelände mit Luftbild; beim Fliegen lädt das Programm Gebäude und Bäume in 1-km-Kacheln nach. Geladene Orte bleiben im Browser gespeichert und öffnen sich später ohne Netz („Gespeicherte Orte“). Gewässer und Ortsnamen für NRW lädt man einmal unter Echte Welt → Optionen → Daten (etwa 60 MB). Dort lassen sich alle Geodaten als eine Datei exportieren und an einem anderen Rechner ohne Netz importieren.
 

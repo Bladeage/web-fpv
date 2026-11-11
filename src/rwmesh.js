@@ -1,7 +1,9 @@
-/* Sichtprobe 3D-Mesh NRW (Nutzer, Prompt 189/190, Etappe M0; Plan docs/plan-3d-mesh.md, Prüfung docs/pruefung-3d-mesh.md).
-   Texturiertes Mesh des Digitalen Zwillings NRW (I3S 1.7, Lizenz dl-de/zero-2.0), live geladen, nichts gespeichert. Nur zum
-   Vergleich mit der heutigen Optik: aktiv nur mit dem Zusatz ?mesh=1 in der Adresse, in der echten Welt, nicht in DIS.
-   Dieses Modul: Knoten und Seiten verwalten, Sichtkegel, Wahl der Detailstufe (Node-Switching wie I3S), Freigabe. Ohne DOM.
+/* 3D-Mesh NRW (Nutzer, Prompt 189/190, Etappe M0; Plan docs/plan-3d-mesh.md und docs/plan-grafik-presets.md, Prüfung
+   docs/pruefung-3d-mesh.md). Texturiertes Mesh des Digitalen Zwillings NRW (I3S 1.7, Lizenz dl-de/zero-2.0), live geladen.
+   Aktiv im Grafik-Preset „Foto 3D“ (G1) oder mit ?mesh=1 (Diagnose mit Anzeige), in der echten Welt in NRW, nicht in DIS.
+   Teile liegen im Browser zwischengespeichert (rwstore.js, Prompt 203). Die Physik nutzt sie (M2, i3sPhys*).
+   Dieses Modul: Knoten und Seiten verwalten, Sichtkegel, Wahl der Detailstufe (Node-Switching wie I3S), Freigabe,
+   Warteschlange fürs Hochladen, Kollision. Ohne DOM.
    Laden (fetch, Bilder) und Zeichnen macht render.js. */
 
 // url Ebene 0 des Dienstes; q Qualität (1 = Schwelle des Dienstes, größer = gröber); maxNodes, gpuMB Grenzen; para gleichzeitige
