@@ -1265,8 +1265,8 @@ function meshStep(vp, eye, f) {
   const m = rw.meta, o = { ec: (m.bbox[0] + m.bbox[2])/2, nc: (m.bbox[1] + m.bbox[3])/2, h: m.hHome }, now = performance.now()/1000;
   const S = i3sSelect(eye, f, i3sPlanes(vp), o, (LOW_MEM ? 2.5 : I3S.q)*i3s.qa);
   i3sAdapt(S.draw);
-  for (const p of S.pages) { if (i3s.jobs >= I3S.para) break; if (!i3s.pages.has(p)) meshPage(p); }
-  for (const [n] of S.want) { if (i3s.jobs >= I3S.para || !i3sRoom()) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
+  for (const p of S.pages) { if (i3s.jobs >= I3S.para || game.paused) break; if (!i3s.pages.has(p)) meshPage(p); }   // Pause: nichts Neues laden (Prompt 204)
+  for (const [n] of S.want) { if (i3s.jobs >= I3S.para || !i3sRoom() || game.paused) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
   for (const n of S.draw) n.t = now;
   i3s.drawn = S.draw;
   if (now - meshEvictT > 1) { meshEvictT = now; for (const n of i3sEvict(now, new Set(S.draw))) meshFree(n); }

@@ -198,3 +198,17 @@ export async function meshPut(res, g, t, low = false) {
   m.delete(res); meshIdx.bytes -= size; return false;
 }
 export const meshStoreMB = () => meshIdx.bytes/1e6;
+
+export async function meshStats() { const m = await meshIdxLoad(); return { n: m.size, bytes: meshIdx.bytes }; }
+// Leeren (Prompt 204). cache: Zwischenspeicher (3D-Mesh, beim Fliegen nachgeladene Kacheln, Gebäudekacheln); all: dazu gespeicherte
+// Orte und Landesdaten. Liefert die Zahl der gelöschten Einträge.
+async function storeEmpty(st) { const k = (await tx(st, 'readonly', s => s.getAllKeys())) || []; await tx(st, 'readwrite', s => s.clear()); return k.length; }
+// Nur das 3D-Mesh leeren (Daten-Reiter); liefert die Zahl der Teile
+export async function storeClearMesh() { const n = await storeEmpty('mesh'); await storeEmpty('meshidx'); meshIdx.map = null; meshIdx.busy = null; meshIdx.bytes = 0; return n; }
+export async function storeClear(all = false) {
+  let n = await storeClearMesh() + await storeEmpty('lod2');
+  const clear = async st => { n += await storeEmpty(st); };
+  if (all) { for (const st of ['areas', 'info', 'land']) await clear(st); return n; }
+  for (const x of (await storeAll('info')).filter(x => x.tile)) { await storeAreaDel(x.key); n++; }
+  return n;
+}

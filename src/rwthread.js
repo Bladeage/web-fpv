@@ -3,7 +3,7 @@
    die Module ohne DOM, die der Worker braucht, und ersetzen die großen eingebetteten Daten (Base64) durch Platzhalter.
    Geht das nicht (Entwicklung mit einzelnen Modulen, Sicherheitsregeln der Seite verbieten Worker aus „blob:“, alter
    Browser), bleibt rw.work leer und alles läuft wie bisher im Hauptprogramm. */
-import { rw } from './realworld.js';
+import { rw, netStat } from './realworld.js';
 // rwworker.js: nur, damit der Build den Worker-Teil mitnimmt; wkMain läuft im Worker
 import { wkMain } from './rwworker.js';
 
@@ -33,6 +33,7 @@ export function rwThreadInit() {
     wk.w.onmessage = e => {
       const m = e.data;
       if (m.ready) { URL.revokeObjectURL(url); return; }
+      if (m.net) netStat.bytes += m.net;   // im Hintergrund geladene Bytes (Anzeige im Pause-Menü)
       const f = wk.wait.get(m.id);
       if (!f) return;
       if (m.say) { f.say(...m.say); return; }

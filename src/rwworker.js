@@ -10,7 +10,7 @@
    - 'roads': Straßenflächen (ALKIS-WFS) laden und in Mittellinien umwandeln (rwroads.js, etwa 0,2 s je km²).
    Abbruch: Nachricht { cancel: id }. */
 import { rwFetchArea, rwFetchFar } from './rwload.js';
-import { rwNet, rwModelMesh } from './realworld.js';
+import { rwNet, rwModelMesh, netStat } from './realworld.js';
 import { RW_STORE } from './rwstore.js';
 import { rwRoadsFetch } from './rwroads.js';
 
@@ -39,9 +39,9 @@ export function wkMain() {
     const m = e.data;
     if (m.cancel) { const c = run.get(m.cancel); if (c) c.abort(); return; }
     const ac = new AbortController(); run.set(m.id, ac);
-    try { const { out, tr } = await wkRun(m, ac.signal, x => postMessage(x)); postMessage({ id: m.id, out }, tr); }
-    catch (err) { postMessage({ id: m.id, err: String(err && err.message || err) }); }
-    finally { run.delete(m.id); }
+    try { const { out, tr } = await wkRun(m, ac.signal, x => postMessage(x)); postMessage({ id: m.id, out, net: netStat.bytes }, tr); }
+    catch (err) { postMessage({ id: m.id, err: String(err && err.message || err), net: netStat.bytes }); }
+    finally { run.delete(m.id); netStat.bytes = 0; }   // geladene Bytes gehen mit der Antwort an das Hauptprogramm
   };
   postMessage({ ready: true });
 }

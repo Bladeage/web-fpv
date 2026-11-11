@@ -120,12 +120,15 @@ export function rwPlan(lat, lon, list = rwSources(), opt = {}) {
 // Abrufe für das Laden und Prüfen: get(url) -> Bytes, text(url) -> Text oder null (404). Fehler verständlich:
 // keine Verbindung (offline oder gesperrt), Dienst antwortet mit Fehlercode, Dienst meldet Fehler als XML, Abbruch.
 // Antwort lesen; prog(Bytes) meldet bei großen Dateien den Fortschritt (Gebäude-Kacheln bis 70 MB, Landesdaten)
+// Geladene Bytes dieser Sitzung (Prompt 204, Anzeige im Pause-Menü); der Hintergrund-Thread meldet seine mit jedem Auftrag (rwthread.js)
+export const netStat = { bytes: 0 };
 async function readBody(r, prog) {
-  if (!prog || !r.body || !r.body.getReader) return new Uint8Array(await r.arrayBuffer());
+  if (!prog || !r.body || !r.body.getReader) { const b = new Uint8Array(await r.arrayBuffer()); netStat.bytes += b.length; return b; }
   const rd = r.body.getReader(), parts = [];
   let n = 0;
   for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prog(n); }
   const b = new Uint8Array(n); let o = 0; for (const x of parts) { b.set(x, o); o += x.length; }
+  netStat.bytes += n;
   return b;
 }
 // Zeitgrenze (Prüfbericht Nr. 5): Kommt so lange gar nichts (keine Antwort, keine neuen Bytes), wird der Abruf abgebrochen.

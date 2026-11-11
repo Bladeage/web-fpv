@@ -2,7 +2,7 @@
    Eigene Quellen liegen in cfg.rwSources (Browser-Speicher) und gelten vor den Vorlagen (rw.userSources). */
 import { cfg, saveCfg } from './state.js';
 import { rw, rwNet, rwSources, rwLandData, rwLandHas, RW_SHOW, rwSetShow } from './realworld.js';
-import { RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage, storePut, storeArea, storeStats, storeExportAll, geoPack, geoUnpack } from './rwstore.js';
+import { meshStats, storeClearMesh, RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage, storePut, storeArea, storeStats, storeExportAll, geoPack, geoUnpack } from './rwstore.js';
 import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { wmsCheck } from './rwwms.js';
 import { deMap } from './demap.js';
@@ -73,6 +73,8 @@ async function srcStoreFill() {
   const st = await storeStats(), l2 = st.lod2.filter(x => x.size);
   if (st.lod2.length) row('Gebäudekacheln (Zwischenspeicher)', st.lod2.length + ' · ' + (l2.reduce((t, x) => t + x.size, 0)/1e6).toFixed(0) + ' MB, spart erneutes Laden', 'Löschen',
     async () => { for (const x of st.lod2) await storeDel('lod2', x.key); srcStoreFill(); });
+  const ms = await meshStats();
+  if (ms.n) row('3D-Mesh NRW (Zwischenspeicher)', ms.n + ' Teile · ' + (ms.bytes/1e6).toFixed(0) + ' MB, spart erneutes Laden (Foto 3D)', 'Löschen', async () => { await storeClearMesh(); srcStoreFill(); });
   const infos = await storeAll('info'), tiles = infos.filter(x => x.tile);
   if (tiles.length) row('Nachgeladene Kacheln', tiles.length + ' · ' + (tiles.reduce((t, x) => t + x.size, 0)/1e6).toFixed(0) + ' MB (beim Fliegen gespeichert)', 'Löschen', async () => { for (const x of tiles) await storeAreaDel(x.key); srcStoreFill(); });
   for (const x of infos.filter(x => !x.tile).sort((a, b) => b.date - a.date))

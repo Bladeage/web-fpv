@@ -242,6 +242,12 @@ details{margin-top:10px}
 @media (max-width:480px){ .belegrow{grid-template-columns:1fr 1fr} .belegrow select{grid-column:span 2} }
 /* Grafik: vier Presets in einer Zeile (Foto 3D, Schön, Mittel, Einfach; docs/plan-grafik-presets.md 2.1) */
 #gfxSeg{grid-template-columns:repeat(4,1fr)}
+/* Pause in der echten Welt (Prompt 204): geladene und gespeicherte Daten, Speicher leeren; rechts neben der Überschrift, ohne Mehrhöhe */
+section[data-screen=settings]{position:relative}
+.pausedata{position:absolute;top:2px;right:0;max-width:62%;display:flex;align-items:center;gap:6px;font-size:11px;line-height:1.25;text-align:right}
+.pausedata #pdTxt{opacity:.8}
+.pausedata .pdbtn{display:flex;gap:4px}
+.pausedata button{padding:4px 8px;border-radius:8px;font-size:12px;white-space:nowrap}
 #gfxSeg button b{white-space:nowrap}
 @media (max-width:480px){ #gfxSeg{gap:4px} #gfxSeg button{padding:10px 2px} #gfxSeg button b{font-size:14px} }
 .keypairs{display:grid;grid-template-columns:4.6em auto auto 1fr;gap:6px 10px;align-items:center;margin-top:10px;font-size:14px}

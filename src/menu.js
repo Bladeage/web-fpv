@@ -8,7 +8,7 @@ import { audioInit, audioPause } from './audio.js';
 import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
 import { bfRates } from './bf.js';
-import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources, RW_SHOW } from './realworld.js';
+import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources, RW_SHOW, netStat } from './realworld.js';
 import { rwRoads, roadLenNear } from './roads.js';
 import { wmsProbe } from './rwwms.js';
 import { SCENARIOS, DIFF, setScenario } from './scenario.js';
@@ -16,6 +16,7 @@ import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
+import { storeUsage, storeClear } from './rwstore.js';
 import { geoSearch } from './geosearch.js';
 import { srcInit, srcOpen } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
@@ -203,6 +204,7 @@ export function syncMenu() {
   $('go').classList.toggle('primary', !game.started); $('go').classList.toggle('secondary', game.started);   // nach dem ersten Flug ist „Weiterfliegen“ der Hauptknopf
   // Einstellungen: im Flug „Pause“ mit „Weiterfliegen“; aus dem Hauptmenü nur „Fertig“; aus einem anderen Schritt „Fertig“ (zurück dorthin) und „Hauptmenü“
   const inFlight = from === null && game.started;
+  $('pauseData').hidden = !(inFlight && rw.on); if (inFlight && rw.on) pauseDataFill();
   $('setTitle').textContent = inFlight ? 'Pause' : 'Einstellungen';
   $('bBack').textContent = inFlight ? 'Weiterfliegen' : 'Fertig';
   $('bMain').hidden = !inFlight && (from === null || from === 'main');
@@ -848,3 +850,18 @@ function toBackground() { if (!game.paused) openMenu('settings'); audioPause(); 
 document.addEventListener('visibilitychange', () => { if (document.hidden) toBackground(); });
 addEventListener('pagehide', toBackground);
 addEventListener('freeze', toBackground);
+
+// Pause in der echten Welt (Prompt 204): in dieser Sitzung geladene Daten (alle Abrufe der echten Welt, auch im Hintergrund) und der
+// belegte Speicher im Browser; „Speicher leeren“ fragt nach: Zwischenspeicher oder alles (auch gespeicherte Orte und Landesdaten).
+const MBt = b => b < 1e6 ? Math.round(b/1e3) + ' KB' : (b/1e6).toFixed(b < 1e8 ? 1 : 0).replace('.', ',') + ' MB';
+async function pauseDataFill() {
+  const u = await storeUsage();
+  $('pdTxt').textContent = MBt(netStat.bytes) + ' geladen' + (u && u.usage ? ' · ' + MBt(u.usage) + ' gespeichert' : '');   // geladen: in dieser Sitzung
+  $('pdClear').hidden = false; $('pdCache').hidden = $('pdAll').hidden = true;
+}
+$('pdClear').addEventListener('click', () => { $('pdClear').hidden = true; $('pdCache').hidden = $('pdAll').hidden = false; });
+for (const [id, all] of [['pdCache', false], ['pdAll', true]]) $(id).addEventListener('click', async () => {
+  $('pdTxt').textContent = 'Lösche, kann einige Sekunden dauern …';
+  const n = await storeClear(all);
+  await pauseDataFill(); $('pdTxt').textContent = n + ' gelöscht · ' + $('pdTxt').textContent;
+});
