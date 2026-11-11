@@ -89,7 +89,7 @@ export function bundle() {
   // Version: 1.<Anzahl Commits>, dazu Datum und Kurz-Hash des gebauten Commits. Zählt mit jedem Commit auf main hoch.
   // Ohne git (zum Beispiel ausgepacktes Archiv): „dev“. Die CI holt dafür die ganze Historie (fetch-depth: 0).
   // Echte Welt (realworld/, Geobasis NRW, dl-de/zero-2.0): Beschreibung, Höhen (deflate) und Luftbild als Base64
-  const RW = join(ROOT, 'realworld', 'monschau');
+  const RW = join(ROOT, 'realworld', 'axa');   // eingebautes Gebiet: AXA Campus Köln (Prompt 199/200; vorher Monschau, das für die Tests im Repo bleibt)
   // Grundlage: Höhen, Luftbild, Gebäude (LoD2), Bäume, Gewässer, Kartenebenen. Das 3D-Mesh (-mesh.*) wird nicht eingebettet.
   if (js.includes("'%%RW_META%%'")) js = js.replace("'%%RW_META%%'", () => JSON.stringify(readFileSync(RW + '.json', 'utf8')))
     .replace("'%%RW_DGM%%'", () => "'" + readFileSync(RW + '.dgm').toString('base64') + "'")

@@ -1,0 +1,40 @@
+{
+ "name": "axa",
+ "place": "AXA Campus K\u00f6ln",
+ "crs": "EPSG:25832",
+ "bbox": [
+  363075,
+  5646862,
+  364075,
+  5647862
+ ],
+ "n": 512,
+ "hMin": 44.56999969482422,
+ "hMax": 56.2599983215332,
+ "hScale": 0.1,
+ "home": [
+  0.4,
+  -0.5
+ ],
+ "hHome": 49.75,
+ "startSpan": 0.09,
+ "startV": 2,
+ "attribution": "Geobasis NRW, Datenlizenz Deutschland \u2013 Zero 2.0",
+ "roofTris": 4765,
+ "wallTris": 11157,
+ "buildings": 469,
+ "trees": 1967,
+ "far": {
+  "n": 401,
+  "size": 10025,
+  "hMin": 37.11000061035156,
+  "hScale": 0.1
+ },
+ "homeYaw": 270,
+ "water": {
+  "n": 1000,
+  "res": 1,
+  "area": 7428,
+  "source": "Basis-DLM gew01_f (Gew\u00e4sserfl\u00e4chen)"
+ }
+}

@@ -10,11 +10,18 @@ import { deflateSync } from 'node:zlib';
 import { RW_SOURCES, rwFetchArea } from '../src/rwload.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..'), OUT = join(ROOT, 'realworld');
-// Monschau (Eifel): Altstadt im Rurtal. 1 x 1 km in UTM 32 (EPSG:25832). Start: Wiese oberhalb der Altstadt.
-export const AREA = {
-  name: 'monschau', place: 'Monschau (Eifel, NRW)', crs: 'EPSG:25832', bbox: [304200, 5603500, 305200, 5604500],
-  startNear: [304814, 5604314], attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
+// Gebiete (1 x 1 km in UTM 32, EPSG:25832). Wahl über die Umgebungsvariable RW_AREA (Vorgabe monschau).
+// Monschau (Eifel): Altstadt im Rurtal, Start Wiese oberhalb der Altstadt. Bleibt im Repository für die Tests.
+// AXA Campus Köln (Nutzer, Prompt 199/200): Start genau auf 50.96170, 7.05731 (Wiese am Campus, E 363575,4, N 5647362,5), Gebiet um
+// diesen Punkt; Blick beim Start nach startYaw Grad (Kompass, 0 Nord, 90 Ost). startExact: kein Suchen eines flachen Platzes.
+export const AREAS = {
+  monschau: { name: 'monschau', place: 'Monschau (Eifel, NRW)', crs: 'EPSG:25832', bbox: [304200, 5603500, 305200, 5604500],
+    startNear: [304814, 5604314], attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0' },
+  axa: { name: 'axa', place: 'AXA Campus Köln', crs: 'EPSG:25832', bbox: [363075, 5646862, 364075, 5647862],
+    startNear: [363575.4, 5647362.5], startExact: true, startYaw: 270, attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0' }
 };
+export const AREA = AREAS[process.env.RW_AREA || 'monschau'];
+if (!AREA) throw new Error('Unbekanntes Gebiet RW_AREA=' + process.env.RW_AREA);
 async function get(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(r.status + ' ' + url);
@@ -47,6 +54,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     writeFileSync(join(OUT, a.name + '.far'), deflateSync(Buffer.from(p.far.q.buffer), { level: 9 }));
     if (p.far.dop) writeFileSync(join(OUT, a.name + '.far.jpg'), p.far.dop);
   }
+  if (a.startExact) {   // Start genau auf dem Punkt (Kartenkoordinaten: Mitte = Ursprung, z nach Süden). hHome bleibt: Gebäude und
+    // Bäume sind relativ dazu gepackt (rwload.js), nur der Startplatz wandert
+    const ec = (a.bbox[0] + a.bbox[2])/2, nc = (a.bbox[1] + a.bbox[3])/2;
+    p.meta.home = [Math.round((a.startNear[0] - ec)*10)/10, Math.round(-(a.startNear[1] - nc)*10)/10];
+  }
+  if (a.startYaw !== undefined) p.meta.homeYaw = a.startYaw;   // Blickrichtung beim Start in Grad (Kompass)
   writeFileSync(join(OUT, a.name + '.json'), JSON.stringify(p.meta, null, 1) + '\n');
   console.log(p.meta, 'Luftbild', p.dop.length, 'B');
 }

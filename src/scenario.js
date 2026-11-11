@@ -432,7 +432,8 @@ export function setScenario(id, real = id === 'real') {
   rw.on = real && rw.ready;
   if (rw.on && (id === 'rings' || id === 'slalom')) rings.length = 0;   // neue Anordnung beim nächsten Neustart (reset)
   game.home = rw.on ? rw.meta.home.slice() : id === 'free' ? TOWN.start.slice() : id === 'vbs' ? DIS_PREVIEW.home.slice() : [0, 0];   // Startpunkt im Freiflug (TOWN.start), der Pilot steht dort
-  game.homeYaw = rw.on ? Math.atan2(game.home[0], game.home[1]) : 0;
+  // Blick beim Start: vorgegeben im Gebiet (meta.homeYaw, Grad nach Kompass; AXA Campus), sonst zur Mitte des Gebiets
+  game.homeYaw = !rw.on ? 0 : rw.meta.homeYaw !== undefined ? -rw.meta.homeYaw*Math.PI/180 : Math.atan2(game.home[0], game.home[1]);
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   game.bestScen = id === 'real' || !rw.on ? id : id + '.real';   // Bestzeit je Welt
   task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;

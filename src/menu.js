@@ -151,7 +151,7 @@ export function syncMenu() {
   $('rwLive').hidden = cfg.rwSrc !== 'live';
   if (document.activeElement !== $('rwLL')) $('rwLL').value = cfg.rwLL || '';
   if (!rwBusy && dis) disMsg(true);
-  if (!rwBusy && !dis) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Monschau ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
+  if (!rwBusy && !dis) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Der AXA Campus Köln ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
     : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
       + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
@@ -359,7 +359,7 @@ async function start() {
   if (real && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
   if (real && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
     say('Lade Gebiet …', 60);
-    if (!await rwLiveRun()) { say('Ort nicht geladen, fliege Monschau. ' + msgEl().textContent, 5); await rwLoadEmbedded(); }
+    if (!await rwLiveRun()) { say('Ort nicht geladen, fliege den AXA Campus. ' + msgEl().textContent, 5); await rwLoadEmbedded(); }
     else say('Gebiet geladen', 1.5);
   }
   if (real && cfg.rwSrc === 'dis') disFlat();   // Ort der DIS-Übung ohne Kartendaten
@@ -461,7 +461,7 @@ function disMsg(force = false) {
     : viaWms ? 'Gelände: Höhendienst ' + disHost(rw.liveDis.wms.hgt.url) + (rw.photoOk ? ', mit Luftbild, ohne Häuser.' : ', ohne Luftbild und Häuser.') + (rw.meta && rw.meta.hMax - rw.meta.hMin < 2 ? ' Hier nur flach.' : '')
       + (rw.photoErr ? ' Luftbild: ' + rw.photoErr.slice(0, 70) : '')
     : flown ? 'Gelände: Kartendaten ' + (rw.liveSrcs || []).map(x => x.split(' (')[0]).join(', ') + '.' + (w && w.src ? ' Höhen können von VBS abweichen.' : '')
-    : !here && !vbCenter() && !(disLast && disLast.c) ? 'Noch kein Ort der Übung. „Dorthin“ holt ihn; ohne ihn startet der Flug in Monschau.'
+    : !here && !vbCenter() && !(disLast && disLast.c) ? 'Noch kein Ort der Übung. „Dorthin“ holt ihn; ohne ihn startet der Flug am AXA Campus.'
     : !disWmsList().length ? 'Kein Höhendienst eingetragen. „Dorthin“ nimmt Kartendaten oder eine ebene Fläche.'
     : wmsBusy && !w ? 'Suche Höhendienst …'
     : w && w.src ? 'Höhendienst gefunden: ' + disHost(w.url) + ', Ebene ' + w.layer + '. „Dorthin“ nimmt ihn.'
