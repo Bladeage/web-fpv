@@ -4,7 +4,7 @@
 import { vAdd, vSub, vScale, vDot, vLen, vNorm, vCross } from './math.js';
 import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
 import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
-import { PHYS, task, checkGate, collide, contact, fx, bestOk } from './physics.js';
+import { PHYS, task, checkGate, collide, contact, fx, bestOk, crash } from './physics.js';
 import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, HUNT_N, huntRoutePts, REGION } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
@@ -163,6 +163,20 @@ const DROP_HOLD = 0.8;                      // so lange tief und langsam über d
 export const dropOrder = [];
 // Verfolgung: Auto auf der inneren Runde, Tempo wechselt (Schätzung 5 bis 13 m/s, Schwierigkeit skaliert)
 export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
+// Wirkmittel im Taktischen Flug (Nutzer, Prompt 196): Sprengladung als Last unter der Drohne. Treffer (Landung auf dem Ziel oder
+// Berührung) zündet sie: Ziel getroffen, Explosion, die Drohne ist verbraucht. Ein Absturz zündet sie ohne Treffer. Nach delay
+// Sekunden startet eine neue Drohne mit vollem Akku und neuer Ladung; Zeit und Treffer laufen weiter. mass: Anteil der Drohnenmasse
+// (Schätzung: Last etwa ein Drittel der Startmasse); fx: Dauer der Explosion im Bild (s). Nur Darstellung und Spiel, keine Wirkung.
+export const CHARGE = { mass: 0.3, delay: 1.5, fx: 1.4 };
+export const booms = [];   // Explosionen für die Darstellung: { p, t (performance.now) }
+export const chargeOn = () => cfg.flight === 'tactical' && cfg.warhead === 'charge' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;
+export function chargeBoom(p) { booms.push({ p: p.slice(), t: performance.now() }); while (booms.length > 8) booms.shift(); }
+// Nach dem Zünden: neue Drohne fällig? Liefert true, wenn jetzt eine neue Drohne starten soll (Aufrufer setzt sie an den Start).
+export function chargeDue(now = performance.now()) {
+  return chargeOn() && game.state === 'crashed' && !st.done && now - (game.sim.crashT || 0) > CHARGE.delay*1000;
+}
+export function chargeNext() { st.drones++; game.payload = CHARGE.mass*PHYS.mass; }
+export const chargeDrones = () => st.drones;
 const lead = { s: 0, t: 0, x: 0, y: 0, z: 0, yaw: 0, ok: false, dist: 0, trail: [], trailT: 0, route: null };
 // Echte Welt (S3): Fahrzeuge der Jagd auf den Straßen (3 geparkt, 4 fahrend) und das Auto der Verfolgung auf einem langen Weg,
 // der 30 bis 150 m vom Startplatz beginnt. Ohne Straßen leer (das Menü sperrt die Modi dann).
@@ -233,11 +247,12 @@ function spotsMap() { PAD.c.splice(0, 3, ...PAD_MAP); PICKUP.splice(0, 3, ...PIC
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
 /* ---------- Ablauf ---------- */
-const st = { hits: 0, score: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
+const st = { drones: 1, hits: 0, score: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
 function reset() {
   task.gateExtra = diff().gateExtra || 0;   // Tor-Toleranz nach Stufe
   if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout();
-  st.carry = false; st.deliv = 0; st.inBand = 0; game.payload = 0;
+  st.carry = false; st.deliv = 0; st.inBand = 0; game.payload = 0; st.drones = 1; booms.length = 0;
+  if (chargeOn()) game.payload = CHARGE.mass*PHYS.mass;   // Sprengladung unter der Drohne (schwerer)
   if (rw.on) spotsReal(rng(layoutSeed ?? Math.floor(Math.random()*1e9))); else spotsMap();
   scen.version++;
   if (scen.id === 'deliver') {   // zufällige Reihenfolge von 3 der 4 Plattformen
@@ -336,6 +351,7 @@ function checkHunt(a, b, h) {
   if (bal) fx.pop(); else fx.beep(1100, 0.12);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
   else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed() + (pts ? '  +' + pts + ' Punkte' : ''));
+  if (chargeOn()) { chargeBoom(s.p); if (!st.done) crash('Wirkmittel im Ziel umgesetzt'); else fx.crash(); return; }   // Ladung gezündet, Drohne verbraucht
   if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
 
@@ -422,7 +438,7 @@ export function scenLabel() {
   if (scen.id === 'real') { const n = osdOn(cfg.osd, 'place') ? rwNearName(s.p[0], s.p[2]) : '', m = cfg.verbund ? 'DIS' : 'ECHTE WELT'; return n ? m + ' · ' + n.toUpperCase() : m; }   // DIS-Modus: echte Welt im Verbund
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
-  if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');
+  if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '') + (chargeOn() ? ` DROHNE ${st.drones}` : '');
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;

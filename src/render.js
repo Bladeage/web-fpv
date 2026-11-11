@@ -2,7 +2,7 @@
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say, eggsFound, gfxLevel } from './state.js';
 import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildDisc, PROP_S } from './world.js';
-import { scen, buildScenario, scenHighlight, followLead, diff } from './scenario.js';
+import { scen, buildScenario, scenHighlight, followLead, diff, chargeOn, booms, CHARGE } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
 import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
@@ -498,7 +498,7 @@ void main(){
 
 let rotorMesh = null, rotorBlur = null, discMesh = null;
 let P = null, PS = null, PF = null, PM = null, flareK = 0, flareP = [0, 0], worldMesh = null, droneMesh = null, skyVao = null, staticCount = 0, groundCount = 0;
-let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, beamMesh = null, boatMesh = {}, hotAirMesh = [], gliderMesh = null, lampGl = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
+let townMesh = null, eggMesh = [], birdMesh = [], pilotMesh = null, terrain = null, farGl = null, farTex = null, rwModelGl = null, photoTex = null, rwGlVer = -1, tileGlVer = -1, farDirty = false, mainDirty = false, tileGen = 0, farGen = 0, waterGl = null, featGl = null, airMesh = {}, scenMesh = null, scenParts = [], scenVer = -1, vehMesh = null, chargeMesh = null, beamMesh = null, boatMesh = {}, hotAirMesh = [], gliderMesh = null, lampGl = null, pkgMesh = null, trail = null, balloonMesh = null, tether = null, flashMesh = null, tracerGl = null;
 const partGl = new Map();   // DIS-Einheiten: Teile je Grundtyp
 const SUN = vNorm([0.45, 0.8, 0.3]);
 // Sonne in der echten Welt: passend zu den Schatten im Luftbild (die sind eingebacken; vorher widersprachen beleuchtete
@@ -628,6 +628,9 @@ export function initGL() {
   worldMesh = upload(w.data);
   droneMesh = upload(buildDrone());
   vehMesh = upload(buildVehicle());
+  { // Sprengladung unter der Drohne (Wirkmittel, Prompt 196): olivgrüner Körper mit rotem Zünder vorn (Maße wie das Paket, Schätzung)
+    const m = new MeshBuilder(); m.box([0, 0, 0], [0.045, 0.035, 0.08], 0, [0.33, 0.36, 0.22]); m.box([0, 0, -0.085], [0.02, 0.02, 0.01], 0, [0.8, 0.12, 0.08]);
+    chargeMesh = upload(new Float32Array(m.d)); }
   for (const k of Object.keys(BOAT.kinds)) boatMesh[k] = upload(buildBoatMesh(k));   // Belebung L2: Boote, Ballon, Segler
   hotAirMesh = BALLOON_COLS.map(c => upload(buildHotAirMesh(c))); gliderMesh = upload(buildGliderMesh());
   { // Lichtkegel vor einem Auto (N2, Schön): Fläche auf der Straße 2,3 bis 12 m vor dem Wagen, vorn warm, hinten 0 (Alpha 0,75 = Licht)
@@ -1000,8 +1003,8 @@ export function render(dt) {
   }
   gl.uniform1f(P.u.uHeat, 0);
   // Paket unter der Drohne (Paketlieferung)
-  if (game.payload > 0) {
-    gl.bindVertexArray(pkgMesh.vao);
+  if (game.payload > 0 && game.state === 'fly') {
+    gl.bindVertexArray((chargeOn() ? chargeMesh : pkgMesh).vao);
     const pp = vAdd(sim.p, vScale(qRot(sim.q, [0, 1, 0]), -0.09*PHYS.size));
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(sim.q, pp));
     gl.drawArrays(gl.TRIANGLES, 0, pkgMesh.count);
@@ -1018,6 +1021,20 @@ export function render(dt) {
       gl.drawArrays(gl.TRIANGLES, 0, vehMesh.count);
     }
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
+  }
+  // Explosionen des Wirkmittels (Prompt 196): Feuerball wächst und wird zu Rauch (Darstellung, Dauer CHARGE.fx)
+  if (booms.length) {
+    if (!flashMesh) { const m = new MeshBuilder(); m.blob([0, 0, 0], [1, 1, 1], [1, 1, 1]); flashMesh = upload(new Float32Array(m.d)); }
+    gl.bindVertexArray(flashMesh.vao); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    const now = performance.now();
+    for (const b of booms) {
+      const k = (now - b.t)/1000/CHARGE.fx; if (k < 0 || k > 1) continue;
+      const fire = k < 0.35, r = fire ? 0.6 + 6*k : 2.2 + 2.5*k, c = fire ? [1, 0.55 + 0.3*(1 - k), 0.15] : [0.3, 0.3, 0.3];
+      const m = mFromQT([0, 0, 0, 1], [b.p[0], b.p[1] + (fire ? 0.3 : 0.8 + 3*k), b.p[2]]); for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) m[i] *= r;
+      gl.uniformMatrix4fv(P.u.uModel, false, m); gl.uniform4f(P.u.uOver, c[0], c[1], c[2], 1); gl.uniform1f(P.u.uAlpha, fire ? 0.9 : 0.55*(1 - k)); gl.uniform1f(P.u.uHeat, fire ? 1 : 0.3);
+      gl.drawArrays(gl.TRIANGLES, 0, flashMesh.count);
+    }
+    gl.depthMask(true); gl.disable(gl.BLEND); gl.uniform1f(P.u.uAlpha, 1); gl.uniform4f(P.u.uOver, 0, 0, 0, 0); gl.uniform1f(P.u.uHeat, 0);
   }
   // Verkehr der echten Welt (S1): Zufallsautos auf den Straßen, Farbe je Auto, warmer Motor; nachts leuchten die Lichter (Alpha 0,75)
   if (traffic.cars.length) {

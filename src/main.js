@@ -6,14 +6,14 @@
    ========================================================= */
 import { cfg, game, inp, say } from './state.js';
 import { gates } from './world.js';
-import { STEP, fx, respawn, step, rewind, freezeOk, crash, shotHit } from './physics.js';
+import { STEP, fx, respawn, step, rewind, freezeOk, crash, shotHit, respawnDrone } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
 import { gl, glLost, initGL, render, resize, toggleCam, cycleVision } from './render.js';
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
-import { setScenario, scen, followLead } from './scenario.js';
+import { setScenario, scen, followLead, chargeOn, chargeDue, chargeNext, chargeBoom, chargeDrones } from './scenario.js';
 import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
@@ -58,6 +58,14 @@ function combat() {
     else if (cfg.dmg !== 'off' && Math.hypot(...s.v) > 2) crash('An ' + name + ' geprallt');
   }
   if (armed && !boomed && game.state === 'crashed') { vbDetonate(s.p, null, s.v); boomed = true; }
+}
+// Wirkmittel im Taktischen Flug (Prompt 196): Absturz zündet die Ladung (Explosion), nach kurzer Zeit kommt eine neue Drohne
+let chargeSeen = 0;
+function chargeStep() {
+  if (!chargeOn()) return;
+  const s = game.sim;
+  if (game.state === 'crashed' && chargeSeen !== s.crashT) { chargeSeen = s.crashT; if (!/^Wirkmittel/.test(s.crashMsg || '')) chargeBoom(s.p); }
+  if (chargeDue()) { game.state = 'fly'; respawnDrone(true); chargeNext(); say('Neue Drohne ' + chargeDrones() + ': nächstes Ziel suchen', 2); }
 }
 
 /* ---------- Hauptschleife ---------- */
@@ -110,6 +118,7 @@ function frame(now) {
   const disOn = !!cfg.verbund;   // DIS-Übung ist immer echte Welt (Flugart im Hauptmenü)
   vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && rw.on);
   combat();
+  chargeStep();
   render(dt);
   drawHud();
   audioUpd();

@@ -148,9 +148,10 @@ export function respawn() {
   ambInit(game.sim.p);   // echte Welt (nicht DIS): Schwärme, Greifvögel, Flugzeuge mit Kondensstreifen
 }
 // Nur die Drohne neu an den Start setzen (Jagd nach Treffer). Szenario, Zeit, Akku und Scharf-Zustand bleiben.
-export function respawnDrone() {
+// fresh: eine neue Drohne (Wirkmittel, Prompt 196) mit vollem Akku; Zeit und Fortschritt bleiben.
+export function respawnDrone(fresh = false) {
   const o = game.sim, s = newSim();
-  for (const k of ['t', 'next', 'lapStart', 'lastLap', 'mah', 'vrc', 'vmin', 'flyT', 'cellRest', 'vpack']) s[k] = o[k];
+  for (const k of fresh ? ['t', 'next', 'lapStart', 'lastLap', 'flyT'] : ['t', 'next', 'lapStart', 'lastLap', 'mah', 'vrc', 'vmin', 'flyT', 'cellRest', 'vpack']) s[k] = o[k];
   game.sim = s;
   history.length = 0;
   resetDrone();
@@ -381,6 +382,7 @@ export function step(h) {
   if (task.early) {
     task.check(prev, s.p, h);
     if (game.pendingRespawn) { game.pendingRespawn = false; respawnDrone(); return; }
+    if (game.state !== 'fly') return;   // Wirkmittel gezündet (Treffer)
   }
   // 6. Boden: jede Kugel der Hitbox gegen den Boden. Kufe unten trägt die Drohne, Propeller können aufsetzen.
   // Normaler Modus: Ebene y = 0. Echte Welt: Geländeebene unter dem Teil (Höhe und Neigung aus dem Höhenmodell).

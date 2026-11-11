@@ -8,7 +8,7 @@ import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget, scen, diff, rings } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff, rings, chargeOn } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';
@@ -317,12 +317,13 @@ export function drawHud() {
   }
   if (game.frozen) txt('EINGEFROREN \u00b7 ' + keyName(keyOf('freeze')).toUpperCase() + ' ZUM WEITERFLIEGEN', W/2, H*0.62, 'center', '#9fd8ff');
   if (game.state === 'crashed') {
-    c.fillStyle = 'rgba(120,0,0,.25)'; c.fillRect(0, 0, W, H);
+    const ch = chargeOn();   // Wirkmittel (Prompt 196): gezündet, die nächste Drohne kommt von selbst
+    c.fillStyle = ch ? 'rgba(120,60,0,.18)' : 'rgba(120,0,0,.25)'; c.fillRect(0, 0, W, H);
     c.font = `800 ${fs*2.2}px ${FONT}`;
-    txt('ABSTURZ', W/2, H/2 - fs, 'center', '#ff5a4a');
+    txt(ch ? 'GEZÜNDET' : 'ABSTURZ', W/2, H/2 - fs, 'center', ch ? '#ffb347' : '#ff5a4a');
     c.font = `${weight} ${fs}px ${FONT}`;
-    txt(s.crashMsg, W/2, H/2 + fs*0.8, 'center');
-    txt(gp.connected ? 'Taste an der Funke oder R für Neustart' : touchUI ? 'Tippen für Neustart' : 'R für Neustart', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
+    txt(ch && !/^Wirkmittel/.test(s.crashMsg || '') ? 'Ladung ohne Ziel gezündet (' + s.crashMsg + ')' : s.crashMsg, W/2, H/2 + fs*0.8, 'center');
+    txt(ch ? 'Neue Drohne kommt gleich' : gp.connected ? 'Taste an der Funke oder R für Neustart' : touchUI ? 'Tippen für Neustart' : 'R für Neustart', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
   }
 }
 
