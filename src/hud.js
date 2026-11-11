@@ -1,5 +1,6 @@
 /* HUD im Betaflight-OSD-Stil: Werte, Warnungen, Horizont, Tormarker, Touch-Sticks, Analog-Look. */
 import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
+import { fmtTime } from './format.js';
 import { cfg, game, tch, inp, ptr, messages, keyOf, keyName } from './state.js';
 import { bf } from './bf.js';
 import { rw, groundH, rwLatLon, rwPlace, rwPlaceCenters } from './realworld.js';
@@ -8,7 +9,7 @@ import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget, scen, diff, rings, chargeOn } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff, rings, chargeOn, scenHasGoal } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';
@@ -210,7 +211,7 @@ export function drawHud() {
   const f = qRot(s.q, [0,0,-1]), r = qRot(s.q, [1,0,0]), u = qRot(s.q, [0,1,0]);
   const now = new Date();
   const d = {
-    lq, mode: cfg.mode, label: scenLabel(), crashes: game.crashes,
+    lq, mode: cfg.mode, label: scenLabel(), tries: scenHasGoal() ? game.tries : 0, crashes: game.crashes,
     cur: s.lapStart !== null ? s.t - s.lapStart : null, last: s.lastLap, best: game.best,
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
     god: !!cfg.ghost && !!cfg.infBat && cfg.dmg === 'off',   // Gott-Modus (Spielstil): keine Warnungen zu Akku und Funk (Prompt 177)
@@ -316,6 +317,14 @@ export function drawHud() {
     if (performance.now() - glLost.since > 8000) txt('Kommt sie nicht zurück: Seite neu laden', W/2, H/2 + fs*1.6, 'center', '#ffffff');
   }
   if (game.frozen) txt('EINGEFROREN \u00b7 ' + keyName(keyOf('freeze')).toUpperCase() + ' ZUM WEITERFLIEGEN', W/2, H*0.62, 'center', '#9fd8ff');
+  if (game.state === 'done') {   // Mission erfüllt (Prompt 197): Zeit und Versuche, Neustart beginnt eine neue Mission
+    c.fillStyle = 'rgba(0,90,40,.22)'; c.fillRect(0, 0, W, H);
+    c.font = `800 ${fs*2.2}px ${FONT}`;
+    txt('MISSION ERFÜLLT', W/2, H/2 - fs, 'center', '#7dff9a');
+    c.font = `${weight} ${fs}px ${FONT}`;
+    txt((s.lastLap != null ? fmtTime(s.lastLap) + ' \u00b7 ' : '') + game.tries + (game.tries === 1 ? ' Versuch' : ' Versuche'), W/2, H/2 + fs*0.8, 'center');
+    txt(gp.connected ? 'Taste an der Funke oder R für neue Mission' : touchUI ? 'Tippen für neue Mission' : 'R für neue Mission', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
+  }
   if (game.state === 'crashed') {
     const ch = chargeOn();   // Wirkmittel (Prompt 196): gezündet, die nächste Drohne kommt von selbst
     c.fillStyle = ch ? 'rgba(120,60,0,.18)' : 'rgba(120,0,0,.25)'; c.fillRect(0, 0, W, H);

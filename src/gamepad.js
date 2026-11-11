@@ -75,6 +75,6 @@ export function updGamepad() {
   }
   // Nach einem Absturz startet jede (nicht belegte) Taste neu
   const b = pad.buttons.some((x, i) => x.pressed && !used.has(i));
-  if (b && !gp.btn && game.state === 'crashed' && !game.paused) respawn();
+  if (b && !gp.btn && (game.state === 'crashed' || game.state === 'done') && !game.paused) respawn();
   gp.btn = b;
 }

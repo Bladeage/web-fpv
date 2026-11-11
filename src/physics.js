@@ -135,6 +135,7 @@ function resetDrone() {
   if (cfg.fc === 'bf' && !bfStart()) bfFallbackNote();   // Betaflight frisch starten, sonst eigener Regler
 }
 export function respawn() {
+  game.tries = game.state === 'done' ? 1 : (game.tries || 0) + 1;   // nach erfüllter Mission: neue Mission, Versuch 1
   game.sim = newSim();
   game.frozen = false;
   history.length = 0;

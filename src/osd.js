@@ -37,6 +37,7 @@ export function osdLines(o, d) {
   add('tl', 'lq', 'LQ ' + pad(Math.round(d.lq), 3), d.lq < 50 ? RED : WHITE);
   add('tl', 'mode', d.mode === 'acro' ? 'ACRO' : 'ANGL', d.mode === 'acro' ? '#ffb27a' : '#9be7ff');
   add('tl', 'task', d.label);
+  if (d.tries) add('tl', 'task', 'VERSUCH ' + d.tries, '#ffe08a');   // Versuche der Mission live (Prompt 197), gehört zur Aufgabe
   if (d.place) add('tl', 'place', d.place.d < 1 ? 'ORT ' + d.place.name.toUpperCase() : d.place.name.toUpperCase() + ' ' + fmtDist(d.place.d) + ' ' + d.place.dir, '#dfe6ea');
   if (d.lat !== undefined) add('tl', 'coords', fmtLatLon(d.lat, d.lon), '#dfe6ea');
   if (d.crashes) add('tl', 'crashes', 'CRASH ' + d.crashes, '#ffd0c8');

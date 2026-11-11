@@ -175,7 +175,7 @@ export function chargeBoom(p) { booms.push({ p: p.slice(), t: performance.now() 
 export function chargeDue(now = performance.now()) {
   return chargeOn() && game.state === 'crashed' && !st.done && now - (game.sim.crashT || 0) > CHARGE.delay*1000;
 }
-export function chargeNext() { st.drones++; game.payload = CHARGE.mass*PHYS.mass; }
+export function chargeNext() { st.drones++; game.tries++; game.payload = CHARGE.mass*PHYS.mass; }
 export const chargeDrones = () => st.drones;
 const lead = { s: 0, t: 0, x: 0, y: 0, z: 0, yaw: 0, ok: false, dist: 0, trail: [], trailT: 0, route: null };
 // Echte Welt (S3): Fahrzeuge der Jagd auf den Straßen (3 geparkt, 4 fahrend) und das Auto der Verfolgung auf einem langen Weg,
@@ -264,6 +264,15 @@ function reset() {
   if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; lead.route = rw.on ? leadRouteReal(lr()) : null; const r = routeAt(lead.route || ROUTES[0], 0); lead.x = r.x; lead.y = r.y; lead.z = r.z; lead.yaw = r.yaw; }
   if (scen.id === 'hunt') initTargets(diff().huntSpeed, rw.on ? huntLayoutReal(lr()) : null); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed, rw.on ? vehLayoutReal(lr()) : null); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed, rw.on ? airLayoutReal(lr()) : null); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
+// Mission erfüllt (Prompt 197): 2,5 s nach dem Ziel steht alles still (game.state 'done'), die Anzeige nennt Zeit und Versuche;
+// Neustart (R, Tippen) beginnt eine neue Mission mit Versuch 1. Gilt für alle Aufgaben mit Ziel. Liefert true beim Umschalten.
+export const MISSION = { hold: 2.5 };
+export function missionEnd(now = performance.now()) {
+  if (!st.done || game.state !== 'fly') { if (!st.done) st.doneT = 0; return false; }
+  if (!st.doneT) st.doneT = now;
+  if (now - st.doneT < MISSION.hold*1000) return false;
+  game.state = 'done'; return true;
+}
 
 // Schnittpunkt der Strecke a->b mit der Ebene durch c (Normale n), nur in Richtung n.
 function crossed(a, b, c, n) {
@@ -351,7 +360,7 @@ function checkHunt(a, b, h) {
   if (bal) fx.pop(); else fx.beep(1100, 0.12);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
   else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed() + (pts ? '  +' + pts + ' Punkte' : ''));
-  if (chargeOn()) { chargeBoom(s.p); if (!st.done) crash('Wirkmittel im Ziel umgesetzt'); else fx.crash(); return; }   // Ladung gezündet, Drohne verbraucht
+  if (chargeOn()) { chargeBoom(s.p); if (!st.done) { crash('Wirkmittel im Ziel umgesetzt'); game.crashes--; } else fx.crash(); return; }   // Treffer ist kein Absturz   // Ladung gezündet, Drohne verbraucht
   if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
 
@@ -417,6 +426,7 @@ task.reset = reset;
 // Szenario wählen. Danach respawn() aufrufen. real: in der echten Welt (Freiflug „real“ immer; Ringe ab Etappe T2)
 export function setScenario(id, real = id === 'real') {
   if (!TASKS[id]) id = 'gates';
+  game.tries = 0;   // neue Mission: der nächste Start ist Versuch 1
   scen.id = id; scen.version++;
   // Echte Welt nur mit geladenem Gelände; Start auf der flachsten Stelle (Werkzeug), Nase zur Mitte des Gebiets (Altstadt)
   rw.on = real && rw.ready;
@@ -430,6 +440,8 @@ export function setScenario(id, real = id === 'real') {
 }
 
 /* ---------- Anzeige ---------- */
+// Aufgabe mit Ziel (nicht Freiflug, echte Welt frei, DIS-Grundtypen): dort zählt das OSD die Versuche (Prompt 197)
+export const scenHasGoal = () => !['free', 'real', 'vbs'].includes(scen.id);
 export function scenLabel() {
   const s = game.sim;
   if (scen.id === 'gates') return `TOR ${s.next + 1}/${gates.length}`;
@@ -438,7 +450,7 @@ export function scenLabel() {
   if (scen.id === 'real') { const n = osdOn(cfg.osd, 'place') ? rwNearName(s.p[0], s.p[2]) : '', m = cfg.verbund ? 'DIS' : 'ECHTE WELT'; return n ? m + ' · ' + n.toUpperCase() : m; }   // DIS-Modus: echte Welt im Verbund
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
-  if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '') + (chargeOn() ? ` DROHNE ${st.drones}` : '');
+  if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');
   if (st.done) return scen.id === 'landing' ? 'GELANDET' : 'ZIEL';
   if (scen.id === 'rings') return `RING ${s.next + 1}/${rings.length}`;
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;

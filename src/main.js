@@ -13,7 +13,7 @@ import { gl, glLost, initGL, render, resize, toggleCam, cycleVision } from './re
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
-import { setScenario, scen, followLead, chargeOn, chargeDue, chargeNext, chargeBoom, chargeDrones } from './scenario.js';
+import { missionEnd, setScenario, scen, followLead, chargeOn, chargeDue, chargeNext, chargeBoom, chargeDrones } from './scenario.js';
 import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
@@ -119,6 +119,7 @@ function frame(now) {
   vbStep(now/1000, game.sim, game.state === 'crashed' ? 'crashed' : game.frozen ? 'frozen' : 'fly', disOn, disOn && game.started && rw.on);
   combat();
   chargeStep();
+  if (missionEnd()) fx.beep(1320, 0.3);   // Mission erfüllt: steht still, Anzeige mit Zeit und Versuchen
   render(dt);
   drawHud();
   audioUpd();

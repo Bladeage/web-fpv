@@ -100,7 +100,8 @@ if (!storedCfg.video && 'analog' in storedCfg) cfg.video = storedCfg.analog === 
 export const game = {
   sim: null,
   home: [0, 0], homeYaw: 0,   // Startpunkt x, z (Freiflug: in der kleinen Stadt), Blickrichtung beim Start (0 = Nase nach -z)
-  state: 'fly',          // 'fly' | 'crashed'
+  state: 'fly',          // 'fly' | 'crashed' | 'done' (Mission erfüllt, steht still bis zum Neustart)
+  tries: 0,              // Versuche der laufenden Mission (Prompt 197): Start 1, jeder Neustart und jede neue Drohne +1
   frozen: false,         // Einfrieren (Taste F, nur Lernen und Gott-Modus): Drohne steht in der Luft, die Zeit des Flugs ruht
   paused: true, started: false,
   crashes: 0,

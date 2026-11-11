@@ -53,6 +53,7 @@ export const stickR = () => clamp(Math.min(vw, vh)*0.16, 55, 95);
 hud.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' || game.paused) return;
   touchUI = true;
+  if (game.state === 'done') { respawn(); return; }   // Mission erfüllt: Tippen startet eine neue
   if (game.state === 'crashed') { if (performance.now() - game.sim.crashT > 400) respawn(); return; }
   try { hud.setPointerCapture(e.pointerId); } catch (err) {}
   const side = e.clientX < vw/2 ? 'L' : 'R';
