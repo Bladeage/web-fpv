@@ -15,6 +15,7 @@ import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
+import { meshGet, meshPut, meshStoreMB } from './rwstore.js';
 import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, solidH, rwNet } from './realworld.js';
@@ -42,7 +43,7 @@ export const glLost = { on: false, since: 0 };
 glc.addEventListener('webglcontextlost', e => { e.preventDefault(); glLost.on = true; glLost.since = performance.now(); });
 glc.addEventListener('webglcontextrestored', () => {
   trail = tether = scenMesh = null; scenVer = -1; tileGl.clear(); farNext = null; baseGl.clear(); partGl.clear(); flashMesh = tracerGl = null;
-  terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = lampGl = null; rwGlVer = -1; tileGlVer = -1;
+  terrain = farGl = rwModelGl = waterGl = featGl = photoTex = farTex = lampGl = null; rwGlVer = -1; tileGlVer = -1; meshGlGen++;
   initGL(); resize(); glLost.on = false;
 });
 
@@ -1217,7 +1218,7 @@ function meshHint() {
     : why === 'on' && i3s.err && !meshShow && !i3s.jobs && i3s.loaded === 0 ? 'Foto 3D: 3D-Mesh nicht erreichbar. Grafik wie Schön.' : '';
   if (txt && meshSaid !== key) { meshSaid = key; say(txt, 3); }
 }
-let meshShow = false, meshVer = -1, meshEvictT = 0;
+let meshShow = false, meshVer = 0, meshGlGen = 0, meshEvictT = 0;
 const meshNet = rwNet(null, 15000);
 function meshPage(p) {
   i3s.pages.set(p, 'load'); i3s.jobs++;
@@ -1227,8 +1228,10 @@ function meshPage(p) {
 }
 function meshNode(n) {
   n.st = 'load'; i3s.jobs++;
-  Promise.all([meshNet.get(i3sGeoUrl(n.res)), meshNet.get(i3sTexUrl(n.tex))]).then(async ([g, t]) => {
+  // zuerst aus dem Speicher im Browser (Prompt 203), sonst aus dem Netz und danach ablegen
+  meshGet(n.res).then(c => c && c.t && n.tex === n.res ? [c.g, c.t, true] : Promise.all([meshNet.get(i3sGeoUrl(n.res)), meshNet.get(i3sTexUrl(n.tex))])).then(async ([g, t, cached]) => {
     if (g[0] === 0x1f && g[1] === 0x8b) g = new Uint8Array(await new Response(new Blob([g]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());   // ohne Content-Encoding
+    if (!cached) { meshPut(n.res, g, t, LOW_MEM); i3s.mb += (g.byteLength + t.byteLength)/1e6; } else i3s.fromStore = (i3s.fromStore || 0) + 1;
     const G = i3sGeometry(g); let img = await createImageBitmap(new Blob([t], { type: 'image/jpeg' }));
     if (I3S.texMax && img.width > I3S.texMax) { const big = img, k = I3S.texMax/big.width; img = await createImageBitmap(big, { resizeWidth: I3S.texMax, resizeHeight: Math.max(1, Math.round(big.height*k)), resizeQuality: 'high' }); big.close(); }   // Handy: kleinere Texturen
     if (glLost.on) { img.close(); n.st = 'idle'; return; }
@@ -1244,7 +1247,7 @@ function meshNode(n) {
     const an = gl.getExtension('EXT_texture_filter_anisotropic');
     if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
     if (n.r <= (LOW_MEM ? I3S_PHYS.physRLow : I3S_PHYS.physR)) n.phys = i3sPhysBuild(G.pos, G.vc);   // Kollision aus dem Mesh (M2): auch gröbere Teile, die feinsten zählen zuerst
-    n.texel = img.width*img.height || n.texel; n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; i3s.gpu += i3sBytes(n)/1e6; n.t = performance.now()/1000; i3s.loaded++; i3s.mb += (g.byteLength + t.byteLength)/1e6;
+    n.texel = img.width*img.height || n.texel; n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; i3s.gpu += i3sBytes(n)/1e6; n.t = performance.now()/1000; i3s.loaded++;
   }).catch(e => { n.st = 'fail'; n.fail = performance.now()/1000; i3s.err = String(e && e.message || e); }).finally(() => { i3s.jobs--; });
 }
 const meshFree = n => { n.phys = null; if (n.gl) {   // Speicher zählt i3sEvict neu
@@ -1255,7 +1258,9 @@ function meshStep(vp, eye, f) {
   meshHint();
   if (!meshOn()) { meshShow = false; rw.meshPhys = null; return null; }
   if (glLost.on) return null;
-  if (meshVer !== rwGlVer) { for (const n of i3s.nodes.values()) if (n.gl) { n.gl = null; n.st = 'idle'; } meshVer = rwGlVer; }   // Grafik neu (Verlust): neu laden
+  // Grafik neu (Verlust): Teile neu hochladen (Rohdaten kommen aus dem Speicher). Ein Gebietswechsel verwirft nichts: Das Mesh ist für
+  // jedes Gebiet dasselbe (vorher wurde es bei jedem neuen Gebiet verworfen, ohne den Grafikspeicher freizugeben)
+  if (meshVer !== meshGlGen) { for (const n of i3s.nodes.values()) if (n.gl) { n.gl = null; n.st = 'idle'; } meshVer = meshGlGen; }
   if (!i3s.pages.has(0)) { if (LOW_MEM) Object.assign(I3S, I3S_LOW); meshPage(0); }
   const m = rw.meta, o = { ec: (m.bbox[0] + m.bbox[2])/2, nc: (m.bbox[1] + m.bbox[3])/2, h: m.hHome }, now = performance.now()/1000;
   const S = i3sSelect(eye, f, i3sPlanes(vp), o, (LOW_MEM ? 2.5 : I3S.q)*i3s.qa);
@@ -1291,7 +1296,7 @@ function meshInfo() {
   if (now - fpsT < 1000) return;
   fps = fpsN*1000/(now - fpsT); fpsN = 0; fpsT = now;
   if (!meshHud) { meshHud = document.createElement('div'); meshHud.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:5;font:12px/1.3 monospace;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:6px;pointer-events:none;white-space:nowrap'; document.body.appendChild(meshHud); }
-  meshHud.textContent = 'MESH-PROBE ' + (meshOn() ? i3s.drawn.length + ' Teile, ' + Math.round(i3s.gpu) + ' MB Grafik, ' + i3s.mb.toFixed(0) + ' MB geladen' + (i3s.jobs ? ', lädt ' + i3s.jobs : '') + (i3s.err && !meshShow ? ', Fehler: ' + i3s.err.slice(0, 40) : '') : 'aus (nur echte Welt, NRW)') + ' · ' + Math.round(fps) + ' Bilder/s';
+  meshHud.textContent = 'MESH-PROBE ' + (meshOn() ? i3s.drawn.length + ' Teile, ' + Math.round(i3s.gpu) + ' MB Grafik, ' + i3s.mb.toFixed(0) + ' MB geladen, ' + (i3s.fromStore || 0) + ' aus Speicher (' + meshStoreMB().toFixed(0) + ' MB)' + (i3s.jobs ? ', lädt ' + i3s.jobs : '') + (i3s.err && !meshShow ? ', Fehler: ' + i3s.err.slice(0, 40) : '') : 'aus (nur echte Welt, NRW)') + ' · ' + Math.round(fps) + ' Bilder/s';
 }
 function drawTerrain(meshDraw = null) {   // meshDraw: Sichtprobe 3D-Mesh zeichnet statt Wasser, Häusern, Bäumen, Kartenlinien
   if (rwGlVer !== rw.ver) {

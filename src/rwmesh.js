@@ -6,7 +6,7 @@
 
 // url Ebene 0 des Dienstes; q Qualität (1 = Schwelle des Dienstes, größer = gröber); maxNodes, gpuMB Grenzen; para gleichzeitige
 // Abrufe; keep Sekunden ohne Zeichnen bis zur Freigabe; nearR Umkreis der Kamera, der auch außerhalb des Bildes lädt. Schätzungen.
-export const I3S = { url: 'https://www.gis.nrw.de/geobasis/3D_mesh/SceneServer/layers/0', pageN: 64, q: 1, maxNodes: 160, gpuMB: 260, para: 6, keep: 8, nearR: 150, sink: 4 };
+export const I3S = { url: 'https://www.gis.nrw.de/geobasis/3D_mesh/SceneServer/layers/0', pageN: 64, q: 1, maxNodes: 240, gpuMB: 400, para: 6, keep: 15, nearR: 150, sink: 4 };
 // nodes: Nummer -> Knoten; pages: Seite -> 'load' | 'ok' | 'fail'; l1: Kinder der Wurzel (bekannt, sobald alle 108 Seiten da sind)
 export const i3s = { nodes: new Map(), pages: new Map(), l1: null, root: null, drawn: [], gpu: 0, err: '', jobs: 0, loaded: 0, mb: 0, qa: 1 };
 // Grenzen am Handy (LOW_MEM, Prüfbericht Nutzer 10.11.: 701 MB Grafik, 1157 MB geladen am Handy): Schätzung nach docs/plan-3d-mesh.md 2.7

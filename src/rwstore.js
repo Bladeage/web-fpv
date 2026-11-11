@@ -8,8 +8,8 @@ let dbP = null;
 function db() {
   if (!dbP) dbP = new Promise(res => {
     try {
-      const r = indexedDB.open('fpvsim-echtewelt', 2);   // 2: dazu lod2 (zerlegte Gebäudekacheln zum Wiederverwenden)
-      r.onupgradeneeded = () => { for (const n of ['areas', 'info', 'land', 'lod2']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
+      const r = indexedDB.open('fpvsim-echtewelt', 3);   // 2: dazu lod2 (zerlegte Gebäudekacheln zum Wiederverwenden); 3: mesh, meshidx (3D-Mesh)
+      r.onupgradeneeded = () => { for (const n of ['areas', 'info', 'land', 'lod2', 'mesh', 'meshidx']) if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n); };
       r.onsuccess = () => res(r.result);
       r.onerror = () => res(null);
       // Anderer Tab hält eine ältere Version offen: nicht ewig warten (Prüfbericht Nr. 13). Ohne Speicher weiter; nächster Zugriff versucht es neu.
@@ -148,3 +148,53 @@ export async function storeStats() {
   return { lod2, areas: infos.length, size: infos.reduce((t, x) => t + (x.size || 0), 0), buildings: infos.reduce((t, x) => t + (x.buildings || 0), 0), trees: infos.reduce((t, x) => t + (x.trees || 0), 0),
     water: infos.filter(x => x.water).length, bytes: { q: sum('q'), b16: sum('b16'), t16: sum('t16'), dop: sum('dop'), water: sum('water'), far: sum('farq') + sum('fardop') }, land };
 }
+
+// 3D-Mesh NRW (Foto 3D, Prompt 203): Rohdaten je Teil (Geometrie entpackt, Textur als JPEG) als Zwischenspeicher, damit ein schon
+// geladenes Gebiet nach Neustart oder Neuladen der Seite ohne Netz wieder da ist (vorher: 48 Teile erneut aus dem Netz). Lizenz der
+// Daten dl-de/zero-2.0. Schlüssel: Ressourcen-Nummer. meshidx hält je Teil Größe und letzte Nutzung (klein, für die Freigabe).
+// Grenze: RW_MESH_MB (am Handy kleiner); darüber gehen die am längsten nicht genutzten Teile. Nicht im Export.
+export const RW_MESH_MB = { pc: 500, low: 150 };
+const meshIdx = { map: null, bytes: 0, busy: null };
+// Verzeichnis einmal laden; alle gleichzeitigen Anfragen warten auf dasselbe Laden (vorher sahen frühe Anfragen ein leeres Verzeichnis
+// und luden aus dem Netz: nach Neuladen der Seite nur 3 von 44 Teilen aus dem Speicher)
+function meshIdxLoad() {
+  if (!meshIdx.busy) meshIdx.busy = (async () => {
+    const map = new Map(), d = await db();
+    if (d) {   // maßgeblich sind die Schlüssel der Daten; Größe und Nutzung aus meshidx (fehlt der Eintrag: Schätzung 1 MB)
+      const keys = (await tx('mesh', 'readonly', s => s.getAllKeys())) || [], ik = (await tx('meshidx', 'readonly', s => s.getAllKeys())) || [], iv = (await tx('meshidx', 'readonly', s => s.getAll())) || [];
+      const idx = new Map(ik.map((k, i) => [k, iv[i] || {}]));
+      for (const k of keys) { const v = idx.get(k) || { size: 1e6, at: 0 }; map.set(k, v); meshIdx.bytes += v.size || 0; }
+    }
+    meshIdx.map = map; return map;
+  })();
+  return meshIdx.busy;
+}
+// Daten und Verzeichnis in einem Schritt (vorher zwei: schloss die Seite dazwischen, fehlte der Eintrag und das Teil kam aus dem Netz)
+async function meshWrite(res, val, e) {
+  const d = await db(); if (!d) return false;
+  return new Promise(ok => {
+    try { const t = d.transaction(['mesh', 'meshidx'], 'readwrite'); t.objectStore('mesh').put(val, res); t.objectStore('meshidx').put(e, res); t.oncomplete = () => ok(true); t.onerror = t.onabort = () => ok(false); }
+    catch (err) { ok(false); }
+  });
+}
+export async function meshGet(res) {
+  const m = await meshIdxLoad();
+  if (!m.has(res)) return null;
+  const v = await storeGet('mesh', res);
+  if (!v || !v.g || !v.t) { m.delete(res); return null; }
+  const e = m.get(res); e.at = Date.now(); storePut('meshidx', res, e);
+  return v;
+}
+export async function meshPut(res, g, t, low = false) {
+  const m = await meshIdxLoad(), size = g.byteLength + t.byteLength, cap = (low ? RW_MESH_MB.low : RW_MESH_MB.pc)*1e6;
+  if (m.has(res)) return true;
+  if (meshIdx.bytes + size > cap) {   // am längsten nicht genutzte zuerst
+    const old = [...m.entries()].sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
+    for (const [k, v] of old) { if (meshIdx.bytes + size <= cap*0.9) break; await storeDel('mesh', k); await storeDel('meshidx', k); m.delete(k); meshIdx.bytes -= v.size || 0; }
+  }
+  const e = { size, at: Date.now() };
+  m.set(res, e); meshIdx.bytes += size;   // gleich vermerken: kein zweites Schreiben desselben Teils
+  if (await meshWrite(res, { g, t }, e)) return true;
+  m.delete(res); meshIdx.bytes -= size; return false;
+}
+export const meshStoreMB = () => meshIdx.bytes/1e6;
