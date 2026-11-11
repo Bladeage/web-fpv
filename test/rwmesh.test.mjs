@@ -98,3 +98,16 @@ test('Schneller Start: Stufe 1 eingebettet, nur bei gleicher Wurzel übernommen'
   assert.ok(I3S_L1.some(([, e, nn, , r]) => Math.hypot(e - 356560, nn - 5645282) < r));
   i3sReset();
 });
+
+test('G2: Hochladen der Reihe nach, das nächste Teil zuerst; Abstand je Knoten aus der Auswahl', async () => {
+  const { i3sNextUpload } = await import('../src/rwmesh.js');
+  tree(); for (const k of [64, 65, 66, 67, 68]) i3s.nodes.get(k).st = 'ready';
+  const near = [-25, 20, -25], S = i3sSelect(near, 540, view(near, [0, 0, 0]), o, 1);
+  assert.ok(S.draw.length > 1);
+  for (const n of S.draw) assert.ok(Number.isFinite(n.d), 'Abstand am Knoten');
+  for (let i = 1; i < S.draw.length; i++) assert.ok(S.draw[i - 1].d <= S.draw[i].d, 'nah zuerst gezeichnet');
+  const q = [{ n: { d: 300 } }, { n: {} }, { n: { d: 20 } }, { n: { d: 90 } }];
+  assert.deepEqual([1, 2, 3, 4].map(() => i3sNextUpload(q).n.d), [20, 90, 300, undefined], 'nah zuerst, ohne Abstand zuletzt');
+  assert.equal(i3sNextUpload(q), null, 'leer');
+  i3s.up.push({ n: {} }); i3sReset(); assert.equal(i3s.up.length, 0, 'Reset leert die Warteschlange');
+});

@@ -8,7 +8,7 @@
 // Abrufe; keep Sekunden ohne Zeichnen bis zur Freigabe; nearR Umkreis der Kamera, der auch außerhalb des Bildes lädt. Schätzungen.
 export const I3S = { url: 'https://www.gis.nrw.de/geobasis/3D_mesh/SceneServer/layers/0', pageN: 64, q: 1, maxNodes: 240, gpuMB: 400, para: 6, keep: 15, nearR: 150, sink: 4 };
 // nodes: Nummer -> Knoten; pages: Seite -> 'load' | 'ok' | 'fail'; l1: Kinder der Wurzel (bekannt, sobald alle 108 Seiten da sind)
-export const i3s = { nodes: new Map(), pages: new Map(), l1: null, root: null, drawn: [], gpu: 0, err: '', jobs: 0, loaded: 0, mb: 0, qa: 1 };
+export const i3s = { nodes: new Map(), pages: new Map(), l1: null, root: null, drawn: [], gpu: 0, err: '', jobs: 0, loaded: 0, mb: 0, qa: 1, up: [] };
 // Grenzen am Handy (LOW_MEM, Prüfbericht Nutzer 10.11.: 701 MB Grafik, 1157 MB geladen am Handy): Schätzung nach docs/plan-3d-mesh.md 2.7
 export const I3S_LOW = { maxNodes: 80, gpuMB: 90, para: 4, texMax: 1024 };
 export const i3sPageOf = idx => Math.floor(idx/I3S.pageN);
@@ -26,7 +26,7 @@ export function i3sAddL1(rootKids) {
 export const i3sPageUrl = p => I3S.url + '/nodepages/' + p;
 export const i3sGeoUrl = res => I3S.url + '/nodes/' + res + '/geometries/0';   // Puffer 0: ungepackt (per gzip übertragen), nicht Draco
 export const i3sTexUrl = res => I3S.url + '/nodes/' + res + '/textures/0';
-export function i3sReset() { i3s.nodes.clear(); i3s.pages.clear(); i3s.l1 = null; i3s.root = null; i3s.drawn = []; i3s.gpu = 0; i3s.err = ''; i3s.jobs = 0; i3s.loaded = 0; i3s.mb = 0; i3s.qa = 1; }
+export function i3sReset() { i3s.nodes.clear(); i3s.pages.clear(); i3s.l1 = null; i3s.root = null; i3s.drawn = []; i3s.gpu = 0; i3s.err = ''; i3s.jobs = 0; i3s.loaded = 0; i3s.mb = 0; i3s.qa = 1; i3s.up = []; }
 // Knoten einer Seite übernehmen (I3S nodePages): Mitte der Box (Ost, Nord, Höhe über NHN), Hüllkugel, Schwelle, Kinder, Ressourcen
 export function i3sAddPage(p, json) {
   i3s.pages.set(p, 'ok');
@@ -67,7 +67,7 @@ export const i3sMetric = (r, d, f) => { const D = 2*r*f/Math.max(d - r, 1); retu
 export function i3sSelect(cam, f, P, o, q = I3S.q) {
   const draw = [], want = [], pages = new Set();
   const need = idx => { const n = i3s.nodes.get(idx); if (!n) pages.add(i3sPageOf(idx)); return n; };
-  const look = n => { const c = i3sToMap(n.c, o), d = Math.hypot(c[0] - cam[0], c[1] - cam[1], c[2] - cam[2]); return { d, vis: i3sSeen(P, c, n.r) || d - n.r < I3S.nearR }; };
+  const look = n => { const c = i3sToMap(n.c, o), d = n.d = Math.hypot(c[0] - cam[0], c[1] - cam[1], c[2] - cam[2]); return { d, vis: i3sSeen(P, c, n.r) || d - n.r < I3S.nearR }; };
   const visit = (n, L) => {
     const m = i3sMetric(n.r, L.d, f), refine = n.ch.length > 0 && (!n.res || n.lod === 0 || m > n.lod*q);
     if (refine) {
@@ -92,8 +92,17 @@ export function i3sSelect(cam, f, P, o, q = I3S.q) {
   };
   for (const idx of i3s.l1 || []) { const n = need(idx); if (!n) continue; const L = look(n); if (L.vis) visit(n, L); }
   want.sort((a, b) => b[1] - a[1]);
-  draw.sort((a, b) => look(a).d - look(b).d);   // nah zuerst: früher Tiefentest
+  draw.sort((a, b) => a.d - b.d);   // nah zuerst: früher Tiefentest (Abstand n.d einmal je Bild in look gerechnet, G2)
   return { draw, want, pages: [...pages] };
+}
+// Hochladen begrenzen (G2, Plan Grafik-Presets 3.3 Nr. 1): fertig geladene Teile warten in i3s.up ([{ n, ... }]). Je Bild lädt
+// render.js höchstens eines in die Grafik, das der Kamera nächste zuerst (n.d aus der letzten Auswahl; ohne Abstand zuletzt).
+// Nimmt es aus der Liste und liefert es, sonst null.
+export function i3sNextUpload(q = i3s.up) {
+  if (!q.length) return null;
+  let k = 0;
+  for (let i = 1; i < q.length; i++) if ((q[i].n.d ?? Infinity) < (q[k].n.d ?? Infinity)) k = i;
+  return q.splice(k, 1)[0];
 }
 // Grafikspeicher eines Knotens (Schätzung): Puffer 20 Byte je Punkt, Textur RGBA mit Mipmaps
 export const i3sBytes = n => n.vc*20 + n.texel*4*1.33;

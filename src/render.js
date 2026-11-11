@@ -16,7 +16,7 @@ import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
 import { meshGet, meshPut, meshStoreMB } from './rwstore.js';
-import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
+import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes, i3sNextUpload } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, solidH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -605,8 +605,7 @@ function bakeGround() {
   gl.generateMipmap(gl.TEXTURE_2D);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const an = gl.getExtension('EXT_texture_filter_anisotropic');   // schärfer bei flachem Blick, falls vorhanden
-  if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+  texAniso();   // schärfer bei flachem Blick, falls vorhanden
   gl.enable(gl.DEPTH_TEST);
 }
 // Ballon: runde Kugel (Radius 1) aus Breiten- und Längenkreisen, weiß; die Farbe kommt beim Zeichnen dazu
@@ -619,7 +618,13 @@ function buildBalloonMesh() {
   }
   return new Float32Array(mb.d);
 }
+// Anisotrope Filterung (G2, Plan Grafik-Presets 3.2): Erweiterung und Obergrenze einmal je Grafik abfragen. Firefox wartet bei
+// jeder Abfrage mit Antwort auf den Grafikprozess; vorher geschah das je Mesh-Teil und je Luftbild.
+const anisoGl = { ext: null, max: 0 };
+function texAniso() { if (anisoGl.ext) gl.texParameterf(gl.TEXTURE_2D, anisoGl.ext.TEXTURE_MAX_ANISOTROPY_EXT, anisoGl.max); }
 export function initGL() {
+  anisoGl.ext = gl.getExtension('EXT_texture_filter_anisotropic');
+  anisoGl.max = anisoGl.ext ? Math.min(8, gl.getParameter(anisoGl.ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT)) : 0;
   P = program(VS, FS, ['uVP', 'uModel', 'uSun', 'uCam', 'uFog', 'uOver', 'uFogD', 'uAlpha', 'uGfx', 'uSize', 'uOrigin', 'uGround', 'uVision', 'uHeat', 'uPhoto', 'uFar', 'uFarOn', 'uFarSize', 'uFarOrigin', 'uEdgeOpen', 'uTime', 'uNight', 'uSink']);
   PM = program(MESH_VS, MESH_FS, ['uVP', 'uOff', 'uCam', 'uFog', 'uFogD', 'uSun', 'uNight', 'uGfx', 'uVision', 'uTex']);
   PS = program(SKY_VS, SKY_FS, ['uInv', 'uCam', 'uFog', 'uZen', 'uSun', 'uVision', 'uGfx', 'uTime', 'uJa0', 'uJb0', 'uJa1', 'uJb1', 'uNight']);
@@ -1189,8 +1194,7 @@ function loadPhoto(bytes, ver, set = t => { photoTex = t; }, cap = RW_TEX.other)
     gl.generateMipmap(gl.TEXTURE_2D);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const an = gl.getExtension('EXT_texture_filter_anisotropic');
-    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    texAniso();
     set(t);
   }).catch(() => {});
 }
@@ -1235,28 +1239,38 @@ function meshNode(n) {
     const G = i3sGeometry(g); let img = await createImageBitmap(new Blob([t], { type: 'image/jpeg' }));
     if (I3S.texMax && img.width > I3S.texMax) { const big = img, k = I3S.texMax/big.width; img = await createImageBitmap(big, { resizeWidth: I3S.texMax, resizeHeight: Math.max(1, Math.round(big.height*k)), resizeQuality: 'high' }); big.close(); }   // Handy: kleinere Texturen
     if (glLost.on) { img.close(); n.st = 'idle'; return; }
-    const vao = gl.createVertexArray(), buf = gl.createBuffer(); gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(G.pos.buffer, G.pos.byteOffset, G.vc*5), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 8, G.vc*12);
-    gl.bindVertexArray(null);
-    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); img.close();
-    gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const an = gl.getExtension('EXT_texture_filter_anisotropic');
-    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    if (n.r <= (LOW_MEM ? I3S_PHYS.physRLow : I3S_PHYS.physR)) n.phys = i3sPhysBuild(G.pos, G.vc);   // Kollision aus dem Mesh (M2): auch gröbere Teile, die feinsten zählen zuerst
-    n.texel = img.width*img.height || n.texel; n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; i3s.gpu += i3sBytes(n)/1e6; n.t = performance.now()/1000; i3s.loaded++;
+    const phys = n.r <= (LOW_MEM ? I3S_PHYS.physRLow : I3S_PHYS.physR) ? i3sPhysBuild(G.pos, G.vc) : null;   // Kollision aus dem Mesh (M2): auch gröbere Teile, die feinsten zählen zuerst
+    i3s.up.push({ n, G, img, phys });   // Hochladen später, höchstens ein Teil je Bild (meshStep, G2)
   }).catch(e => { n.st = 'fail'; n.fail = performance.now()/1000; i3s.err = String(e && e.message || e); }).finally(() => { i3s.jobs--; });
 }
+// Ein fertig geladenes Teil in die Grafik: Puffer, Textur mit Mipmaps. Dauer für die Anzeige der Probe (nur der Teil im
+// Hauptprogramm; in Firefox läuft die eigentliche Arbeit danach im Grafikprozess, vermutet)
+const upStat = { n: 0, ms: 0, show: [0, 0] };
+function meshUpload({ n, G, img, phys }) {
+  const t0 = performance.now();
+  const vao = gl.createVertexArray(), buf = gl.createBuffer(); gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(G.pos.buffer, G.pos.byteOffset, G.vc*5), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 8, G.vc*12);
+  gl.bindVertexArray(null);
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  texAniso();
+  n.phys = phys; n.texel = img.width*img.height || n.texel; img.close();
+  n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; i3s.gpu += i3sBytes(n)/1e6; n.t = performance.now()/1000; i3s.loaded++;
+  upStat.n++; upStat.ms = Math.max(upStat.ms, performance.now() - t0);
+}
+// Warteschlange verwerfen (Foto 3D aus): Bilder freigeben, Teile später neu laden (aus dem Speicher im Browser)
+function meshQueueDrop() { for (const it of i3s.up) { it.img.close(); it.n.st = 'idle'; } i3s.up.length = 0; }
 const meshFree = n => { n.phys = null; if (n.gl) {   // Speicher zählt i3sEvict neu
    gl.deleteVertexArray(n.gl.vao); gl.deleteBuffer(n.gl.buf); gl.deleteTexture(n.gl.tex); n.gl = null; } };
 // Je Bild: Auswahl, Abrufe anstoßen (höchstens I3S.para gleichzeitig), alte Knoten freigeben
 const meshTrisBuf = [];
 function meshStep(vp, eye, f) {
   meshHint();
-  if (!meshOn()) { meshShow = false; rw.meshPhys = null; return null; }
+  if (!meshOn()) { meshShow = false; rw.meshPhys = null; if (i3s.up.length) meshQueueDrop(); return null; }
   if (glLost.on) return null;
   // Grafik neu (Verlust): Teile neu hochladen (Rohdaten kommen aus dem Speicher). Ein Gebietswechsel verwirft nichts: Das Mesh ist für
   // jedes Gebiet dasselbe (vorher wurde es bei jedem neuen Gebiet verworfen, ohne den Grafikspeicher freizugeben)
@@ -1265,8 +1279,10 @@ function meshStep(vp, eye, f) {
   const m = rw.meta, o = { ec: (m.bbox[0] + m.bbox[2])/2, nc: (m.bbox[1] + m.bbox[3])/2, h: m.hHome }, now = performance.now()/1000;
   const S = i3sSelect(eye, f, i3sPlanes(vp), o, (LOW_MEM ? 2.5 : I3S.q)*i3s.qa);
   i3sAdapt(S.draw);
-  for (const p of S.pages) { if (i3s.jobs >= I3S.para || game.paused) break; if (!i3s.pages.has(p)) meshPage(p); }   // Pause: nichts Neues laden (Prompt 204)
-  for (const [n] of S.want) { if (i3s.jobs >= I3S.para || !i3sRoom() || game.paused) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
+  const it = i3sNextUpload(); if (it) meshUpload(it);   // höchstens ein Hochladen je Bild, das nächste Teil zuerst (G2)
+  const busy = () => i3s.jobs + i3s.up.length >= I3S.para;   // wartende Teile zählen mit: so liegen höchstens para Bilder im Speicher
+  for (const p of S.pages) { if (busy() || game.paused) break; if (!i3s.pages.has(p)) meshPage(p); }   // Pause: nichts Neues laden (Prompt 204)
+  for (const [n] of S.want) { if (busy() || !i3sRoom() || game.paused) break; if (n.st === 'idle' || (n.st === 'fail' && now - n.fail > 30)) meshNode(n); }
   for (const n of S.draw) n.t = now;
   i3s.drawn = S.draw;
   if (now - meshEvictT > 1) { meshEvictT = now; for (const n of i3sEvict(now, new Set(S.draw))) meshFree(n); }
@@ -1288,15 +1304,27 @@ function drawMesh(vp, eye, o, GFX, VIS, fog) {
   }
   gl.useProgram(P.p);
 }
-// Anzeige der Sichtprobe: Knoten, Speicher, geladene Daten, Bilder je Sekunde (gemessen über 1 s)
-let meshHud = null, fpsN = 0, fpsT = 0, fps = 0;
+// Anzeige der Sichtprobe (nur ?mesh=1), zwei Zeilen. Oben: Teile, Speicher, geladene Daten, Warteschlange. Unten (G2): Grafikkarte,
+// Bilder je Sekunde, längstes Bild der letzten Sekunde, Hochladen je Sekunde mit längster Dauer, Auflösung des 3D-Bilds.
+let meshHud = null, fpsN = 0, fpsT = 0, fps = 0, frameT = 0, frameMax = 0, frameShow = 0, gpuName = '';
+function glName() {
+  let s = gl.getParameter(gl.RENDERER) || '';
+  if (/^(WebKit|Mozilla)/.test(s)) { const x = gl.getExtension('WEBGL_debug_renderer_info'); if (x) s = gl.getParameter(x.UNMASKED_RENDERER_WEBGL) || s; }   // Chromium meldet sonst nur „WebKit WebGL“
+  return s.replace(/^ANGLE \((.*)\)$/, '$1').replace(/ \(0x[0-9a-f]+\)| Direct3D.*$|, D3D\d+.*$|, OpenGL.*$/gi, '').slice(0, 48);
+}
 function meshInfo() {
   if (!MESH_PROBE) return;
   const now = performance.now(); fpsN++;
+  if (frameT) frameMax = Math.max(frameMax, now - frameT);
+  frameT = now;
   if (now - fpsT < 1000) return;
-  fps = fpsN*1000/(now - fpsT); fpsN = 0; fpsT = now;
-  if (!meshHud) { meshHud = document.createElement('div'); meshHud.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:5;font:12px/1.3 monospace;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:6px;pointer-events:none;white-space:nowrap'; document.body.appendChild(meshHud); }
-  meshHud.textContent = 'MESH-PROBE ' + (meshOn() ? i3s.drawn.length + ' Teile, ' + Math.round(i3s.gpu) + ' MB Grafik, ' + i3s.mb.toFixed(0) + ' MB geladen, ' + (i3s.fromStore || 0) + ' aus Speicher (' + meshStoreMB().toFixed(0) + ' MB)' + (i3s.jobs ? ', lädt ' + i3s.jobs : '') + (i3s.err && !meshShow ? ', Fehler: ' + i3s.err.slice(0, 40) : '') : 'aus (nur echte Welt, NRW)') + ' · ' + Math.round(fps) + ' Bilder/s';
+  fps = fpsN*1000/(now - fpsT); fpsN = 0; fpsT = now; frameShow = frameMax; frameMax = 0;
+  upStat.show = [upStat.n, upStat.ms]; upStat.n = 0; upStat.ms = 0;
+  if (!gpuName) gpuName = glName() || '?';
+  if (!meshHud) { meshHud = document.createElement('div'); meshHud.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:5;font:12px/1.3 monospace;color:#fff;background:rgba(0,0,0,.45);padding:3px 8px;border-radius:6px;pointer-events:none;white-space:pre;text-align:center;max-width:calc(100vw - 16px);overflow:hidden'; document.body.appendChild(meshHud); }
+  const top = 'MESH-PROBE ' + (meshOn() ? i3s.drawn.length + ' Teile, ' + Math.round(i3s.gpu) + ' MB Grafik, ' + i3s.mb.toFixed(0) + ' MB geladen, ' + (i3s.fromStore || 0) + ' aus Speicher (' + meshStoreMB().toFixed(0) + ' MB)' + (i3s.jobs ? ', lädt ' + i3s.jobs : '') + (i3s.up.length ? ', wartet ' + i3s.up.length : '') + (i3s.err && !meshShow ? ', Fehler: ' + i3s.err.slice(0, 40) : '') : 'aus (nur echte Welt, NRW)');
+  const bot = gpuName + ' · ' + Math.round(fps) + ' Bilder/s · längstes ' + Math.round(frameShow) + ' ms · Hochladen ' + upStat.show[0] + '/s' + (upStat.show[0] ? ' (max ' + upStat.show[1].toFixed(1) + ' ms)' : '') + ' · Auflösung ' + Math.round(frameStat.scale*100) + ' %' + (frameStat.lite ? ' Spar' : '');
+  meshHud.textContent = top + '\n' + bot;
 }
 function drawTerrain(meshDraw = null) {   // meshDraw: Sichtprobe 3D-Mesh zeichnet statt Wasser, Häusern, Bäumen, Kartenlinien
   if (rwGlVer !== rw.ver) {
@@ -1355,6 +1383,9 @@ function drawTerrain(meshDraw = null) {   // meshDraw: Sichtprobe 3D-Mesh zeichn
   gl.uniform4fv(P.u.uEdgeOpen, open(0, 0));
   if (!farGl && rw.far) { farGl = indexed(rwFarMesh()); farGen = tileGen; farDirty = false; }
   gl.uniform1f(P.u.uSize, rw.size); gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2);
+  // Foto 3D: Mesh zuerst (G2, Plan Grafik-Presets 3.3 Nr. 2). Das abgesenkte Gelände liegt darunter; der Tiefentest verwirft es
+  // dann vor der Farbrechnung, statt es zu rechnen und zu übermalen. Bild gleich. drawMesh bindet eigene Texturen auf Einheit 0.
+  if (meshDraw) meshDraw();
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
   gl.uniform1f(P.u.uPhoto, photoTex || farTex ? 1 : 0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, farTex || groundTex); gl.uniform1i(P.u.uFar, 1);
@@ -1388,7 +1419,6 @@ function drawTerrain(meshDraw = null) {   // meshDraw: Sichtprobe 3D-Mesh zeichn
     drawWater(g.water);
     gl.bindVertexArray(g.model.vao); gl.drawArrays(gl.TRIANGLES, 0, g.model.count);
   }
-  if (meshDraw) meshDraw();
   gl.uniform2f(P.u.uOrigin, -rw.size/2, -rw.size/2); gl.uniform4fv(P.u.uEdgeOpen, open(0, 0)); gl.bindTexture(gl.TEXTURE_2D, photoTex || groundTex);
   // Kartenebenen (nur Anzeige): Bänder für Bäche, Straßen, Brücken, Waldränder; leicht nach vorn gezogen
   if (rw.features && osdOn(cfg.osd, 'mapLayers') && !meshDraw) {
