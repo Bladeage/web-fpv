@@ -9,8 +9,9 @@ import { geoSearch } from './geosearch.js';
 import { parseLatLon } from './format.js';
 
 const BASEMAP = 'https://sgx.geodatenzentrum.de/wms_basemapde?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=de_basemapde_web_raster_farbe&STYLES=&CRS=EPSG:25832&FORMAT=image/png';
-const M = { hit: null, hits: [], q: '', view: null, sel: null, bm: null, bmWant: '', bmErr: false, bmTimer: 0, pts: new Map(), moved: 0, pinch: 0, onPick: null, onLayout: null, labels: null, txt: '' };
+const M = { yaw: null, aim: false, hit: null, hits: [], q: '', view: null, sel: null, bm: null, bmWant: '', bmErr: false, bmTimer: 0, pts: new Map(), moved: 0, pinch: 0, onPick: null, onLayout: null, labels: null, txt: '' };
 const el = id => document.getElementById(id);
+const COMPASS = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
 
 // Mitte jedes Landes (größter Ring, Mittel der Punkte) für die Beschriftung
 function landLabels() {
@@ -42,7 +43,7 @@ export function mapDraw() {
   c.font = '600 12px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   const L = selLand && landLabels().find(x => x.name === selLand);
   if (L && v.s > 120) { const [x, y] = P(L.E, L.N); c.lineWidth = 3; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.strokeText(L.name, x, y); c.fillStyle = 'rgba(30,40,50,0.95)'; c.fillText(L.name, x, y); }
-  // Eingebautes Gebiet (Monschau) und gewählter Punkt mit Ausschnitt 1 x 1 km
+  // Eingebautes Gebiet (AXA Campus Köln) und gewählter Punkt mit Ausschnitt 1 x 1 km
   const mark = (E, N, col, label, sq) => {
     const [x, y] = P(E, N), hs = Math.max(4, 500/v.s);
     c.strokeStyle = col; c.lineWidth = 2;
@@ -50,8 +51,14 @@ export function mapDraw() {
     c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fillStyle = col; c.fill();
     if (label) { c.fillStyle = col; c.textAlign = 'left'; c.fillText(label, x + hs + 5, y); c.textAlign = 'center'; }
   };
-  mark(304700, 5604000, '#2a6fb0', v.s < 400 ? 'Monschau (eingebaut)' : '', v.s < 60);
+  mark(363575, 5647362, '#2a6fb0', v.s < 400 ? 'AXA Campus (eingebaut)' : '', v.s < 60);
   if (M.sel) mark(M.sel[0], M.sel[1], '#e0442a', '', true);
+  if (M.sel && M.yaw != null) {   // Blickrichtung beim Start (Prompt 202): Pfeil vom Punkt aus, Kompass (0 Nord, im Uhrzeigersinn)
+    const [x, y] = P(M.sel[0], M.sel[1]), a = M.yaw*Math.PI/180, L = 34, ex = x + Math.sin(a)*L, ey = y - Math.cos(a)*L;
+    c.strokeStyle = '#e0442a'; c.lineWidth = 3; c.beginPath(); c.moveTo(x, y); c.lineTo(ex, ey); c.stroke();
+    const dx = Math.sin(a), dy = -Math.cos(a);   // Spitze bei (ex, ey), Grund 11 px zurück, 6 px zu jeder Seite
+    c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex - dx*11 - dy*6, ey - dy*11 + dx*6); c.lineTo(ex - dx*11 + dy*6, ey - dy*11 - dx*6); c.closePath(); c.fillStyle = '#e0442a'; c.fill();
+  }
   // Maßstab unten links
   const nice = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000], m = nice.find(d => d/v.s > 60) || 200000;
   c.fillStyle = 'rgba(255,255,255,0.8)'; c.fillRect(6, h - 22, m/v.s + 50, 16);
@@ -74,9 +81,9 @@ function wantBasemap(w, h, dpr) {
 }
 function info() {
   const off = M.bmErr ? ' Hintergrundkarte nicht erreichbar, nur Grenzen.' : '';
-  if (!M.sel) { el('mapInfo').textContent = 'Auf die Karte tippen, um den Mittelpunkt zu setzen. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
+  if (!M.sel) { el('mapInfo').textContent = 'Auf die Karte tippen, um den Mittelpunkt zu setzen; vom Punkt ziehen: Blickrichtung. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
   const [lat, lon] = fromUtm(M.sel[0], M.sel[1]), land = deLandAt(M.sel[0], M.sel[1]), plan = rwPlan(lat, lon);
-  el('mapInfo').textContent = (M.hit ? M.hit.name + (M.hits.length > 1 ? ' (' + (M.hits.indexOf(M.hit) + 1) + '/' + M.hits.length + ', Enter: nächster)' : '') + ' · ' : '') + lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
+  el('mapInfo').textContent = (M.yaw != null ? 'Blick ' + Math.round(M.yaw) + '° (' + COMPASS[Math.round(M.yaw/45) % 8] + ') · ' : '') + (M.hit ? M.hit.name + (M.hits.length > 1 ? ' (' + (M.hits.indexOf(M.hit) + 1) + '/' + M.hits.length + ', Enter: nächster)' : '') + ' · ' : '') + lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
     + (plan ? 'Quelle: ' + plan.srcs.map(x => x.name).join(' + ') + (plan.skipped.length ? ' (ohne ' + plan.skipped.map(x => x.name).join(', ') + ': anderes Koordinatensystem)' : '')
       : 'keine Quelle hinterlegt, unter „Quellen“ eintragen') + '.' + off;
   el('mapOk').disabled = !plan;
@@ -91,7 +98,7 @@ function layout() {
 // Öffnen: am zuletzt gewählten Ort (nah) oder ganz Deutschland
 export function mapOpen() {
   const ll = parseLatLon(cfg.rwLL), [w, h] = size();
-  M.txt = '';
+  M.txt = ''; M.yaw = cfg.rwYaw ?? null;
   if (ll) { const [E, N] = toUtm(ll[0], ll[1]); M.sel = [E, N]; M.view = mapClamp({ E, N, s: 8 }); }
   else { M.sel = null; M.view = mapFitGermany(w, h); }
   requestAnimationFrame(() => { if (!ll) M.view = mapFitGermany(...size()); mapDraw(); info(); });
@@ -99,11 +106,19 @@ export function mapOpen() {
 export function mapInit(onPick, onLayout) {
   M.onPick = onPick; M.onLayout = onLayout;
   const cv = el('mapCv'), at = e => { const r = cv.getBoundingClientRect(), [w] = size(); const k = w/r.width; return [(e.clientX - r.left)*k, (e.clientY - r.top)*k]; };
-  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); M.pts.set(e.pointerId, at(e)); M.moved = 0; M.pinch = 0; });
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId); const p = at(e); M.pts.set(e.pointerId, p); M.moved = 0; M.pinch = 0;
+    // am gewählten Punkt angefasst: Ziehen setzt die Blickrichtung statt die Karte zu verschieben
+    if (M.sel && M.pts.size === 1) { const [x, y] = mapToScreen(M.view, ...size(), M.sel[0], M.sel[1]); M.aim = Math.hypot(p[0] - x, p[1] - y) < 22; }
+  });
   cv.addEventListener('pointermove', e => {
     if (!M.pts.has(e.pointerId)) return;
     const p = at(e), q = M.pts.get(e.pointerId), [w, h] = size();
-    if (M.pts.size === 1) {   // verschieben
+    if (M.pts.size === 1 && M.aim) {   // Blickrichtung: vom Punkt zum Finger (x Ost, y Süd auf dem Bildschirm)
+      const [x, y] = mapToScreen(M.view, w, h, M.sel[0], M.sel[1]);
+      M.moved += Math.hypot(p[0] - q[0], p[1] - q[1]);
+      if (Math.hypot(p[0] - x, p[1] - y) > 12) { M.yaw = (Math.atan2(p[0] - x, -(p[1] - y))*180/Math.PI + 360) % 360; info(); }
+    } else if (M.pts.size === 1) {   // verschieben
       M.moved += Math.hypot(p[0] - q[0], p[1] - q[1]);
       M.view = mapClamp({ E: M.view.E - (p[0] - q[0])*M.view.s, N: M.view.N + (p[1] - q[1])*M.view.s, s: M.view.s });
     } else if (M.pts.size === 2) {   // zwei Finger: zoomen um die Mitte
@@ -133,7 +148,8 @@ export function mapInit(onPick, onLayout) {
     if (!M.pts.has(e.pointerId)) return;
     const p = at(e), [w, h] = size();
     M.pts.delete(e.pointerId);
-    if (M.moved < 6 && !M.pinch && e.type === 'pointerup') { M.sel = mapFromScreen(M.view, w, h, p[0], p[1]); M.hit = null; mapDraw(); info(); }   // eigener Punkt: kein Suchtreffer mehr
+    if (M.moved < 6 && !M.pinch && e.type === 'pointerup') { M.sel = mapFromScreen(M.view, w, h, p[0], p[1]); M.hit = null; M.yaw = null; mapDraw(); info(); }
+    M.aim = false;   // eigener Punkt: kein Suchtreffer mehr
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', e => { e.preventDefault(); const p = at(e), [w, h] = size(); M.view = mapZoom(M.view, w, h, p[0], p[1], Math.pow(1.25, e.deltaY/100)); mapDraw(); }, { passive: false });
@@ -141,7 +157,7 @@ export function mapInit(onPick, onLayout) {
   el('mapIn').addEventListener('click', () => zoomBtn(0.5));
   el('mapOut').addEventListener('click', () => zoomBtn(2));
   el('mapAll').addEventListener('click', () => { M.view = mapFitGermany(...size()); mapDraw(); });
-  el('mapOk').addEventListener('click', () => { if (!M.sel) return; const [lat, lon] = fromUtm(M.sel[0], M.sel[1]); M.onPick(lat, lon); });
+  el('mapOk').addEventListener('click', () => { if (!M.sel) return; const [lat, lon] = fromUtm(M.sel[0], M.sel[1]); M.onPick(lat, lon, M.yaw); });
   addEventListener('resize', () => { if (!el('mapCv').closest('section').hidden) mapDraw(); });
 }
 // Für Browser-Tests: Bildschirmpunkt (Seite) eines Kartenpunkts in der aktuellen Ansicht

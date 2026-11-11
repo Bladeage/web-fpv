@@ -294,6 +294,7 @@ async function rwLiveDo() {
   try {
     await rwLoadLive(ll[0], ll[1], (step, f) => { msgEl().textContent = (step.startsWith('Hinweis') ? '' : 'Lade ') + step + ' … ' + Math.round(f*100) + ' %'; }, rwBusy.signal, mergeImg, RW_STORE,
       disWms() ? { wms: rw.wms.src } : {});   // Ort der DIS-Übung mit gefundenem Höhendienst (W3)
+    if (rw.meta) { if (cfg.rwYaw != null && !isDis()) rw.meta.homeYaw = cfg.rwYaw; else delete rw.meta.homeYaw; }   // Blickrichtung von der Karte (Prompt 202)
     rwSavedFill(); ok = true;
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
     if (game.started && rw.on) { setScenario(game.scenRun, true); respawn(); }
@@ -569,7 +570,7 @@ document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventLi
 let srcFrom = 'mode';   // Optionen der echten Welt: „Fertig“ führt dorthin zurück, woher man kam
 $('rwOpt').addEventListener('click', () => { srcFrom = 'mode'; srcOpen('data'); });   // Optionen der echten Welt (Daten, Quellen)
 $('srcDone').addEventListener('click', () => show(srcFrom));
-$('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; saveCfg(); });
+$('rwLL').addEventListener('input', e => { cfg.rwLL = e.target.value; cfg.rwYaw = null; saveCfg(); });   // getippter Ort: Blick wieder zur Gebietsmitte
 $('rwLL').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') rwLive(); });   // Tippen steuert nicht die Drohne
 $('rwGo').addEventListener('click', () => rwLive());
 $('rwSaved').addEventListener('change', e => { if (!e.target.value) return; cfg.rwLL = e.target.value; cfg.rwSrc = 'live'; saveCfg(); e.target.value = ''; syncMenu(); rwReplace(); });
@@ -578,7 +579,7 @@ rwSavedFill();
 $('rwMap').addEventListener('click', () => { show('map'); mapOpen(); });
 srcInit(show, () => fitPanel(), () => rwSavedFill());
 $('mapSrc').addEventListener('click', () => { srcFrom = 'map'; srcOpen('src'); });
-mapInit((lat, lon) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwReplace(); }, () => fitPanel());
+mapInit((lat, lon, yaw) => { cfg.rwLL = lat.toFixed(5) + ', ' + lon.toFixed(5); cfg.rwYaw = yaw ?? null; cfg.rwSrc = 'live'; saveCfg(); show('mode'); rwReplace(); }, () => fitPanel());   // yaw: Blickrichtung beim Start (Grad), null = zur Gebietsmitte
 for (const [id, d] of Object.entries(DIFF)) { const b = addChoice($('diffSeg'), d.name, '', () => { cfg.diff = id; saveCfg(); syncMenu(); }); b.dataset.id = id; b.title = d.info || ''; }
 for (const [id, d] of Object.entries(DMG)) addChoice($('dmgSeg'), d.name, '', () => { cfg.dmg = id; saveCfg(); syncMenu(); }).dataset.id = id;
 for (const [id, d] of Object.entries(DRONES)) {

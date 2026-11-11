@@ -132,8 +132,9 @@ export function i3sGeometry(bytes) {
 // Das Mesh ist 2,5D (eine Höhe je Lage, vermutet nach Katalog). Darum zwei Formen je feinem Teil, im eigenen Bezug des Teils
 // (Ost, Nord, Höhe relativ zur Mitte der Box, unabhängig vom Gebiet): ein Höhenraster für alles Flache (Straße, Dach, Krone; Zelle
 // 0,5 m, bei großen Teilen gröber, höchstens 256 je Seite) und die steilen Dreiecke (Wände, Stämme, Pfeiler) in 4-m-Zellen.
-// physR: nur Teile mit Hüllkugel bis 120 m (die feinsten Stufen) bekommen Physik. Zahlen: Schätzung.
-export const I3S_PHYS = { cell: 0.5, maxCells: 256, steep: 0.5, flat: 0.3, grid: 4, physR: 120, near: 150 };
+// physR: Teile bis zu diesem Radius bekommen Physik (Prompt 202: auch gröbere, damit Bild und Physik vom ersten sichtbaren Teil an
+// passen; vorher nur bis 120 m, die Drohne stand bis zu 30 s 1,2 m im Mesh). Handy: physRLow (Speicher: Raster bis 256 KB je Teil).
+export const I3S_PHYS = { cell: 0.5, maxCells: 256, steep: 0.5, flat: 0.3, grid: 4, physR: 2000, physRLow: 600, near: 150 };
 export function i3sPhysBuild(pos, vc) {
   let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity;
   for (let i = 0; i < vc; i++) { const e = pos[i*3], n = pos[i*3 + 1]; if (e < e0) e0 = e; if (e > e1) e1 = e; if (n < n0) n0 = n; if (n > n1) n1 = n; }
@@ -195,7 +196,7 @@ export function i3sTrisNear(list, x, z, R, o, out = []) {
 export function i3sPhysList(x, z, o) {
   const out = [];
   for (const n of i3s.nodes.values()) {
-    if (n.st !== 'ready' || !n.phys || n.r > I3S_PHYS.physR) continue;
+    if (n.st !== 'ready' || !n.phys) continue;
     const cx = n.c[0] - o.ec, cz = -(n.c[1] - o.nc);
     if (Math.hypot(cx - x, cz - z) < I3S_PHYS.near + n.r) out.push(n);
   }

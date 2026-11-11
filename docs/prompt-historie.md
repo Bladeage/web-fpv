@@ -234,3 +234,4 @@ Datum nach Sitzungsstand. Spalte „Ergebnis“: Etappe oder Commit-Thema.
 | 199 | 11.11.2026 | Luftbild Monschau ersetzen durch eine Koordinate (AXA Campus Köln). In welche Richtung schaut die Drohne beim Start, zufällig, kann der Nutzer sie bestimmen? | Erklärt: Spielkarte fest, echte Welt zur Mitte des Gebiets; Vorschläge zur eigenen Richtung; Austausch vorbereitet |
 | 200 | 11.11.2026 | 50.96359, 7.05336 | Punkt liegt auf einem Flachdach; Gebiet erzeugt |
 | 201 | 11.11.2026 | Moment, neue Koordinate mit Richtung (Bild vom Handy: 50.96170, 7.05731) | AXA Campus Köln eingebaut, Start genau dort, Blick 270° (aus Heimpfeil und Bild abgeleitet) |
+| 202 | 11.11.2026 | 1 und 2 umsetzen (Mesh-Start reparieren, Blickrichtung für geladene Orte selbst wählen) | Physik nutzt auch gröbere Mesh-Teile (Drohne nie mehr im Mesh), Kamera auf dem Mesh; Blickrichtung durch Ziehen vom Punkt auf der Karte |

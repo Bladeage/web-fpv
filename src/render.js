@@ -17,7 +17,7 @@ import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
 import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
-import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, rwNet } from './realworld.js';
+import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, solidH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
 // Umgebung, die mitwandert (Prüfbericht Nr. 16): gezeichneter Stand (Mitte, Größe, Version) und der nächste im Aufbau
 const farAt = { cx: 0, cz: 0, size: 1, ver: -1 };
@@ -746,7 +746,7 @@ export function render(dt) {
     // Abstand zum Boden mindestens 1,4 x nahe Bildebene: Sonst trifft der unterste Sichtstrahl den Boden näher als die
     // Bildebene, das Bild schneidet ihn weg und man sieht von unten ins Gelände (Fehlerbericht Nutzer, Prompt 138: Start in der
     // echten Welt). Gerechnet für Blickfeld bis 120° hoch und Kamera 20° nach oben: nötig sind bis 1,3 x nahe Ebene.
-    eye[1] = Math.max(eye[1], groundH(eye[0], eye[2]) + Math.max(0.035, near*1.4));   // groundH ist die gezeichnete Fläche (echte Welt)
+    eye[1] = Math.max(eye[1], solidH(eye[0], eye[2]) + Math.max(0.035, near*1.4));   // gezeichnete Fläche (echte Welt), mit Foto 3D das Mesh
     view = mView(qc, eye);
     lastCamQ = qc;
   } else {
@@ -754,7 +754,7 @@ export function render(dt) {
     if (fl > 0.2) game.camHeading = [f[0]/fl, 0, f[2]/fl];
     const cd = 2.4*clamp(PHYS.size, 0.45, 1.5), ch = 0.8*clamp(PHYS.size, 0.45, 1.5);   // Verfolger-Abstand nach Drohnengröße
     const tx = sim.p[0] - game.camHeading[0]*cd, tz = sim.p[2] - game.camHeading[2]*cd;
-    const target = [tx, Math.max(groundH(tx, tz) + 0.4, sim.p[1] + ch), tz];   // nie unter dem Gelände
+    const target = [tx, Math.max(solidH(tx, tz) + 0.4, sim.p[1] + ch), tz];   // nie unter dem Gelände (mit Foto 3D: Mesh)
     const k = Math.min(1, dt*6);
     game.camPos = vAdd(game.camPos, vScale(vSub(target, game.camPos), k));
     eye = game.camPos;
@@ -914,9 +914,9 @@ export function render(dt) {
   if (cfg.gfx !== 'simple') {
     const blobs = [];
     // Höhe über dem Boden: Spielkarte y = 0, echte Welt die Bodenhöhe darunter (sonst lag der Schatten flach auf Höhe 0, Prompt 138)
-    const add = (p, rx, rz, yaw) => { const g = rw.on ? groundH(p[0], p[2]) : 0, h = p[1] - g;
+    const add = (p, rx, rz, yaw) => { const g = rw.on ? solidH(p[0], p[2]) : 0, h = p[1] - g;
       if (h < 40) blobs.push([p[0] - S[0]/S[1]*h, p[2] - S[2]/S[1]*h, rx*(1 + h*0.03), rz*(1 + h*0.03), yaw, 0.5*Math.max(0, 1 - h/30), g]); };
-    { const hg = sim.p[1] - (rw.on ? groundH(sim.p[0], sim.p[2]) : 0);   // eigener Schatten; im Kamerabild erst ab 0,5 m (am Boden deckte er den unteren Rand zu)
+    { const hg = sim.p[1] - (rw.on ? solidH(sim.p[0], sim.p[2]) : 0);   // eigener Schatten; im Kamerabild erst ab 0,5 m (am Boden deckte er den unteren Rand zu)
       if (cfg.cam !== 'fpv' || (hg > 0.5 && hg < 20)) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0); }
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
@@ -929,7 +929,7 @@ export function render(dt) {
     gl.bindVertexArray(discMesh.vao);
     const dr = 0.063*PROP_S;   // Radius der Scheibe im Modell
     for (const [x, z, rx, rz, yaw, a, g0] of blobs) for (const [k, al] of [[1.4, 0.45], [0.9, 1]]) {   // außen weich, innen dunkler
-      const m = mFromQT(qAxis([0,1,0], yaw), [x, (rw.on ? groundH(x, z) : g0) + 0.02, z]);
+      const m = mFromQT(qAxis([0,1,0], yaw), [x, (rw.on ? solidH(x, z) : g0) + 0.02, z]);
       for (const i of [0, 1, 2]) m[i] *= rx*k/dr;
       for (const i of [8, 9, 10]) m[i] *= rz*k/dr;
       gl.uniformMatrix4fv(P.u.uModel, false, m); gl.uniform1f(P.u.uAlpha, a*al*0.6*(cfg.night ? 0.4 : 1));   // nachts schwach (Mond)
@@ -1243,7 +1243,7 @@ function meshNode(n) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     const an = gl.getExtension('EXT_texture_filter_anisotropic');
     if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
-    if (n.r <= I3S_PHYS.physR) n.phys = i3sPhysBuild(G.pos, G.vc);   // Kollision aus dem Mesh (M2): nur feine Teile
+    if (n.r <= (LOW_MEM ? I3S_PHYS.physRLow : I3S_PHYS.physR)) n.phys = i3sPhysBuild(G.pos, G.vc);   // Kollision aus dem Mesh (M2): auch gröbere Teile, die feinsten zählen zuerst
     n.texel = img.width*img.height || n.texel; n.gl = { vao, buf, tex }; n.vc = G.vc; n.st = 'ready'; i3s.gpu += i3sBytes(n)/1e6; n.t = performance.now()/1000; i3s.loaded++; i3s.mb += (g.byteLength + t.byteLength)/1e6;
   }).catch(e => { n.st = 'fail'; n.fail = performance.now()/1000; i3s.err = String(e && e.message || e); }).finally(() => { i3s.jobs--; });
 }
