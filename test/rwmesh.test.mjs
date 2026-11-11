@@ -87,3 +87,14 @@ test('Speicher nachführen: zu viel im Bild macht die Auswahl gröber, wenig wie
   i3s.gpu = 1000; assert.equal(i3sRoom(), false, 'über der Grenze: keine neuen Abrufe'); i3s.gpu = 0; assert.equal(i3sRoom(), true);
   i3s.qa = 1;
 });
+
+test('Schneller Start: Stufe 1 eingebettet, nur bei gleicher Wurzel übernommen', async () => {
+  const { I3S_L1, i3sAddL1 } = await import('../src/rwmesh.js');
+  assert.equal(I3S_L1.length, 108);
+  i3sReset(); assert.equal(i3sAddL1([1, 2, 3]), false, 'andere Wurzel: nicht übernehmen'); assert.equal(i3s.nodes.size, 0);
+  assert.equal(i3sAddL1(I3S_L1.map(r => r[0])), true); assert.equal(i3s.nodes.size, 108);
+  const n = i3s.nodes.get(I3S_L1[0][0]); assert.ok(n.r > 1000 && n.ch.length > 0 && n.res === null);
+  // Köln (E 356560, N 5645282) liegt in einer Hüllkugel der Stufe 1
+  assert.ok(I3S_L1.some(([, e, nn, , r]) => Math.hypot(e - 356560, nn - 5645282) < r));
+  i3sReset();
+});

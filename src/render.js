@@ -15,7 +15,7 @@ import { dayState } from './daylight.js';
 import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
-import { I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
+import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, groundH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -1204,7 +1204,7 @@ let meshShow = false, meshVer = -1, meshEvictT = 0;
 const meshNet = rwNet(null, 15000);
 function meshPage(p) {
   i3s.pages.set(p, 'load'); i3s.jobs++;
-  meshNet.text(i3sPageUrl(p)).then(t => { i3sAddPage(p, JSON.parse(t)); if (p === 0) { const r = i3s.nodes.get(0); i3s.root = r; i3s.l1 = r ? r.ch : []; } })
+  meshNet.text(i3sPageUrl(p)).then(t => { i3sAddPage(p, JSON.parse(t)); if (p === 0) { const r = i3s.nodes.get(0); i3s.root = r; i3s.l1 = r ? r.ch : []; if (r) i3sAddL1(r.ch); } })   // Stufe 1 eingebettet: keine 108 Seiten
     .catch(e => { i3s.pages.set(p, 'fail'); i3s.err = String(e && e.message || e); setTimeout(() => i3s.pages.delete(p), 30000); })
     .finally(() => { i3s.jobs--; });
 }
