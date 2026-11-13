@@ -7,7 +7,8 @@ Läuft direkt im Browser, ohne Installation. Empfohlen: Chrome oder Edge (PC), C
 Browser-Simulator für FPV-Drohnen. Reines HTML, CSS, JavaScript, WebGL2. Keine fremden Bibliotheken, einzige Ausnahme: Betaflight als Flugregler (GPLv3, siehe Lizenz).
 Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASCII).
 
-- Stand und Hintergrund: `docs/handover-2026-11-11.md` (ältere Übergaben: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`)
+- Stand: Entwicklung vorerst abgeschlossen (13.11.2026). Was fertig ist und was offen bleibt: `docs/abschluss-2026-11-13.md`
+- Aufbau und Hintergrund: `docs/handover-2026-11-11.md` (ältere Übergaben: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`)
 - Echte Welt (Daten, Quellen, Etappen L1 bis L5): `docs/echte-welt.md`
 - Etappenplan: `docs/PLAN.md`
 - Prompt-Historie: `docs/prompt-historie.md`

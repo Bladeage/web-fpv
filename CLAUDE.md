@@ -1,6 +1,6 @@
 # Arbeitsregeln für Claude Code
 
-- Lies zuerst `docs/handover-2026-11-11.md` und `docs/PLAN.md` (Vorgeschichte: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`).
+- Entwicklung vorerst abgeschlossen (13.11.2026). Lies zuerst `docs/abschluss-2026-11-13.md`, dann `docs/handover-2026-11-11.md` und `docs/PLAN.md` (Vorgeschichte: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`).
 - Jeden Prompt des Nutzers gestrafft in `docs/prompt-historie.md` eintragen (Nr., Datum, Prompt, Ergebnis), auch Antworten auf Rückfragen. Mit dem nächsten Commit ablegen.
 - Arbeite in Etappen. Pro Sitzung genau eine Etappe: umsetzen, prüfen, committen, kurz berichten, dann anhalten und auf Freigabe warten.
 - Keine Bibliotheken, keine externen Quellen, keine CDNs. Nur HTML, CSS, JavaScript und WebGL2. Build und Tests nur mit Node-Standardmodulen.
