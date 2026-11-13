@@ -550,3 +550,28 @@ test('Freileitung (Prompt 171): Hochpunkte unter Leiterseilen fallen weg, Kronen
   assert.equal(t.length, 5, 'nur die Kronen: ' + t.length);
   assert.ok(t.every(q => Math.abs(q[2] - 14) < 0.01));
 });
+
+test('Lücken füllen in einem Durchlauf: gleich wie das alte Verfahren, schneller', async () => {
+  const { rwFillGaps } = await import('../src/rwload.js');
+  const old = (v, n) => {   // altes Verfahren (bis 13.11.2026), als Maßstab
+    for (let pass = 0, left = 1; left && pass < 2*n; pass++) {
+      left = 0; const src = v.slice();
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const k = j*n + i; if (!Number.isNaN(src[k])) continue;
+        let s = 0, c = 0;
+        for (const [x, y] of [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) if (x >= 0 && y >= 0 && x < n && y < n && !Number.isNaN(src[y*n + x])) { s += src[y*n + x]; c++; }
+        if (c) v[k] = s/c; else left++;
+      }
+    }
+    return v;
+  };
+  let seed = 7; const R = () => (seed = (seed*16807) % 2147483647)/2147483647;
+  for (const [n, holes] of [[1, 0], [5, 0.5], [17, 0.9], [40, 0.3], [64, 1]]) {
+    const a = Float32Array.from({ length: n*n }, (_, k) => R() < holes || (k % n) > n*0.6 ? NaN : 100 + 50*R());
+    const A = old(a.slice(), n), B = rwFillGaps(a.slice(), n);
+    for (let k = 0; k < n*n; k++) assert.ok(Object.is(A[k], B[k]), 'n ' + n + ' Zelle ' + k + ': ' + A[k] + ' gegen ' + B[k]);
+  }
+  const n = 512, big = Float32Array.from({ length: n*n }, (_, k) => (k % n) < 200 ? 300 + (k % 7) : NaN);   // Umgebung zu 60 % außerhalb
+  const t0 = performance.now(); rwFillGaps(big, n); const ms = performance.now() - t0;
+  assert.ok(!big.some(Number.isNaN) && ms < 300, ms.toFixed(0) + ' ms');
+});

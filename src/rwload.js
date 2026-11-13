@@ -2,7 +2,7 @@
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
 import { readTiff, readLod2, readLod2Async } from './geo.js';
-import { wmsFetchHeights } from './rwwms.js';
+import { wmsFetchHeights, wmsFill } from './rwwms.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
@@ -388,20 +388,7 @@ export async function rwFetchFar(a, src, get, say = () => {}) {
   return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q, dop };
 }
 // Lücken (NaN) im Raster n x n schrittweise vom Rand der gültigen Werte her füllen (Mittel der gültigen Nachbarn)
-export function rwFillGaps(v, n) {
-  for (let pass = 0, left = 1; left && pass < 2*n; pass++) {
-    left = 0;
-    const src = v.slice();
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-      const k = j*n + i;
-      if (!Number.isNaN(src[k])) continue;
-      let s = 0, c = 0;
-      for (const [x, y] of [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) if (x >= 0 && y >= 0 && x < n && y < n && !Number.isNaN(src[y*n + x])) { s += src[y*n + x]; c++; }
-      if (c) v[k] = s/c; else left++;
-    }
-  }
-  return v;
-}
+export const rwFillGaps = (v, n) => wmsFill(v, n);   // ein Durchlauf in Schichten (rwwms.js, Prüfbericht Nr. 14)
 
 // ---- Zwischenspeicher für LoD2-Kacheln (bereits geladene Gebäude wiederverwenden) ----
 // Eine Gebäudekachel (1 km, bis 70 MB Text) wird einmal zerlegt und kompakt gespeichert: Punkte als 32 Bit relativ zur

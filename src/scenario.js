@@ -243,6 +243,25 @@ function spotsReal(R) {
     PICKUP.splice(0, 3, ...pk); ds.forEach((d, i) => DROPS[i].splice(0, 3, ...d));
   }
 }
+// Foto 3D (Abschluss, Prompt 207): Plätze stehen beim Aufstellen auf dem Boden, der da ist (oft noch Gelände, weil das Mesh dort noch
+// nicht geladen ist). Kommt das Mesh später, liegt der Boden der Physik bis etwa 1 m anders (Gras, gemessen 1,24 m am AXA-Start):
+// die Platte versinkt oder schwebt, und die Landung zählte nicht. Darum alle 0,5 s nachführen: Höhe = höchster Boden unter der Platte
+// (3 x 3 Proben, halbe Breite 3 m wie beim Aufstellen). Nicht, solange die Drohne näher als 8 m ist (sie könnte darauf stehen).
+const follow = { t: 0 };
+export function spotsFollow(h, s, gh = solidH) {
+  if (!rw.on || (follow.t -= h) > 0) return false;
+  follow.t = 0.5;
+  const list = scen.id === 'landing' ? [PAD.c] : scen.id === 'deliver' ? [PICKUP, ...DROPS] : [];
+  let moved = false;
+  for (const c of list) {
+    if (Math.hypot(s.p[0] - c[0], s.p[2] - c[2]) < 8) continue;
+    let y = -Infinity;
+    for (const dx of [-3, 0, 3]) for (const dz of [-3, 0, 3]) y = Math.max(y, gh(c[0] + dx, c[2] + dz));
+    if (Number.isFinite(y) && Math.abs(y - c[1]) > 0.05) { c[1] = y; moved = true; }
+  }
+  if (moved) scen.version++;   // Modell der Plätze neu bauen
+  return moved;
+}
 function spotsMap() { PAD.c.splice(0, 3, ...PAD_MAP); PICKUP.splice(0, 3, ...PICKUP_MAP); DROPS_MAP.forEach((d, i) => DROPS[i].splice(0, 3, ...d)); }
 const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 
@@ -328,6 +347,7 @@ function collidePoles(h) {
 
 function checkLanding(a, b, h) {
   const s = game.sim;
+  spotsFollow(h, s);
   landAid(s, h);
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
@@ -367,6 +387,7 @@ function checkHunt(a, b, h) {
 // Paketlieferung: tief (unter 1,2 m) und langsam (unter 2,5 m/s) über dem Platz schweben
 function checkDeliver(a, b, h) {
   const s = game.sim;
+  spotsFollow(h, s);
   if (st.done) return;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const tgt = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP;

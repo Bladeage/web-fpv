@@ -84,19 +84,22 @@ export function i3sSelect(cam, f, P, o, q = I3S.q) {
           return;
         }
         // von grob nach fein: erst wenn der Knoten selbst da ist, die Kinder laden
-        if (n.st === 'ready') kids.forEach((k, i) => { if (looks[i].vis && k.res && k.st !== 'ready') want.push([k, m + (looks[i].d < I3S.nearR ? 1e12 : 0)]); });
+        if (n.st === 'ready') kids.forEach((k, i) => { if (looks[i].vis && k.res && k.st !== 'ready' && k.st !== 'dead') want.push([k, m + (looks[i].d < I3S.nearR ? 1e12 : 0)]); });
       }
-      if (n.res) { if (n.st === 'ready') draw.push(n); else want.push([n, prio]); }
+      if (n.res) { if (n.st === 'ready') draw.push(n); else if (n.st !== 'dead') want.push([n, prio]); }
       return;
     }
     if (!n.res) return;
-    if (n.st === 'ready') draw.push(n); else want.push([n, m + (L.d < I3S.nearR ? 1e12 : 0)]);
+    if (n.st === 'ready') draw.push(n); else if (n.st !== 'dead') want.push([n, m + (L.d < I3S.nearR ? 1e12 : 0)]);
   };
   for (const idx of i3s.l1 || []) { const n = need(idx); if (!n) continue; const L = look(n); if (L.vis) visit(n, L); }
   want.sort((a, b) => b[1] - a[1]);
   draw.sort((a, b) => a.d - b.d);   // nah zuerst: früher Tiefentest (Abstand n.d einmal je Bild in look gerechnet, G2)
   return { draw, want, pages: [...pages] };
 }
+// Fehler beim Laden eines Teils (Abschluss, Prompt 207): 404 und 410 heißen „gibt es nicht“ -> 'dead', nie neu versuchen; der
+// gröbere Knoten darüber bleibt dann gezeichnet. Alles andere (Netz, Zeit, 5xx) -> 'fail', neuer Versuch nach 30 s.
+export const i3sFailState = msg => / antwortet (404|410)\b/.test(String(msg || '')) ? 'dead' : 'fail';
 // Hochladen begrenzen (G2, Plan Grafik-Presets 3.3 Nr. 1): fertig geladene Teile warten in i3s.up ([{ n, ... }]). Je Bild lädt
 // render.js höchstens eines in die Grafik, das der Kamera nächste zuerst (n.d aus der letzten Auswahl; ohne Abstand zuletzt).
 // Nimmt es aus der Liste und liefert es, sonst null.

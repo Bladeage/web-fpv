@@ -202,13 +202,25 @@ export const meshStoreMB = () => meshIdx.bytes/1e6;
 export async function meshStats() { const m = await meshIdxLoad(); return { n: m.size, bytes: meshIdx.bytes }; }
 // Leeren (Prompt 204). cache: Zwischenspeicher (3D-Mesh, beim Fliegen nachgeladene Kacheln, Gebäudekacheln); all: dazu gespeicherte
 // Orte und Landesdaten. Liefert die Zahl der gelöschten Einträge.
-async function storeEmpty(st) { const k = (await tx(st, 'readonly', s => s.getAllKeys())) || []; await tx(st, 'readwrite', s => s.clear()); return k.length; }
+// Alle Bereiche in einem Schritt zählen und leeren (Abschluss, Prompt 207; vorher 12 Schritte nacheinander, jeder wartet auf das
+// Hauptprogramm). counted: Bereiche, deren Einträge zählen.
+async function storeEmpty(list, counted = list) {
+  const d = await db(); if (!d) return 0;
+  return new Promise(res => {
+    try {
+      const t = d.transaction(list, 'readwrite'), c = [];
+      for (const st of list) { const o = t.objectStore(st); if (counted.includes(st)) c.push(o.count()); o.clear(); }
+      t.oncomplete = () => res(c.reduce((n, r) => n + (r.result || 0), 0)); t.onerror = t.onabort = () => res(0);
+    } catch (e) { res(0); }
+  });
+}
+const meshIdxReset = () => { meshIdx.map = null; meshIdx.busy = null; meshIdx.bytes = 0; };
 // Nur das 3D-Mesh leeren (Daten-Reiter); liefert die Zahl der Teile
-export async function storeClearMesh() { const n = await storeEmpty('mesh'); await storeEmpty('meshidx'); meshIdx.map = null; meshIdx.busy = null; meshIdx.bytes = 0; return n; }
+export async function storeClearMesh() { const n = await storeEmpty(['mesh', 'meshidx'], ['mesh']); meshIdxReset(); return n; }
 export async function storeClear(all = false) {
-  let n = await storeClearMesh() + await storeEmpty('lod2');
-  const clear = async st => { n += await storeEmpty(st); };
-  if (all) { for (const st of ['areas', 'info', 'land']) await clear(st); return n; }
+  const base = ['mesh', 'meshidx', 'lod2'], more = all ? ['areas', 'info', 'land'] : [];
+  let n = await storeEmpty([...base, ...more], ['mesh', 'lod2', ...more]); meshIdxReset();
+  if (all) return n;
   for (const x of (await storeAll('info')).filter(x => x.tile)) { await storeAreaDel(x.key); n++; }
   return n;
 }

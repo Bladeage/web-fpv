@@ -177,6 +177,7 @@ function drawStickBoxes(c, x, y, sz, lw) {
   box(x + sz*0.75, inp.roll, inp.pitch);
 }
 
+const placeMemo = { t: 0, v: null, ver: -1 };
 export function drawHud() {
   const c = hctx, W = vw, H = vh, s = game.sim;
   c.clearRect(0, 0, W, H);
@@ -221,7 +222,9 @@ export function drawHud() {
   };
   if (rw.on && rw.meta) {   // echte Welt: Koordinaten und nächster Ort
     [d.lat, d.lon] = rwLatLon(s.p[0], s.p[2]);
-    d.place = rwPlace(s.p[0], s.p[2]);
+    const tp = performance.now();   // nächster Ort: alle 0,5 s neu (Prüfbericht Nr. 10; er ändert sich im Flug kaum)
+    if (tp - placeMemo.t > 500 || placeMemo.ver !== rw.ver) { placeMemo.v = rwPlace(s.p[0], s.p[2]); placeMemo.t = tp; placeMemo.ver = rw.ver; }
+    d.place = placeMemo.v;
     d.vbs = vbLabel(cfg.verbund);
   }
   const lines = osdLines(cfg.osd, d);

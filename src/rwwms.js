@@ -69,19 +69,24 @@ export async function wmsFetchHeights(src, bbox, zone, n, get) {
   wmsFill(data, n);
   return { data, tiles: jobs.length, geo: g, hRef: src.vref === 'msl' ? 'msl' : 'ell-' + GEOID_FIX, layer: src.hgt.layer };
 }
-// Lücken (NaN) vom Rand der gültigen Werte her füllen (wie rwFillGaps in rwload.js; eigene Fassung, weil rwload dieses Modul nutzt)
-function wmsFill(v, n) {
-  for (let pass = 0, left = 1; left && pass < 2*n; pass++) {
-    left = 0;
-    const src = v.slice();
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-      const k = j*n + i;
-      if (!Number.isNaN(src[k])) continue;
-      let s = 0, c = 0;
-      for (const [x, y] of [[i - 1, j], [i + 1, j], [i, j - 1], [i, j + 1]]) if (x >= 0 && y >= 0 && x < n && y < n && !Number.isNaN(src[y*n + x])) { s += src[y*n + x]; c++; }
-      if (c) v[k] = s/c; else left++;
-    }
+// Lücken (NaN) vom Rand der gültigen Werte her füllen: jede Lücke bekommt den Mittelwert der Nachbarn (links, rechts, oben, unten),
+// die näher am gültigen Rand liegen. Früher Durchlauf um Durchlauf über das ganze Raster (bei halb leerer Umgebung bis etwa 1 s,
+// Prüfbericht Nr. 14); jetzt in Schichten von außen nach innen, ein Mal je Zelle. Ergebnis Bit für Bit gleich (Test). Auch für
+// rwFillGaps in rwload.js (das dieses Modul nutzt). Ganz ohne gültigen Wert bleibt alles NaN.
+export function wmsFill(v, n) {
+  const N = n*n, d = new Int32Array(N).fill(-1);
+  const nb = (k, f) => { const i = k % n; if (i > 0) f(k - 1); if (i < n - 1) f(k + 1); if (k >= n) f(k - n); if (k < N - n) f(k + n); };
+  for (let k = 0; k < N; k++) if (!Number.isNaN(v[k])) d[k] = 0;
+  let cur = [];
+  for (let k = 0; k < N; k++) if (d[k] < 0) { let hit = false; nb(k, q => { if (d[q] === 0) hit = true; }); if (hit) cur.push(k); }
+  for (const k of cur) d[k] = 1;
+  for (let L = 1; cur.length; L++) {
+    for (const k of cur) { let s = 0, c = 0; nb(k, q => { if (d[q] >= 0 && d[q] < L) { s += v[q]; c++; } }); v[k] = s/c; }
+    const next = [];
+    for (const k of cur) nb(k, q => { if (d[q] < 0) { d[q] = L + 1; next.push(q); } });
+    cur = next;
   }
+  return v;
 }
 // Höhenebene eines Dienstes: eingetragen, sonst aus den Fähigkeiten gewählt (Laufzeit-Zwischenspeicher je Adresse)
 const wmsLayers = new Map();

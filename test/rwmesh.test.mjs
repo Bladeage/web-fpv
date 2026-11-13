@@ -111,3 +111,14 @@ test('G2: Hochladen der Reihe nach, das nächste Teil zuerst; Abstand je Knoten 
   assert.equal(i3sNextUpload(q), null, 'leer');
   i3s.up.push({ n: {} }); i3sReset(); assert.equal(i3s.up.length, 0, 'Reset leert die Warteschlange');
 });
+
+test('Abschluss: Teil gibt es nicht (404) -> nie neu laden, gröberer Knoten bleibt', async () => {
+  const { i3sFailState } = await import('../src/rwmesh.js');
+  assert.equal(i3sFailState('www.gis.nrw.de antwortet 404'), 'dead');
+  assert.equal(i3sFailState('www.gis.nrw.de antwortet 503'), 'fail');
+  assert.equal(i3sFailState('Keine Verbindung zu www.gis.nrw.de'), 'fail');
+  tree(); i3s.nodes.get(64).st = 'ready'; for (const k of [65, 66, 67, 68]) i3s.nodes.get(k).st = 'dead';
+  const near = [0, 20, 30], S = i3sSelect(near, 540, view(near, [0, 0, 0]), o, 1);
+  assert.deepEqual(S.draw.map(n => n.idx), [64], 'grober Knoten gezeichnet');
+  assert.equal(S.want.length, 0, 'tote Teile nicht angefragt');
+});

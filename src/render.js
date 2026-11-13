@@ -16,7 +16,7 @@ import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
 import { meshGet, meshPut, meshStoreMB } from './rwstore.js';
-import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes, i3sNextUpload } from './rwmesh.js';
+import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes, i3sNextUpload, i3sFailState } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, solidH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -1241,7 +1241,7 @@ function meshNode(n) {
     if (glLost.on) { img.close(); n.st = 'idle'; return; }
     const phys = n.r <= (LOW_MEM ? I3S_PHYS.physRLow : I3S_PHYS.physR) ? i3sPhysBuild(G.pos, G.vc) : null;   // Kollision aus dem Mesh (M2): auch gröbere Teile, die feinsten zählen zuerst
     i3s.up.push({ n, G, img, phys });   // Hochladen später, höchstens ein Teil je Bild (meshStep, G2)
-  }).catch(e => { n.st = 'fail'; n.fail = performance.now()/1000; i3s.err = String(e && e.message || e); }).finally(() => { i3s.jobs--; });
+  }).catch(e => { i3s.err = String(e && e.message || e); n.st = i3sFailState(i3s.err); n.fail = performance.now()/1000; }).finally(() => { i3s.jobs--; });
 }
 // Ein fertig geladenes Teil in die Grafik: Puffer, Textur mit Mipmaps. Dauer für die Anzeige der Probe (nur der Teil im
 // Hauptprogramm; in Firefox läuft die eigentliche Arbeit danach im Grafikprozess, vermutet)
