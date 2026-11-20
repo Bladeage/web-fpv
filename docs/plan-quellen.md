@@ -104,7 +104,11 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 
 Größe der Datei: Vorlagen sind wenige KB. Neue Leser schätzungsweise 10 bis 20 KB. Es bleiben etwa 55 KB bis zur Testgrenze (gesichert, `docs/abschluss-2026-11-13.md`). Das reicht für Q1 bis Q5 (Schätzung). Danach wird es eng.
 
-## Offene Entscheidungen (mit Vorschlag)
+## Entscheidungen
+
+Nutzer, Prompt 214: Reihenfolge Q1, Q2, Q3. Ohne Antwort und deshalb nach Vorschlag: Terrain Tiles statt Copernicus; Bayern und Sachsen über Q6 (keine Anfrage an die Ämter). Die Liste unten bleibt als Begründung.
+
+## Offene Entscheidungen (mit Vorschlag, Stand Q0)
 
 1. **Reihenfolge.** Vorschlag: Q1, dann Q2 vor Q3. Grund: Die Länder aus Kacheln brauchen für die Umgebung eine grobe Quelle, und das ist die weltweite Höhe.
 2. **Ersatz für Copernicus DEM.** Vorschlag: AWS Terrain Tiles. Grund: Copernicus sperrt den Browser. Die Lizenz der Terrain Tiles ist eine Sammlung vieler Quellen; der Vermerk muss je Gebiet stimmen. Das prüfe ich in Q2.

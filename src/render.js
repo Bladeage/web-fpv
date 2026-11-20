@@ -16,7 +16,7 @@ import { traffic } from './traffic.js';
 import { rwLamps } from './roads.js';
 import { deLandAt } from './demap.js';
 import { meshGet, meshPut, meshStoreMB } from './rwstore.js';
-import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, I3S_LOW, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes, i3sNextUpload, i3sFailState } from './rwmesh.js';
+import { i3sAddL1, I3S_PHYS, i3sPhysBuild, i3sGroundAt, i3sTrisNear, i3sPhysList, I3S, i3sAdapt, i3sRoom, i3s, i3sWanted, i3sAddPage, i3sPlanes, i3sSelect, i3sEvict, i3sGeometry, i3sPageUrl, i3sGeoUrl, i3sTexUrl, i3sBytes, i3sNextUpload, i3sFailState } from './rwmesh.js';
 import { pilot, buildPilotMesh } from './pilot.js';
 import { rw, rwMesh, rwFarMesh, rwWaterMesh, rwFeatureMesh, rwModelMesh, rwMeshInput, solidH, rwNet } from './realworld.js';
 const tileGl = new Map();   // echte Welt, L5b: Netze und Luftbild je nachgeladener Kachel
@@ -1235,7 +1235,7 @@ function meshNode(n) {
   // zuerst aus dem Speicher im Browser (Prompt 203), sonst aus dem Netz und danach ablegen
   meshGet(n.res).then(c => c && c.t && n.tex === n.res ? [c.g, c.t, true] : Promise.all([meshNet.get(i3sGeoUrl(n.res)), meshNet.get(i3sTexUrl(n.tex))])).then(async ([g, t, cached]) => {
     if (g[0] === 0x1f && g[1] === 0x8b) g = new Uint8Array(await new Response(new Blob([g]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());   // ohne Content-Encoding
-    if (!cached) { meshPut(n.res, g, t, LOW_MEM); i3s.mb += (g.byteLength + t.byteLength)/1e6; } else i3s.fromStore = (i3s.fromStore || 0) + 1;
+    if (!cached) { meshPut(n.res, g, t); i3s.mb += (g.byteLength + t.byteLength)/1e6; } else i3s.fromStore = (i3s.fromStore || 0) + 1;
     const G = i3sGeometry(g); let img = await createImageBitmap(new Blob([t], { type: 'image/jpeg' }));
     if (I3S.texMax && img.width > I3S.texMax) { const big = img, k = I3S.texMax/big.width; img = await createImageBitmap(big, { resizeWidth: I3S.texMax, resizeHeight: Math.max(1, Math.round(big.height*k)), resizeQuality: 'high' }); big.close(); }   // Handy: kleinere Texturen
     if (glLost.on) { img.close(); n.st = 'idle'; return; }
@@ -1275,7 +1275,7 @@ function meshStep(vp, eye, f) {
   // Grafik neu (Verlust): Teile neu hochladen (Rohdaten kommen aus dem Speicher). Ein Gebietswechsel verwirft nichts: Das Mesh ist für
   // jedes Gebiet dasselbe (vorher wurde es bei jedem neuen Gebiet verworfen, ohne den Grafikspeicher freizugeben)
   if (meshVer !== meshGlGen) { for (const n of i3s.nodes.values()) if (n.gl) { n.gl = null; n.st = 'idle'; } meshVer = meshGlGen; }
-  if (!i3s.pages.has(0)) { if (LOW_MEM) Object.assign(I3S, I3S_LOW); meshPage(0); }
+  if (!i3s.pages.has(0)) meshPage(0);   // Grenzen setzt das Geräteprofil (device.js, G3)
   const m = rw.meta, o = { ec: (m.bbox[0] + m.bbox[2])/2, nc: (m.bbox[1] + m.bbox[3])/2, h: m.hHome }, now = performance.now()/1000;
   const S = i3sSelect(eye, f, i3sPlanes(vp), o, (LOW_MEM ? 2.5 : I3S.q)*i3s.qa);
   i3sAdapt(S.draw);
@@ -1307,7 +1307,7 @@ function drawMesh(vp, eye, o, GFX, VIS, fog) {
 // Anzeige der Sichtprobe (nur ?mesh=1), zwei Zeilen. Oben: Teile, Speicher, geladene Daten, Warteschlange. Unten (G2): Grafikkarte,
 // Bilder je Sekunde, längstes Bild der letzten Sekunde, Hochladen je Sekunde mit längster Dauer, Auflösung des 3D-Bilds.
 let meshHud = null, fpsN = 0, fpsT = 0, fps = 0, frameT = 0, frameMax = 0, frameShow = 0, gpuName = '';
-function glName() {
+export function glName() {
   let s = gl.getParameter(gl.RENDERER) || '';
   if (/^(WebKit|Mozilla)/.test(s)) { const x = gl.getExtension('WEBGL_debug_renderer_info'); if (x) s = gl.getParameter(x.UNMASKED_RENDERER_WEBGL) || s; }   // Chromium meldet sonst nur „WebKit WebGL“
   return s.replace(/^ANGLE \((.*)\)$/, '$1').replace(/ \(0x[0-9a-f]+\)| Direct3D.*$|, D3D\d+.*$|, OpenGL.*$/gi, '').slice(0, 48);

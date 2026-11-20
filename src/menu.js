@@ -18,7 +18,7 @@ import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
 import { mapInit, mapOpen, mapDraw } from './mapui.js';
 import { storeUsage, storeClear } from './rwstore.js';
 import { geoSearch } from './geosearch.js';
-import { srcInit, srcOpen } from './srcui.js';
+import { srcInit, srcOpen, devPersist } from './srcui.js';
 import { RW_STORE, storeAll } from './rwstore.js';
 import { VB, vb, vbBridge, vbCenter, vbSet, VB_BRUECKE } from './verbund.js';
 let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
@@ -291,6 +291,7 @@ async function rwLiveDo() {
   }
   if (!ll) { msgEl().textContent = 'Bitte einen Ort, eine Adresse oder Breite und Länge eingeben, zum Beispiel Kölner Dom oder 50.7753, 6.0839.'; return false; }
   rwBusy = new AbortController(); $('rwGo').textContent = 'Abbrechen'; rwLock();
+  if (cfg.mem !== 'low') devPersist();   // Geräteprofil (G3): Browser um dauerhaften Speicher bitten
   const t0 = performance.now();
   let ok = false;
   try {

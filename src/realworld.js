@@ -884,6 +884,7 @@ export async function rwLandHas(src, store) {
 // ---- L5b: Kacheln beim Fliegen nachladen ----
 // Raster der Gebietsgröße (1 km) um das Startgebiet, höchstens 4 Kacheln weit (Umgebung 10 km). Laden, sobald die Drohne
 // näher als near an eine fehlende Kachel kommt; entladen ab drop. Eine Kachel nach der anderen; Fehler: 60 s Pause für diese Kachel.
+// max und drop setzt seit G3 das Geräteprofil (device.js); die Werte hier gelten bis dahin.
 export const RW_STREAM = { near: 300, drop: 1600, max: 8, reach: 4, retry: 60000, dop: 2048 };
 const tileDist = (i, j, x, z) => { const S = rw.size, dx = Math.max(0, Math.abs(x - i*S) - S/2), dz = Math.max(0, Math.abs(z - j*S) - S/2); return Math.hypot(dx, dz); };
 // Welche Kachel als Nächstes? (nächste fehlende im Umkreis near) und welche können weg? Ohne Netz und Speicher testbar.
@@ -898,7 +899,13 @@ export function rwStreamPlan(x, z, now = Date.now()) {
     if (d > RW_STREAM.near || (f && now - f < RW_STREAM.retry)) continue;
     if (d < best) { best = d; next = [i, j]; }
   }
-  return { next: rw.tiles.size - drop.length < RW_STREAM.max ? next : null, drop };
+  // Voll (Höchstzahl max, Geräteprofil G3): statt nichts mehr zu laden (vor G3) geht die fernste Kachel, wenn sie weiter als near weg ist.
+  // Sie bleibt im Browser-Speicher und kommt beim Zurückfliegen von dort.
+  if (next && rw.tiles.size - drop.length >= RW_STREAM.max) {
+    const far = [...rw.tiles.values()].filter(T => !drop.includes(T.i + ',' + T.j)).map(T => [tileDist(T.i, T.j, x, z), T.i + ',' + T.j]).sort((a, b) => b[0] - a[0])[0];
+    if (far && far[0] > RW_STREAM.near) drop.push(far[1]); else next = null;
+  }
+  return { next, drop };
 }
 // Eine Kachel laden (aus dem Speicher oder von den Diensten) und als Kachel-Objekt liefern (Weltkoordinaten des Startgebiets)
 export async function rwLoadTile(i, j, store, say = () => {}, signal) {

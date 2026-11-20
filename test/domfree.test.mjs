@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 const NO_DOM = ['math', 'format', 'state', 'world', 'physics', 'gamepad', 'scenario', 'drone', 'osd', 'signal', 'targets', 'vehicles', 'bf',
   'balloon', 'aircraft', 'town', 'eggs', 'birds', 'pilot', 'geo', 'realworld', 'rwload', 'rwdlm', 'rwworker', 'dis', 'distypes', 'verbund',
-  'demap', 'ambient', 'daylight', 'roads', 'traffic', 'rwroads', 'boats', 'rwmesh', 'geosearch', 'rwwms', 'place', 'rwstore'];
+  'demap', 'ambient', 'daylight', 'roads', 'traffic', 'rwroads', 'boats', 'rwmesh', 'geosearch', 'rwwms', 'place', 'rwstore', 'device'];
 
 test('Module ohne DOM: kein document, kein window, Importe nur untereinander', () => {
   for (const m of NO_DOM) {

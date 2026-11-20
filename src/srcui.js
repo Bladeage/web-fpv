@@ -8,6 +8,7 @@ import { wmsCheck } from './rwwms.js';
 import { deMap } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
+import { dev, devApply, devText } from './device.js';
 
 const srcEl = id => document.getElementById(id);
 const SRC = { show: null, fit: () => {}, onData: () => {}, edit: -1, busy: null, tab: 'data' };
@@ -54,8 +55,24 @@ async function srcStats() {
   if (u && u.usage) { add('Speicher im Browser gesamt', 'sum'); add(u.quota ? 'frei ' + MB(Math.max(0, u.quota - u.usage)) : '', 'sum'); add(MB(u.usage), 'sum'); }
   return st;
 }
+// Geräteprofil (G3): Grenzen neu setzen, mit dem Platz, den der Browser der Seite gibt. info: Gerätedaten (main.js beim Start).
+export async function devRefresh(info = dev.info) {
+  if (!info) return null;
+  const u = await storeUsage();
+  return devApply(info, cfg.mem, u && u.quota || 0);
+}
+// Dauerhaften Speicher erbitten: ohne ihn darf der Browser bei Platzmangel alles löschen. Chromium entscheidet still, Firefox fragt
+// den Nutzer einmal (beides vermutet nach Browser-Doku). Nur nach einer Handlung des Nutzers (Wahl hier, Ort laden).
+export function devPersist() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {}); } catch (e) { /* alter Browser */ }
+}
+function memShow() {
+  document.querySelectorAll('#memSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mem === cfg.mem)));
+  srcEl('memInfo').textContent = devText();
+}
 // Speicher (L4): Landesdaten je Quelle mit Basis-DLM (einmal laden oder löschen), gespeicherte Orte (löschen), belegter Platz
 async function srcStoreFill() {
+  memShow();   // sofort, nicht erst nach der Übersicht
   const box = srcEl('srcStore'), rows = [];
   const row = (title, label, btn, fn) => {
     const r = document.createElement('div'); r.className = 'srcrow';
@@ -80,6 +97,7 @@ async function srcStoreFill() {
   for (const x of infos.filter(x => !x.tile).sort((a, b) => b.date - a.date))
     row(x.place, (x.size/1e6).toFixed(0) + ' MB · ' + new Date(x.date).toLocaleDateString('de-DE') + (x.water ? ' · mit Gewässern' : ''), 'Löschen', async () => { await storeAreaDel(x.key); srcStoreFill(); });
   box.textContent = ''; box.append(...rows);
+  memShow();
   await srcStats();
   if (srcEl('geoMsg').textContent === 'Lade Übersicht …') srcEl('geoMsg').textContent = '';
   if (!rows.length) srcEl('geoMsg').textContent ||= 'Noch leer. Geladene Orte werden automatisch gespeichert.';
@@ -219,6 +237,10 @@ export function srcInit(show, fit, onData) {
   }
   srcEl('geoStream').checked = cfg.rwStream !== false;
   srcEl('geoStream').addEventListener('change', e => { cfg.rwStream = e.target.checked; saveCfg(); });
+  document.querySelectorAll('#memSeg button').forEach(b => b.addEventListener('click', async () => {
+    cfg.mem = b.dataset.mem; saveCfg(); if (cfg.mem !== 'low') devPersist();
+    await devRefresh(); memShow();
+  }));
   srcEl('geoImp').addEventListener('click', () => srcEl('geoFile').click());
   srcEl('geoFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) geoImport(f); e.target.value = ''; });
   srcEl('srcNew').addEventListener('click', () => srcForm(-1));

@@ -93,6 +93,9 @@
       <div class="tabs tabs3" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button><button data-gtab="dbg">Debug</button></div>
       <div id="geoData">
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
+        <div class="row"><span>Zwischenspeicher</span></div>
+        <div class="seg seg3 small" id="memSeg"><button data-mem="auto" title="Grenzen nach Grafikkarte und freiem Platz im Browser">Automatisch</button><button data-mem="low" title="Eine Stufe weniger, Browser-Speicher wie bisher (400 MB Kacheln, 500 MB 3D-Mesh)">Sparsam</button><button data-mem="high" title="Eine Stufe mehr, mehr Platz im Browser">Viel</button></div>
+        <p class="hint" id="memInfo"></p>
         <div class="geostats" id="geoStats"></div>
         <div class="srclist" id="srcStore"></div>
         <div class="seg small"><button id="geoImp">Importieren</button><button id="geoExp">Exportieren</button></div>
