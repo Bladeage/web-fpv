@@ -36,11 +36,12 @@ export async function storeHas(store, key) { const k = await tx(store, 'readonly
 export async function storeAll(store) { return (await tx(store, 'readonly', s => s.getAll())) || []; }
 // Belegter und freier Platz (Schätzung des Browsers), in Bytes
 export async function storeUsage() { try { return await navigator.storage.estimate(); } catch (e) { return null; } }
-// Platz (Prüfbericht Nr. 4): Nachgeladene Kacheln sind ein Zwischenspeicher und dürfen höchstens RW_TILE_MB belegen
-// (Schätzung: 400 MB, etwa 100 bis 200 Kacheln je nach Gegend); darüber gehen die am längsten nicht genutzten.
+// Platz (Prüfbericht Nr. 4): Nachgeladene Kacheln sind ein Zwischenspeicher und dürfen höchstens RW_CAP.tileMB belegen
+// (400 MB sind etwa 100 bis 200 Kacheln je nach Gegend, Schätzung); darüber gehen die am längsten nicht genutzten.
+// Seit G3 setzt das Geräteprofil (device.js) die Grenzen nach dem Platz im Browser; 400 und 500 MB sind die Werte davor.
 // Wird der Platz im Browser knapp (über 90 % der Grenze, die der Browser meldet) oder schlägt das Schreiben fehl, gehen
 // zuerst alte Kacheln, dann zerlegte Gebäudekacheln (lod2). Selbst gespeicherte Orte und Landesdaten löscht nur der Nutzer.
-export const RW_TILE_MB = 400;
+export const RW_CAP = { tileMB: 400, meshMB: 500 };
 const recSize = rec => ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop'].reduce((t, k) => t + (rec[k] ? rec[k].byteLength : 0), 0);
 // Alte Kacheln löschen, bis need Bytes frei sind (oder keine mehr da); keep wird nie gelöscht. Liefert die freigegebenen Bytes.
 export async function storeEvictTiles(need, keep = null) {
@@ -61,7 +62,7 @@ async function storeEvictLod2(need) {
 async function storeRoom(size, rec, key) {
   if (rec.tile) {
     const used = (await storeAll('info')).filter(x => x.tile && x.key !== key).reduce((t, x) => t + (x.size || 0), 0);
-    if (used + size > RW_TILE_MB*1e6) await storeEvictTiles(used + size - RW_TILE_MB*1e6, key);
+    if (used + size > RW_CAP.tileMB*1e6) await storeEvictTiles(used + size - RW_CAP.tileMB*1e6, key);
   }
   const u = await storeUsage();
   if (u && u.quota && u.usage + size > u.quota*0.9) {
@@ -152,8 +153,7 @@ export async function storeStats() {
 // 3D-Mesh NRW (Foto 3D, Prompt 203): Rohdaten je Teil (Geometrie entpackt, Textur als JPEG) als Zwischenspeicher, damit ein schon
 // geladenes Gebiet nach Neustart oder Neuladen der Seite ohne Netz wieder da ist (vorher: 48 Teile erneut aus dem Netz). Lizenz der
 // Daten dl-de/zero-2.0. Schlüssel: Ressourcen-Nummer. meshidx hält je Teil Größe und letzte Nutzung (klein, für die Freigabe).
-// Grenze: RW_MESH_MB (am Handy kleiner); darüber gehen die am längsten nicht genutzten Teile. Nicht im Export.
-export const RW_MESH_MB = { pc: 500, low: 150 };
+// Grenze: RW_CAP.meshMB (Geräteprofil, am Handy 150 MB); darüber gehen die am längsten nicht genutzten Teile. Nicht im Export.
 const meshIdx = { map: null, bytes: 0, busy: null };
 // Verzeichnis einmal laden; alle gleichzeitigen Anfragen warten auf dasselbe Laden (vorher sahen frühe Anfragen ein leeres Verzeichnis
 // und luden aus dem Netz: nach Neuladen der Seite nur 3 von 44 Teilen aus dem Speicher)
@@ -185,8 +185,8 @@ export async function meshGet(res) {
   const e = m.get(res); e.at = Date.now(); storePut('meshidx', res, e);
   return v;
 }
-export async function meshPut(res, g, t, low = false) {
-  const m = await meshIdxLoad(), size = g.byteLength + t.byteLength, cap = (low ? RW_MESH_MB.low : RW_MESH_MB.pc)*1e6;
+export async function meshPut(res, g, t) {
+  const m = await meshIdxLoad(), size = g.byteLength + t.byteLength, cap = RW_CAP.meshMB*1e6;
   if (m.has(res)) return true;
   if (meshIdx.bytes + size > cap) {   // am längsten nicht genutzte zuerst
     const old = [...m.entries()].sort((a, b) => (a[1].at || 0) - (b[1].at || 0));

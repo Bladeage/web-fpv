@@ -11,8 +11,7 @@
 export const I3S = { url: 'https://www.gis.nrw.de/geobasis/3D_mesh/SceneServer/layers/0', pageN: 64, q: 1, maxNodes: 240, gpuMB: 400, para: 6, keep: 15, nearR: 150, sink: 4 };
 // nodes: Nummer -> Knoten; pages: Seite -> 'load' | 'ok' | 'fail'; l1: Kinder der Wurzel (bekannt, sobald alle 108 Seiten da sind)
 export const i3s = { nodes: new Map(), pages: new Map(), l1: null, root: null, drawn: [], gpu: 0, err: '', jobs: 0, loaded: 0, mb: 0, qa: 1, up: [] };
-// Grenzen am Handy (LOW_MEM, Prüfbericht Nutzer 10.11.: 701 MB Grafik, 1157 MB geladen am Handy): Schätzung nach docs/plan-3d-mesh.md 2.7
-export const I3S_LOW = { maxNodes: 80, gpuMB: 90, para: 4, texMax: 1024 };
+// maxNodes, gpuMB, keep, para und texMax setzt seit G3 das Geräteprofil (DEV_LEVELS in device.js); die Werte hier gelten bis dahin.
 export const i3sPageOf = idx => Math.floor(idx/I3S.pageN);
 // Schneller Start (Prompt 196): die 108 Kinder der Wurzel (Stufe 1, je etwa 25 x 25 km, ohne eigenes Mesh) stehen hier, statt sie
 // über 108 Seiten zu laden (gemessen hier 50 bis 73 s bis zum ersten Teil). Stand des Dienstes 11.11.2026. Je Eintrag: Nummer, Mitte

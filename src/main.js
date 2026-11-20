@@ -9,7 +9,7 @@ import { gates } from './world.js';
 import { STEP, fx, respawn, step, rewind, freezeOk, crash, shotHit, respawnDrone } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
 import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
-import { gl, glLost, initGL, render, resize, toggleCam, cycleVision } from './render.js';
+import { gl, glLost, initGL, render, resize, toggleCam, cycleVision, glName, frameStat } from './render.js';
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
@@ -30,6 +30,8 @@ import { dePrepare } from './demap.js';
 import { rwThreadInit } from './rwthread.js';
 import { vb, vbStep, vbDetonate } from './verbund.js';
 import { disBaseInfo } from './distypes.js';
+import { devAdapt } from './device.js';
+import { devRefresh } from './srcui.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
@@ -95,6 +97,7 @@ function frame(now) {
     // Echte Welt (L5b): etwa jede Sekunde prüfen, ob eine Kachel nachzuladen oder zu entladen ist
     if (rw.on && (streamT -= dt) <= 0) {
       streamT = 1; rw.stream = cfg.rwStream !== false;
+      devAdapt(frameStat.lite);   // Ruckelschutz des Geräteprofils (G3): im Sparmodus weniger Kacheln im Flug
       const n0 = rw.tiles.size;
       rwStreamStep(game.sim.p[0], game.sim.p[2], RW_STORE).then(() => {
         if (rw.tiles.size > n0) say('Umgebung nachgeladen: ' + rw.tiles.size + (rw.tiles.size === 1 ? ' Kachel' : ' Kacheln'), 1.2);
@@ -134,7 +137,11 @@ show('main');
 if (!gl) {
   $('glErr').hidden = false; $('go').disabled = true; $('bStart').disabled = true;
 } else {
-  try { initGL(); requestAnimationFrame(frame); }
+  try {
+    initGL(); requestAnimationFrame(frame);
+    // Geräteprofil (G3): Grenzen der Zwischenspeicher nach Grafikkarte, Arbeitsspeicher (nur Chromium meldet ihn), Kernen und Platz im Browser
+    devRefresh({ coarse: !!(window.matchMedia && matchMedia('(pointer:coarse)').matches), mem: navigator.deviceMemory || 0, cores: navigator.hardwareConcurrency || 0, gpu: glName() }).catch(() => {});
+  }
   catch (e) { $('glErr').hidden = false; $('glErr').textContent = 'Grafikfehler: ' + e.message; $('go').disabled = true; $('bStart').disabled = true; }
 }
 // Testzugang für automatische Prüfungen

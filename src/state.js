@@ -13,7 +13,7 @@ export const GFX_IDS = ['mesh', 'nice', 'mid', 'simple'];
 export function gfxLevel(g) { return g === 'simple' ? 0 : g === 'mid' ? 1 : 2; }
 export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
   diff: 'mid', drone: { preset: '5' }, video: 'clean', osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
-  batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true,   // Schaden standardmäßig aus; Akku unendlich
+  batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true, mem: 'auto',   // Schaden standardmäßig aus; Akku unendlich; mem: Zwischenspeicher (G3, device.js)
   fov: 110, needArm: false, autoRes: true,
   gpSw: {}, gpCal: {},
   ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal', night: false,
@@ -87,6 +87,7 @@ export function cfgMigrate(c) {
   c.verbund = c.flight === 'dis';
   if (c.world !== 'map' && c.world !== 'real') c.world = 'map';
   if (c.rwSrc === 'dis' && c.flight !== 'dis') c.rwSrc = 'emb';
+  if (c.mem !== undefined && !['auto', 'low', 'high'].includes(c.mem)) c.mem = 'auto';
   return c;
 }
 // Raten: Ältere Einstellungen kannten nur cfg.rate (max. Drehrate). Daraus Mitte, Maximum und Expo ableiten.
