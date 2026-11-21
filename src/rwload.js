@@ -6,6 +6,8 @@ import { wmsFetchHeights, wmsFill } from './rwwms.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
+// Straßen aus OpenStreetMap (Q7) für Quellen ohne ALKIS: drei Overpass-Spiegel (aus docs/quellen-geodaten.md)
+const OSM_ROADS = { overpass: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter'] };
 export const RW_SOURCES = [{
   id: 'nrw', name: 'Nordrhein-Westfalen (Geobasis NRW)', land: 'Nordrhein-Westfalen', crs: 'EPSG:25832', box: [278000, 5560000, 540000, 5832000],
   dgm: { url: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dgm', coverage: 'nw_dgm' },
@@ -23,20 +25,21 @@ export const RW_SOURCES = [{
 // sonst Kacheln: tpl (Adresse mit {e}/{n} in km, zip: Datei darin, xyz: Text), stac (Katalog, Sammlung coll, COG) oder index (Dateiliste,
 // Name beginnt mit tpl). Ohne dgm: Höhen aus der Welt-Quelle. dop: WMS-Luftbild (max: größtes Bild des Dienstes). lod2 (Q5): Gebäude,
 // zip: Datei im ZIP. Größe je Kachel gemessen: Brandenburg 30 MB, Berlin 27 MB, Niedersachsen bis 49 MB, Rheinland-Pfalz bis 163 MB (2 km), MV 75 MB (2 km).
-{ id: 'bb', name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
+{ id: 'bb', roads: OSM_ROADS, name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
   dop: { url: 'https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms', layer: 'bebb_dop20c' },
   lod2: { url: 'https://data.geobasis-bb.de/geobasis/daten/3d_gebaeude/lod2_gml/lod2_33{E}-{N}.zip', tileKm: 1, zip: '_geb.gml' }, attribution: 'GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
 // Berlin: Höhen aus dem WCS Brandenburg (deckt Berlin ab, 2 s statt 69 s mit den XYZ-Kacheln von Berlin, gleiche Werte)
-{ id: 'be', name: 'Berlin (Geoportal Berlin)', land: 'Berlin', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
+{ id: 'be', roads: OSM_ROADS, name: 'Berlin (Geoportal Berlin)', land: 'Berlin', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
   dop: { url: 'https://gdi.berlin.de/services/wms/truedop_2024', layer: 'truedop_2024' },
   lod2: { url: 'https://gdi.berlin.de/data/a_lod2/atom/LoD2_{E}_{N}.zip', tileKm: 1, zip: '.xml' }, attribution: 'Geoportal Berlin, dl-de/zero-2-0; GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
-{ id: 'ni', name: 'Niedersachsen (LGLN)', land: 'Niedersachsen', crs: 'EPSG:25832', dgm: { stac: 'https://dgm.stac.lgln.niedersachsen.de', coll: 'dgm1', km: 1 },
+{ id: 'ni', roads: OSM_ROADS, name: 'Niedersachsen (LGLN)', land: 'Niedersachsen', crs: 'EPSG:25832', dgm: { stac: 'https://dgm.stac.lgln.niedersachsen.de', coll: 'dgm1', km: 1 },
   dop: { url: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms', layer: 'ni_dop20' },
-  lod2: { url: 'https://lod2.opengeodata.lgln.niedersachsen.de/LoD2_32_{E}_{N}_1_ni.gml', tileKm: 1 }, attribution: 'LGLN 2026, CC BY 4.0' },
-{ id: 'rp', name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832', dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 },
+  lod2: { url: 'https://lod2.opengeodata.lgln.niedersachsen.de/LoD2_32_{E}_{N}_1_ni.gml', tileKm: 1 },
+  dlm: { url: 'https://single-datasets.s3.eu-de.cloud-object-storage.appdomain.cloud/bdlm/nba_bkg_bdlm_ni_V6.0.zip', water: 'gew01_f.shp', places: ['sie01_f.shp', 'sie01_f.dbf'],  mb: 22 }, attribution: 'LGLN 2026, CC BY 4.0' },
+{ id: 'rp', roads: OSM_ROADS, name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832', dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 },
   dop: { url: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi', layer: 'rp_dop20' },
   lod2: { url: 'https://geobasis-rlp.de/data/geb3dlo/current/gml/LoD2_32_{E}_{N}_2_RP.gml', tileKm: 2 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
-{ id: 'mv', name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
+{ id: 'mv', roads: OSM_ROADS, name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
   dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' },
   lod2: { url: 'https://www.geodaten-mv.de/dienste/gebaeude_download?index=0&dataset=8397b554-5cb9-4274-8be8-c20490d9a6e8&file=lod2_33_{E}_{N}_2_gml.zip', tileKm: 2, zip: '.gml' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
 // Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
@@ -48,7 +51,7 @@ export const RW_SOURCES = [{
   ['sl', 'Saarland', 'https://geoportal.saarland.de/freewms/dop2023', 'sl_dop20_rgb', 'LVGL Saarland 2026'],
   ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0'],
   ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0']
-].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, dop: { url, layer, max: max || 0 }, attribution })),
+].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, attribution })),
 {
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.
   // Gilt überall (box null), ohne Gebäude, Bäume, Luftbild. Nie im Browser speichern (Lizenz der Quelle). use: 'dis' (nur für den
@@ -63,7 +66,7 @@ export const RW_SOURCES = [{
   // Annahme: die Quelldaten sind meist 25 bis 90 m fein, feiner bringt nichts). Lizenz: Quellenvermerk nach
   // github.com/tilezen/joerd/blob/master/docs/attribution.md (gekürzt; vollständig in docs/plan-quellen.md).
   id: 'welt', kind: 'wms', tiles: 'terrain', name: 'Welt: Höhen (AWS Terrain Tiles)', land: '', box: null,
-  hgt: { url: 'https://elevation-tiles-prod.s3.amazonaws.com/geotiff/{z}/{x}/{y}.tif', zmax: 12 }, vref: 'msl', use: 'all',
+  hgt: { url: 'https://elevation-tiles-prod.s3.amazonaws.com/geotiff/{z}/{x}/{y}.tif', zmax: 12 }, vref: 'msl', use: 'all', roads: OSM_ROADS,
   attribution: 'Höhen: Mapzen Terrain Tiles; EU-DEM (Copernicus, EU), SRTM, GMTED2010, 3DEP (USGS), ETOPO1 (NOAA) u. a.'
 }];
 // UTM-Zone aus dem Koordinatensystem einer Quelle oder eines Gebiets (EPSG:258xx)

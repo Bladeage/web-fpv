@@ -100,7 +100,7 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 | **Q4 Luftbild** (Sentinel-2 erledigt 21.11.2026; Rest siehe unten) | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
 | **Q5 Gebäude** (erledigt 21.11.2026) | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
 | **Q6 Lücken mit WCS und WMS** (erledigt 21.11.2026; Aufgabe des Nutzers WCS Berlin gelöst über den WCS Brandenburg) | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
-| **Q7 Straßen und Landesdaten** | Overpass (weltweit) für Straßen, Basis-DLM anderer Länder (Schema je Land). Erst prüfen, ob Overpass aus dem Browser des Nutzers antwortet. | ja |
+| **Q7 Straßen und Landesdaten** (erledigt 21.11.2026, Overpass nicht prüfbar) | Overpass (weltweit) für Straßen, Basis-DLM anderer Länder (Schema je Land). Erst prüfen, ob Overpass aus dem Browser des Nutzers antwortet. | ja |
 
 Größe der Datei: Vorlagen sind wenige KB. Neue Leser schätzungsweise 10 bis 20 KB. Es bleiben etwa 55 KB bis zur Testgrenze (gesichert, `docs/abschluss-2026-11-13.md`). Das reicht für Q1 bis Q5 (Schätzung). Danach wird es eng.
 
@@ -170,3 +170,10 @@ Gemessen mit `Origin` unserer Seite: Fähigkeiten, `GetMap` 256² und 4096² (JP
 - Gelesen in Node mit dem vorhandenen CityGML-Leser: Potsdam 755 Gebäude (30 MB Text), Berlin Tiergarten 2 036 (27 MB, 2 032 mit Dach), Rostock 3 107 (75 MB), Mainz 5 723 (163 MB je 2-km-Kachel). Im Browser Potsdam mit 959 Gebäuden geladen und geflogen.
 - Groß: Rheinland-Pfalz bis 163 MB je Kachel, Niedersachsen bis 49 MB. Der vorhandene Gebäude-Zwischenspeicher hält zerlegte Kacheln.
 - Nicht möglich: Bayern und Sachsen (kein CORS), Hamburg (Deflate64), übrige Länder ohne Einzelkacheln.
+
+## Q7 erledigt, soweit hier prüfbar (21.11.2026)
+
+- Straßen aus OpenStreetMap über Overpass (`osmRoads` in `src/rwroads.js`) für die Welt-Quelle und alle Länder ohne ALKIS: fahrbare `highway`-Wege als Achsen in derselben Form wie ALKIS (Name, Breite nach Art, Schätzung), drei Spiegel der Reihe nach. NRW bleibt bei ALKIS.
+- **Nicht geprüft:** Die Cloud-Umgebung erreicht keinen Overpass-Spiegel (Verbindung bricht am Proxy ab). Getestet nur mit erfundenen Antworten. Vermutet: Overpass erlaubt den Browser (CORS). Im Browser hier: Straßen scheitern sauber („Keine Verbindung zu …overpass…“), Gebiet und Flug laufen.
+- Basis-DLM Niedersachsen (Gewässer, Orte): gleiche Ebenen wie NRW, aber Deflate; `rwLandData` entpackt jetzt Deflate. Nicht im Browser geprüft (22 MB).
+- Offen: Basis-DLM der anderen Länder (Rheinland-Pfalz andere Namen, Bayern Deflate64 und kein CORS, Baden-Württemberg und Sachsen-Anhalt Schema prüfen).

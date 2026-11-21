@@ -3,7 +3,7 @@
    Kartenkoordinaten: Mitte des Gebiets = Ursprung, x nach Osten, z nach Süden, y = Höhe über dem Startplatz.
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp, ptTriDist } from './math.js';
-import { fromUtm, toUtm } from './geo.js';
+import { fromUtm, toUtm, inflateBytes } from './geo.js';
 import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart, RW_FAR, crsZone } from './rwload.js';
 import { s2Photo, S2 } from './rws2.js';
 import { wmsPhotoOf, wmsFetchPhoto } from './rwwms.js';
@@ -176,8 +176,9 @@ export function rwNet(signal, stall = RW_STALL) {
 // Straßen eines Gebiets (S2) im Hintergrund-Thread laden und in Mittellinien umwandeln (sonst im Hauptprogramm). null ohne Quelle.
 export async function rwRoadsGet(src, bbox, signal) {
   if (!src || !src.roads) return null;
-  if (rw.work) { try { return await rw.work('roads', { r: src.roads, bbox }, undefined, signal); } catch (e) { if (!e.noWorker) throw e; } }
-  return rwRoadsFetch(src.roads, bbox, rwNet(signal));
+  const r = src.roads.overpass ? { ...src.roads, zone: crsZone(src.crs) } : src.roads;   // OSM (Q7): Zone des Gebiets
+  if (rw.work) { try { return await rw.work('roads', { r, bbox }, undefined, signal); } catch (e) { if (!e.noWorker) throw e; } }
+  return rwRoadsFetch(r, bbox, rwNet(signal));
 }
 // Straßen nachträglich: Der Ort erscheint sofort, die Autos einige Sekunden später. Ergebnis nur, wenn das Gebiet noch dasselbe ist.
 function rwRoadsLater(src, bbox, done) {
@@ -879,8 +880,9 @@ export async function rwLandData(src, store, say = () => {}, signal) {
     say('Suche ' + f, done/d.mb);
     const e = await dlmFind((a, b) => range(a, b), total, f);
     if (!e) throw new Error(f + ' nicht im Paket');
-    if (e.method !== 0) throw new Error(f + ' ist gepackt (nicht unterstützt)');
-    const b = await range(e.off, e.off + e.size - 1, n => say(f + ' (' + ((done + n/1e6)).toFixed(0) + ' von ' + d.mb + ' MB)', Math.min(1, (done + n/1e6)/d.mb)));
+    if (e.method !== 0 && e.method !== 8) throw new Error(f + ' ist gepackt mit Methode ' + e.method + ' (nicht unterstützt)');
+    let b = await range(e.off, e.off + e.size - 1, n => say(f + ' (' + ((done + n/1e6)).toFixed(0) + ' von ' + d.mb + ' MB)', Math.min(1, (done + n/1e6)/d.mb)));
+    if (e.method === 8) b = await inflateBytes(b, true);   // Deflate (Niedersachsen, Q7)
     if (!await store.landPut(d.url + ':' + f, b)) throw new Error('Speichern im Browser nicht möglich (Speicher voll oder gesperrt)');
     done += b.length/1e6;
   }

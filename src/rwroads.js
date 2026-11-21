@@ -4,6 +4,8 @@
    und Name je Linie. Ausgabe wie die Achsen von Monschau: [{ name, pts: [[x, z], …], w }] relativ zur Mitte des Gebiets (x Ost,
    z Süd). Ohne DOM, läuft im Worker und in Node. */
 import { dlmSimplify } from './rwdlm.js';
+import { toUtm } from './geo.js';
+import { geoBoxOf } from './rwwms.js';
 
 // margin Rand um das Gebiet (m), prune kürzeste Stichstraße (m), simp Toleranz beim Vereinfachen (m), wMin/wMax Breite (m)
 export const RWROADS = { margin: 8, prune: 12, simp: 0.7, wMin: 3, wMax: 12 };
@@ -178,10 +180,30 @@ export function clipRect(pts, b) {
 // Abruf und Umwandlung für ein Gebiet: POST mit Filter, bei Ablehnung GET mit Rechteck (größer, gefiltert beim Lesen).
 // net: rwNet(signal) mit post und text. Liefert die Achsen (leer, wenn der Ort keine Straßen hat).
 export async function rwRoadsFetch(r, bbox, net) {
+  if (r.overpass) return osmRoads(r, bbox, net);   // OpenStreetMap (Q7)
   const M = RWROADS.margin, big = [bbox[0] - M, bbox[1] - M, bbox[2] + M, bbox[3] + M];
   let xml;
   try { xml = await net.post(r.url, alkisRoadBody(r, big)); }
   catch (e) { if (/Abgebrochen/.test(String(e && e.message))) throw e; xml = await net.text(alkisRoadUrl(r, big)); }
   if (!xml || !/FeatureCollection/.test(xml.slice(0, 2000))) throw new Error('Straßendienst meldet: ' + String(xml || 'nichts').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100));
   return roadAxes(readGmlSurfaces(xml, r.field).filter(f => f.kind === r.value), bbox);
+}
+// Straßen aus OpenStreetMap über Overpass (Etappe Q7, docs/plan-quellen.md): Wege mit fahrbarem highway-Wert als Achsen, Breite nach Art
+// (Schätzung: übliche Fahrbahnbreiten). r = { overpass: [Spiegel], zone }. Die Spiegel der Reihe nach; aus der Cloud-Umgebung nicht
+// erreichbar, deshalb nur mit erfundenen Antworten getestet (vermutet: Overpass erlaubt den Browser, CORS *). Lizenz ODbL.
+export const OSM_W = { motorway: 12, trunk: 10, primary: 8, secondary: 7, tertiary: 6, unclassified: 5, residential: 5, living_street: 4, service: 3.5 };
+export async function osmRoads(r, bbox, net) {
+  const M = RWROADS.margin, g = geoBoxOf([bbox[0] - M, bbox[1] - M, bbox[2] + M, bbox[3] + M], r.zone || 32), f = v => v.toFixed(6);
+  const q = '[out:json][timeout:25];way[highway~"^(' + Object.keys(OSM_W).join('|') + ')(_link)?$"](' + [g.minLat, g.minLon, g.maxLat, g.maxLon].map(f).join(',') + ');out tags geom;';
+  let j = null, err = null;
+  for (const u of r.overpass) { try { j = JSON.parse(await net.text(u + '?data=' + encodeURIComponent(q))); break; } catch (e) { if (/Abgebrochen/.test(String(e && e.message))) throw e; err = e; } }
+  if (!j) throw err || new Error('Overpass nicht erreichbar');
+  const ec = (bbox[0] + bbox[2])/2, nc = (bbox[1] + bbox[3])/2, out = [];
+  for (const w of j.elements || []) {
+    if (w.type !== 'way' || !w.geometry || w.geometry.length < 2) continue;
+    const t = w.tags || {}, pts = dlmSimplify(w.geometry.map(p => toUtm(p.lat, p.lon, r.zone || 32)), RWROADS.simp);
+    for (const part of clipRect(pts, bbox)) if (part.length > 1)
+      out.push({ name: t.name || '', w: OSM_W[String(t.highway).replace('_link', '')] || 5, pts: part.map(p => [Math.round((p[0] - ec)*10)/10, Math.round(-(p[1] - nc)*10)/10]) });
+  }
+  return out;
 }
