@@ -441,7 +441,7 @@ function syncDis() {
 // (Laufzeit, nicht gespeichert). Reihenfolge der Quellen wie in der Liste: eigene vor der Vorlage „lokaler Rechner“.
 const WMS_RETRY = 30, WMS_FRESH = 60;
 let wmsBusy = null, wmsT = -1e9;
-const disWmsList = () => rwSources().filter(s => s.kind === 'wms' && (s.use === 'dis' || s.use === 'all'));
+const disWmsList = () => rwSources().filter(s => s.kind === 'wms' && !s.tiles && (s.use === 'dis' || s.use === 'all'));
 // disLand: am Ort der Übung die Kartendaten des Landes statt des Höhendienstes (Knopf „Kartendaten laden“, Nutzer Prompt 172)
 let disLand = false;
 const disWms = () => !!(cfg.verbund && isReal() && cfg.rwLL === cfg.disLL && rw.wms && rw.wms.src && !disLand);

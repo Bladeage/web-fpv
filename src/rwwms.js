@@ -2,7 +2,7 @@
    Liest die Fähigkeiten eines OGC-WMS 1.3.0, wählt die Höhenebene, holt Kacheln in EPSG:4326 (Gleitkomma-GeoTIFF) und rechnet
    sie auf unser UTM-Gitter um (Mitte des Gebiets, Zeilen von Norden nach Süden, wie die Höhen aus dem WCS).
    Allgemein, kein Bezug auf einen bestimmten Hersteller. Daten nur im Arbeitsspeicher (Lizenz der Quelle). */
-import { readTiff, fromUtm, GEOID_FIX } from './geo.js';
+import { readTiff, readTiffAsync, fromUtm, GEOID_FIX } from './geo.js';
 
 // Fähigkeiten (GetCapabilities, XML) ohne Bibliothek lesen: Ebenen (Name, Titel), Formate für GetMap, Bezugssysteme, Größengrenzen
 export function wmsCapsParse(xml) {
@@ -46,6 +46,7 @@ export function wmsError(u8) {
 // Kacheln aufgerundet, Kacheln holen (höchstens par gleichzeitig), zusammensetzen, auf das Gitter abtasten, Lücken füllen.
 export const WMS = { tile: 256, maxPx: 4096, par: 4 };
 export async function wmsFetchHeights(src, bbox, zone, n, get) {
+  if (src.tiles === 'terrain') return terrainHeights(src, bbox, zone, n, get);   // weltweite Kacheln (Q2)
   if (!src.hgt.layer) src = { ...src, hgt: { ...src.hgt, layer: await wmsLayerOf(src, get) } };
   const cell = (bbox[2] - bbox[0])/n, g = geoBoxOf(bbox, zone, 2*cell), T = src.hgt.tile || WMS.tile;
   const midLat = (g.minLat + g.maxLat)/2, wM = (g.maxLon - g.minLon)*111320*Math.cos(midLat*Math.PI/180), hM = (g.maxLat - g.minLat)*111320;
@@ -99,9 +100,58 @@ export async function wmsLayerOf(src, get) {
   wmsLayers.set(src.hgt.url, l);
   return l;
 }
+// ---- Weltweite Höhe aus Kacheln (Etappe Q2): Web-Mercator {z}/{x}/{y}, GeoTIFF Int16 in m über dem Meer (AWS Terrain Tiles) ----
+// Kachelnummern und Breite aus der Mercator-Zeile (Kachelmaß 2^z)
+export const mercX = (lon, z) => (lon + 180)/360*2**z;
+export const mercY = (lat, z) => (1 - Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360))/Math.PI)/2*2**z;
+const mercLat = (y, z) => Math.atan(Math.sinh(Math.PI*(1 - 2*y/2**z)))*180/Math.PI;
+// Zoomstufe: Pixel höchstens so groß wie eine Zelle, höchstens zmax
+export function terrainZoom(cell, lat, zmax = 12, T = 512) {
+  return Math.max(0, Math.min(zmax, Math.ceil(Math.log2(40075016.7*Math.cos(lat*Math.PI/180)/(T*cell)))));
+}
+// Zuletzt geladene Kacheln (Startgebiet, Umgebung und Nachladen fragen oft dieselben), höchstens 16 (je etwa 1 MB)
+const terrainCache = new Map();
+async function terrainTile(src, z, x, y, get) {
+  const u = src.hgt.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+  if (!terrainCache.has(u)) {
+    terrainCache.set(u, (async () => { const t = await readTiffAsync(asBuf(bytesOf(await get(u)))); if (t.w !== t.h) throw new Error('Kachel ' + t.w + ' x ' + t.h); return t; })());
+    if (terrainCache.size > 16) terrainCache.delete(terrainCache.keys().next().value);
+  }
+  try { return await terrainCache.get(u); } catch (e) { terrainCache.delete(u); throw e; }
+}
+// Höhen für das UTM-Quadrat bbox in n x n Zellen aus Kacheln: Kacheln zusammensetzen, Zeilen von Mercator exakt auf gleichmäßige
+// Breite umrechnen (dann gilt resampleToUtm wie beim WMS), auf das Gitter abtasten. Liefert dasselbe wie wmsFetchHeights.
+export async function terrainHeights(src, bbox, zone, n, get) {
+  const cell = (bbox[2] - bbox[0])/n, g = geoBoxOf(bbox, zone, 2*cell), z = terrainZoom(cell, (g.minLat + g.maxLat)/2, src.hgt.zmax ?? 12);
+  const x0 = Math.floor(mercX(g.minLon, z)), x1 = Math.floor(mercX(g.maxLon, z)), y0 = Math.floor(mercY(g.maxLat, z)), y1 = Math.floor(mercY(g.minLat, z));
+  if ((x1 - x0 + 1)*(y1 - y0 + 1) > 16) throw new Error('Weltkacheln: Gebiet zu groß');
+  const jobs = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) jobs.push([x, y]);
+  const tiles = await Promise.all(jobs.map(([x, y]) => terrainTile(src, z, ((x % 2**z) + 2**z) % 2**z, y, get)));
+  const T = tiles[0].w, W = (x1 - x0 + 1)*T, H = (y1 - y0 + 1)*T, merc = new Float32Array(W*H);
+  jobs.forEach(([x, y], k) => { const t = tiles[k]; for (let r = 0; r < T; r++) for (let c = 0; c < T; c++) merc[((y - y0)*T + r)*W + (x - x0)*T + c] = t.data[r*T + c]; });
+  // gleichmäßige Breite: Zeile r (Mitte) -> Mercator-Zeile, linear zwischen den Nachbarzeilen
+  const top = mercLat(y0, z), bot = mercLat(y1 + 1, z), geo = new Float32Array(W*H);
+  for (let r = 0; r < H; r++) {
+    const lat = top - (r + 0.5)*(top - bot)/H, m = (mercY(lat, z) - y0)*T - 0.5, a = Math.max(0, Math.min(H - 1, Math.floor(m))), b = Math.min(H - 1, a + 1), f = Math.max(0, Math.min(1, m - a));
+    for (let c = 0; c < W; c++) geo[r*W + c] = merc[a*W + c]*(1 - f) + merc[b*W + c]*f;
+  }
+  const gg = { minLon: x0/2**z*360 - 180, maxLon: (x1 + 1)/2**z*360 - 180, maxLat: top, minLat: bot };
+  const data = resampleToUtm(geo, W, H, gg, bbox, zone, n);
+  if (!data.some(v => !Number.isNaN(v))) throw new Error('Weltkacheln: keine Höhen');
+  wmsFill(data, n);
+  return { data, tiles: jobs.length, geo: gg, hRef: 'msl', layer: 'z' + z };
+}
 // Prüfen an einem Ort (Breite, Länge): Fähigkeiten, Höhenebene, kleiner Abruf 16 x 16. Rückgabe [{ was, ok, text }] wie rwCheckSource.
 export async function wmsCheck(src, lat, lon, get) {
   const out = [];
+  if (src.tiles === 'terrain') {   // Kacheln (Q2): eine Kachel am Ort, Wert am Pixel
+    try {
+      const z = src.hgt.zmax ?? 12, X = mercX(lon, z), Y = mercY(lat, z), t = await terrainTile(src, z, Math.floor(X), Math.floor(Y), get);
+      out.push({ was: 'Höhen', ok: true, text: 'Kachel ' + z + '/' + Math.floor(X) + '/' + Math.floor(Y) + ', ' + t.data[Math.floor((Y % 1)*t.h)*t.w + Math.floor((X % 1)*t.w)].toFixed(0) + ' m über dem Meer' });
+    } catch (e) { out.push({ was: 'Höhen', ok: false, text: String(e.message || e) }); }
+    return out;
+  }
   try {
     const caps = wmsCapsParse(new TextDecoder().decode(bytesOf(await get(src.hgt.url + (src.hgt.url.includes('?') ? '&' : '?') + 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0'))));
     out.push({ was: 'Dienst', ok: true, text: (caps.title || 'WMS') + ', ' + caps.layers.length + ' Ebenen' });

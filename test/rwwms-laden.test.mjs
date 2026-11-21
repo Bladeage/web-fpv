@@ -23,7 +23,9 @@ test('W2: Planung nach Geltung; außerhalb Deutschlands mit UTM-Zone aus der Lä
   const old = rw.userSources;
   try {
     rw.userSources = [];
-    assert.equal(rwPlan(48.8566, 2.3522), null, 'Paris ohne Quelle');
+    const welt = RW_SOURCES.find(s => s.id === 'welt');
+    assert.equal(rwPlan(48.8566, 2.3522).srcs[0].id, 'welt', 'Paris: weltweite Höhe (Q2)');
+    welt.use = 'nie'; try { assert.equal(rwPlan(48.8566, 2.3522), null, 'Paris ohne Quelle'); } finally { welt.use = 'all'; }
     assert.equal(rwPlan(48.8566, 2.3522, rwSources(), { dis: true }).srcs[0].id, 'wms-lokal', 'DIS-Übung: Vorlage lokaler Rechner');
     rw.userSources = [wms('http://h/ows', 'all')];
     const p = rwPlan(48.8566, 2.3522);
@@ -33,7 +35,7 @@ test('W2: Planung nach Geltung; außerhalb Deutschlands mit UTM-Zone aus der Lä
     rw.userSources = [wms('http://h/ows', 'nie')];
     assert.equal(rwPlan(48.8566, 2.3522, rwSources(), { dis: true }).srcs[0].id, 'wms-lokal', '„Nie“ fällt weg');
     rw.userSources = [wms('http://h/ows', 'dis')];
-    assert.equal(rwPlan(48.8566, 2.3522), null, '„DIS-Übung“ gilt nicht für „Ort laden“');
+    assert.equal(rwPlan(48.8566, 2.3522).srcs[0].id, 'welt', '„DIS-Übung“ gilt nicht für „Ort laden“: dort die Welt-Quelle');
   } finally { rw.userSources = old; }
 });
 

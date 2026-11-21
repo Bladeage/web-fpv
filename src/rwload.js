@@ -25,6 +25,15 @@ export const RW_SOURCES = [{
   id: 'wms-lokal', kind: 'wms', name: 'WMS-Höhendienst (lokaler Rechner)', land: '', box: null,
   hgt: { url: 'http://localhost:7071/ows', layer: '', tile: 256 }, vref: 'ellipsoid', use: 'dis', store: false,
   attribution: 'Gelände des WMS-Höhendienstes'
+}, {
+  // Weltweite Höhe (Etappe Q2, docs/plan-quellen.md): AWS Terrain Tiles (Mapzen, AWS Open Data), GeoTIFF 512² Int16 in Metern über
+  // dem Meer, Web-Mercator-Kacheln {z}/{x}/{y}. Ersatz für Copernicus DEM (sperrt den Browser, gemessen 20.11.2026). Gilt überall, wo
+  // keine Landesquelle greift (letzte Stelle der Liste). Ohne Luftbild: schattiertes Relief. zmax 12 (etwa 12 m je Pixel bei 50° Breite;
+  // Annahme: die Quelldaten sind meist 25 bis 90 m fein, feiner bringt nichts). Lizenz: Quellenvermerk nach
+  // github.com/tilezen/joerd/blob/master/docs/attribution.md (gekürzt; vollständig in docs/plan-quellen.md).
+  id: 'welt', kind: 'wms', tiles: 'terrain', name: 'Welt: Höhen (AWS Terrain Tiles)', land: '', box: null,
+  hgt: { url: 'https://elevation-tiles-prod.s3.amazonaws.com/geotiff/{z}/{x}/{y}.tif', zmax: 12 }, vref: 'msl', use: 'all',
+  attribution: 'Höhen: Mapzen Terrain Tiles; EU-DEM (Copernicus, EU), SRTM, GMTED2010, 3DEP (USGS), ETOPO1 (NOAA) u. a.'
 }];
 // UTM-Zone aus dem Koordinatensystem einer Quelle oder eines Gebiets (EPSG:258xx)
 export const crsZone = crs => +((String(crs).match(/258(\d\d)/)) || [0, 32])[1];
@@ -301,6 +310,7 @@ export function rwSourcesParse(json) {
       if (!s.hgt || !url(s.hgt.url)) e.push('Höhendienst: Adresse ungültig');
       if (s.vref && !['ellipsoid', 'msl'].includes(s.vref)) e.push('Höhenbezug nur Ellipsoid oder Meereshöhe');
       if (e.length) { errors.push('Quelle ' + (i + 1) + ': ' + e.join(', ')); return; }
+      if (s.tiles === 'terrain') { ok.push({ id: s.id || 'eigen-' + i, kind: 'wms', tiles: 'terrain', name: s.name, land: '', box: null, hgt: { url: s.hgt.url, zmax: Math.min(15, Math.max(0, +s.hgt.zmax || 12)) }, vref: 'msl', use: s.use === 'nie' ? 'nie' : 'all', attribution: s.attribution || s.name }); return; }   // Kacheln {z}/{x}/{y} (Q2)
       ok.push({ id: s.id || 'eigen-' + i, kind: 'wms', name: s.name, land: '', box: null, hgt: { url: s.hgt.url.replace(/\?.*$/, ''), layer: s.hgt.layer || '', tile: s.hgt.tile || 256 },
         vref: s.vref || 'ellipsoid', use: ['dis', 'all', 'nie'].includes(s.use) ? s.use : 'dis', store: false, attribution: s.attribution || s.name });
       return;

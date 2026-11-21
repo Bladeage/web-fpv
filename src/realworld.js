@@ -230,7 +230,7 @@ export const rwMeshInput = S => ({ tris: S.tris, nr: S.nr, bldId: S.bldId, bldIn
 // gehalten, weil der Partner langsam liefert (gemessen etwa 5,6 s je Kachel 256 x 256): Startgebiet und Kacheln 2 m, Umgebung 25 m.
 export const RW_WMS_IMG = { main: 512, tile: 512, far: 400 };
 export async function rwWmsPhoto(src, bbox, crs, px, get) {
-  if (!rw.photoWarp || !src || src.kind !== 'wms') return null;
+  if (!rw.photoWarp || !src || src.kind !== 'wms' || src.tiles) return null;   // Kachelquelle (Q2): kein Luftbild, schattiertes Relief
   const layer = await wmsPhotoOf(src, get);
   if (!layer) return null;
   return rw.photoWarp(await wmsFetchPhoto(src, layer, bbox, +(crs.match(/258(\d\d)/) || [0, 32])[1], px, get), px);
