@@ -164,6 +164,12 @@ export function rwNet(signal, stall = RW_STALL) {
   // POST mit Text (WFS-Anfrage mit Filter, S2). Content-Type text/plain: kein CORS-Vorabruf nötig
   const post = (u, body, prog) => go(u, async (r, kick) => { if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status); return new TextDecoder().decode(await readBody(r, both(prog, kick))); },
     { method: 'POST', body, headers: { 'Content-Type': 'text/plain' } });
+  // Teilabruf (Q3): Bytes a bis b. Ohne Teilabrufe (Mecklenburg-Vorpommern) kommt die ganze Datei, dann ausschneiden.
+  const range = (u, a, b) => go(u, async (r, kick) => {
+    if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
+    const x = await readBody(r, both(null, kick)); return r.status === 206 ? x : x.subarray(a, b + 1);
+  }, { headers: { Range: `bytes=${a}-${b}` } });
+  Object.assign(get, { range });   // an get gehängt: rwFetchArea und der Hintergrund-Thread reichen nur get und text weiter
   return { get, text, post };
 }
 // Straßen eines Gebiets (S2) im Hintergrund-Thread laden und in Mittellinien umwandeln (sonst im Hauptprogramm). null ohne Quelle.
