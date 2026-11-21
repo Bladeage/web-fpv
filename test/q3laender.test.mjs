@@ -41,8 +41,11 @@ test('Dateiliste (Name mit Jahr) und STAC mit COG', async () => {
 });
 
 test('Vorlagen der Länder und Gebiet mit Umgebung aus der Welt-Quelle', async () => {
-  for (const id of ['bb', 'be', 'ni', 'rp', 'mv']) { const s = RW_SOURCES.find(x => x.id === id); assert.ok(s && s.land && /^EPSG:2583[23]$/.test(s.crs) && !s.dgm.coverage && s.attribution, id); }
-  const src = { ...RW_SOURCES.find(x => x.id === 'bb'), dgm: { tpl: 'k3/{e}_{n}.tif', km: 1 } }, f = {};
+  for (const id of ['ni', 'rp']) { const s = RW_SOURCES.find(x => x.id === id); assert.ok(s && s.land && !s.dgm.coverage && s.dop && s.attribution, id); }   // Kacheln (Q3)
+  for (const id of ['bb', 'be', 'mv']) assert.ok(RW_SOURCES.find(x => x.id === id).dgm.coverage, id + ': WCS (Q6)');
+  for (const id of ['by', 'bw', 'hb', 'he', 'sh', 'sl', 'sn', 'st']) { const s = RW_SOURCES.find(x => x.id === id); assert.ok(s && s.dgm === null && s.dop.layer && s.land && s.attribution, id + ': nur Luftbild (Q6)'); }
+  assert.equal(RW_SOURCES.find(x => x.id === 'he').dop.max, 3000);
+  const src = { ...RW_SOURCES.find(x => x.id === 'bb'), dop: null, dgm: { tpl: 'k3/{e}_{n}.tif', km: 1 } }, f = {};
   for (const [e, n] of [[400, 5800], [401, 5800], [400, 5801], [401, 5801]]) f[`k3/${e}_${n}.tif`] = kachel(e, n);
   const welt = [];
   const get = Object.assign(async u => { if (u.includes('elevation-tiles')) { welt.push(u); throw new Error('Welt offline'); } if (!f[u]) throw new Error('404'); return f[u]; }, {});
