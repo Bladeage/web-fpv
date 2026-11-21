@@ -3,7 +3,7 @@
 import { cfg, game, keys, ptr, saveCfg, KEY_FN, KEY_STICKS, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
-import { toggleCam } from './render.js';
+import { toggleCam, meshAvail } from './render.js';
 import { audioInit, audioPause } from './audio.js';
 import { fmtTime, parseLatLon } from './format.js';
 import { clamp } from './math.js';
@@ -190,7 +190,9 @@ export function syncMenu() {
   $('sound').checked = cfg.sound;
   press('#videoSeg button', b => b.dataset.video === cfg.video);
   press('#visionSeg button', b => b.dataset.vision === (cfg.vision || 'normal'));
-  press('#gfxSeg button', b => b.dataset.gfx === cfg.gfx);
+  const m3d = meshAvail(), mb = document.querySelector('#gfxSeg button[data-gfx="mesh"]');   // Foto 3D nur, wo es das Mesh gibt; sonst Schön (Prompt 223)
+  mb.disabled = !m3d; mb.title = m3d ? mb.dataset.t || (mb.dataset.t = mb.title) : 'Hier nicht verfügbar: Foto 3D gibt es nur in der echten Welt in NRW. Grafik wie Schön.';
+  press('#gfxSeg button', b => b.dataset.gfx === (cfg.gfx === 'mesh' && !m3d ? 'nice' : cfg.gfx));
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
   // Wirkmittel (Prompt 157): im Taktischen Flug und in der DIS-Übung (dort wirkt die Sprengladung gegen Einheiten); zündet bei Kontakt
   $('whSeg').hidden = !tac && !dis;
