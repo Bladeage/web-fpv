@@ -96,7 +96,7 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 |---|---|---|
 | **Q1 Leser** (erledigt 21.11.2026) | TIFF mit Deflate, Prädiktor 2 für 16 und 32 Bit richtig, Prädiktor 3 geprüft. COG per Teilabruf: nur die nötigen Teile einer Übersicht lesen. Eine Datei aus einem ZIP per Teilabruf lesen (Deflate). XYZ-Text als Raster. Alles ohne DOM, mit Proben als Testdateien. Werkzeug `tools/quellen.mjs` für die Prüfung oben. | nein |
 | **Q2 Weltweite Höhe** (erledigt 21.11.2026) | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
-| **Q3 Länder aus Kacheln** | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
+| **Q3 Länder aus Kacheln** (erledigt 21.11.2026) | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
 | **Q4 Luftbild** | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
 | **Q5 Gebäude** | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
 | **Q6 Lücken mit WCS und WMS** | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
@@ -123,3 +123,12 @@ Nutzer, Prompt 214: Reihenfolge Q1, Q2, Q3. Ohne Antwort und deshalb nach Vorsch
 - Gemessen (Node): Monschau Mittel 458 m (NRW-WCS 453 m), Innsbruck 575 m und Umgebung bis 2 578 m, Tokio (Zone 54), Kapstadt Tafelberg 1 085 m. Ein Gebiet 1 bis 2 Kacheln, unter 1 s. Im Browser (Headless-Chromium) Innsbruck über das Menü geladen und gestartet, ohne Fehler.
 - Quellenvermerk: gekürzt an der Quelle und unter der Karte. Vollständig nach github.com/tilezen/joerd/blob/master/docs/attribution.md: ArcticDEM (DigitalGlobe, NSF 1043681, 1559691, 1542736); Australien © Commonwealth of Australia (Geoscience Australia) 2017; Österreich © offene Daten Österreichs, DGM Österreich; Kanada: Open Government Licence – Canada; Europa: produced using Copernicus data and information funded by the European Union, EU-DEM layers; global ETOPO1 (NOAA); Mexiko: INEGI, Continental relief, 2016; Neuseeland: Crown copyright, LINZ; Norwegen © Kartverket; Vereinigtes Königreich © Environment Agency 2015; USA 3DEP und global GMTED2010 und SRTM: courtesy of the U.S. Geological Survey.
 - Offen: Die Karte zum Auswählen zeigt nur Deutschland. Orte im Ausland gehen über Suche oder Koordinaten.
+
+## Q3 erledigt (21.11.2026)
+
+- Fünf Vorlagen in `RW_SOURCES`: Brandenburg (ZIP mit TIFF, 1 km), Berlin (ZIP mit XYZ, 2 km), Niedersachsen (STAC mit COG), Rheinland-Pfalz (Dateiliste, Name mit Jahr), Mecklenburg-Vorpommern (TIFF 2 km ohne Teilabruf). `dgm` hat statt WCS `tpl`, `stac` oder `index`.
+- `tileRaster` in `src/rwload.js` setzt die Kacheln zum Gebiet zusammen (fehlende Kachel bleibt leer), Zwischenspeicher für 8 Kacheln und 4 Dateilisten. Umgebung 10 km aus der Welt-Quelle (`rwFetchFar`). Kein Luftbild (Q4), keine Gebäude (Q5).
+- ZIP wird ganz geladen: Der Browser gibt `Content-Range` dieser Server nicht frei (gemessen in Chromium: Brandenburg „kein ZIP“). Je ZIP ist es ohnehin eine Kachel.
+- Fehler behoben: `rwSourceAt` nahm eine Quelle ohne Rechteck als überall gültig und übersprang das Land.
+- Gemessen in Headless-Chromium über das Menü (hier im Container, Netz über Proxy): Potsdam 5 s, Hannover 11 s, Mainz 7 s, Rostock 3 s, Berlin Tiergarten 69 s. Berlin ist langsam, weil eine Kachel 17 MB hat und der Server hier etwa 1 MB/s liefert (Lesen des Texts gut 2 s). Vorschlag: für Berlin in Q6 einen WCS suchen.
+- Höhen plausibel (Node): Potsdam 28 bis 35 m, Hannover 49 bis 60 m, Mainz 93 bis 129 m, Rostock 0 bis 25 m, Berlin 22 bis 38 m.

@@ -1,7 +1,7 @@
 /* Echte Welt: Gebiet aus offenen Geodiensten laden (Etappe L1). Ohne DOM: läuft im Browser (Laden per Koordinate)
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
-import { readTiff, readLod2, readLod2Async } from './geo.js';
+import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, xyzGrid, gridTo, gridMask, fromUtm } from './geo.js';
 import { wmsFetchHeights, wmsFill } from './rwwms.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
@@ -18,7 +18,22 @@ export const RW_SOURCES = [{
   // POST mit Filter, Monschau 148 Flächen, 277 KB, 1,7 s; Feldnamen brauchen den Präfix ave: (ohne: 400 „InvalidParameterValue“)
   roads: { url: 'https://www.wfs.nrw.de/geobasis/wfs_nw_alkis_vereinfacht', type: 'ave:Nutzung', ns: 'http://repository.gdi-de.org/schemas/adv/produkt/alkis-vereinfacht/2.0', field: 'nutzart', value: 'Straßenverkehr', epsg: 25832 },
   attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
-}, {
+},
+// Länder mit Höhen aus Kacheldateien (Etappe Q3, docs/plan-quellen.md, Adressen aus docs/quellen-geodaten.md, CORS gemessen 20.11.2026).
+// dgm statt WCS: tpl (Adresse mit {e}/{n} in km, zip: Datei darin, xyz: Text), stac (Katalog, Sammlung coll, COG) oder index
+// (Dateiliste, Name beginnt mit tpl). km: Kachelgröße. Kein Luftbild (folgt in Q4), Umgebung aus der Welt-Quelle.
+{ id: 'bb', name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833',
+  dgm: { tpl: 'https://data.geobasis-bb.de/geobasis/daten/dgm/tif/dgm_33{e}-{n}.zip', zip: '.tif', km: 1 }, attribution: 'GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
+{ id: 'be', name: 'Berlin (Geoportal Berlin)', land: 'Berlin', crs: 'EPSG:25833',
+  dgm: { tpl: 'https://gdi.berlin.de/data/dgm1/atom/DGM1_{e}_{n}.zip', zip: '.xyz', km: 2 }, attribution: 'Geoportal Berlin, dl-de/zero-2-0' },
+{ id: 'ni', name: 'Niedersachsen (LGLN)', land: 'Niedersachsen', crs: 'EPSG:25832',
+  dgm: { stac: 'https://dgm.stac.lgln.niedersachsen.de', coll: 'dgm1', km: 1 }, attribution: 'LGLN 2026, CC BY 4.0' },
+{ id: 'rp', name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832',
+  dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
+// Mecklenburg-Vorpommern: keine Teilabrufe, jede 2-km-Kachel ganz (etwa 16 MB, gemessen); ein Gebiet bis 4 Kacheln
+{ id: 'mv', name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833',
+  dgm: { tpl: 'https://www.geodaten-mv.de/dienste/dgm_download?index=4&dataset=ca268792-s2q1-4a39-b34c-9ec5bf9a4469&file=dgm1_33_{e}_{n}_2_gtiff.tif', km: 2 }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
+{
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.
   // Gilt überall (box null), ohne Gebäude, Bäume, Luftbild. Nie im Browser speichern (Lizenz der Quelle). use: 'dis' (nur für den
   // Startort DIS-Übung, Etappe W3), 'all' (auch „Ort laden“) oder 'nie'. vref: Höhen über dem Ellipsoid oder über dem Meer.
@@ -66,7 +81,8 @@ export function lod2Urls(svc, bbox) {
 // prüft genauer: Quellen mit Land gelten nur in diesem Land (das Rechteck allein reicht bis Niedersachsen und Belgien).
 export function rwSourceAt(E, N, list = RW_SOURCES, landAt = null) {
   const land = landAt ? landAt(E, N) : null;
-  return list.find(s => s.kind !== 'wms' && (!s.box || (E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3] && (!landAt || !s.land || s.land === land)))) || null;   // ohne Rechteck: überall; WMS-Höhendienste wählt rwPlan
+  // Rechteck, falls da; Land immer (Q3: Vorlagen ohne Rechteck galten sonst überall). Ohne Deutschlandkarte zählt eine Quelle mit Land nur mit Rechteck.
+  return list.find(s => s.kind !== 'wms' && (!s.box || (E >= s.box[0] && E <= s.box[2] && N >= s.box[1] && N <= s.box[3])) && (!s.land || (landAt ? s.land === land : !!s.box))) || null;   // WMS-Höhendienste wählt rwPlan
 }
 
 // Grundrisse der Gebäude als Raster (Dächer aus LoD2, um dil Zellen verbreitert): 1 = Gebäude
@@ -191,6 +207,51 @@ export function bldClass(fn) {
 // Oberfläche: je Bildpunkt die Quelle seiner Zelle, fehlt dort ein Wert, die nächste mit Wert. Gebäude: aus der Quelle der Zelle,
 // in der ihre Mitte liegt. Luftbild: opt.mergeImg(bilder, cells) setzt im Browser zusammen; ohne sie nur die Hauptquelle.
 export const RW_CELLS = 64;
+// ---- Höhen aus Kacheldateien (Q3) ----
+// Zuletzt gelesene Kacheln als Gitter (Startgebiet, Umgebung und Nachladen brauchen oft dieselben), höchstens 8 (je bis 16 MB)
+const tileGrids = new Map(), tileLists = new Map();
+const memo = (map, key, max, fn) => {
+  if (!map.has(key)) { map.set(key, fn().catch(e => { map.delete(key); throw e; })); if (map.size > max) map.delete(map.keys().next().value); }
+  return map.get(key);
+};
+// Teilabruf (get.range aus rwNet), sonst die ganze Datei
+const rangeOf = (u, get) => get.range ? (a, b) => get.range(u, a, b) : async (a, b) => (await get(u)).subarray(a, b + 1);
+// Eine Kachel (Adresse u) als Gitter. e, n: linke untere Ecke in m, kmm: Kantenlänge in m
+async function tileGrid(svc, u, e, n, kmm, get) {
+  // ZIP ganz laden: je ZIP eine Kachel, Teilabrufe sparen nichts, und die Größe (Content-Range) gibt der Browser hier nicht frei
+  // (Brandenburg, gemessen in Chromium 21.11.2026: „kein ZIP“)
+  let u8 = await get(u);
+  if (svc.zip) { const z = u8; u8 = await zipGet(async (a, b) => z.subarray(a, b + 1), z.length, svc.zip); }
+  if (svc.zip === '.xyz') return xyzGrid(new TextDecoder().decode(u8));
+  const t = await readTiffAsync(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength)), d = kmm/t.w;
+  return { x0: e + d/2, y0: n + kmm - d/2, d, w: t.w, h: t.h, data: t.data, nodata: t.nodata };
+}
+// Raster n x n für bbox aus den Kacheln einer Quelle (svc = src.dgm). Fehlende Kacheln (404) bleiben NaN. Liefert { w, h, data, nodata }.
+export async function tileRaster(svc, bbox, crs, n, get, text) {
+  const out = new Float32Array(n*n).fill(NaN), put = v => { for (let k = 0; k < v.length; k++) if (!isNaN(v[k]) && isNaN(out[k])) out[k] = v[k]; };
+  if (svc.stac) {   // Katalog: Einträge im geografischen Rechteck, je Eintrag ein COG
+    const z = crsZone(crs), c = [[bbox[0], bbox[1]], [bbox[2], bbox[3]], [bbox[0], bbox[3]], [bbox[2], bbox[1]]].map(([x, y]) => fromUtm(x, y, z));
+    const bb = [Math.min(...c.map(p => p[1])), Math.min(...c.map(p => p[0])), Math.max(...c.map(p => p[1])), Math.max(...c.map(p => p[0]))].map(v => v.toFixed(6)).join(',');
+    const items = JSON.parse(await text(svc.stac + '/search?collections=' + svc.coll + '&bbox=' + bb + '&limit=50') || '{}').features || [];
+    for (const it of items) {
+      const as = Object.values(it.assets || {}).find(x => /tiff/i.test(x.type || '') || /\.tif$/i.test(x.href));
+      if (!as) continue;
+      const cog = await memo(tileGrids, as.href, 8, () => cogOpen(rangeOf(as.href, get))), L = cog.levels[0];
+      const v = (await cogWindow(cog, bbox, n)).data;
+      put(gridMask(v, bbox, n, [cog.x0 - cog.dx/2, cog.y0 - (L.h - 0.5)*cog.dy, cog.x0 + (L.w - 0.5)*cog.dx, cog.y0 + cog.dy/2]));
+    }
+  } else {   // Kacheln im km-Raster
+    const k = 1000*(svc.km || 1), list = svc.index ? await memo(tileLists, svc.index, 4, async () => (await text(svc.index)) || '') : null;
+    for (let e = Math.floor(bbox[0]/k)*k; e < bbox[2]; e += k) for (let nn = Math.floor(bbox[1]/k)*k; nn < bbox[3]; nn += k) {
+      const name = svc.tpl.replace('{e}', e/1000).replace('{n}', nn/1000);
+      let u = name;
+      if (list) { const m = list.match(new RegExp('href="([^"]*' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^"]*\\.tif)"')); if (!m) continue; u = new URL(m[1], svc.index).href; }
+      const g = await memo(tileGrids, u, 8, () => tileGrid(svc, u, e, nn, k, get)).catch(err => { if (/ 404|fehlt/.test(err.message)) return null; throw err; });
+      if (g) put(gridTo(g, bbox, n));
+    }
+  }
+  return { w: n, h: n, data: out, nodata: NaN };
+}
 export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   const srcs = Array.isArray(src) ? src : [src], multi = srcs.length > 1 && opt.cells;
   const n = a.n || RW_GRIDN, buf = u8 => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength), C = RW_CELLS;
@@ -200,7 +261,7 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     const got = [];
     for (const s of multi ? srcs : srcs.slice(0, 1)) {
       if (!s[key]) { got.push(null); continue; }
-      const t = readTiff(buf(await get(wcsUrl(s[key], a.bbox, a.crs, n))));
+      const t = s[key].coverage ? readTiff(buf(await get(wcsUrl(s[key], a.bbox, a.crs, n)))) : await tileRaster(s[key], a.bbox, a.crs, n, get, text);   // WCS oder Kacheln (Q3)
       if (t.w !== n || t.h !== n) throw new Error(what + 'raster ' + t.w + 'x' + t.h + ' statt ' + n);
       got.push(t);
     }
@@ -290,7 +351,8 @@ export async function rwCheckSource(s, E, N, get, text) {
   const tif = async svc => { const b = await get(wcsUrl(svc, bb, s.crs, 16)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
     const ok = [...t.data].filter(v => isFinite(v) && v !== t.nodata && v > -1000); if (!ok.length) throw new Error('nur Füllwerte (Ort außerhalb?)');
     return 'Höhe ' + ok[0].toFixed(1) + ' m'; };
-  if (s.dgm) await run('Höhen', () => tif(s.dgm)); else out.push({ was: 'Höhen', ok: false, text: 'fehlt (nötig)' });
+  const tiles = async svc => { const t = await tileRaster(svc, bb, s.crs, 16, get, text), v = [...t.data].filter(x => !isNaN(x)); if (!v.length) throw new Error('keine Kachel an diesem Ort'); return 'Höhe ' + v[0].toFixed(1) + ' m (Kacheln)'; };
+  if (s.dgm) await run('Höhen', () => s.dgm.coverage ? tif(s.dgm) : tiles(s.dgm)); else out.push({ was: 'Höhen', ok: false, text: 'fehlt (nötig)' });
   if (s.dom) await run('Oberfläche', () => tif(s.dom));
   if (s.dop) await run('Luftbild', async () => { const b = await get(wmsUrl(s.dop, bb, s.crs, 64)); if (!(b[0] === 0xff && b[1] === 0xd8) && !(b[0] === 0x89 && b[1] === 0x50)) throw new Error('kein Bild'); return (b.length/1024).toFixed(0) + ' KB Bild'; });
   if (s.lod2) await run('Gebäude', async () => { const u = lod2Urls(s.lod2, bb)[0], t = await text(u); if (t === null) return 'keine Kachel an diesem Ort (' + u.split('/').pop() + ')';
@@ -381,8 +443,8 @@ export function rwFixStart(p) {
 export async function rwFetchFar(a, src, get, say = () => {}) {
   const c = [(a.bbox[0] + a.bbox[2])/2, (a.bbox[1] + a.bbox[3])/2], h = RW_FAR.size/2, n = RW_FAR.n, bb = [c[0] - h, c[1] - h, c[0] + h, c[1] + h];
   say('Umgebung (Höhen)', 0.94);
-  if (src.kind === 'wms') {   // WMS-Höhendienst: Höhen auf das Raster der Umgebung, ohne Luftbild
-    const v = (await wmsFetchHeights(src, bb, crsZone(a.crs), n, get)).data;
+  if (src.kind === 'wms' || !src.dgm.coverage) {   // WMS-Höhendienst, oder Land ohne WCS (Q3): Höhen der Welt-Quelle, ohne Luftbild
+    const v = (await wmsFetchHeights(src.kind === 'wms' ? src : RW_SOURCES.find(x => x.tiles), bb, crsZone(a.crs), n, get)).data;
     let lo = Infinity; for (const x of v) if (x < lo) lo = x;
     return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q: Uint16Array.from(v, x => Math.round((x - lo)*10)), dop: null };
   }

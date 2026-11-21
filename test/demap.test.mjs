@@ -27,9 +27,9 @@ test('L2: Land an bekannten Orten', () => {
   assert.equal(at(50.6333, 5.5667), null, 'Lüttich');
 });
 
-test('L2: Quelle nur im eigenen Land (Rechteck NRW reicht bis Belgien und Niedersachsen)', () => {
+test('L2: Quelle nur im eigenen Land (Rechteck NRW reicht bis Belgien und Niedersachsen; dort seit Q3 die Vorlage Niedersachsen)', () => {
   const nrw = RW_SOURCES.find(s => s.id === 'nrw');
-  for (const [lat, lon, want] of [[50.5553, 6.2428, 'nrw'], [50.6333, 5.95, null], [52.28, 8.05, null], [51.96, 7.63, 'nrw']]) {
+  for (const [lat, lon, want] of [[50.5553, 6.2428, 'nrw'], [50.6333, 5.95, null], [52.28, 8.05, 'ni'], [51.96, 7.63, 'nrw']]) {
     const [E, N] = toUtm(lat, lon), s = rwSourceAt(E, N, RW_SOURCES, deLandAt);
     assert.equal(s ? s.id : null, want, `${lat}, ${lon}`);
   }
