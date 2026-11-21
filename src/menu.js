@@ -29,7 +29,7 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
-  { id: 'recon', name: 'Aufklärung', scen: 'free', worlds: ['map', 'real'], info: 'Frei fliegen und beobachten. Mit Wirkmittel zündet die Drohne bei Kontakt.' },
+  { id: 'recon', name: 'Aufklärung', scen: 'free', worlds: ['map', 'real'], info: 'Frei fliegen und beobachten. Mit Wirkmittel: scharf ab 10 m über Grund, zündet bei Aufprall, danach neue Drohne.' },
   { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map', 'real'], roads: true, info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.',
     infoReal: '7 Fahrzeuge auf den Straßen: grau am Straßenrand, blau langsam, rot schnell. Bei jedem Start neu verteilt.' },
   { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',

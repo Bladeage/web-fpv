@@ -53,7 +53,7 @@ function combat() {
   if (game.state === 'fly') boomed = false;
   if (!rw.on || !game.started) { vb.hits.length = 0; return; }
   for (const h of vb.hits.splice(0)) shotHit(h.heavy, h.heavy ? 'Abgeschossen' : 'Treffer');
-  const s = game.sim, armed = cfg.warhead === 'charge', u = vb.contact;
+  const s = game.sim, armed = cfg.warhead === 'charge' && !!s.armed, u = vb.contact;   // erst ab 10 m scharf (Prompt 226)
   if (game.state === 'fly' && u) {
     const name = disBaseInfo(u.base).name;
     if (armed) { vbDetonate(s.p, u, s.v); boomed = true; crash('Sprengladung gezündet: ' + name + ' getroffen'); }
@@ -66,7 +66,7 @@ let chargeSeen = 0;
 function chargeStep() {
   if (!chargeOn()) return;
   const s = game.sim;
-  if (game.state === 'crashed' && chargeSeen !== s.crashT) { chargeSeen = s.crashT; if (!/^Wirkmittel/.test(s.crashMsg || '')) chargeBoom(s.p); }
+  if (game.state === 'crashed' && chargeSeen !== s.crashT) { chargeSeen = s.crashT; if (s.armed && !/^Wirkmittel/.test(s.crashMsg || '')) chargeBoom(s.p); }   // nur scharf
   if (chargeDue()) { game.state = 'fly'; respawnDrone(true); chargeNext(); say('Neue Drohne ' + chargeDrones() + ': nächstes Ziel suchen', 2); }
 }
 

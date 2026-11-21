@@ -342,12 +342,12 @@ export function drawHud() {
     txt(gp.connected ? 'Taste an der Funke oder R für neue Mission' : touchUI ? 'Tippen für neue Mission' : 'R für neue Mission', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
   }
   if (game.state === 'crashed') {
-    const ch = chargeOn();   // Wirkmittel (Prompt 196): gezündet, die nächste Drohne kommt von selbst
+    const ch = chargeOn() && s.armed;   // Wirkmittel (Prompt 196): gezündet, die nächste Drohne kommt von selbst; nicht scharf: normaler Absturz
     c.fillStyle = ch ? 'rgba(120,60,0,.18)' : 'rgba(120,0,0,.25)'; c.fillRect(0, 0, W, H);
     c.font = `800 ${fs*2.2}px ${FONT}`;
     txt(ch ? 'GEZÜNDET' : 'ABSTURZ', W/2, H/2 - fs, 'center', ch ? '#ffb347' : '#ff5a4a');
     c.font = `${weight} ${fs}px ${FONT}`;
-    txt(ch && !/^Wirkmittel/.test(s.crashMsg || '') ? 'Ladung ohne Ziel gezündet (' + s.crashMsg + ')' : s.crashMsg, W/2, H/2 + fs*0.8, 'center');
+    txt(ch && !/^Wirkmittel/.test(s.crashMsg || '') ? 'Ladung ohne Ziel gezündet (' + s.crashMsg + ')' : chargeOn() && !s.armed ? s.crashMsg + ' (Ladung noch nicht scharf)' : s.crashMsg, W/2, H/2 + fs*0.8, 'center');
     txt(ch ? 'Neue Drohne kommt gleich' : gp.connected ? 'Taste an der Funke oder R für Neustart' : touchUI ? 'Tippen für Neustart' : 'R für Neustart', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
   }
 }

@@ -23,7 +23,7 @@ test('Ladung nur im Taktischen Flug mit Sprengladung in der Jagd; macht die Droh
 test('Landung auf dem Ziel: Zündung, Treffer, Explosion, Drohne verbraucht; danach neue Drohne mit vollem Akku', () => {
   cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; cfg.dmg = 'off'; cfg.mode = 'angle'; setScenario('hunt2'); respawn();
   const v = vehicles.find(x => x.kind === 'parked'), s = game.sim;
-  s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.mah = 500;
+  s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.mah = 500; s.armed = true;   // war schon über 10 m
   const c0 = game.crashes;
   for (let i = 0; i < 3/STEP && game.state === 'fly'; i++) step(STEP);
   assert.equal(game.state, 'crashed'); assert.ok(/^Wirkmittel/.test(s.crashMsg), s.crashMsg);
@@ -38,9 +38,24 @@ test('Landung auf dem Ziel: Zündung, Treffer, Explosion, Drohne verbraucht; dan
   assert.ok(/TREFFER 1\//.test(scenLabel()), 'Treffer bleiben');
 });
 
+test('Prompt 226: scharf erst ab 10 m über Grund; vorher kein Ziel, keine Zündung, keine neue Drohne', () => {
+  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
+  const s = game.sim, v = vehicles.find(x => x.kind === 'parked');
+  s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0;
+  for (let i = 0; i < 0.5/STEP && game.state === 'fly'; i++) step(STEP);
+  assert.ok(!s.armed && /TREFFER 0\//.test(scenLabel()), 'unter 10 m: Ziel zählt nicht');
+  respawn(); const t = game.sim; t.p = [game.home[0] + 5, 12, game.home[1] + 5]; t.v = [0, 0, 0]; t.q = [0, 0, 0, 1];
+  step(STEP); assert.equal(t.armed, true, 'über 10 m: scharf');
+  respawn(); const u = game.sim; u.p = [game.home[0] + 5, 8, game.home[1] + 5]; u.v = [0, -25, 0]; u.q = [0, 0, 0, 1]; game.throttle = 0;
+  for (let i = 0; i < 3/STEP && game.state === 'fly'; i++) step(STEP);
+  assert.equal(game.state, 'crashed'); assert.ok(!u.armed);
+  assert.equal(chargeDue(u.crashT + CHARGE.delay*1000 + 10), false, 'nicht scharf: keine neue Drohne von selbst');
+  cfg.dmg = 'off';
+});
+
 test('Absturz ohne Ziel zündet auch (kein Treffer), danach neue Drohne', () => {
   cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
-  const s = game.sim; s.p = [game.home[0] + 5, 20, game.home[1] + 5]; s.v = [0, -25, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0;
+  const s = game.sim; s.p = [game.home[0] + 5, 20, game.home[1] + 5]; s.v = [0, -25, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.armed = true;
   for (let i = 0; i < 3/STEP && game.state === 'fly'; i++) step(STEP);
   assert.equal(game.state, 'crashed'); assert.ok(/TREFFER 0\//.test(scenLabel()));
   assert.equal(chargeDue(s.crashT + CHARGE.delay*1000 + 10), true);
