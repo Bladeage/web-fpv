@@ -33,9 +33,10 @@ export async function inflateBytes(u8, raw = false) {
   return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream(raw ? 'deflate-raw' : 'deflate'))).arrayBuffer());
 }
 // Ein Block (Streifen oder Kachel) roh -> Werte (Float32, ein Kanal). Deflate muss vorher entpackt sein (pre).
-function tiffBlock(I, raw, pre) {
+function tiffBlock(I, raw, pre, bytesOnly = false) {
   if (I.comp === 5) raw = lzw(raw, I.tw*I.th*I.bytes*I.spp); else if (I.comp === 8) raw = pre; else if (I.comp !== 1) throw new Error('Kompression ' + I.comp + ' nicht unterstützt');
   raw = unpredict(raw, I.tw, I.th, I.bytes, I.pred, I.le, I.spp);
+  if (bytesOnly) return raw;   // Bild (Q4): Bytes je Kanal, ohne Umrechnung
   const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength), le3 = I.pred === 3 ? false : I.le, n = I.tw*I.th, out = new Float32Array(n), B = I.bytes, S = B*I.spp;
   for (let k = 0; k < n; k++) {
     const o = k*S;
@@ -96,17 +97,22 @@ export async function cogWindow(cog, bbox, n, lv = cogLevel(cog, (bbox[2] - bbox
   const cx = (bbox[2] - bbox[0])/n, cy = (bbox[3] - bbox[1])/n;
   const px = i => (bbox[0] + (i + 0.5)*cx - x0)/dx, py = j => (y0 - (bbox[3] - (j + 0.5)*cy))/dy;
   const c0 = Math.max(0, Math.floor(px(0))), c1 = Math.min(L.w - 1, Math.ceil(px(n - 1))), r0 = Math.max(0, Math.floor(py(0))), r1 = Math.min(L.h - 1, Math.ceil(py(n - 1)));
+  const across = Math.ceil(L.w/L.tw), tiles = await cogLoad(cog, L, c0, r0, c1, r1);
+  const at = (c, r) => { const t = tiles.get(Math.floor(r/L.th)*across + Math.floor(c/L.tw)); return t ? t[(r % L.th)*L.tw + c % L.tw] : NaN; };
+  return { w: n, h: n, nodata: L.nodata, data: gridSample(at, L.w, L.h, px, py, n, L.nodata) };
+}
+// Kacheln einer Stufe L für die Pixel c0..c1, r0..r1 laden und entpacken: Map Kachelnummer -> Werte (Float32) oder Bytes (bytesOnly).
+// Nahe beieinander liegende Kacheln in einem Abruf (Lücke bis 64 KB).
+export async function cogLoad(cog, L, c0, r0, c1, r1, bytesOnly = false) {
   const across = Math.ceil(L.w/L.tw), tiles = new Map(), want = [];
   for (let ty = Math.floor(r0/L.th); ty <= Math.floor(r1/L.th); ty++) for (let tx = Math.floor(c0/L.tw); tx <= Math.floor(c1/L.tw); tx++) want.push(ty*across + tx);
-  // nahe beieinander liegende Kacheln in einem Abruf (Lücke bis 64 KB)
   const parts = want.filter(b => L.cnts[b] > 0).sort((a, b) => L.offs[a] - L.offs[b]), groups = [];
   for (const b of parts) { const g = groups[groups.length - 1]; if (g && L.offs[b] - g.end < 65536) { g.list.push(b); g.end = Math.max(g.end, L.offs[b] + L.cnts[b]); } else groups.push({ start: L.offs[b], end: L.offs[b] + L.cnts[b], list: [b] }); }
   await Promise.all(groups.map(async g => {
     const u8 = await cog.range(g.start, g.end - 1);
-    for (const b of g.list) { const raw = u8.subarray(L.offs[b] - g.start, L.offs[b] - g.start + L.cnts[b]); tiles.set(b, tiffBlock(L, raw, L.comp === 8 ? await inflateBytes(raw) : null)); }
+    for (const b of g.list) { const raw = u8.subarray(L.offs[b] - g.start, L.offs[b] - g.start + L.cnts[b]); tiles.set(b, tiffBlock(L, raw, L.comp === 8 ? await inflateBytes(raw) : null, bytesOnly)); }
   }));
-  const at = (c, r) => { const t = tiles.get(Math.floor(r/L.th)*across + Math.floor(c/L.tw)); return t ? t[(r % L.th)*L.tw + c % L.tw] : NaN; };
-  return { w: n, h: n, nodata: L.nodata, data: gridSample(at, L.w, L.h, px, py, n, L.nodata) };
+  return tiles;
 }
 // Bilinear abtasten: at(c, r) Wert eines Pixels, px(i), py(j) Pixelkoordinaten der Zellmitten. Füllwerte zählen nicht mit.
 export function gridSample(at, w, h, px, py, n, nodata = NaN) {

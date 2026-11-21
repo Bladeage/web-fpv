@@ -4,7 +4,8 @@
    Außerhalb des Gebiets setzt sich die Randhöhe fort. Im normalen Modus (rw.on = false): Boden flach bei y = 0. */
 import { clamp, ptTriDist } from './math.js';
 import { fromUtm, toUtm } from './geo.js';
-import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart, RW_FAR } from './rwload.js';
+import { RW_SOURCES, rwSourceAt, rwAreaAt, rwFetchArea, rwFetchFar, rwCellSources, rwFixStart, RW_FAR, crsZone } from './rwload.js';
+import { s2Photo, S2 } from './rws2.js';
 import { wmsPhotoOf, wmsFetchPhoto } from './rwwms.js';
 import { deLandAt, deMap, deLandBox } from './demap.js';
 import { dlmFind, dlmWater, dlmPlaces } from './rwdlm.js';
@@ -235,6 +236,10 @@ export const rwMeshInput = S => ({ tris: S.tris, nr: S.nr, bldId: S.bldId, bldIn
 // (rw.photoWarp aus menu.js, Canvas; ohne sie und ohne Bildebene: null, dann schattiertes Relief). px Bildpunkte je Seite, klein
 // gehalten, weil der Partner langsam liefert (gemessen etwa 5,6 s je Kachel 256 x 256): Startgebiet und Kacheln 2 m, Umgebung 25 m.
 export const RW_WMS_IMG = { main: 512, tile: 512, far: 400 };
+// Sentinel-2 (Q4), wenn die Quelle kein Luftbild hat: Bildpunkte je Seite. Startgebiet und Kacheln 256 (Sentinel hat 10 m, mehr bringt
+// nichts), Umgebung 1 024 (etwa 10 m). Fehler: kein Bild (dann Relief beim Höhendienst, sonst Gras wie vorher).
+export const RW_S2 = { main: 256, tile: 256, far: 1024 };
+const s2Try = (bbox, crs, px, signal) => { const net = rwNet(signal); return s2Photo(bbox, crsZone(crs), px, net.get, net.text).catch(e => { if (signal && signal.aborted) throw e; return null; }); };
 export async function rwWmsPhoto(src, bbox, crs, px, get) {
   if (!rw.photoWarp || !src || src.kind !== 'wms' || src.tiles) return null;   // Kachelquelle (Q2): kein Luftbild, schattiertes Relief
   const layer = await wmsPhotoOf(src, get);
@@ -278,14 +283,14 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
   if (store && store.landHas && srcs[0].dlm && !await rwLandHas(srcs[0], store))
     await rwLandData(srcs[0], store, (t, f) => say('Gewässer und Orte, einmalig: ' + t, 0.97), signal).catch(e => { if (signal && signal.aborted) throw e; rw.landErr = String(e.message || e); });
   const x = await rwExtras(p, rwExtraSrc(srcs[0], lat, lon), srcs[0].kind === 'wms' ? landStore : store);
-  if (!p.dop && srcs[0].kind === 'wms') {   // Luftbild des Höhendienstes, sonst Relief schattiert auf Gras
-    say('Luftbild vom Höhendienst', 0.9);
-    const get = rwNet(signal).get;
+  if (!p.dop) {   // kein Luftbild der Quelle: vom Höhendienst, sonst Sentinel-2 (Q4), beim Höhendienst sonst Relief schattiert auf Gras
+    const get = rwNet(signal).get, wms = srcs[0].kind === 'wms';
     rw.photoErr = '';
-    p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.main, get).catch(e => { if (signal && signal.aborted) throw e; rw.photoErr = String(e.message || e); return null; });
+    if (wms) { say('Luftbild vom Höhendienst', 0.9); p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.main, get).catch(e => { if (signal && signal.aborted) throw e; rw.photoErr = String(e.message || e); return null; }); }
+    if (!p.dop) { say('Luftbild (Sentinel-2)', 0.92); p.dop = await s2Try(a.bbox, a.crs, RW_S2.main, signal); if (p.dop) p.meta.attribution = [p.meta.attribution, 'Luftbild: ' + S2.attribution].filter(Boolean).join('; '); }
     rw.photoOk = !!p.dop;   // für die Geländezeile im Menü
-    if (!p.dop) p.dop = rwShadeImage(p.meta, p.q);
-    if (p.far && !p.far.dop) p.far.dop = await rwWmsPhoto(srcs[0], farBox(a), a.crs, RW_WMS_IMG.far, get).catch(() => null);
+    if (!p.dop && wms) p.dop = rwShadeImage(p.meta, p.q);
+    if (p.far && !p.far.dop) p.far.dop = (wms ? await rwWmsPhoto(srcs[0], farBox(a), a.crs, RW_WMS_IMG.far, get).catch(() => null) : null) || await s2Try(farBox(a), a.crs, RW_S2.far, signal);
   }
   rwApply(p, { live: true, ...x }); rw.stored = null;
   rw.liveAt = [lat, lon]; rw.liveSrcs = srcs.map(s => s.name); rw.fromStore = false; rw.liveDlm = !!srcs[0].dlm;
@@ -935,7 +940,8 @@ export async function rwLoadTile(i, j, store, say = () => {}, signal) {
     if (srcs.length > 1) opt.cells = rwCellSources(a, srcs, plan.toLand);
     p = await rwFetch(a, srcs, say, signal, opt, store);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
-    if (!p.dop && srcs[0].kind === 'wms') p.dop = await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.tile, rwNet(signal).get).catch(() => null) || rwShadeImage(p.meta, p.q);   // Luftbild des Höhendienstes, sonst Relief
+    const wms = srcs[0].kind === 'wms';   // Luftbild des Höhendienstes, sonst Sentinel-2 (Q4), beim Höhendienst sonst Relief
+    if (!p.dop) p.dop = (wms ? await rwWmsPhoto(srcs[0], a.bbox, a.crs, RW_WMS_IMG.tile, rwNet(signal).get).catch(() => null) : null) || await s2Try(a.bbox, a.crs, RW_S2.tile, signal) || (wms ? rwShadeImage(p.meta, p.q) : null);
     x = await rwExtras(p, rwExtraSrc(srcs[0], lat, lon), srcs[0].kind === 'wms' ? landStore : store);
     rec = { meta: p.meta, q: p.q, b16: p.b16, t16: p.t16, dop: p.dop, water: x.water || null, features: null, lat, lon, srcs: srcs.map(s => s.name), tile: true };
     if (store) await store.put(key, rec);
@@ -1006,7 +1012,7 @@ export async function rwLoadFar(cx, cz, store, signal) {
     if (rw.work) try { F = await rw.work('far', { a, src }, () => {}, signal); } catch (e) { if (!e.noWorker) throw e; }
     if (!F) F = await rwFetchFar(a, src, rwNet(signal).get);
     if (signal && signal.aborted) throw new Error('Abgebrochen');
-    if (!F.dop && src.kind === 'wms') F.dop = await rwWmsPhoto(src, farBox(a), a.crs, RW_WMS_IMG.far, rwNet(signal).get).catch(() => null);
+    if (!F.dop) F.dop = (src.kind === 'wms' ? await rwWmsPhoto(src, farBox(a), a.crs, RW_WMS_IMG.far, rwNet(signal).get).catch(() => null) : null) || await s2Try(farBox(a), a.crs, RW_S2.far, signal);   // sonst Sentinel-2 (Q4)
     if (store) await store.put(key, { meta: { place: 'Umgebung ' + lat.toFixed(3) + ', ' + lon.toFixed(3), buildings: 0, trees: 0, far: F.meta }, farq: F.q, fardop: F.dop || null,
       q: null, b16: null, t16: null, dop: null, lat, lon, srcs: [src.name], tile: true });
   }

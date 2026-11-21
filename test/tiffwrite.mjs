@@ -2,8 +2,8 @@
 import { deflateSync } from 'node:zlib';
 
 // Kleines TIFF schreiben. levels: [{ w, h, tw, th, vals(c, r) }]; bps 16 oder 32, fmt 1/2/3, comp 1 oder 8, pred 1/2/3.
-export function tiff({ levels, bps = 32, fmt = 3, le = true, comp = 1, pred = 1, geo = null }) {
-  const B = bps/8, parts = [], ifds = [];
+export function tiff({ levels, bps = 32, fmt = 3, le = true, comp = 1, pred = 1, geo = null, spp = 1 }) {
+  const B = bps/8*spp, parts = [], ifds = [];
   let pos = 8;
   const put = u8 => { const at = pos; parts.push(u8); pos += u8.length; return at; };
   for (const L of levels) {
@@ -12,7 +12,7 @@ export function tiff({ levels, bps = 32, fmt = 3, le = true, comp = 1, pred = 1,
       const raw = new Uint8Array(L.tw*L.th*B), dv = new DataView(raw.buffer);
       for (let y = 0; y < L.th; y++) for (let x = 0; x < L.tw; x++) {
         const c = Math.min(L.w - 1, tx*L.tw + x), r = Math.min(L.h - 1, ty*L.th + y), v = L.vals(c, r), o = (y*L.tw + x)*B;
-        if (fmt === 3) dv.setFloat32(o, v, pred === 3 ? false : le); else if (B === 2) dv.setInt16(o, v, le); else dv.setInt32(o, v, le);
+        if (spp > 1) v.forEach((x, k) => { raw[o + k] = x; }); else if (fmt === 3) dv.setFloat32(o, v, pred === 3 ? false : le); else if (B === 2) dv.setInt16(o, v, le); else dv.setInt32(o, v, le);
       }
       let enc = raw;
       if (pred === 2) {   // waagrecht als ganze Zahl der Wertbreite
@@ -29,7 +29,7 @@ export function tiff({ levels, bps = 32, fmt = 3, le = true, comp = 1, pred = 1,
       if (comp === 8) enc = new Uint8Array(deflateSync(enc));
       offs.push(put(enc)); cnts.push(enc.length);
     }
-    const tags = [[256, 4, [L.w]], [257, 4, [L.h]], [258, 3, [bps]], [259, 3, [comp]], [277, 3, [1]], [317, 3, [pred]], [322, 4, [L.tw]], [323, 4, [L.th]], [324, 4, offs], [325, 4, cnts], [339, 3, [fmt]], [42113, 2, [...'-9999\0'].map(c => c.charCodeAt(0))]];
+    const tags = [[256, 4, [L.w]], [257, 4, [L.h]], [258, 3, spp > 1 ? Array(spp).fill(bps) : [bps]], [259, 3, [comp]], [277, 3, [spp]], [317, 3, [pred]], [322, 4, [L.tw]], [323, 4, [L.th]], [324, 4, offs], [325, 4, cnts], [339, 3, [fmt]], [42113, 2, [...'-9999\0'].map(c => c.charCodeAt(0))]];
     if (geo && !ifds.length) tags.push([33550, 12, [geo.dx, geo.dx, 0]], [33922, 12, [0, 0, 0, geo.x, geo.y, 0]]);
     ifds.push(tags.sort((a, b) => a[0] - b[0]));
   }

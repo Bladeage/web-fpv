@@ -97,9 +97,9 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 | **Q1 Leser** (erledigt 21.11.2026) | TIFF mit Deflate, Prädiktor 2 für 16 und 32 Bit richtig, Prädiktor 3 geprüft. COG per Teilabruf: nur die nötigen Teile einer Übersicht lesen. Eine Datei aus einem ZIP per Teilabruf lesen (Deflate). XYZ-Text als Raster. Alles ohne DOM, mit Proben als Testdateien. Werkzeug `tools/quellen.mjs` für die Prüfung oben. | nein |
 | **Q2 Weltweite Höhe** (erledigt 21.11.2026) | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
 | **Q3 Länder aus Kacheln** (erledigt 21.11.2026) | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
-| **Q4 Luftbild** | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
+| **Q4 Luftbild** (Sentinel-2 erledigt 21.11.2026; Rest siehe unten) | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
 | **Q5 Gebäude** | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
-| **Q6 Lücken mit WCS und WMS** | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
+| **Q6 Lücken mit WCS und WMS** (Aufgabe vom Nutzer, Prompt 219: WCS für Berlin, die Kacheln sind zu langsam) | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
 | **Q7 Straßen und Landesdaten** | Overpass (weltweit) für Straßen, Basis-DLM anderer Länder (Schema je Land). Erst prüfen, ob Overpass aus dem Browser des Nutzers antwortet. | ja |
 
 Größe der Datei: Vorlagen sind wenige KB. Neue Leser schätzungsweise 10 bis 20 KB. Es bleiben etwa 55 KB bis zur Testgrenze (gesichert, `docs/abschluss-2026-11-13.md`). Das reicht für Q1 bis Q5 (Schätzung). Danach wird es eng.
@@ -132,3 +132,10 @@ Nutzer, Prompt 214: Reihenfolge Q1, Q2, Q3. Ohne Antwort und deshalb nach Vorsch
 - Fehler behoben: `rwSourceAt` nahm eine Quelle ohne Rechteck als überall gültig und übersprang das Land.
 - Gemessen in Headless-Chromium über das Menü (hier im Container, Netz über Proxy): Potsdam 5 s, Hannover 11 s, Mainz 7 s, Rostock 3 s, Berlin Tiergarten 69 s. Berlin ist langsam, weil eine Kachel 17 MB hat und der Server hier etwa 1 MB/s liefert (Lesen des Texts gut 2 s). Vorschlag: für Berlin in Q6 einen WCS suchen.
 - Höhen plausibel (Node): Potsdam 28 bis 35 m, Hannover 49 bis 60 m, Mainz 93 bis 129 m, Rostock 0 bis 25 m, Berlin 22 bis 38 m.
+
+## Q4 erledigt, Teil Sentinel-2 (21.11.2026)
+
+- Neues Modul `src/rws2.js` (ohne DOM): Suche im Katalog earth-search (höchstens 5 % Wolken, 1 % Schnee, neuestes Bild, das das Gebiet ganz abdeckt), Bild „visual“ als COG per Teilabruf, auf unser UTM-Gitter (andere Zone über Breite und Länge), Ausgabe als BMP. `cogLoad` in `src/geo.js` lädt Kacheln für Höhen und Bilder.
+- Greift, wo die Quelle kein Luftbild hat: Welt, Länder aus Kacheln, Umgebung (vorher Relief oder Gras). Startgebiet und Kacheln 256 Bildpunkte, Umgebung 1 024 (etwa 10 m). Quellenvermerk am Gebiet und unter der Karte.
+- Gemessen (Node): Innsbruck, Potsdam, Tokio je 1 bis 2 s. Im Browser Potsdam mit Luftbild für Gebiet und Umgebung geladen und geflogen, ohne Fehler. Am Startplatz Potsdam ist der Boden rotbraun: Dächer der Altstadt im Bild, Gebäude fehlen bis Q5 (gesichert am Bild).
+- Offen aus Q4 (mit Q6): Niedersachsen-Luftbild als COG mit JPEG (0,4 m, braucht Bild-Dekodierung im Browser), WMS-Luftbild für die Länder aus Kacheln (Dienste mit CORS suchen; Bayern DOP40 gemessen).
