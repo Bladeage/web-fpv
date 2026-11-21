@@ -1,8 +1,9 @@
 /* Echte Welt: Gebiet aus offenen Geodiensten laden (Etappe L1). Ohne DOM: läuft im Browser (Laden per Koordinate)
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
-import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, xyzGrid, gridTo, gridMask, fromUtm } from './geo.js';
+import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, gridTo, gridMask, fromUtm } from './geo.js';
 import { wmsFetchHeights, wmsFill } from './rwwms.js';
+import { osmWoods } from './rwroads.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
@@ -182,6 +183,18 @@ export function findTrees(dgm, dom, roofs, n, bbox) {
 // Abstand), ist es eine Leitung: alle Hochpunkte bis 6 m daneben fallen weg (auch über Hecken unter der Leitung). Einzelne schmale
 // Punkte bleiben (junge Bäume). Schwellen geschätzt und an Attendorn geprüft (5 Leiterseile, 419 von 1 774 Punkten, sonst keiner).
 export const RW_WIRE = { minH: 10, fill: 0.12, near: 3, need: 6, drop: 6, rounds: 8, pairs: 6000 };
+// Bäume in Waldflächen (Prompt 229): Raster 12 m mit Versatz, Höhe 14 bis 24 m, Krone 0,3 x Höhe (Schätzung: Mischwald). polys: Ringe [x, z]
+export function woodTrees(polys, size) {
+  const out = [], h = size/2, P = polys.filter(r => r.length > 2).map(r => [r, ...r.reduce((b, [x, z]) => [Math.min(b[0], x), Math.max(b[1], x), Math.min(b[2], z), Math.max(b[3], z)], [1e9, -1e9, 1e9, -1e9])]);
+  const inP = (x, z, r) => { let c = false; for (let i = 0, k = r.length - 1; i < r.length; k = i++) if ((r[i][1] > z) !== (r[k][1] > z) && x < r[k][0] + (z - r[k][1])*(r[i][0] - r[k][0])/(r[i][1] - r[k][1])) c = !c; return c; };
+  let s = 7;
+  const rnd = () => (s = s*16807 % 2147483647)/2147483647;
+  for (let z = 6 - h; z < h; z += 12) for (let x = 6 - h; x < h; x += 12) {
+    const px = x + (rnd() - 0.5)*8, pz = z + (rnd() - 0.5)*8, ht = 14 + rnd()*10;
+    if (P.some(([r, x0, x1, z0, z1]) => px >= x0 && px <= x1 && pz >= z0 && pz <= z1 && inP(px, pz, r))) out.push([px, pz, ht, Math.min(5, ht*0.3)]);
+  }
+  return out;
+}
 export function dropWires(trees, nd, n, cell) {
   const W = RW_WIRE, thin = [];
   for (const t of trees) {
@@ -254,7 +267,6 @@ async function tileGrid(svc, u, e, n, kmm, get) {
   // (Brandenburg, gemessen in Chromium 21.11.2026: „kein ZIP“)
   let u8 = await get(u);
   if (svc.zip) { const z = u8; u8 = await zipGet(async (a, b) => z.subarray(a, b + 1), z.length, svc.zip); }
-  if (svc.zip === '.xyz') return xyzGrid(new TextDecoder().decode(u8));
   const t = await readTiffAsync(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength)), d = kmm/t.w;
   return { x0: e + d/2, y0: n + kmm - d/2, d, w: t.w, h: t.h, data: t.data, nodata: t.nodata };
 }
@@ -367,7 +379,9 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     for (const i of o.wallId) bld.wallId.push(i + base);
   }
   say('Bäume', 0.92);
-  const p = rwPack(a, dgm, dom, bld, dop);
+  // Ohne DOM: Bäume in Waldflächen aus OpenStreetMap (Prompt 229), wenn die Quelle Overpass kennt; ohne Antwort keine Bäume
+  const woods = !dom && srcs[0].roads && srcs[0].roads.overpass ? await osmWoods(srcs[0].roads, a.bbox, crsZone(a.crs), { text }).catch(() => null) : null;
+  const p = rwPack(a, dgm, dom, bld, dop, woods);
   if (opt.far !== false) p.far = await rwFetchFar(a, srcs[0], get, say).catch(() => null);   // Umgebung: ohne sie geht es auch
   p.meta.attribution = [...new Set(srcs.map(s => s.attribution).filter(Boolean))].join('; ');
   return p;
@@ -431,7 +445,7 @@ export function rwSourcesParse(json) {
 // Packen wie die eingebetteten Dateien: Höhen 16 Bit in dm über dem tiefsten Punkt; Gebäude als 16 Bit in dm
 // (Kartenkoordinaten: Mitte = Ursprung, x nach Osten, z nach Süden, y über dem Startplatz), erst Dächer, dann Wände,
 // dahinter je Dreieck die Gebäudenummer und je Gebäude Klasse + 16 x Flachdach; Bäume x, z, Höhe, Kronenradius in dm.
-export function rwPack(a, dgm, dom, bld, dop) {
+export function rwPack(a, dgm, dom, bld, dop, woods = null) {
   const n = dgm.w;
   let lo = 1e9, hi = -1e9;
   for (const v of dgm.data) if (isFinite(v) && v !== dgm.nodata && v > -1000) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
@@ -453,7 +467,7 @@ export function rwPack(a, dgm, dom, bld, dop) {
   pts.forEach((p, k) => { b16[k*3] = Math.round((p[0] - ec)*10); b16[k*3 + 1] = Math.round((p[2] - hHome)*10); b16[k*3 + 2] = Math.round(-(p[1] - nc)*10); });
   ids.forEach((v, k) => { b16[pts.length*3 + k] = v; });
   bld.info.forEach((f, k) => { b16[pts.length*3 + ids.length + k] = bldClass(f.fn) + (f.roof === '1000' ? 16 : 0); });
-  const trees = dom ? findTrees(dgm.data, dom, bld.roof, n, a.bbox) : [], t16 = new Int16Array(trees.length*4);
+  const trees = dom ? findTrees(dgm.data, dom, bld.roof, n, a.bbox) : woods ? woodTrees(woods, a.bbox[2] - a.bbox[0]) : [], t16 = new Int16Array(trees.length*4);
   trees.forEach((tr, k) => t16.set(tr.map(v => Math.round(v*10)), k*4));
   Object.assign(meta, { roofTris: bld.roof.length/3, wallTris: bld.wall.length/3, buildings: nb, trees: trees.length });
   return { meta, q, b16, t16, dop, info: bld.info };

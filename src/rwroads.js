@@ -195,15 +195,31 @@ export const OSM_W = { motorway: 12, trunk: 10, primary: 8, secondary: 7, tertia
 export async function osmRoads(r, bbox, net) {
   const M = RWROADS.margin, g = geoBoxOf([bbox[0] - M, bbox[1] - M, bbox[2] + M, bbox[3] + M], r.zone || 32), f = v => v.toFixed(6);
   const q = '[out:json][timeout:25];way[highway~"^(' + Object.keys(OSM_W).join('|') + ')(_link)?$"](' + [g.minLat, g.minLon, g.maxLat, g.maxLon].map(f).join(',') + ');out tags geom;';
-  let j = null, err = null;
-  for (const u of r.overpass) { try { j = JSON.parse(await net.text(u + '?data=' + encodeURIComponent(q))); break; } catch (e) { if (/Abgebrochen/.test(String(e && e.message))) throw e; err = e; } }
-  if (!j) throw err || new Error('Overpass nicht erreichbar');
+  const j = await overpass(r, q, net);
   const ec = (bbox[0] + bbox[2])/2, nc = (bbox[1] + bbox[3])/2, out = [];
   for (const w of j.elements || []) {
     if (w.type !== 'way' || !w.geometry || w.geometry.length < 2) continue;
     const t = w.tags || {}, pts = dlmSimplify(w.geometry.map(p => toUtm(p.lat, p.lon, r.zone || 32)), RWROADS.simp);
     for (const part of clipRect(pts, bbox)) if (part.length > 1)
       out.push({ name: t.name || '', w: OSM_W[String(t.highway).replace('_link', '')] || 5, pts: part.map(p => [Math.round((p[0] - ec)*10)/10, Math.round(-(p[1] - nc)*10)/10]) });
+  }
+  return out;
+}
+// Overpass: Spiegel der Reihe nach, Antwort als JSON
+async function overpass(r, q, net) {
+  let err = null;
+  for (const u of r.overpass) { try { return JSON.parse(await net.text(u + '?data=' + encodeURIComponent(q))); } catch (e) { if (/Abgebrochen/.test(String(e && e.message))) throw e; err = e; } }
+  throw err || new Error('Overpass nicht erreichbar');
+}
+// Wald aus OpenStreetMap (Prompt 229, für Gebiete ohne DOM): Ringe von landuse=forest und natural=wood (Wege und äußere Teile von
+// Relationen) relativ zur Gebietsmitte, x Ost, z Süd. Wie die Straßen nur mit erfundenen Antworten getestet.
+export async function osmWoods(r, bbox, zone, net) {
+  const g = geoBoxOf(bbox, zone), b = [g.minLat, g.minLon, g.maxLat, g.maxLon].map(v => v.toFixed(6)).join(','), ec = (bbox[0] + bbox[2])/2, nc = (bbox[1] + bbox[3])/2;
+  const j = await overpass(r, '[out:json][timeout:25];(nwr[landuse=forest](' + b + ');nwr[natural=wood](' + b + '););out geom;', net), out = [];
+  const ring = gm => gm.filter(p => p).map(p => { const u = toUtm(p.lat, p.lon, zone); return [u[0] - ec, nc - u[1]]; });
+  for (const el of j.elements || []) {
+    if (el.geometry) out.push(ring(el.geometry));
+    for (const m of el.members || []) if (m.role === 'outer' && m.geometry) out.push(ring(m.geometry));
   }
   return out;
 }

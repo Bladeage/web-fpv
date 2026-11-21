@@ -24,3 +24,21 @@ test('Quellen ohne ALKIS haben Straßen aus OpenStreetMap; Niedersachsen hat Lan
   assert.ok(RW_SOURCES.find(s => s.id === 'nrw').roads.url.includes('alkis'), 'NRW bleibt bei ALKIS');
   assert.equal(RW_SOURCES.find(s => s.id === 'ni').dlm.water, 'gew01_f.shp');
 });
+
+test('Prompt 229: Wald aus OpenStreetMap wird zu Bäumen, nur ohne DOM', async () => {
+  const { osmWoods } = await import('../src/rwroads.js');
+  const { woodTrees, rwPack } = await import('../src/rwload.js');
+  const bb = [500000, 5300000, 501000, 5301000], ll = (e, n) => { const [lat, lon] = fromUtm(e, n, 32); return { lat, lon }; };
+  const sq = (e0, n0, e1, n1) => [ll(e0, n0), ll(e1, n0), ll(e1, n1), ll(e0, n1), ll(e0, n0)];
+  const j = { elements: [{ type: 'way', tags: { landuse: 'forest' }, geometry: sq(500000, 5300500, 500500, 5301000) },
+    { type: 'relation', tags: { natural: 'wood' }, members: [{ role: 'outer', geometry: sq(500600, 5300000, 500800, 5300200) }, { role: 'inner', geometry: sq(500650, 5300050, 500700, 5300100) }] }] };
+  const asked = [], w = await osmWoods({ overpass: ['https://o/api'] }, bb, 32, { text: async u => { asked.push(decodeURIComponent(u)); return JSON.stringify(j); } });
+  assert.ok(/landuse=forest/.test(asked[0]) && /natural=wood/.test(asked[0]));
+  assert.equal(w.length, 2, 'Weg und äußerer Teil der Relation');
+  assert.ok(Math.abs(w[0][0][0] + 500) < 0.5 && Math.abs(w[0][0][1]) < 0.5, 'relativ zur Mitte, z nach Süden: ' + w[0][0]);
+  const t = woodTrees(w, 1000);
+  assert.ok(t.length > 1200 && t.length < 2400, 'etwa ein Viertel plus Stück voll: ' + t.length);
+  assert.ok(t.every(([x, z, h, r]) => (x < 0.5 && z < 0.5) || (x > 99 && z > 299)) && t.every(q => q[2] >= 14 && q[2] <= 24 && q[3] <= 5));
+  const dgm = { w: 64, h: 64, data: new Float32Array(4096).fill(50) }, a = { bbox: bb, crs: 'EPSG:25832', startNear: [500500, 5300500], name: 't', place: '', attribution: '' };
+  assert.ok(rwPack(a, dgm, null, { roof: [], wall: [], roofId: [], wallId: [], info: [] }, null, w).meta.trees > 1000, 'Bäume ohne DOM aus Wald');
+});
