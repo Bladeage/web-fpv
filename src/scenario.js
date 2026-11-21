@@ -167,13 +167,18 @@ export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
 // Berührung) zündet sie: Ziel getroffen, Explosion, die Drohne ist verbraucht. Ein Absturz zündet sie ohne Treffer. Nach delay
 // Sekunden startet eine neue Drohne mit vollem Akku und neuer Ladung; Zeit und Treffer laufen weiter. mass: Anteil der Drohnenmasse
 // (Schätzung: Last etwa ein Drittel der Startmasse); fx: Dauer der Explosion im Bild (s). Nur Darstellung und Spiel, keine Wirkung.
-export const CHARGE = { mass: 0.3, delay: 1.5, fx: 1.4 };
+export const CHARGE = { mass: 0.3, delay: 1.5, fx: 1.4, arm: 10 };   // arm: scharf ab so viel m über Grund, einmal je Drohne (Nutzer, Prompt 226)
 export const booms = [];   // Explosionen für die Darstellung: { p, t (performance.now) }
-export const chargeOn = () => cfg.flight === 'tactical' && cfg.warhead === 'charge' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;
+export const chargeOn = () => cfg.flight === 'tactical' && cfg.warhead === 'charge' && ['hunt', 'hunt2', 'hunt3', 'free'].includes(scen.id) && !diff().balloons;   // free: Aufklärung
+// Scharf machen (Prompt 226): einmal je Drohne, sobald sie CHARGE.arm Meter über Grund war; auch in der DIS-Übung. Vorher kein Ziel, keine Zündung.
+function chargeArm() {
+  const s = game.sim;
+  if (!s.armed && cfg.warhead === 'charge' && (chargeOn() || cfg.flight === 'dis') && s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot >= CHARGE.arm) { s.armed = true; banner('LADUNG SCHARF', 'Zündet bei Aufprall oder am Ziel'); }
+}
 export function chargeBoom(p) { booms.push({ p: p.slice(), t: performance.now() }); while (booms.length > 8) booms.shift(); }
 // Nach dem Zünden: neue Drohne fällig? Liefert true, wenn jetzt eine neue Drohne starten soll (Aufrufer setzt sie an den Start).
 export function chargeDue(now = performance.now()) {
-  return chargeOn() && game.state === 'crashed' && !st.done && now - (game.sim.crashT || 0) > CHARGE.delay*1000;
+  return chargeOn() && !!game.sim.armed && game.state === 'crashed' && !st.done && now - (game.sim.crashT || 0) > CHARGE.delay*1000;
 }
 export function chargeNext() { st.drones++; game.tries++; game.payload = CHARGE.mass*PHYS.mass; }
 export const chargeDrones = () => st.drones;
@@ -369,6 +374,7 @@ function checkLanding(a, b, h) {
 export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : scen.id === 'hunt3' ? (aircraft.length || 6) : (targets.length || 9);
 export const huntNeed = () => Math.min(cfg.huntX || 5, huntTotal());
 function checkHunt(a, b, h) {
+  if (chargeOn() && !game.sim.armed) return;   // Ladung noch nicht scharf: Ziele zählen nicht (Prompt 226)
   const s = game.sim;
   if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
   const bal = !!diff().balloons;
@@ -457,7 +463,8 @@ export function setScenario(id, real = id === 'real') {
   game.homeYaw = !rw.on ? 0 : rw.meta.homeYaw !== undefined ? -rw.meta.homeYaw*Math.PI/180 : Math.atan2(game.home[0], game.home[1]);
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   game.bestScen = id === 'real' || !rw.on ? id : id + '.real';   // Bestzeit je Welt
-  task.check = TASKS[id].check; task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
+  const chk = TASKS[id].check; task.check = ['hunt', 'hunt2', 'hunt3', 'free', 'real', 'vbs'].includes(id) ? (a, b, h) => { chargeArm(); chk(a, b, h); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
+  task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
 }
 
