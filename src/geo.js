@@ -1,6 +1,6 @@
 /* Geodaten lesen (Modus „Echte Welt“). Ohne DOM: läuft im Browser und im Werkzeug tools/realworld.mjs.
    GeoTIFF mit Höhen (WCS der Länder, Kacheldateien, COG): Streifen oder Kacheln, ohne Kompression, LZW oder Deflate (Q1),
-   Prädiktor 1 (keiner), 2 (waagrecht) oder 3 (Gleitkomma). COG per Teilabruf, Datei aus ZIP, XYZ-Text. Dazu WGS84 -> UTM. */
+   Prädiktor 1 (keiner), 2 (waagrecht) oder 3 (Gleitkomma). COG per Teilabruf, Datei aus ZIP. Dazu WGS84 -> UTM. */
 import { dlmFind } from './rwdlm.js';
 
 // Geoidhöhe (Quasigeoid) für Höhe über dem Ellipsoid minus Höhe über NHN. Fest 47 m (Schätzung für Monschau; NRW 42,5 bis
@@ -128,19 +128,6 @@ export function gridSample(at, w, h, px, py, n, nodata = NaN) {
   }
   return out;
 }
-// XYZ-Text (Berlin: „x y z“ je Zeile, regelmäßiges Gitter) -> Gitter { x0, y0 (Mitte des Pixels oben links), d, w, h, data }
-export function xyzGrid(text) {
-  const xs = [], ys = [], zs = [];
-  for (const line of text.split('\n')) { const p = line.trim().split(/[\s,;]+/); if (p.length >= 3) { const x = +p[0], y = +p[1], z = +p[2]; if (isFinite(x) && isFinite(y) && isFinite(z)) { xs.push(x); ys.push(y); zs.push(z); } } }
-  if (!xs.length) throw new Error('XYZ ohne Punkte');
-  let step = Infinity;
-  for (let k = 1; k < Math.min(xs.length, 5000); k++) { const d = Math.abs(xs[k] - xs[k - 1]) || Math.abs(ys[k] - ys[k - 1]); if (d > 1e-6 && d < step) step = d; }
-  let xa = Infinity, ya = -Infinity, xb = -Infinity, yb = Infinity;
-  for (let k = 0; k < xs.length; k++) { xa = Math.min(xa, xs[k]); xb = Math.max(xb, xs[k]); ya = Math.max(ya, ys[k]); yb = Math.min(yb, ys[k]); }
-  const w = Math.round((xb - xa)/step) + 1, h = Math.round((ya - yb)/step) + 1, data = new Float32Array(w*h).fill(NaN);
-  for (let k = 0; k < xs.length; k++) data[Math.round((ya - ys[k])/step)*w + Math.round((xs[k] - xa)/step)] = zs[k];
-  return { x0: xa, y0: ya, d: step, w, h, data, nodata: NaN };
-}
 // Gitter -> Raster n x n für bbox (Zellmitten, bilinear); Zellen außerhalb des Gitters (mehr als ein halbes Pixel) bleiben NaN
 export function gridTo(g, bbox, n) {
   const cx = (bbox[2] - bbox[0])/n, cy = (bbox[3] - bbox[1])/n, X = i => bbox[0] + (i + 0.5)*cx, Y = j => bbox[3] - (j + 0.5)*cy;
@@ -153,8 +140,6 @@ export function gridMask(v, bbox, n, box) {
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const x = bbox[0] + (i + 0.5)*cx, y = bbox[3] - (j + 0.5)*cy; if (x < box[0] || x > box[2] || y < box[1] || y > box[3]) v[j*n + i] = NaN; }
   return v;
 }
-// XYZ-Text als Raster n x n für bbox
-export const readXyz = (text, bbox, n) => ({ w: n, h: n, nodata: NaN, data: gridTo(xyzGrid(text), bbox, n) });
 // Eine Datei aus einem ZIP per Teilabruf: range(a, b), Gesamtgröße total, Name endet auf want. Gespeichert oder Deflate. Sonst Fehler.
 export async function zipGet(range, total, want) {
   const e = await dlmFind(range, total, want);

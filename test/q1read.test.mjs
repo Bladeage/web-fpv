@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import { tiff } from './tiffwrite.mjs';
-import { readTiff, readTiffAsync, cogOpen, cogWindow, cogLevel, zipGet, readXyz } from '../src/geo.js';
+import { readTiff, readTiffAsync, cogOpen, cogWindow, cogLevel, zipGet } from '../src/geo.js';
 
 const plane = (c, r) => 100 + 0.5*c - 0.25*r;   // Ebene: bilinear exakt
 
@@ -58,11 +58,4 @@ test('Datei aus einem ZIP per Teilabruf (Deflate und gespeichert), Deflate64 abg
   assert.equal(new TextDecoder().decode(await zipGet(range, all.length, 'b.txt')), 'xyz');
   await assert.rejects(zipGet(range, all.length, '.gml'), /Deflate64/);
   await assert.rejects(zipGet(range, all.length, '.xml'), /fehlt/);
-});
-
-test('XYZ-Text als Raster (Berlin: Pixelmitten auf ,5)', () => {
-  let txt = '';
-  for (let y = 9; y >= 0; y--) for (let x = 0; x < 10; x++) txt += `${500 + x + 0.5} ${600 + y + 0.5} ${plane(x, 9 - y).toFixed(3)}\n`;
-  const t = readXyz(txt, [502, 602, 506, 606], 4);   // Zellmitten 502,5 ... 505,5
-  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) assert.ok(Math.abs(t.data[j*4 + i] - plane(2 + i, 9 - (605 - j - 600))) < 1e-3, `${i},${j}: ${t.data[j*4 + i]}`);
 });
