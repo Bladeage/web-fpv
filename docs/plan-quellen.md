@@ -98,9 +98,9 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 | **Q2 Weltweite Höhe** (erledigt 21.11.2026) | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
 | **Q3 Länder aus Kacheln** (erledigt 21.11.2026) | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
 | **Q4 Luftbild** (Sentinel-2 erledigt 21.11.2026; Rest siehe unten) | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
-| **Q5 Gebäude** | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
-| **Q6 Lücken mit WCS und WMS** (Aufgabe vom Nutzer, Prompt 219: WCS für Berlin, die Kacheln sind zu langsam) | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
-| **Q7 Straßen und Landesdaten** | Overpass (weltweit) für Straßen, Basis-DLM anderer Länder (Schema je Land). Erst prüfen, ob Overpass aus dem Browser des Nutzers antwortet. | ja |
+| **Q5 Gebäude** (erledigt 21.11.2026) | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
+| **Q6 Lücken mit WCS und WMS** (erledigt 21.11.2026; Aufgabe des Nutzers WCS Berlin gelöst über den WCS Brandenburg) | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
+| **Q7 Straßen und Landesdaten** (erledigt 21.11.2026, Overpass nicht prüfbar) | Overpass (weltweit) für Straßen, Basis-DLM anderer Länder (Schema je Land). Erst prüfen, ob Overpass aus dem Browser des Nutzers antwortet. | ja |
 
 Größe der Datei: Vorlagen sind wenige KB. Neue Leser schätzungsweise 10 bis 20 KB. Es bleiben etwa 55 KB bis zur Testgrenze (gesichert, `docs/abschluss-2026-11-13.md`). Das reicht für Q1 bis Q5 (Schätzung). Danach wird es eng.
 
@@ -139,3 +139,41 @@ Nutzer, Prompt 214: Reihenfolge Q1, Q2, Q3. Ohne Antwort und deshalb nach Vorsch
 - Greift, wo die Quelle kein Luftbild hat: Welt, Länder aus Kacheln, Umgebung (vorher Relief oder Gras). Startgebiet und Kacheln 256 Bildpunkte, Umgebung 1 024 (etwa 10 m). Quellenvermerk am Gebiet und unter der Karte.
 - Gemessen (Node): Innsbruck, Potsdam, Tokio je 1 bis 2 s. Im Browser Potsdam mit Luftbild für Gebiet und Umgebung geladen und geflogen, ohne Fehler. Am Startplatz Potsdam ist der Boden rotbraun: Dächer der Altstadt im Bild, Gebäude fehlen bis Q5 (gesichert am Bild).
 - Offen aus Q4 (mit Q6): Niedersachsen-Luftbild als COG mit JPEG (0,4 m, braucht Bild-Dekodierung im Browser), WMS-Luftbild für die Länder aus Kacheln (Dienste mit CORS suchen; Bayern DOP40 gemessen).
+
+## Q6 erledigt (21.11.2026)
+
+Gemessen mit `Origin` unserer Seite: Fähigkeiten, `GetMap` 256² und 4096² (JPEG), `GetCoverage` 64² und 512² (TIFF).
+
+| Land | Höhen | Luftbild (WMS, Ebene) | Quellenvermerk laut Dienst |
+|---|---|---|---|
+| Berlin | WCS Brandenburg `bb_dgm` (deckt Berlin ab; 2 s statt 69 s, gleiche Werte) | `gdi.berlin.de/services/wms/truedop_2024`, `truedop_2024` | dl-de/zero-2-0 |
+| Brandenburg | WCS `isk.geobasis-bb.de/ows/dgm_wcs`, `bb_dgm` | `isk.geobasis-bb.de/mapproxy/dop20c/service/wms`, `bebb_dop20c` | dl-de/by-2-0 |
+| Mecklenburg-Vorpommern | WCS `geodaten-mv.de/dienste/dgm_wcs`, `mv_dgm` | `geodaten-mv.de/dienste/adv_dop`, `mv_dop` | CC BY 4.0 |
+| Niedersachsen | Kacheln (STAC), WCS antwortet 400 | `opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms`, `ni_dop20` | CC BY 4.0 |
+| Rheinland-Pfalz | Kacheln (Liste), WCS 403 | `geo4.service24.rlp.de/wms/rp_dop20.fcgi`, `rp_dop20` | dl-de/by-2-0 |
+| Bayern | Welt | `geoservices.bayern.de/od/wms/dop/v1/dop40`, `by_dop40c` | CC BY 4.0 |
+| Baden-Württemberg | Welt | `owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C`, `IMAGES_DOP_20_RGB` | dl-de/by-2-0 |
+| Bremen | Welt | `geodienste.bremen.de/wms_dop20_2023`, `DOP20_2023_HB` | CC BY |
+| Hessen | Welt | `gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows`, `he_dop_rgb` (höchstens 3000²; `he_dop20_rgb` liefert hier leer) | frei nach HVGG § 24 |
+| Schleswig-Holstein | Welt | `dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD`, `sh_dop20_rgb` | © GeoBasis-DE/LVermGeo SH/CC BY 4.0 |
+| Saarland | Welt | `geoportal.saarland.de/freewms/dop2023`, `sl_dop20_rgb` | keine Gebühren, keine Beschränkung; Vermerk „LVGL Saarland“ vermutet |
+| Sachsen | Welt | `geodienste.sachsen.de/wms_geosn_dop-rgb/guest`, `sn_dop_020` | kostenfrei, Nutzungsbedingungen GeoSN |
+| Sachsen-Anhalt | Welt | `geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest`, `lsa_lvermgeo_dop20_2` | dl-de/by-2-0 (aus der Liste) |
+
+- Nicht gefunden oder nicht offen: Hamburg (alle geprüften Adressen 404), Thüringen (WMS verlangt Rechte: „Missing WMS:GetMap right“; WCS-Fähigkeiten da, Abdeckung nicht geprüft), WCS für Bayern, Baden-Württemberg, Bremen, Hessen, Schleswig-Holstein, Saarland, Sachsen, Sachsen-Anhalt (geprüfte Adressen 404).
+- Code: Quellen ohne `dgm` (nur Luftbild) nehmen die Höhen der Welt-Quelle; `dop.max` begrenzt die Bildgröße; Umgebung mit Luftbild des Landes. Im Browser geladen und geflogen: Berlin 33 s, München 24 s, Frankfurt 39 s (die Zeit geht vor allem in das Luftbild 4096², 2,5 bis 12 MB je Dienst).
+- Die XYZ-Kacheln von Berlin nutzt keine Vorlage mehr. Der Leser bleibt (Q1, getestet); bei Platznot zuerst entfernen (etwa 1 KB).
+
+## Q5 erledigt (21.11.2026)
+
+- Gebäude (LoD2) für Brandenburg (ZIP, 1 km), Berlin (ZIP, 1 km), Niedersachsen (GML, 1 km), Rheinland-Pfalz (GML, 2 km), Mecklenburg-Vorpommern (ZIP, 2 km). `lod2.zip` nennt die Datei im ZIP; das ZIP wird ganz geladen (`lod2Text` in `src/rwload.js`). CORS bei allen gemessen.
+- Gelesen in Node mit dem vorhandenen CityGML-Leser: Potsdam 755 Gebäude (30 MB Text), Berlin Tiergarten 2 036 (27 MB, 2 032 mit Dach), Rostock 3 107 (75 MB), Mainz 5 723 (163 MB je 2-km-Kachel). Im Browser Potsdam mit 959 Gebäuden geladen und geflogen.
+- Groß: Rheinland-Pfalz bis 163 MB je Kachel, Niedersachsen bis 49 MB. Der vorhandene Gebäude-Zwischenspeicher hält zerlegte Kacheln.
+- Nicht möglich: Bayern und Sachsen (kein CORS), Hamburg (Deflate64), übrige Länder ohne Einzelkacheln.
+
+## Q7 erledigt, soweit hier prüfbar (21.11.2026)
+
+- Straßen aus OpenStreetMap über Overpass (`osmRoads` in `src/rwroads.js`) für die Welt-Quelle und alle Länder ohne ALKIS: fahrbare `highway`-Wege als Achsen in derselben Form wie ALKIS (Name, Breite nach Art, Schätzung), drei Spiegel der Reihe nach. NRW bleibt bei ALKIS.
+- **Nicht geprüft:** Die Cloud-Umgebung erreicht keinen Overpass-Spiegel (Verbindung bricht am Proxy ab). Getestet nur mit erfundenen Antworten. Vermutet: Overpass erlaubt den Browser (CORS). Im Browser hier: Straßen scheitern sauber („Keine Verbindung zu …overpass…“), Gebiet und Flug laufen.
+- Basis-DLM Niedersachsen (Gewässer, Orte): gleiche Ebenen wie NRW, aber Deflate; `rwLandData` entpackt jetzt Deflate. Nicht im Browser geprüft (22 MB).
+- Offen: Basis-DLM der anderen Länder (Rheinland-Pfalz andere Namen, Bayern Deflate64 und kein CORS, Baden-Württemberg und Sachsen-Anhalt Schema prüfen).

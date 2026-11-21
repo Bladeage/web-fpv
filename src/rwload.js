@@ -6,6 +6,8 @@ import { wmsFetchHeights, wmsFill } from './rwwms.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
+// Straßen aus OpenStreetMap (Q7) für Quellen ohne ALKIS: drei Overpass-Spiegel (aus docs/quellen-geodaten.md)
+const OSM_ROADS = { overpass: ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter'] };
 export const RW_SOURCES = [{
   id: 'nrw', name: 'Nordrhein-Westfalen (Geobasis NRW)', land: 'Nordrhein-Westfalen', crs: 'EPSG:25832', box: [278000, 5560000, 540000, 5832000],
   dgm: { url: 'https://www.wcs.nrw.de/geobasis/wcs_nw_dgm', coverage: 'nw_dgm' },
@@ -19,20 +21,37 @@ export const RW_SOURCES = [{
   roads: { url: 'https://www.wfs.nrw.de/geobasis/wfs_nw_alkis_vereinfacht', type: 'ave:Nutzung', ns: 'http://repository.gdi-de.org/schemas/adv/produkt/alkis-vereinfacht/2.0', field: 'nutzart', value: 'Straßenverkehr', epsg: 25832 },
   attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
 },
-// Länder mit Höhen aus Kacheldateien (Etappe Q3, docs/plan-quellen.md, Adressen aus docs/quellen-geodaten.md, CORS gemessen 20.11.2026).
-// dgm statt WCS: tpl (Adresse mit {e}/{n} in km, zip: Datei darin, xyz: Text), stac (Katalog, Sammlung coll, COG) oder index
-// (Dateiliste, Name beginnt mit tpl). km: Kachelgröße. Kein Luftbild (folgt in Q4), Umgebung aus der Welt-Quelle.
-{ id: 'bb', name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833',
-  dgm: { tpl: 'https://data.geobasis-bb.de/geobasis/daten/dgm/tif/dgm_33{e}-{n}.zip', zip: '.tif', km: 1 }, attribution: 'GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
-{ id: 'be', name: 'Berlin (Geoportal Berlin)', land: 'Berlin', crs: 'EPSG:25833',
-  dgm: { tpl: 'https://gdi.berlin.de/data/dgm1/atom/DGM1_{e}_{n}.zip', zip: '.xyz', km: 2 }, attribution: 'Geoportal Berlin, dl-de/zero-2-0' },
-{ id: 'ni', name: 'Niedersachsen (LGLN)', land: 'Niedersachsen', crs: 'EPSG:25832',
-  dgm: { stac: 'https://dgm.stac.lgln.niedersachsen.de', coll: 'dgm1', km: 1 }, attribution: 'LGLN 2026, CC BY 4.0' },
-{ id: 'rp', name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832',
-  dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
-// Mecklenburg-Vorpommern: keine Teilabrufe, jede 2-km-Kachel ganz (etwa 16 MB, gemessen); ein Gebiet bis 4 Kacheln
-{ id: 'mv', name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833',
-  dgm: { tpl: 'https://www.geodaten-mv.de/dienste/dgm_download?index=4&dataset=ca268792-s2q1-4a39-b34c-9ec5bf9a4469&file=dgm1_33_{e}_{n}_2_gtiff.tif', km: 2 }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
+// Weitere Länder (Q3 Kacheln, Q6 WCS und WMS; Adressen in docs/plan-quellen.md, CORS und Abruf gemessen 21.11.2026). dgm: WCS (coverage),
+// sonst Kacheln: tpl (Adresse mit {e}/{n} in km, zip: Datei darin, xyz: Text), stac (Katalog, Sammlung coll, COG) oder index (Dateiliste,
+// Name beginnt mit tpl). Ohne dgm: Höhen aus der Welt-Quelle. dop: WMS-Luftbild (max: größtes Bild des Dienstes). lod2 (Q5): Gebäude,
+// zip: Datei im ZIP. Größe je Kachel gemessen: Brandenburg 30 MB, Berlin 27 MB, Niedersachsen bis 49 MB, Rheinland-Pfalz bis 163 MB (2 km), MV 75 MB (2 km).
+{ id: 'bb', roads: OSM_ROADS, name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
+  dop: { url: 'https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms', layer: 'bebb_dop20c' },
+  lod2: { url: 'https://data.geobasis-bb.de/geobasis/daten/3d_gebaeude/lod2_gml/lod2_33{E}-{N}.zip', tileKm: 1, zip: '_geb.gml' }, attribution: 'GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
+// Berlin: Höhen aus dem WCS Brandenburg (deckt Berlin ab, 2 s statt 69 s mit den XYZ-Kacheln von Berlin, gleiche Werte)
+{ id: 'be', roads: OSM_ROADS, name: 'Berlin (Geoportal Berlin)', land: 'Berlin', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
+  dop: { url: 'https://gdi.berlin.de/services/wms/truedop_2024', layer: 'truedop_2024' },
+  lod2: { url: 'https://gdi.berlin.de/data/a_lod2/atom/LoD2_{E}_{N}.zip', tileKm: 1, zip: '.xml' }, attribution: 'Geoportal Berlin, dl-de/zero-2-0; GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
+{ id: 'ni', roads: OSM_ROADS, name: 'Niedersachsen (LGLN)', land: 'Niedersachsen', crs: 'EPSG:25832', dgm: { stac: 'https://dgm.stac.lgln.niedersachsen.de', coll: 'dgm1', km: 1 },
+  dop: { url: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms', layer: 'ni_dop20' },
+  lod2: { url: 'https://lod2.opengeodata.lgln.niedersachsen.de/LoD2_32_{E}_{N}_1_ni.gml', tileKm: 1 },
+  dlm: { url: 'https://single-datasets.s3.eu-de.cloud-object-storage.appdomain.cloud/bdlm/nba_bkg_bdlm_ni_V6.0.zip', water: 'gew01_f.shp', places: ['sie01_f.shp', 'sie01_f.dbf'],  mb: 22 }, attribution: 'LGLN 2026, CC BY 4.0' },
+{ id: 'rp', roads: OSM_ROADS, name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832', dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 },
+  dop: { url: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi', layer: 'rp_dop20' },
+  lod2: { url: 'https://geobasis-rlp.de/data/geb3dlo/current/gml/LoD2_32_{E}_{N}_2_RP.gml', tileKm: 2 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
+{ id: 'mv', roads: OSM_ROADS, name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
+  dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' },
+  lod2: { url: 'https://www.geodaten-mv.de/dienste/gebaeude_download?index=0&dataset=8397b554-5cb9-4274-8be8-c20490d9a6e8&file=lod2_33_{E}_{N}_2_gml.zip', tileKm: 2, zip: '.gml' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
+// Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
+...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0'],
+  ['bw', 'Baden-Württemberg', 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', 'IMAGES_DOP_20_RGB', 'LGL, www.lgl-bw.de, dl-de/by-2-0'],
+  ['hb', 'Bremen', 'https://geodienste.bremen.de/wms_dop20_2023', 'DOP20_2023_HB', 'Landesamt GeoInformation Bremen, CC BY'],
+  ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000],
+  ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0'],
+  ['sl', 'Saarland', 'https://geoportal.saarland.de/freewms/dop2023', 'sl_dop20_rgb', 'LVGL Saarland 2026'],
+  ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0'],
+  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0']
+].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, attribution })),
 {
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.
   // Gilt überall (box null), ohne Gebäude, Bäume, Luftbild. Nie im Browser speichern (Lizenz der Quelle). use: 'dis' (nur für den
@@ -47,7 +66,7 @@ export const RW_SOURCES = [{
   // Annahme: die Quelldaten sind meist 25 bis 90 m fein, feiner bringt nichts). Lizenz: Quellenvermerk nach
   // github.com/tilezen/joerd/blob/master/docs/attribution.md (gekürzt; vollständig in docs/plan-quellen.md).
   id: 'welt', kind: 'wms', tiles: 'terrain', name: 'Welt: Höhen (AWS Terrain Tiles)', land: '', box: null,
-  hgt: { url: 'https://elevation-tiles-prod.s3.amazonaws.com/geotiff/{z}/{x}/{y}.tif', zmax: 12 }, vref: 'msl', use: 'all',
+  hgt: { url: 'https://elevation-tiles-prod.s3.amazonaws.com/geotiff/{z}/{x}/{y}.tif', zmax: 12 }, vref: 'msl', use: 'all', roads: OSM_ROADS,
   attribution: 'Höhen: Mapzen Terrain Tiles; EU-DEM (Copernicus, EU), SRTM, GMTED2010, 3DEP (USGS), ETOPO1 (NOAA) u. a.'
 }];
 // UTM-Zone aus dem Koordinatensystem einer Quelle oder eines Gebiets (EPSG:258xx)
@@ -66,6 +85,7 @@ export function wcsUrl(svc, bbox, crs, n) {
     + `&SUBSET=x(${e0},${e1})&SUBSET=y(${n0},${n1})&SUBSETTINGCRS=${c}&OUTPUTCRS=${c}&SCALESIZE=x(${n}),y(${n})`;
 }
 export function wmsUrl(svc, bbox, crs, n) {
+  if (svc.max) n = Math.min(n, svc.max);   // Größtes Bild des Dienstes (Hessen 3000)
   return `${svc.url}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${svc.layer}&STYLES=&CRS=${crs}`
     + `&BBOX=${bbox.join(',')}&WIDTH=${n}&HEIGHT=${n}&FORMAT=image/jpeg`;
 }
@@ -252,6 +272,12 @@ export async function tileRaster(svc, bbox, crs, n, get, text) {
   }
   return { w: n, h: n, data: out, nodata: NaN };
 }
+// Gebäude-Kachel als Text; lod2.zip (Q5): ZIP ganz laden, Datei darin (Brandenburg, Berlin). Fehlt die Kachel (404): null.
+async function lod2Text(svc, u, text, get, prog) {
+  if (!svc.zip) return text(u, prog);
+  const z = await get(u, prog).catch(e => { if (/ 404/.test(e.message)) return null; throw e; });
+  return z && new TextDecoder().decode(await zipGet(async (a, b) => z.subarray(a, b + 1), z.length, svc.zip));
+}
 export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   const srcs = Array.isArray(src) ? src : [src], multi = srcs.length > 1 && opt.cells;
   const n = a.n || RW_GRIDN, buf = u8 => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength), C = RW_CELLS;
@@ -278,10 +304,10 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   say('Höhen', 0);
   // WMS-Höhendienst: Höhen aus dem Dienst (geografisch, umgerechnet auf unser Gitter); keine Oberfläche, kein Luftbild, keine Gebäude
   const wms = srcs[0].kind === 'wms';
-  const dgm = wms ? { w: n, h: n, nodata: NaN, data: (await wmsFetchHeights(srcs[0], a.bbox, crsZone(a.crs), n, get)).data } : await raster('dgm', 'Höhen');
+  const dgm = wms || !srcs[0].dgm ? { w: n, h: n, nodata: NaN, data: (await wmsFetchHeights(wms ? srcs[0] : RW_SOURCES.find(x => x.tiles), a.bbox, crsZone(a.crs), n, get)).data } : await raster('dgm', 'Höhen');   // ohne dgm: Welt (Q6)
   if (!dgm) throw new Error('Quelle ohne Höhen (WCS)');
   say('Oberfläche (Bäume)', 0.1);
-  const domR = !wms && (srcs[0].dom || multi) ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
+  const domR = !wms && srcs[0].dgm && (srcs[0].dom || multi) ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
   say('Luftbild', 0.2);
   // Fortschritt beim Herunterladen großer Dateien: Schritt mit MB
   const mb = (what, f) => n => say(what + ' (' + (n/1e6).toFixed(1) + ' MB)', f);
@@ -309,14 +335,14 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     if (opt.lod2Cache) {   // schon einmal geladen (anderer Ort, Nachbarkachel)? Dann ohne Netz
       let t = await opt.lod2Cache.get(u);
       if (!t) {
-        const xml = await text(u, mb(step, f));
+        const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f));
         t = xml ? lod2Pack(opt.async ? await readLod2Async(xml) : readLod2(xml)) : { empty: true };
         await opt.lod2Cache.put(u, t);
       } else say(step + ' (aus dem Speicher)', f);
       if (t.empty) continue;   // Kachel ohne Gebäude
       o = lod2Filter(lod2Unpack(t), keep);
     } else {
-      const xml = await text(u, mb(step, f));
+      const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f));
       if (!xml) continue;   // Kachel ohne Gebäude
       o = opt.async ? await readLod2Async(xml, keep) : readLod2(xml, keep);
     }
@@ -352,7 +378,7 @@ export async function rwCheckSource(s, E, N, get, text) {
     const ok = [...t.data].filter(v => isFinite(v) && v !== t.nodata && v > -1000); if (!ok.length) throw new Error('nur Füllwerte (Ort außerhalb?)');
     return 'Höhe ' + ok[0].toFixed(1) + ' m'; };
   const tiles = async svc => { const t = await tileRaster(svc, bb, s.crs, 16, get, text), v = [...t.data].filter(x => !isNaN(x)); if (!v.length) throw new Error('keine Kachel an diesem Ort'); return 'Höhe ' + v[0].toFixed(1) + ' m (Kacheln)'; };
-  if (s.dgm) await run('Höhen', () => s.dgm.coverage ? tif(s.dgm) : tiles(s.dgm)); else out.push({ was: 'Höhen', ok: false, text: 'fehlt (nötig)' });
+  if (s.dgm) await run('Höhen', () => s.dgm.coverage ? tif(s.dgm) : tiles(s.dgm)); else if (s.dgm === null) out.push({ was: 'Höhen', ok: true, text: 'aus der Welt-Quelle' }); else out.push({ was: 'Höhen', ok: false, text: 'fehlt (nötig)' });
   if (s.dom) await run('Oberfläche', () => tif(s.dom));
   if (s.dop) await run('Luftbild', async () => { const b = await get(wmsUrl(s.dop, bb, s.crs, 64)); if (!(b[0] === 0xff && b[1] === 0xd8) && !(b[0] === 0x89 && b[1] === 0x50)) throw new Error('kein Bild'); return (b.length/1024).toFixed(0) + ' KB Bild'; });
   if (s.lod2) await run('Gebäude', async () => { const u = lod2Urls(s.lod2, bb)[0], t = await text(u); if (t === null) return 'keine Kachel an diesem Ort (' + u.split('/').pop() + ')';
@@ -443,10 +469,11 @@ export function rwFixStart(p) {
 export async function rwFetchFar(a, src, get, say = () => {}) {
   const c = [(a.bbox[0] + a.bbox[2])/2, (a.bbox[1] + a.bbox[3])/2], h = RW_FAR.size/2, n = RW_FAR.n, bb = [c[0] - h, c[1] - h, c[0] + h, c[1] + h];
   say('Umgebung (Höhen)', 0.94);
-  if (src.kind === 'wms' || !src.dgm.coverage) {   // WMS-Höhendienst, oder Land ohne WCS (Q3): Höhen der Welt-Quelle, ohne Luftbild
+  if (src.kind === 'wms' || !src.dgm || !src.dgm.coverage) {   // WMS-Höhendienst, oder Land ohne WCS (Q3/Q6): Höhen der Welt-Quelle
     const v = (await wmsFetchHeights(src.kind === 'wms' ? src : RW_SOURCES.find(x => x.tiles), bb, crsZone(a.crs), n, get)).data;
     let lo = Infinity; for (const x of v) if (x < lo) lo = x;
-    return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q: Uint16Array.from(v, x => Math.round((x - lo)*10)), dop: null };
+    const dop = src.dop ? await get(wmsUrl(src.dop, bb, a.crs, RW_FAR.dop)).catch(() => null) : null;   // Luftbild des Landes, falls da
+    return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q: Uint16Array.from(v, x => Math.round((x - lo)*10)), dop };
   }
   const b = await get(wcsUrl(src.dgm, bb, a.crs, n)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
   if (t.w !== n || t.h !== n) throw new Error('Umgebung: Raster ' + t.w + 'x' + t.h);
