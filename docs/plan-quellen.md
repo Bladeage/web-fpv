@@ -177,3 +177,9 @@ Gemessen mit `Origin` unserer Seite: Fähigkeiten, `GetMap` 256² und 4096² (JP
 - **Nicht geprüft:** Die Cloud-Umgebung erreicht keinen Overpass-Spiegel (Verbindung bricht am Proxy ab). Getestet nur mit erfundenen Antworten. Vermutet: Overpass erlaubt den Browser (CORS). Im Browser hier: Straßen scheitern sauber („Keine Verbindung zu …overpass…“), Gebiet und Flug laufen.
 - Basis-DLM Niedersachsen (Gewässer, Orte): gleiche Ebenen wie NRW, aber Deflate; `rwLandData` entpackt jetzt Deflate. Nicht im Browser geprüft (22 MB).
 - Offen: Basis-DLM der anderen Länder (Rheinland-Pfalz andere Namen, Bayern Deflate64 und kein CORS, Baden-Württemberg und Sachsen-Anhalt Schema prüfen).
+
+## Nachtrag WCS für Länder ohne eigene Höhen (21.11.2026, Prompt 221)
+
+- Gefunden und eingebaut: Baden-Württemberg `owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1`, Coverage `EL.ElevationGridCoverage` (Ausschnitt mit Achsen `E`, `N`, Skalierung trotzdem `x`, `y`; Höhen in ganzen Metern, Stuttgart 237 bis 327 m). Saarland `geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel`, Coverage `EL.GridCoverage` (Werte in cm, `scale: 0.01`; Saarbrücken 185 bis 231 m). Beide CORS `*`. Quelle der Adressen: Websuche und die Übersicht opendem.info (OpenDTM-DE).
+- Code: `dgm.axes` und `dgm.scale` in `wcsUrl` und `wcsTiff` (`src/rwload.js`).
+- Nicht offen oder nicht gefunden: Hessen `inspire-hessen.de/raster/dgm1/ows` (403, kein CORS), Sachsen-Anhalt `ST_LVermGeo_DGM1_WCS_OpenData` (403), Thüringen (Fähigkeiten ohne Coverage-Namen), Bayern, Sachsen, Bremen, Schleswig-Holstein, Hamburg (kein WCS gefunden; geprüfte Adressen 404). Dort bleiben die Höhen aus der Welt-Quelle. Der Katalog der GDI-DE war aus der Cloud-Umgebung nicht erreichbar.

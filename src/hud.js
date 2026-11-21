@@ -178,6 +178,17 @@ function drawStickBoxes(c, x, y, sz, lw) {
 }
 
 const placeMemo = { t: 0, v: null, ver: -1 };
+// Ladebalken (Prompt 221): Nachladen aus dem Netz im Flug, dünn oben in der Mitte. Kachel mit Anteil und MB, Umgebung ohne Anteil (läuft).
+function loadBar(c, W, fs, txt) {
+  const L = rw.tileBusy && rw.load, far = !L && rw.farBusy;
+  if (!L && !far) return;
+  const w = Math.min(220, W*0.3), x = (W - w)/2, y = Math.round(fs*4.6), p = (performance.now()/1400) % 1;
+  c.save(); c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x, y, w, 3); c.fillStyle = 'rgba(130,200,255,.85)';
+  if (L) c.fillRect(x, y, w*Math.max(0.03, Math.min(1, L.f)), 3); else c.fillRect(x + w*0.75*p, y, w*0.25, 3);
+  c.font = `500 ${Math.round(fs*0.68)}px system-ui,sans-serif`; c.globalAlpha = 0.8;
+  txt(L ? 'Gelände: ' + L.t + ' · ' + Math.round(Math.min(1, L.f)*100) + ' %' : 'Umgebung lädt', W/2, y - 5, 'center');
+  c.restore();
+}
 export function drawHud() {
   const c = hctx, W = vw, H = vh, s = game.sim;
   c.clearRect(0, 0, W, H);
@@ -200,6 +211,8 @@ export function drawHud() {
   const txt = (t, x, y, al = 'left', col = '#fff') => {
     c.textAlign = al; c.lineWidth = edge; c.strokeStyle = analog ? 'rgba(0,0,0,.75)' : 'rgba(0,0,0,.6)'; c.strokeText(t, x, y); c.fillStyle = col; c.fillText(t, x, y);
   };
+  if (rw.on) loadBar(c, W, fs, txt);
+
   const narrow = W < 600;
   const L = inset.l + 14, Rx = W - inset.r - 14, B = H - inset.b - 16;
   const T = inset.t + 16 + fs + (narrow ? 50 : 0);

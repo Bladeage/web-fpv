@@ -14,7 +14,7 @@ import { rwRoadsFetch } from './rwroads.js';
 // Eingebettete Daten (der Build setzt sie aus realworld/ ein): Beschreibung (JSON), Höhen, Gebäude, Bäume, Gewässer
 // (deflate, Base64), Luftbild (JPEG, Base64), Kartenebenen (JSON). Das 3D-Mesh lädt live (rwmesh.js, Foto 3D).
 export const RW_DATA = { meta: '%%RW_META%%', dgm: '%%RW_DGM%%', dop: '%%RW_DOP%%', bld: '%%RW_BLD%%', trees: '%%RW_TREES%%', water: '%%RW_WATER%%', features: '%%RW_FEATURES%%', farq: '%%RW_FARQ%%', fardop: '%%RW_FARDOP%%' };
-export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true, lamps: true }, showOff: false, last: null, roadVer: 0, roadErr: '', meshPhys: null };   // meshPhys: Kollision aus dem 3D-Mesh (Foto 3D, M2), setzt render.js   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
+export const rw = { on: false, ready: false, meta: null, n: 0, size: 1000, cell: 1, h: null, err: '', tris: null, grid: null, water: null, features: null, bldId: null, bldInfo: null, trees: [], dop: null, ver: 0, live: false, userSources: [], far: null, farDop: null, main: null, tiles: new Map(), tileVer: 0, tileBusy: null, load: null, tileFail: new Map(), tileErr: '', stream: true, work: null, farBusy: null, farFail: new Map(), farVer: 0, wms: null, liveDis: null, photoWarp: null, photoErr: '', photoOk: false, show: { dop: true, bld: true, trees: true, water: true, far: true, traffic: true, lamps: true }, showOff: false, last: null, roadVer: 0, roadErr: '', meshPhys: null };   // meshPhys: Kollision aus dem 3D-Mesh (Foto 3D, M2), setzt render.js   // work: Auftrag an den Hintergrund-Thread (rwthread.js), sonst null
 
 // Höhen übernehmen: q = 16-Bit-Werte in hScale Metern über hMin, Zeile für Zeile von Norden nach Süden
 export function rwInit(meta, q) {
@@ -127,7 +127,8 @@ async function readBody(r, prog) {
   if (!prog || !r.body || !r.body.getReader) { const b = new Uint8Array(await r.arrayBuffer()); netStat.bytes += b.length; return b; }
   const rd = r.body.getReader(), parts = [];
   let n = 0;
-  for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prog(n); }
+  const len = +r.headers.get('content-length') || 0;   // Größe der Datei für die Anzeige „x von y MB“ (gepackt übertragen: kleiner, dann ohne)
+  for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; prog(n, len >= n ? len : 0); }
   const b = new Uint8Array(n); let o = 0; for (const x of parts) { b.set(x, o); o += x.length; }
   netStat.bytes += n;
   return b;
@@ -153,7 +154,7 @@ export function rwNet(signal, stall = RW_STALL) {
     }
     finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
   };
-  const both = (prog, kick) => n => { kick(); if (prog) prog(n); };
+  const both = (prog, kick) => (n, t) => { kick(); if (prog) prog(n, t); };
   // XML ist eine Fehlermeldung, außer bei den Fähigkeiten eines WMS-Höhendienstes (W2)
   const get = (u, prog) => go(u, async (r, kick) => {
     if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
@@ -982,7 +983,7 @@ export async function rwStreamStep(x, z, store, say = () => {}) {
   // Laufender Auftrag mit eigenem Abbruch (Gebietswechsel bricht ab, siehe rwApply). Hängt ein Abruf, beendet ihn die Zeitgrenze
   // von rwNet; danach ist der Weg für die nächste Kachel frei (Prüfbericht Nr. 5).
   const job = { k, ac: new AbortController() };
-  rw.tileBusy = job;
+  rw.tileBusy = job; rw.load = { t: 'Kachel', f: 0 };   // Ladebalken im OSD (hud.js); say aus main.js setzt Text und Anteil
   try {
     const T = await rwLoadTile(i, j, store, say, job.ac.signal);
     if (rw.ver !== ver) return changed;

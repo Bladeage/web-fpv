@@ -42,13 +42,18 @@ export const RW_SOURCES = [{
 { id: 'mv', roads: OSM_ROADS, name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
   dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' },
   lod2: { url: 'https://www.geodaten-mv.de/dienste/gebaeude_download?index=0&dataset=8397b554-5cb9-4274-8be8-c20490d9a6e8&file=lod2_33_{E}_{N}_2_gml.zip', tileKm: 2, zip: '.gml' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
+// WCS gefunden am 21.11.2026 (Prompt 221): Baden-Württemberg (INSPIRE, Achsen E und N), Saarland (INSPIRE, Werte in cm)
+{ id: 'bw', roads: OSM_ROADS, name: 'Baden-Württemberg (LGL)', land: 'Baden-Württemberg', crs: 'EPSG:25832',
+  dgm: { url: 'https://owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1', coverage: 'EL.ElevationGridCoverage', axes: ['E', 'N'] },
+  dop: { url: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', layer: 'IMAGES_DOP_20_RGB' }, attribution: 'LGL, www.lgl-bw.de, dl-de/by-2-0' },
+{ id: 'sl', roads: OSM_ROADS, name: 'Saarland (LVGL)', land: 'Saarland', crs: 'EPSG:25832',
+  dgm: { url: 'https://geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel', coverage: 'EL.GridCoverage', scale: 0.01 },
+  dop: { url: 'https://geoportal.saarland.de/freewms/dop2023', layer: 'sl_dop20_rgb' }, attribution: 'LVGL Saarland 2026' },
 // Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
 ...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0'],
-  ['bw', 'Baden-Württemberg', 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', 'IMAGES_DOP_20_RGB', 'LGL, www.lgl-bw.de, dl-de/by-2-0'],
   ['hb', 'Bremen', 'https://geodienste.bremen.de/wms_dop20_2023', 'DOP20_2023_HB', 'Landesamt GeoInformation Bremen, CC BY'],
   ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000],
   ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0'],
-  ['sl', 'Saarland', 'https://geoportal.saarland.de/freewms/dop2023', 'sl_dop20_rgb', 'LVGL Saarland 2026'],
   ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0'],
   ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0']
 ].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, attribution })),
@@ -80,9 +85,15 @@ export const RW_FAR = { size: 10025, n: 401, dop: 2048 };
 
 // Abruf-Adressen (WCS 2.0.1 GetCoverage, WMS 1.3.0 GetMap)
 export function wcsUrl(svc, bbox, crs, n) {
-  const [e0, n0, e1, n1] = bbox, c = 'http://www.opengis.net/def/crs/EPSG/0/' + crs.split(':')[1];
+  const [e0, n0, e1, n1] = bbox, c = 'http://www.opengis.net/def/crs/EPSG/0/' + crs.split(':')[1], [X, Y] = svc.axes || ['x', 'y'];   // Achsen des Ausschnitts: BW E, N
   return `${svc.url}?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=${svc.coverage}&FORMAT=image/tiff`
-    + `&SUBSET=x(${e0},${e1})&SUBSET=y(${n0},${n1})&SUBSETTINGCRS=${c}&OUTPUTCRS=${c}&SCALESIZE=x(${n}),y(${n})`;
+    + `&SUBSET=${X}(${e0},${e1})&SUBSET=${Y}(${n0},${n1})&SUBSETTINGCRS=${c}&OUTPUTCRS=${c}&SCALESIZE=x(${n}),y(${n})`;   // Skalierung bei BW trotzdem x, y (gemessen)
+}
+// WCS-Antwort lesen (auch Deflate); svc.scale rechnet die Einheit um (Saarland: Zentimeter)
+export async function wcsTiff(svc, u8) {
+  const t = await readTiffAsync(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength));
+  if (svc.scale) for (let k = 0; k < t.data.length; k++) if (t.data[k] !== t.nodata) t.data[k] *= svc.scale;
+  return t;
 }
 export function wmsUrl(svc, bbox, crs, n) {
   if (svc.max) n = Math.min(n, svc.max);   // Größtes Bild des Dienstes (Hessen 3000)
@@ -287,7 +298,7 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     const got = [];
     for (const s of multi ? srcs : srcs.slice(0, 1)) {
       if (!s[key]) { got.push(null); continue; }
-      const t = s[key].coverage ? readTiff(buf(await get(wcsUrl(s[key], a.bbox, a.crs, n)))) : await tileRaster(s[key], a.bbox, a.crs, n, get, text);   // WCS oder Kacheln (Q3)
+      const t = s[key].coverage ? await wcsTiff(s[key], await get(wcsUrl(s[key], a.bbox, a.crs, n))) : await tileRaster(s[key], a.bbox, a.crs, n, get, text);   // WCS oder Kacheln (Q3)
       if (t.w !== n || t.h !== n) throw new Error(what + 'raster ' + t.w + 'x' + t.h + ' statt ' + n);
       got.push(t);
     }
@@ -310,13 +321,13 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   const domR = !wms && srcs[0].dgm && (srcs[0].dom || multi) ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
   say('Luftbild', 0.2);
   // Fortschritt beim Herunterladen großer Dateien: Schritt mit MB
-  const mb = (what, f) => n => say(what + ' (' + (n/1e6).toFixed(1) + ' MB)', f);
+  const mb = (what, f, w = 0) => (n, t) => say(what + ' (' + (n/1e6).toFixed(1) + (t ? ' von ' + (t/1e6).toFixed(1) : '') + ' MB)', t ? f + w*n/t : f);   // w: Anteil des Schritts
   let dop = null;
   if (multi && opt.mergeImg) {
     const imgs = [];
-    for (const s of srcs) imgs.push(s.dop ? await get(wmsUrl(s.dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2)).catch(() => null) : null);
+    for (const s of srcs) imgs.push(s.dop ? await get(wmsUrl(s.dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2, 0.25)).catch(() => null) : null);
     dop = await opt.mergeImg(imgs, opt.cells);
-  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2));
+  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2, 0.25));
   const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3];
   // Gebäude: je Quelle ihre Kacheln; bei mehreren nur Gebäude, deren Mitte in einer Zelle dieser Quelle liegt
   const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
@@ -335,14 +346,14 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     if (opt.lod2Cache) {   // schon einmal geladen (anderer Ort, Nachbarkachel)? Dann ohne Netz
       let t = await opt.lod2Cache.get(u);
       if (!t) {
-        const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f));
+        const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f, 0.45/jobs.length));
         t = xml ? lod2Pack(opt.async ? await readLod2Async(xml) : readLod2(xml)) : { empty: true };
         await opt.lod2Cache.put(u, t);
       } else say(step + ' (aus dem Speicher)', f);
       if (t.empty) continue;   // Kachel ohne Gebäude
       o = lod2Filter(lod2Unpack(t), keep);
     } else {
-      const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f));
+      const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f, 0.45/jobs.length));
       if (!xml) continue;   // Kachel ohne Gebäude
       o = opt.async ? await readLod2Async(xml, keep) : readLod2(xml, keep);
     }
@@ -374,7 +385,7 @@ export function rwCellSources(a, srcs, toLand) {
 export async function rwCheckSource(s, E, N, get, text) {
   const bb = [Math.round(E) - 100, Math.round(N) - 100, Math.round(E) + 100, Math.round(N) + 100], out = [];
   const run = async (was, fn) => { try { out.push({ was, ok: true, text: await fn() }); } catch (e) { out.push({ was, ok: false, text: String(e.message || e) }); } };
-  const tif = async svc => { const b = await get(wcsUrl(svc, bb, s.crs, 16)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  const tif = async svc => { const t = await wcsTiff(svc, await get(wcsUrl(svc, bb, s.crs, 16)));
     const ok = [...t.data].filter(v => isFinite(v) && v !== t.nodata && v > -1000); if (!ok.length) throw new Error('nur Füllwerte (Ort außerhalb?)');
     return 'Höhe ' + ok[0].toFixed(1) + ' m'; };
   const tiles = async svc => { const t = await tileRaster(svc, bb, s.crs, 16, get, text), v = [...t.data].filter(x => !isNaN(x)); if (!v.length) throw new Error('keine Kachel an diesem Ort'); return 'Höhe ' + v[0].toFixed(1) + ' m (Kacheln)'; };
@@ -475,7 +486,7 @@ export async function rwFetchFar(a, src, get, say = () => {}) {
     const dop = src.dop ? await get(wmsUrl(src.dop, bb, a.crs, RW_FAR.dop)).catch(() => null) : null;   // Luftbild des Landes, falls da
     return { meta: { n, size: RW_FAR.size, hMin: lo, hScale: 0.1 }, q: Uint16Array.from(v, x => Math.round((x - lo)*10)), dop };
   }
-  const b = await get(wcsUrl(src.dgm, bb, a.crs, n)), t = readTiff(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  const t = await wcsTiff(src.dgm, await get(wcsUrl(src.dgm, bb, a.crs, n)));
   if (t.w !== n || t.h !== n) throw new Error('Umgebung: Raster ' + t.w + 'x' + t.h);
   const v = Float32Array.from(t.data, x => isFinite(x) && x !== t.nodata && x > -1000 ? x : NaN);
   rwFillGaps(v, n);
