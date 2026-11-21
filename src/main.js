@@ -99,7 +99,7 @@ function frame(now) {
       streamT = 1; rw.stream = cfg.rwStream !== false;
       devAdapt(frameStat.lite);   // Ruckelschutz des Geräteprofils (G3): im Sparmodus weniger Kacheln im Flug
       const n0 = rw.tiles.size;
-      rwStreamStep(game.sim.p[0], game.sim.p[2], RW_STORE).then(() => {
+      rwStreamStep(game.sim.p[0], game.sim.p[2], RW_STORE, (t, f) => { rw.load = { t, f }; }).then(() => {   // Ladebalken (hud.js)
         if (rw.tiles.size > n0) say('Umgebung nachgeladen: ' + rw.tiles.size + (rw.tiles.size === 1 ? ' Kachel' : ' Kacheln'), 1.2);
         // Fehler beim Nachladen einmal zeigen (gleicher Text nicht noch einmal; Prüfbericht Nr. 5)
         if (rw.tileErr && rw.tileErr !== tileErrShown) say('Nachladen gestört: ' + rw.tileErr + '. Neuer Versuch in 60 s.', 3);
