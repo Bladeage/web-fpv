@@ -416,14 +416,14 @@ export function rwSourcesParse(json) {
     }
     if (!s || typeof s.name !== 'string' || !s.name) e.push('Name fehlt');
     if (!s || !['EPSG:25832', 'EPSG:25833'].includes(s.crs)) e.push('Koordinatensystem nur EPSG:25832 oder EPSG:25833');
-    if (!s || !s.dgm || !url(s.dgm.url) || !s.dgm.coverage) e.push('Höhen (WCS-Adresse und Coverage) fehlen');
+    if (s && s.dgm && !s.dgm.tpl && !s.dgm.stac && !s.dgm.index && (!url(s.dgm.url) || !s.dgm.coverage)) e.push('Höhen: WCS-Adresse und Coverage nötig (oder leer: Welt-Quelle)');
     for (const k of ['dom', 'dop', 'lod2']) if (s && s[k] && !url(s[k].url)) e.push(k + ': Adresse ungültig');
     if (s && s.dom && !s.dom.coverage) e.push('Oberfläche: Coverage-ID fehlt');
     if (s && s.dop && !s.dop.layer) e.push('Luftbild: Layer fehlt');
     if (!s || !s.land) e.push('Bundesland fehlt');
     if (s && s.lod2 && !/\{E\}/.test(s.lod2.url)) e.push('Gebäude: Muster braucht {E} und {N}');
     if (e.length) errors.push('Quelle ' + (i + 1) + ': ' + e.join(', '));
-    else ok.push({ id: s.id || 'eigen-' + i, name: s.name, land: s.land || '', crs: s.crs, dgm: s.dgm, dom: s.dom || null, dop: s.dop || null, lod2: s.lod2 || null, attribution: s.attribution || s.name });
+    else ok.push({ id: s.id || 'eigen-' + i, name: s.name, land: s.land || '', crs: s.crs, dgm: s.dgm || null, dom: s.dom || null, dop: s.dop || null, lod2: s.lod2 || null, roads: s.roads || null, dlm: s.dlm || null, attribution: s.attribution || s.name });
   });
   return { sources: ok, errors };
 }
