@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { createSocket } from 'node:dgram';
 import { rw, rwApply, rwLatLon, groundH, rwFlat, rwFlatImage, rwPlan } from '../src/realworld.js';
+import { RW_SOURCES } from '../src/rwload.js';
 import { VB, vb, vbOwnFields, vbOwnPdu, vbUnitsGeo, vbCenter, vbLocal, vbTake, vbPlace, vbStep, vbClose, vbBridge, vbLabel, vbSet, vbGun, vbAims, vbContact, vbDetonate, VB_CHARGE, VB_HIT, vbMissDist } from '../src/verbund.js';
 import { createBridge } from '../tools/dis-bruecke.mjs';
 import * as D from '../src/dis.js';
@@ -184,7 +185,8 @@ test('DIS-Modus: Einheit -> Karte (Ort, Kurs mit Meridiankonvergenz, Tempo, Bode
 });
 
 test('DIS-Modus: Ort ohne Kartendaten (ebene Fläche, UTM-Zone nach der Länge, Grasbild), eigene Drohne dort', () => {
-  assert.equal(rwPlan(50.352, 16.64), null, 'keine Quelle bei 16,6° Ost');
+  const welt = RW_SOURCES.find(s => s.id === 'welt');   // ohne die Welt-Quelle (Q2): keine Quelle bei 16,6° Ost
+  welt.use = 'nie'; try { assert.equal(rwPlan(50.352, 16.64), null, 'keine Quelle bei 16,6° Ost'); } finally { welt.use = 'all'; }
   rwFlat(50.352, 16.64, 303.5);
   try {
     rw.on = true;

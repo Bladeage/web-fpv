@@ -66,7 +66,8 @@ test('L1: Gebiet laden und übernehmen (Höhen, Luftbild, Gebäude mit Nutzung, 
 test('L1: Fehler beim Laden werden verständlich gemeldet, das alte Gebiet bleibt', async () => {
   const old = globalThis.fetch, ver = rw.ver;
   try {
-    await assert.rejects(rwLoadLive(52.52, 13.40), /keine Quelle/);
+    const welt = RW_SOURCES.find(s => s.id === 'welt'); welt.use = 'nie';   // ohne die Welt-Quelle (Q2) gibt es in Berlin keine
+    try { await assert.rejects(rwLoadLive(52.52, 13.40), /keine Quelle/); } finally { welt.use = 'all'; }
     globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
     await assert.rejects(rwLoadLive(50.7753, 6.0839), /Keine Verbindung zu www\.wcs\.nrw\.de/);
     globalThis.fetch = async () => new Response('<ServiceExceptionReport><ServiceException>Ungültige Anfrage</ServiceException></ServiceExceptionReport>', { status: 200 });

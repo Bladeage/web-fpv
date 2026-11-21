@@ -95,7 +95,7 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 | Etappe | Inhalt | Sichtbar für den Nutzer |
 |---|---|---|
 | **Q1 Leser** (erledigt 21.11.2026) | TIFF mit Deflate, Prädiktor 2 für 16 und 32 Bit richtig, Prädiktor 3 geprüft. COG per Teilabruf: nur die nötigen Teile einer Übersicht lesen. Eine Datei aus einem ZIP per Teilabruf lesen (Deflate). XYZ-Text als Raster. Alles ohne DOM, mit Proben als Testdateien. Werkzeug `tools/quellen.mjs` für die Prüfung oben. | nein |
-| **Q2 Weltweite Höhe** | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
+| **Q2 Weltweite Höhe** (erledigt 21.11.2026) | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
 | **Q3 Länder aus Kacheln** | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
 | **Q4 Luftbild** | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
 | **Q5 Gebäude** | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
@@ -114,3 +114,12 @@ Nutzer, Prompt 214: Reihenfolge Q1, Q2, Q3. Ohne Antwort und deshalb nach Vorsch
 2. **Ersatz für Copernicus DEM.** Vorschlag: AWS Terrain Tiles. Grund: Copernicus sperrt den Browser. Die Lizenz der Terrain Tiles ist eine Sammlung vieler Quellen; der Vermerk muss je Gebiet stimmen. Das prüfe ich in Q2.
 3. **Gesperrte Länder (Bayern, Sachsen).** Vorschlag: WCS und WMS suchen (Q6). Eine Anfrage an die Ämter, CORS freizuschalten, wäre der andere Weg. Das liegt beim Nutzer.
 4. **Form der Quellen.** Vorschlag: Bei unserem Format in `RW_SOURCES` bleiben und je Datenart eine Zugriffsart ergänzen (`wcs`, `template`, `stac`, `s3`, `index`). Das Format aus aoi2vbs4 als Import lesen, damit der Nutzer seine `laender.json` einspielen kann.
+
+## Q2 erledigt (21.11.2026)
+
+- Vorlage `welt` in `RW_SOURCES` (`src/rwload.js`): Art `wms` mit `tiles: 'terrain'`, gilt überall (`use: 'all'`), steht zuletzt. Wo eine Landesquelle greift (heute NRW), gilt sie. DIS-Übung nimmt weiter den lokalen Höhendienst.
+- `terrainHeights` in `src/rwwms.js`: Zoom nach Zellgröße (höchstens 12), Kacheln zusammensetzen, Mercator-Zeilen exakt auf gleichmäßige Breite, dann `resampleToUtm` wie beim WMS. Zwischenspeicher für 16 Kacheln. Jede UTM-Zone.
+- Ohne Luftbild: schattiertes Relief (wie WMS ohne Bildebene). Luftbild folgt in Q4.
+- Gemessen (Node): Monschau Mittel 458 m (NRW-WCS 453 m), Innsbruck 575 m und Umgebung bis 2 578 m, Tokio (Zone 54), Kapstadt Tafelberg 1 085 m. Ein Gebiet 1 bis 2 Kacheln, unter 1 s. Im Browser (Headless-Chromium) Innsbruck über das Menü geladen und gestartet, ohne Fehler.
+- Quellenvermerk: gekürzt an der Quelle und unter der Karte. Vollständig nach github.com/tilezen/joerd/blob/master/docs/attribution.md: ArcticDEM (DigitalGlobe, NSF 1043681, 1559691, 1542736); Australien © Commonwealth of Australia (Geoscience Australia) 2017; Österreich © offene Daten Österreichs, DGM Österreich; Kanada: Open Government Licence – Canada; Europa: produced using Copernicus data and information funded by the European Union, EU-DEM layers; global ETOPO1 (NOAA); Mexiko: INEGI, Continental relief, 2016; Neuseeland: Crown copyright, LINZ; Norwegen © Kartverket; Vereinigtes Königreich © Environment Agency 2015; USA 3DEP und global GMTED2010 und SRTM: courtesy of the U.S. Geological Survey.
+- Offen: Die Karte zum Auswählen zeigt nur Deutschland. Orte im Ausland gehen über Suche oder Koordinaten.

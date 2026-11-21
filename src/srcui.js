@@ -29,9 +29,10 @@ function srcList() {
     const k = document.createElement('button'); k.className = 'secondary'; k.textContent = btn; k.addEventListener('click', fn);
     r.append(t, k); box.append(r);
   };
-  const where = s => s.kind === 'wms' ? 'Höhendienst, ' + ({ dis: 'DIS-Übung', all: 'überall', nie: 'aus' }[s.use] || 'DIS-Übung') + ', nicht gespeichert' : s.land || 'ohne Land';
+  const where = s => s.tiles ? 'weltweite Höhen (Kacheln), wo kein Land greift' : s.kind === 'wms' ? 'Höhendienst, ' + ({ dis: 'DIS-Übung', all: 'überall', nie: 'aus' }[s.use] || 'DIS-Übung') + ', nicht gespeichert' : s.land || 'ohne Land';
   (cfg.rwSources || []).forEach((s, i) => row(s, where(s) + ' · eigene', 'Bearbeiten', () => srcForm(i)));
-  for (const s of RW_SOURCES) row(s, where(s) + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
+  for (const s of RW_SOURCES.filter(x => !x.tiles)) row(s, where(s) + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
+  for (const s of RW_SOURCES.filter(x => x.tiles)) row(s, where(s) + ' · Vorlage', 'Quelle', () => { srcEl('srcMsg').textContent = s.attribution; });   // Kacheln: nicht im Formular
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
 // Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen). Den DIS-Modus schaltet der Knopf „DIS“ unter Spezial.
