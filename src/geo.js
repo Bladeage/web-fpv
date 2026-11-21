@@ -1,16 +1,14 @@
 /* Geodaten lesen (Modus „Echte Welt“). Ohne DOM: läuft im Browser und im Werkzeug tools/realworld.mjs.
-   GeoTIFF mit Gleitkomma-Höhen (wie die WCS-Dienste der Länder liefern): Streifen oder Kacheln,
-   ohne Kompression oder LZW, Prädiktor 1 (keiner), 2 (waagrecht) oder 3 (Gleitkomma). Dazu WGS84 -> UTM. */
+   GeoTIFF mit Höhen (WCS der Länder, Kacheldateien, COG): Streifen oder Kacheln, ohne Kompression, LZW oder Deflate (Q1),
+   Prädiktor 1 (keiner), 2 (waagrecht) oder 3 (Gleitkomma). COG per Teilabruf, Datei aus ZIP, XYZ-Text. Dazu WGS84 -> UTM. */
+import { dlmFind } from './rwdlm.js';
 
 // Geoidhöhe (Quasigeoid) für Höhe über dem Ellipsoid minus Höhe über NHN. Fest 47 m (Schätzung für Monschau; NRW 42,5 bis
 // 48,5 m). Genutzt von DIS (verbund.js) und vom WMS-Höhendienst (rwwms.js, Höhen über dem Ellipsoid).
 export const GEOID_FIX = 47;
-// TIFF lesen: ArrayBuffer -> { w, h, data: Float32Array (Zeile für Zeile, oben = Norden) }
-export function readTiff(buf) {
-  const dv = new DataView(buf), le = dv.getUint16(0) === 0x4949;
-  const u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
-  if (u16(2) !== 42) throw new Error('Kein klassisches TIFF');
-  const ifd = u32(4), n = u16(ifd), tags = {};
+// TIFF-Verzeichnis (IFD) ab Position ifd lesen: { tags, next }. Wirft RangeError, wenn es über die Bytes hinausgeht (COG: mehr laden).
+export function tiffIfd(dv, le, ifd) {
+  const u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le), n = u16(ifd), tags = {};
   const SIZE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8, 16: 8 };
   for (let i = 0; i < n; i++) {
     const e = ifd + 2 + i*12, tag = u16(e), type = u16(e + 2), cnt = u32(e + 4), sz = (SIZE[type] || 1)*cnt;
@@ -21,28 +19,130 @@ export function readTiff(buf) {
     }
     tags[tag] = vals;
   }
-  const w = tags[256][0], h = tags[257][0], comp = (tags[259] || [1])[0], pred = (tags[317] || [1])[0];
-  const bps = (tags[258] || [32])[0], fmt = (tags[339] || [3])[0], spp = (tags[277] || [1])[0];
-  if (spp !== 1) throw new Error('Nur ein Kanal unterstützt');
-  if (comp !== 1 && comp !== 5) throw new Error('Kompression ' + comp + ' nicht unterstützt (nur keine oder LZW)');
-  const bytes = bps/8, tiled = !!tags[322];
-  const tw = tiled ? tags[322][0] : w, th = tiled ? tags[323][0] : (tags[278] || [h])[0];
-  const offs = tiled ? tags[324] : tags[273], cnts = tiled ? tags[325] : tags[279];
+  return { tags, next: u32(ifd + 2 + n*12) };
+}
+// Beschreibung eines Bildes aus den Tags (ein Kanal oder mehrere, Streifen oder Kacheln). Kompression 1 (keine), 5 (LZW), 8 (Deflate).
+const tiffInfo = (t, le) => {
+  const w = t[256][0], h = t[257][0], tiled = !!t[322];
+  return { w, h, le, comp: (t[259] || [1])[0], pred: (t[317] || [1])[0], bytes: (t[258] || [32])[0]/8, fmt: (t[339] || [(t[258] || [32])[0] >= 32 ? 3 : 1])[0], spp: (t[277] || [1])[0],
+    tw: tiled ? t[322][0] : w, th: tiled ? t[323][0] : (t[278] || [h])[0], offs: tiled ? t[324] : t[273], cnts: tiled ? t[325] : t[279],
+    nodata: t[42113] ? parseFloat(String.fromCharCode(...t[42113]).replace(/\0/g, '')) : NaN, mask: ((t[254] || [0])[0] & 4) !== 0 };
+};
+// Deflate entpacken (zlib, oder raw für ZIP) mit Bordmitteln (DecompressionStream, Browser und Node)
+export async function inflateBytes(u8, raw = false) {
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream(raw ? 'deflate-raw' : 'deflate'))).arrayBuffer());
+}
+// Ein Block (Streifen oder Kachel) roh -> Werte (Float32, ein Kanal). Deflate muss vorher entpackt sein (pre).
+function tiffBlock(I, raw, pre) {
+  if (I.comp === 5) raw = lzw(raw, I.tw*I.th*I.bytes*I.spp); else if (I.comp === 8) raw = pre; else if (I.comp !== 1) throw new Error('Kompression ' + I.comp + ' nicht unterstützt');
+  raw = unpredict(raw, I.tw, I.th, I.bytes, I.pred, I.le, I.spp);
+  const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength), le3 = I.pred === 3 ? false : I.le, n = I.tw*I.th, out = new Float32Array(n), B = I.bytes, S = B*I.spp;
+  for (let k = 0; k < n; k++) {
+    const o = k*S;
+    if (o + B > raw.length) break;
+    out[k] = I.fmt === 3 ? (B === 8 ? dv.getFloat64(o, le3) : dv.getFloat32(o, le3)) : B === 1 ? raw[o] : B === 2 ? (I.fmt === 2 ? dv.getInt16(o, I.le) : dv.getUint16(o, I.le)) : (I.fmt === 2 ? dv.getInt32(o, I.le) : dv.getUint32(o, I.le));
+  }
+  return out;
+}
+// TIFF lesen: ArrayBuffer -> { w, h, data: Float32Array (Zeile für Zeile, oben = Norden), nodata }. pre: entpackte Blöcke (Deflate).
+export function readTiff(buf, pre = null) {
+  const dv = new DataView(buf), le = dv.getUint16(0) === 0x4949;
+  if (dv.getUint16(2, le) !== 42) throw new Error('Kein klassisches TIFF');
+  const I = tiffInfo(tiffIfd(dv, le, dv.getUint32(4, le)).tags, le), { w, h, tw, th } = I;
+  if (I.spp !== 1) throw new Error('Nur ein Kanal unterstützt');
+  if (I.comp === 8 && !pre) throw new Error('Deflate: readTiffAsync nutzen');
   const out = new Float32Array(w*h), across = Math.ceil(w/tw);
-  offs.forEach((off, b) => {
-    let raw = new Uint8Array(buf, off, cnts[b]);
-    if (comp === 5) raw = lzw(raw, tw*th*bytes);
-    raw = unpredict(raw, tw, th, bytes, pred);
-    const bdv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-    const bx = (b % across)*tw, by = Math.floor(b/across)*th;
-    for (let y = 0; y < th && by + y < h; y++) for (let x = 0; x < tw && bx + x < w; x++) {
-      const o = (y*tw + x)*bytes;
-      out[(by + y)*w + bx + x] = fmt === 3 ? (bytes === 8 ? bdv.getFloat64(o, pred === 3 ? false : le) : bdv.getFloat32(o, pred === 3 ? false : le))
-        : bytes === 2 ? (fmt === 2 ? bdv.getInt16(o, le) : bdv.getUint16(o, le)) : bdv.getInt32(o, le);
-    }
+  I.offs.forEach((off, b) => {
+    const v = tiffBlock(I, new Uint8Array(buf, off, I.cnts[b]), pre && pre[b]), bx = (b % across)*tw, by = Math.floor(b/across)*th;
+    for (let y = 0; y < th && by + y < h; y++) for (let x = 0; x < tw && bx + x < w; x++) out[(by + y)*w + bx + x] = v[y*tw + x];
   });
-  const nodata = tags[42113] ? parseFloat(String.fromCharCode(...tags[42113]).replace(/\0/g, '')) : NaN;
-  return { w, h, data: out, nodata };
+  return { w, h, data: out, nodata: I.nodata };
+}
+// Wie readTiff, auch mit Deflate (Kompression 8)
+export async function readTiffAsync(buf) {
+  const dv = new DataView(buf), le = dv.getUint16(0) === 0x4949, I = tiffInfo(tiffIfd(dv, le, dv.getUint32(4, le)).tags, le);
+  const pre = I.comp === 8 ? await Promise.all(I.offs.map((o, b) => inflateBytes(new Uint8Array(buf, o, I.cnts[b])))) : null;
+  return readTiff(buf, pre);
+}
+// Cloud-optimiertes GeoTIFF (COG, Etappe Q1) per Teilabruf öffnen: range(a, b) -> Uint8Array (Bytes a bis b). Liefert die Bildstufen
+// (volle Auflösung und Übersichten, ohne Masken) und die Lage: Mitte des Pixels (0, 0) in x0, y0, Pixelgröße dx, dy der vollen Stufe.
+export async function cogOpen(range) {
+  for (let len = 65536; ; len *= 4) {
+    const head = await range(0, len - 1), dv = new DataView(head.buffer, head.byteOffset, head.byteLength), le = dv.getUint16(0, true) === 0x4949;
+    if (dv.getUint16(2, le) !== 42) throw new Error(dv.getUint16(2, le) === 43 ? 'BigTIFF nicht unterstützt' : 'Kein TIFF');
+    try {
+      const levels = [];
+      let t0 = null;
+      for (let o = dv.getUint32(4, le); o; ) { const r = tiffIfd(dv, le, o); t0 ||= r.tags; const I = tiffInfo(r.tags, le); if (!I.mask) levels.push(I); o = r.next; }
+      const sc = t0[33550] || [1, 1], tp = t0[33922] || [0, 0, 0, 0, 0, 0], keys = t0[34735] || [], dx = sc[0], dy = sc[1];
+      let point = false;   // GTRasterTypeGeoKey 1025 = 2: Lage meint die Pixelmitte, sonst die Ecke
+      for (let k = 4; k + 3 < keys.length; k += 4) if (keys[k] === 1025 && keys[k + 3] === 2) point = true;
+      const x0 = tp[3] - tp[0]*dx + (point ? 0 : dx/2), y0 = tp[4] + tp[1]*dy - (point ? 0 : dy/2);
+      return { range, levels, x0, y0, dx, dy };
+    } catch (e) { if (!(e instanceof RangeError) || head.length < len || len > 1 << 24) throw e; }   // Verzeichnis reicht weiter: mehr laden
+  }
+}
+// Gröbste Stufe, deren Pixel höchstens cell groß sind (sonst die feinste)
+export function cogLevel(cog, cell) {
+  let best = 0;
+  cog.levels.forEach((L, i) => { if (cog.dx*cog.levels[0].w/L.w <= cell*1.001) best = i; });
+  return best;
+}
+// Raster n x n für bbox [x0, y0, x1, y1] (Werte in Zellmitten, wie WCS mit SCALESIZE) aus Stufe lv, bilinear. Lädt nur die nötigen Kacheln.
+export async function cogWindow(cog, bbox, n, lv = cogLevel(cog, (bbox[2] - bbox[0])/n)) {
+  const L = cog.levels[lv], f = cog.levels[0].w/L.w, dx = cog.dx*f, dy = cog.dy*f, x0 = cog.x0 - cog.dx/2 + dx/2, y0 = cog.y0 + cog.dy/2 - dy/2;
+  if (L.spp !== 1) throw new Error('Nur ein Kanal unterstützt');
+  if (L.comp === 7) throw new Error('JPEG in TIFF folgt in Q4');
+  const cx = (bbox[2] - bbox[0])/n, cy = (bbox[3] - bbox[1])/n;
+  const px = i => (bbox[0] + (i + 0.5)*cx - x0)/dx, py = j => (y0 - (bbox[3] - (j + 0.5)*cy))/dy;
+  const c0 = Math.max(0, Math.floor(px(0))), c1 = Math.min(L.w - 1, Math.ceil(px(n - 1))), r0 = Math.max(0, Math.floor(py(0))), r1 = Math.min(L.h - 1, Math.ceil(py(n - 1)));
+  const across = Math.ceil(L.w/L.tw), tiles = new Map(), want = [];
+  for (let ty = Math.floor(r0/L.th); ty <= Math.floor(r1/L.th); ty++) for (let tx = Math.floor(c0/L.tw); tx <= Math.floor(c1/L.tw); tx++) want.push(ty*across + tx);
+  // nahe beieinander liegende Kacheln in einem Abruf (Lücke bis 64 KB)
+  const parts = want.filter(b => L.cnts[b] > 0).sort((a, b) => L.offs[a] - L.offs[b]), groups = [];
+  for (const b of parts) { const g = groups[groups.length - 1]; if (g && L.offs[b] - g.end < 65536) { g.list.push(b); g.end = Math.max(g.end, L.offs[b] + L.cnts[b]); } else groups.push({ start: L.offs[b], end: L.offs[b] + L.cnts[b], list: [b] }); }
+  await Promise.all(groups.map(async g => {
+    const u8 = await cog.range(g.start, g.end - 1);
+    for (const b of g.list) { const raw = u8.subarray(L.offs[b] - g.start, L.offs[b] - g.start + L.cnts[b]); tiles.set(b, tiffBlock(L, raw, L.comp === 8 ? await inflateBytes(raw) : null)); }
+  }));
+  const at = (c, r) => { const t = tiles.get(Math.floor(r/L.th)*across + Math.floor(c/L.tw)); return t ? t[(r % L.th)*L.tw + c % L.tw] : NaN; };
+  return { w: n, h: n, nodata: L.nodata, data: gridSample(at, L.w, L.h, px, py, n, L.nodata) };
+}
+// Bilinear abtasten: at(c, r) Wert eines Pixels, px(i), py(j) Pixelkoordinaten der Zellmitten. Füllwerte zählen nicht mit.
+export function gridSample(at, w, h, px, py, n, nodata = NaN) {
+  const out = new Float32Array(n*n), ok = v => Number.isFinite(v) && v !== nodata && v > -1000;
+  for (let j = 0; j < n; j++) {
+    const y = Math.min(h - 1, Math.max(0, py(j))), r = Math.min(h - 2, Math.floor(y)), fy = h > 1 ? y - r : 0;
+    for (let i = 0; i < n; i++) {
+      const x = Math.min(w - 1, Math.max(0, px(i))), c = Math.min(w - 2, Math.floor(x)), fx = w > 1 ? x - c : 0;
+      let s = 0, ws = 0;
+      for (const [dc, dr, k] of [[0, 0, (1 - fx)*(1 - fy)], [1, 0, fx*(1 - fy)], [0, 1, (1 - fx)*fy], [1, 1, fx*fy]]) { const v = at(Math.max(0, c + dc), Math.max(0, r + dr)); if (k > 0 && ok(v)) { s += v*k; ws += k; } }
+      out[j*n + i] = ws > 0 ? s/ws : NaN;
+    }
+  }
+  return out;
+}
+// XYZ-Text (Berlin: „x y z“ je Zeile, regelmäßiges Gitter) -> Raster n x n für bbox, bilinear. Schrittweite aus den Daten.
+export function readXyz(text, bbox, n) {
+  const xs = [], ys = [], zs = [];
+  for (const line of text.split('\n')) { const p = line.trim().split(/[\s,;]+/); if (p.length >= 3) { const x = +p[0], y = +p[1], z = +p[2]; if (isFinite(x) && isFinite(y) && isFinite(z)) { xs.push(x); ys.push(y); zs.push(z); } } }
+  if (!xs.length) throw new Error('XYZ ohne Punkte');
+  let step = Infinity;
+  for (let k = 1; k < Math.min(xs.length, 5000); k++) { const d = Math.abs(xs[k] - xs[k - 1]) || Math.abs(ys[k] - ys[k - 1]); if (d > 1e-6 && d < step) step = d; }
+  let xa = Infinity, ya = -Infinity, xb = -Infinity, yb = Infinity;
+  for (let k = 0; k < xs.length; k++) { xa = Math.min(xa, xs[k]); xb = Math.max(xb, xs[k]); ya = Math.max(ya, ys[k]); yb = Math.min(yb, ys[k]); }
+  const w = Math.round((xb - xa)/step) + 1, h = Math.round((ya - yb)/step) + 1, g = new Float32Array(w*h).fill(NaN);
+  for (let k = 0; k < xs.length; k++) g[Math.round((ya - ys[k])/step)*w + Math.round((xs[k] - xa)/step)] = zs[k];
+  const cx = (bbox[2] - bbox[0])/n, cy = (bbox[3] - bbox[1])/n;
+  return { w: n, h: n, nodata: NaN, data: gridSample((c, r) => g[r*w + c], w, h, i => (bbox[0] + (i + 0.5)*cx - xa)/step, j => (ya - (bbox[3] - (j + 0.5)*cy))/step, n) };
+}
+// Eine Datei aus einem ZIP per Teilabruf: range(a, b), Gesamtgröße total, Name endet auf want. Gespeichert oder Deflate. Sonst Fehler.
+export async function zipGet(range, total, want) {
+  const e = await dlmFind(range, total, want);
+  if (!e) throw new Error(want + ' fehlt im ZIP');
+  if (e.method !== 0 && e.method !== 8) throw new Error('ZIP-Methode ' + e.method + ' nicht unterstützt' + (e.method === 9 ? ' (Deflate64)' : ''));
+  const u8 = await range(e.off, e.off + e.size - 1);
+  return e.method === 8 ? inflateBytes(u8, true) : u8;
 }
 // LZW wie in TIFF (MSB zuerst, Codes 9 bis 12 Bit, 256 = Löschen, 257 = Ende)
 function lzw(src, size) {
@@ -70,19 +170,26 @@ function lzw(src, size) {
   }
   return out;
 }
-// Prädiktor rückgängig machen. 3 (Gleitkomma): Bytes je Zeile nach Wertigkeit sortiert und waagrecht differenziert.
-function unpredict(raw, w, h, bytes, pred) {
+// Prädiktor rückgängig machen. 2 (waagrecht): je Kanal als ganze Zahl der Breite des Werts addieren (Bytefolge der Datei),
+// vor Q1 nur 8 Bit genau. 3 (Gleitkomma): Bytes je Zeile nach Wertigkeit sortiert und waagrecht differenziert.
+function unpredict(raw, w, h, bytes, pred, le = true, spp = 1) {
   if (pred === 1) return raw;
-  const out = new Uint8Array(raw.length), row = w*bytes;
-  for (let y = 0; y < h; y++) {
-    const o = y*row;
-    if (pred === 2) {   // waagrecht je Wert (hier nur 8-Bit-Schritte über die Bytes eines Kanals, reicht für 16/32 Bit nicht genau)
-      for (let i = 0; i < row; i++) out[o + i] = (raw[o + i] + (i >= bytes ? out[o + i - bytes] : 0)) & 255;
-    } else {
-      const tmp = new Uint8Array(row);
-      for (let i = 0; i < row; i++) tmp[i] = (raw[o + i] + (i > 0 ? tmp[i - 1] : 0)) & 255;
-      for (let x = 0; x < w; x++) for (let b = 0; b < bytes; b++) out[o + x*bytes + b] = tmp[b*w + x];   // Big-Endian je Wert
+  const out = new Uint8Array(raw.length), row = w*bytes*spp, S = bytes*spp;
+  if (pred === 2) {
+    out.set(raw);
+    const dv = new DataView(out.buffer), get = bytes === 1 ? o => out[o] : bytes === 2 ? o => dv.getUint16(o, le) : o => dv.getUint32(o, le);
+    const put = bytes === 1 ? (o, v) => { out[o] = v; } : bytes === 2 ? (o, v) => dv.setUint16(o, v, le) : (o, v) => dv.setUint32(o, v >>> 0, le);
+    if (bytes === 8) throw new Error('Prädiktor 2 mit 64 Bit nicht unterstützt');
+    for (let y = 0; y < h; y++) for (let x = 1; x < w; x++) for (let c = 0; c < spp; c++) {
+      const o = y*row + x*S + c*bytes;
+      if (o + bytes <= out.length) put(o, (get(o) + get(o - S)) % 2**(8*bytes));
     }
+    return out;
+  }
+  for (let y = 0; y < h; y++) {
+    const o = y*row, tmp = new Uint8Array(row);
+    for (let i = 0; i < row; i++) tmp[i] = (raw[o + i] + (i > 0 ? tmp[i - 1] : 0)) & 255;
+    for (let x = 0; x < w*spp; x++) for (let b = 0; b < bytes; b++) out[o + x*bytes + b] = tmp[b*w*spp + x];   // Big-Endian je Wert
   }
   return out;
 }
