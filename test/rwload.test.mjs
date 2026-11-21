@@ -143,8 +143,12 @@ test('L3: Quellen-Datei lesen: gültige übernehmen, Fehler benennen', () => {
   const r = rwSourcesParse(JSON.stringify({ format: 'fpvsim-quellen', version: 1, sources: [srcB, { name: 'Ohne Höhen', crs: 'EPSG:25832' }, { ...srcB, name: 'Falsches Muster', lod2: { url: 'https://x/lod2.gml' } }, { ...srcB, name: 'GK', crs: 'EPSG:31466' }] }));
   assert.deepEqual(r.sources.map(s => s.name), ['Quelle B']);
   assert.equal(r.errors.length, 3);
-  assert.match(r.errors.join(' '), /Höhen .* fehlen/); assert.match(r.errors.join(' '), /\{E\} und \{N\}/); assert.match(r.errors.join(' '), /EPSG:25832 oder EPSG:25833/);
+  assert.match(r.errors.join(' '), /Bundesland fehlt/); assert.match(r.errors.join(' '), /\{E\} und \{N\}/); assert.match(r.errors.join(' '), /EPSG:25832 oder EPSG:25833/);
   assert.deepEqual(rwSourcesParse('kein json').errors, ['keine gültige Datei (JSON)']);
+  // Prompt 225: ohne Höhen gültig (Welt-Quelle), WCS ohne Coverage nicht; Felder außerhalb des Formulars bleiben
+  const w = rwSourcesParse(JSON.stringify([{ ...srcB, dgm: null, roads: { overpass: ['https://o/api'] } }, { ...srcB, dgm: { url: 'https://x/wcs' } }]));
+  assert.equal(w.sources.length, 1); assert.equal(w.sources[0].dgm, null); assert.equal(w.sources[0].roads.overpass[0], 'https://o/api');
+  assert.match(w.errors[0], /Coverage nötig/);
 });
 
 test('L3: Planung an echten Grenzen: Nachbarland dazu, anderes Koordinatensystem außen vor', () => {

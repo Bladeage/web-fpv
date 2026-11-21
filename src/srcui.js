@@ -5,7 +5,7 @@ import { rw, rwNet, rwSources, rwLandData, rwLandHas, RW_SHOW, rwSetShow } from 
 import { meshStats, storeClearMesh, RW_STORE, storeAll, storeDel, storeAreaDel, storeUsage, storePut, storeArea, storeStats, storeExportAll, geoPack, geoUnpack } from './rwstore.js';
 import { RW_SOURCES, rwCheckSource, rwSourcesParse } from './rwload.js';
 import { wmsCheck } from './rwwms.js';
-import { deMap } from './demap.js';
+import { deMap, deLandAt } from './demap.js';
 import { toUtm, fromUtm } from './geo.js';
 import { parseLatLon } from './format.js';
 import { dev, devApply, devText } from './device.js';
@@ -31,8 +31,8 @@ function srcList() {
   };
   const where = s => s.tiles ? 'weltweite Höhen (Kacheln), wo kein Land greift' : s.kind === 'wms' ? 'Höhendienst, ' + ({ dis: 'DIS-Übung', all: 'überall', nie: 'aus' }[s.use] || 'DIS-Übung') + ', nicht gespeichert' : (s.land || 'ohne Land') + (s.dgm === null ? ', Luftbild, Höhen aus der Welt-Quelle' : s.dgm && !s.dgm.coverage ? ', Höhen aus Kacheln' : '');
   (cfg.rwSources || []).forEach((s, i) => row(s, where(s) + ' · eigene', 'Bearbeiten', () => srcForm(i)));
-  for (const s of RW_SOURCES.filter(x => !x.tiles && (x.kind === 'wms' || (x.dgm && x.dgm.coverage)))) row(s, where(s) + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
-  for (const s of RW_SOURCES.filter(x => x.tiles || (x.kind !== 'wms' && !(x.dgm && x.dgm.coverage)))) row(s, where(s) + ' · Vorlage', 'Quelle', () => { srcEl('srcMsg').textContent = s.attribution; });   // Kacheln: nicht im Formular
+  for (const s of RW_SOURCES.filter(x => !x.tiles)) row(s, where(s) + ' · Vorlage', 'Kopieren', () => { cfg.rwSources = [...(cfg.rwSources || []), { ...JSON.parse(JSON.stringify(s)), id: undefined, box: undefined, name: s.name + ' (Kopie)' }]; srcStore(); srcForm(cfg.rwSources.length - 1); });
+  for (const s of RW_SOURCES.filter(x => x.tiles)) row(s, where(s) + ' · Vorlage', 'Quelle', () => { srcEl('srcMsg').textContent = s.attribution; });   // Kacheln: nicht im Formular
   if (!(cfg.rwSources || []).length) srcEl('srcMsg').textContent ||= 'Noch keine eigenen Quellen. „Neu“ legt eine an; „Kopie“ übernimmt die NRW-Vorlage als Muster.';
 }
 // Optionen der echten Welt öffnen; tab „data“ (Daten) oder „src“ (Quellen). Den DIS-Modus schaltet der Knopf „DIS“ unter Spezial.
@@ -127,7 +127,8 @@ function srcForm(i) {
   srcKind();
   srcEl('sfTitle').textContent = i >= 0 ? 'Quelle bearbeiten' : 'Neue Quelle';
   srcEl('sfDel').disabled = i < 0;
-  srcEl('sfMsg').textContent = 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen sind nötig, alles andere ist frei.';
+  srcEl('sfMsg').textContent = s.dgm && !s.dgm.coverage ? 'Höhen aus Kacheln der Vorlage bleiben erhalten (nicht im Formular). Eine WCS-Adresse ersetzt sie.'
+    : 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen leer: aus der Welt-Quelle. Weitere Einstellungen der Vorlage bleiben erhalten.';
   SRC.show('source');
 }
 // Art der Quelle: Felder der Landesdienste oder des WMS-Höhendienstes zeigen
@@ -136,15 +137,18 @@ function srcKind() {
   document.querySelectorAll('section[data-screen=source] .lk').forEach(e => { e.hidden = w; });
   document.querySelectorAll('section[data-screen=source] .wk').forEach(e => { e.hidden = !w; });
   srcEl('sfMsg').textContent = w ? 'Adresse des Dienstes ohne Parameter. Höhenebene leer lassen: wird automatisch erkannt. Wird nie gespeichert.'
-    : 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen sind nötig, alles andere ist frei.';
+    : 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen leer: aus der Welt-Quelle.';
   SRC.fit();
 }
 // Formular -> Quelle (leere Ebenen weglassen)
 function srcRead() {
   const v = id => srcEl(id).value.trim(), lay = (u, k, x) => u ? { url: u.replace(/\?.*$/, ''), [k]: x } : null;
   if (v('sfKind') === 'wms') return { kind: 'wms', name: v('sfName'), hgt: { url: v('sfWms').replace(/\?.*$/, ''), layer: v('sfWmsL'), tile: 256 }, vref: v('sfVref'), use: v('sfUse'), store: false, land: '', attribution: v('sfAttr') || v('sfName') };
-  return { name: v('sfName'), land: v('sfLand'), crs: v('sfCrs'), dgm: lay(v('sfDgm'), 'coverage', v('sfDgmC')), dom: lay(v('sfDom'), 'coverage', v('sfDomC')),
-    dop: lay(v('sfDop'), 'layer', v('sfDopL')), lod2: v('sfLod') ? { url: v('sfLod'), tileKm: Math.max(1, Math.round(+v('sfLodK') || 1)) } : null, attribution: v('sfAttr') || v('sfName') };
+  // Was das Formular nicht zeigt (Kacheln, Achsen, Einheit, Bildgrenze, ZIP, Straßen, Landesdaten), bleibt aus der Vorlage erhalten (Prompt 225)
+  const o = SRC.edit >= 0 ? cfg.rwSources[SRC.edit] || {} : {}, keep = (n, x) => n && { ...(o[x] && o[x].url ? o[x] : {}), ...n };
+  return { name: v('sfName'), land: v('sfLand'), crs: v('sfCrs'), dgm: keep(lay(v('sfDgm'), 'coverage', v('sfDgmC')), 'dgm') || (o.dgm && !o.dgm.coverage ? o.dgm : null),
+    dom: lay(v('sfDom'), 'coverage', v('sfDomC')), dop: keep(lay(v('sfDop'), 'layer', v('sfDopL')), 'dop'),
+    lod2: keep(v('sfLod') ? { url: v('sfLod'), tileKm: Math.max(1, Math.round(+v('sfLodK') || 1)) } : null, 'lod2'), roads: o.roads || null, dlm: o.dlm || null, attribution: v('sfAttr') || v('sfName') };
 }
 function srcSave() {
   const s = srcRead(), chk = rwSourcesParse(JSON.stringify([s]));
@@ -170,6 +174,7 @@ async function srcCheck() {
     finally { SRC.busy = null; srcEl('sfCheck').textContent = 'Prüfen'; }
     return;
   }
+  if (ll && L && deLandAt(...toUtm(ll[0], ll[1], 32)) !== s.land) ll = null;   // gewählter Ort außerhalb des Landes: Mitte des Landes (Prompt 225)
   if (L && !ll) { const r = L.rings.reduce((a, b) => b.length > a.length ? b : a); ll = fromUtm(r.reduce((t, p) => t + p[0], 0)/r.length*100, r.reduce((t, p) => t + p[1], 0)/r.length*100); }
   if (!ll) { srcEl('sfMsg').textContent = 'Bitte erst das Bundesland wählen (oder auf der Karte einen Ort setzen).'; return; }
   SRC.busy = new AbortController(); srcEl('sfCheck').textContent = 'Abbrechen';
