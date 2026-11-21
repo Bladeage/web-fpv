@@ -98,7 +98,7 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 | **Q2 Weltweite Höhe** (erledigt 21.11.2026) | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
 | **Q3 Länder aus Kacheln** (erledigt 21.11.2026) | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
 | **Q4 Luftbild** (Sentinel-2 erledigt 21.11.2026; Rest siehe unten) | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
-| **Q5 Gebäude** | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
+| **Q5 Gebäude** (erledigt 21.11.2026) | CityGML aus ZIP, S3 und 2-km-Kacheln: Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz. | ja |
 | **Q6 Lücken mit WCS und WMS** (erledigt 21.11.2026; Aufgabe des Nutzers WCS Berlin gelöst über den WCS Brandenburg) | Für die Länder mit „Ersatz suchen“ die Dienste suchen, mit CORS prüfen und eintragen. Wo es keinen gibt: weltweite Höhe aus Q2. | ja |
 | **Q7 Straßen und Landesdaten** | Overpass (weltweit) für Straßen, Basis-DLM anderer Länder (Schema je Land). Erst prüfen, ob Overpass aus dem Browser des Nutzers antwortet. | ja |
 
@@ -163,3 +163,10 @@ Gemessen mit `Origin` unserer Seite: Fähigkeiten, `GetMap` 256² und 4096² (JP
 - Nicht gefunden oder nicht offen: Hamburg (alle geprüften Adressen 404), Thüringen (WMS verlangt Rechte: „Missing WMS:GetMap right“; WCS-Fähigkeiten da, Abdeckung nicht geprüft), WCS für Bayern, Baden-Württemberg, Bremen, Hessen, Schleswig-Holstein, Saarland, Sachsen, Sachsen-Anhalt (geprüfte Adressen 404).
 - Code: Quellen ohne `dgm` (nur Luftbild) nehmen die Höhen der Welt-Quelle; `dop.max` begrenzt die Bildgröße; Umgebung mit Luftbild des Landes. Im Browser geladen und geflogen: Berlin 33 s, München 24 s, Frankfurt 39 s (die Zeit geht vor allem in das Luftbild 4096², 2,5 bis 12 MB je Dienst).
 - Die XYZ-Kacheln von Berlin nutzt keine Vorlage mehr. Der Leser bleibt (Q1, getestet); bei Platznot zuerst entfernen (etwa 1 KB).
+
+## Q5 erledigt (21.11.2026)
+
+- Gebäude (LoD2) für Brandenburg (ZIP, 1 km), Berlin (ZIP, 1 km), Niedersachsen (GML, 1 km), Rheinland-Pfalz (GML, 2 km), Mecklenburg-Vorpommern (ZIP, 2 km). `lod2.zip` nennt die Datei im ZIP; das ZIP wird ganz geladen (`lod2Text` in `src/rwload.js`). CORS bei allen gemessen.
+- Gelesen in Node mit dem vorhandenen CityGML-Leser: Potsdam 755 Gebäude (30 MB Text), Berlin Tiergarten 2 036 (27 MB, 2 032 mit Dach), Rostock 3 107 (75 MB), Mainz 5 723 (163 MB je 2-km-Kachel). Im Browser Potsdam mit 959 Gebäuden geladen und geflogen.
+- Groß: Rheinland-Pfalz bis 163 MB je Kachel, Niedersachsen bis 49 MB. Der vorhandene Gebäude-Zwischenspeicher hält zerlegte Kacheln.
+- Nicht möglich: Bayern und Sachsen (kein CORS), Hamburg (Deflate64), übrige Länder ohne Einzelkacheln.

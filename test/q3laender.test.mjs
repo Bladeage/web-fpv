@@ -45,7 +45,7 @@ test('Vorlagen der Länder und Gebiet mit Umgebung aus der Welt-Quelle', async (
   for (const id of ['bb', 'be', 'mv']) assert.ok(RW_SOURCES.find(x => x.id === id).dgm.coverage, id + ': WCS (Q6)');
   for (const id of ['by', 'bw', 'hb', 'he', 'sh', 'sl', 'sn', 'st']) { const s = RW_SOURCES.find(x => x.id === id); assert.ok(s && s.dgm === null && s.dop.layer && s.land && s.attribution, id + ': nur Luftbild (Q6)'); }
   assert.equal(RW_SOURCES.find(x => x.id === 'he').dop.max, 3000);
-  const src = { ...RW_SOURCES.find(x => x.id === 'bb'), dop: null, dgm: { tpl: 'k3/{e}_{n}.tif', km: 1 } }, f = {};
+  const src = { ...RW_SOURCES.find(x => x.id === 'bb'), dop: null, lod2: null, dgm: { tpl: 'k3/{e}_{n}.tif', km: 1 } }, f = {};
   for (const [e, n] of [[400, 5800], [401, 5800], [400, 5801], [401, 5801]]) f[`k3/${e}_${n}.tif`] = kachel(e, n);
   const welt = [];
   const get = Object.assign(async u => { if (u.includes('elevation-tiles')) { welt.push(u); throw new Error('Welt offline'); } if (!f[u]) throw new Error('404'); return f[u]; }, {});
@@ -53,4 +53,22 @@ test('Vorlagen der Länder und Gebiet mit Umgebung aus der Welt-Quelle', async (
   const p = await rwFetchArea(a, src, get, async () => null, () => {}, {});
   assert.ok(Math.abs(p.meta.hMin - h(400500, 5800500)) < 0.5, 'tiefster Punkt ' + p.meta.hMin);
   assert.ok(welt.length > 0 && p.far === null, 'Umgebung aus der Welt-Quelle versucht (hier offline: ohne Umgebung)');
+});
+
+test('Q5: Gebäude aus ZIP-Kacheln (Brandenburg, Berlin), fehlende Kachel leer', async () => {
+  const { deflateRawSync } = await import('node:zlib');
+  const P = (x, y, z) => `${401000 + x} ${5801000 + y} ${z}`, ring = pts => `<gml:exterior><gml:LinearRing><gml:posList>${pts.join(' ')}</gml:posList></gml:LinearRing></gml:exterior>`;
+  const wall = (a, b) => `<bldg:WallSurface>${ring([P(...a, 60), P(...b, 60), P(...b, 66), P(...a, 66), P(...a, 60)])}</bldg:WallSurface>`;
+  const gml = `<core:CityModel><bldg:Building><bldg:function>31001_1000</bldg:function><bldg:RoofSurface>${ring([P(-5, -5, 66), P(5, -5, 66), P(5, 5, 66), P(-5, 5, 66), P(-5, -5, 66)])}</bldg:RoofSurface>${wall([-5, -5], [5, -5])}${wall([5, -5], [5, 5])}${wall([5, 5], [-5, 5])}${wall([-5, 5], [-5, -5])}</bldg:Building></core:CityModel>`;
+  const data = new TextEncoder().encode(gml), body = new Uint8Array(deflateRawSync(data)), nm = new TextEncoder().encode('x/lod2_geb.gml');
+  const h = new Uint8Array(30 + nm.length), hv = new DataView(h.buffer); hv.setUint32(0, 0x04034b50, true); hv.setUint16(8, 8, true); hv.setUint32(18, body.length, true); hv.setUint32(22, data.length, true); hv.setUint16(26, nm.length, true); h.set(nm, 30);
+  const c = new Uint8Array(46 + nm.length), cv = new DataView(c.buffer); cv.setUint32(0, 0x02014b50, true); cv.setUint16(10, 8, true); cv.setUint32(20, body.length, true); cv.setUint32(24, data.length, true); cv.setUint16(28, nm.length, true); c.set(nm, 46);
+  const e = new Uint8Array(22), ev = new DataView(e.buffer); ev.setUint32(0, 0x06054b50, true); ev.setUint32(12, c.length, true); ev.setUint32(16, h.length + body.length, true);
+  const zip = new Uint8Array([...h, ...body, ...c, ...e]), f = {};
+  for (const [x, y] of [[400, 5800], [401, 5800], [400, 5801], [401, 5801]]) f[`k4/${x}_${y}.tif`] = kachel(x, y);
+  f['z/401-5801.zip'] = zip;   // nur diese Gebäudekachel gibt es
+  const src = { id: 't', land: 'Brandenburg', crs: 'EPSG:25833', dgm: { tpl: 'k4/{e}_{n}.tif', km: 1 }, lod2: { url: 'z/{E}-{N}.zip', tileKm: 1, zip: '_geb.gml' }, attribution: 't' };
+  const get = async u => { if (u.includes('elevation-tiles')) throw new Error('offline'); if (!f[u]) throw new Error('x antwortet 404'); return f[u]; };
+  const p = await rwFetchArea({ ...rwAreaAt(401000, 5801000, src), n: 32, dopN: 64 }, src, get, async () => null, () => {}, {});
+  assert.equal(p.meta.buildings, 1, 'ein Haus aus dem ZIP');
 });

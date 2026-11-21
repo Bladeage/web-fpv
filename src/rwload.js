@@ -21,18 +21,24 @@ export const RW_SOURCES = [{
 },
 // Weitere Länder (Q3 Kacheln, Q6 WCS und WMS; Adressen in docs/plan-quellen.md, CORS und Abruf gemessen 21.11.2026). dgm: WCS (coverage),
 // sonst Kacheln: tpl (Adresse mit {e}/{n} in km, zip: Datei darin, xyz: Text), stac (Katalog, Sammlung coll, COG) oder index (Dateiliste,
-// Name beginnt mit tpl). Ohne dgm: Höhen aus der Welt-Quelle. dop: WMS-Luftbild (max: größtes Bild des Dienstes).
+// Name beginnt mit tpl). Ohne dgm: Höhen aus der Welt-Quelle. dop: WMS-Luftbild (max: größtes Bild des Dienstes). lod2 (Q5): Gebäude,
+// zip: Datei im ZIP. Größe je Kachel gemessen: Brandenburg 30 MB, Berlin 27 MB, Niedersachsen bis 49 MB, Rheinland-Pfalz bis 163 MB (2 km), MV 75 MB (2 km).
 { id: 'bb', name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
-  dop: { url: 'https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms', layer: 'bebb_dop20c' }, attribution: 'GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
+  dop: { url: 'https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms', layer: 'bebb_dop20c' },
+  lod2: { url: 'https://data.geobasis-bb.de/geobasis/daten/3d_gebaeude/lod2_gml/lod2_33{E}-{N}.zip', tileKm: 1, zip: '_geb.gml' }, attribution: 'GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
 // Berlin: Höhen aus dem WCS Brandenburg (deckt Berlin ab, 2 s statt 69 s mit den XYZ-Kacheln von Berlin, gleiche Werte)
 { id: 'be', name: 'Berlin (Geoportal Berlin)', land: 'Berlin', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },
-  dop: { url: 'https://gdi.berlin.de/services/wms/truedop_2024', layer: 'truedop_2024' }, attribution: 'Geoportal Berlin, dl-de/zero-2-0; GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
+  dop: { url: 'https://gdi.berlin.de/services/wms/truedop_2024', layer: 'truedop_2024' },
+  lod2: { url: 'https://gdi.berlin.de/data/a_lod2/atom/LoD2_{E}_{N}.zip', tileKm: 1, zip: '.xml' }, attribution: 'Geoportal Berlin, dl-de/zero-2-0; GeoBasis-DE/LGB 2026, dl-de/by-2-0' },
 { id: 'ni', name: 'Niedersachsen (LGLN)', land: 'Niedersachsen', crs: 'EPSG:25832', dgm: { stac: 'https://dgm.stac.lgln.niedersachsen.de', coll: 'dgm1', km: 1 },
-  dop: { url: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms', layer: 'ni_dop20' }, attribution: 'LGLN 2026, CC BY 4.0' },
+  dop: { url: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms', layer: 'ni_dop20' },
+  lod2: { url: 'https://lod2.opengeodata.lgln.niedersachsen.de/LoD2_32_{E}_{N}_1_ni.gml', tileKm: 1 }, attribution: 'LGLN 2026, CC BY 4.0' },
 { id: 'rp', name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832', dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 },
-  dop: { url: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi', layer: 'rp_dop20' }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
+  dop: { url: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi', layer: 'rp_dop20' },
+  lod2: { url: 'https://geobasis-rlp.de/data/geb3dlo/current/gml/LoD2_32_{E}_{N}_2_RP.gml', tileKm: 2 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
 { id: 'mv', name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
-  dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
+  dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' },
+  lod2: { url: 'https://www.geodaten-mv.de/dienste/gebaeude_download?index=0&dataset=8397b554-5cb9-4274-8be8-c20490d9a6e8&file=lod2_33_{E}_{N}_2_gml.zip', tileKm: 2, zip: '.gml' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
 // Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
 ...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0'],
   ['bw', 'Baden-Württemberg', 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', 'IMAGES_DOP_20_RGB', 'LGL, www.lgl-bw.de, dl-de/by-2-0'],
@@ -263,6 +269,12 @@ export async function tileRaster(svc, bbox, crs, n, get, text) {
   }
   return { w: n, h: n, data: out, nodata: NaN };
 }
+// Gebäude-Kachel als Text; lod2.zip (Q5): ZIP ganz laden, Datei darin (Brandenburg, Berlin). Fehlt die Kachel (404): null.
+async function lod2Text(svc, u, text, get, prog) {
+  if (!svc.zip) return text(u, prog);
+  const z = await get(u, prog).catch(e => { if (/ 404/.test(e.message)) return null; throw e; });
+  return z && new TextDecoder().decode(await zipGet(async (a, b) => z.subarray(a, b + 1), z.length, svc.zip));
+}
 export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   const srcs = Array.isArray(src) ? src : [src], multi = srcs.length > 1 && opt.cells;
   const n = a.n || RW_GRIDN, buf = u8 => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength), C = RW_CELLS;
@@ -320,14 +332,14 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     if (opt.lod2Cache) {   // schon einmal geladen (anderer Ort, Nachbarkachel)? Dann ohne Netz
       let t = await opt.lod2Cache.get(u);
       if (!t) {
-        const xml = await text(u, mb(step, f));
+        const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f));
         t = xml ? lod2Pack(opt.async ? await readLod2Async(xml) : readLod2(xml)) : { empty: true };
         await opt.lod2Cache.put(u, t);
       } else say(step + ' (aus dem Speicher)', f);
       if (t.empty) continue;   // Kachel ohne Gebäude
       o = lod2Filter(lod2Unpack(t), keep);
     } else {
-      const xml = await text(u, mb(step, f));
+      const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f));
       if (!xml) continue;   // Kachel ohne Gebäude
       o = opt.async ? await readLod2Async(xml, keep) : readLod2(xml, keep);
     }
