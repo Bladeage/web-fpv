@@ -94,7 +94,7 @@ Jede Etappe einzeln, mit Tests in Node und Freigabe durch den Nutzer.
 
 | Etappe | Inhalt | Sichtbar für den Nutzer |
 |---|---|---|
-| **Q1 Leser** | TIFF mit Deflate, Prädiktor 2 für 16 und 32 Bit richtig, Prädiktor 3 geprüft. COG per Teilabruf: nur die nötigen Teile einer Übersicht lesen. Eine Datei aus einem ZIP per Teilabruf lesen (Deflate). XYZ-Text als Raster. Alles ohne DOM, mit Proben als Testdateien. Werkzeug `tools/quellen.mjs` für die Prüfung oben. | nein |
+| **Q1 Leser** (erledigt 21.11.2026) | TIFF mit Deflate, Prädiktor 2 für 16 und 32 Bit richtig, Prädiktor 3 geprüft. COG per Teilabruf: nur die nötigen Teile einer Übersicht lesen. Eine Datei aus einem ZIP per Teilabruf lesen (Deflate). XYZ-Text als Raster. Alles ohne DOM, mit Proben als Testdateien. Werkzeug `tools/quellen.mjs` für die Prüfung oben. | nein |
 | **Q2 Weltweite Höhe** | Neue Quellart „weltweit“: Höhen aus Terrain Tiles, umgerechnet auf das UTM-Gitter jeder Zone (wie beim WMS-Höhendienst). Gilt außerhalb Deutschlands und als Umgebung für Länder ohne WCS. Luftbild dort zuerst als schattiertes Relief. | ja: Orte überall auf der Welt laden |
 | **Q3 Länder aus Kacheln** | Neue Zugriffsarten für Höhen: Vorlage mit `{e}`/`{n}` (mit ZIP), STAC, S3-Liste, Dateiliste. Kacheln zum Gebiet zusammensetzen. Vorlagen: Brandenburg, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern, Berlin. | ja: Höhen dieser Länder |
 | **Q4 Luftbild** | COG mit JPEG (Niedersachsen) und Deflate (Sentinel-2) aus der passenden Übersicht. Sentinel-2 weltweit für die Umgebung. WMS als Ersatz, wo die Liste nicht geht (Bayern DOP40 gemessen). | ja |
