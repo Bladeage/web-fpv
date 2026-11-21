@@ -40,6 +40,7 @@ export const RW_SOURCES = [{
   dop: { url: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi', layer: 'rp_dop20' },
   lod2: { url: 'https://geobasis-rlp.de/data/geb3dlo/current/gml/LoD2_32_{E}_{N}_2_RP.gml', tileKm: 2 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
 { id: 'mv', roads: OSM_ROADS, name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
+  dom: { url: 'https://www.geodaten-mv.de/dienste/dom_wcs', coverage: 'mv_dom1' },   // Oberfläche für Bäume (Prompt 227, CORS gemessen)
   dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' },
   lod2: { url: 'https://www.geodaten-mv.de/dienste/gebaeude_download?index=0&dataset=8397b554-5cb9-4274-8be8-c20490d9a6e8&file=lod2_33_{E}_{N}_2_gml.zip', tileKm: 2, zip: '.gml' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
 // WCS gefunden am 21.11.2026 (Prompt 221): Baden-Württemberg (INSPIRE, Achsen E und N), Saarland (INSPIRE, Werte in cm)
