@@ -31,16 +31,21 @@ export function mapDraw() {
   if (M.bm) { const [x0, y0] = P(M.bm.box[0], M.bm.box[3]), [x1, y1] = P(M.bm.box[2], M.bm.box[1]); c.drawImage(M.bm.img, x0, y0, x1 - x0, y1 - y0); }
   // Länder: mit hinterlegter Quelle grün getönt, Grenzen dunkel
   // Am Anfang nur Grenzen; das Land des gewählten Punkts hell hervorgehoben und beschriftet (Wunsch Nutzer)
-  const map = deMap(), srcLands = new Set(rwSources().map(s => s.land)), selLand = M.sel ? deLandAt(M.sel[0], M.sel[1]) : null;
+  const map = deMap(), selLand = M.sel ? deLandAt(M.sel[0], M.sel[1]) : null;
+  // Datenlage je Land (Prompt 222): 2 eigene Höhen, Luftbild und Gebäude (grün), 1 etwas davon (gelb), 0 nichts, nur Welt (rot).
+  // Nur in weiter Ansicht (mehrere Länder): voll ab 600 m je Bildpunkt, unter 300 aus.
+  const cls = new Map(), k = Math.max(0, Math.min(1, (v.s - 300)/300));
+  for (const s of rwSources()) if (s.land) { const n = !!s.dgm + !!s.dop + !!s.lod2; cls.set(s.land, Math.max(cls.get(s.land) || 0, n === 3 ? 2 : n ? 1 : 0)); }
   if (map) for (const l of map.lands) {
     c.beginPath();
     for (const r of l.rings) r.forEach(([x, y], i) => { const [sx, sy] = P(x*100, y*100); if (i) c.lineTo(sx, sy); else c.moveTo(sx, sy); });
-    if (srcLands.has(l.name)) { c.fillStyle = M.bm ? 'rgba(40,150,80,0.10)' : 'rgba(40,150,80,0.22)'; c.fill('evenodd'); }
-    else if (!M.bm) { c.fillStyle = 'rgba(255,255,255,0.55)'; c.fill('evenodd'); }
+    if (!M.bm) { c.fillStyle = 'rgba(255,255,255,0.55)'; c.fill('evenodd'); }
+    if (k > 0) { c.fillStyle = ['rgba(220,60,40,', 'rgba(235,185,30,', 'rgba(40,150,80,'][cls.get(l.name) || 0] + (k*(M.bm ? 0.2 : 0.32)).toFixed(3) + ')'; c.fill('evenodd'); }
     if (l.name === selLand) { c.fillStyle = 'rgba(224,68,42,0.10)'; c.fill('evenodd'); }
     c.strokeStyle = l.name === selLand ? 'rgba(200,50,30,0.9)' : 'rgba(40,50,60,0.75)'; c.lineWidth = l.name === selLand ? 2 : 1; c.stroke();
   }
   c.font = '600 12px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (k > 0.5) { c.textAlign = 'left'; c.fillStyle = 'rgba(30,40,50,0.8)'; c.fillText('Grün: alle Daten · Gelb: teilweise · Rot: nur grob (Welt)', 8, h - 30); c.textAlign = 'center'; }
   const L = selLand && landLabels().find(x => x.name === selLand);
   if (L && v.s > 120) { const [x, y] = P(L.E, L.N); c.lineWidth = 3; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.strokeText(L.name, x, y); c.fillStyle = 'rgba(30,40,50,0.95)'; c.fillText(L.name, x, y); }
   // Eingebautes Gebiet (AXA Campus Köln) und gewählter Punkt mit Ausschnitt 1 x 1 km
@@ -81,7 +86,7 @@ function wantBasemap(w, h, dpr) {
 }
 function info() {
   const off = M.bmErr ? ' Hintergrundkarte nicht erreichbar, nur Grenzen.' : '';
-  if (!M.sel) { el('mapInfo').textContent = 'Auf die Karte tippen, um den Mittelpunkt zu setzen; vom Punkt ziehen: Blickrichtung. Grün: Quelle hinterlegt.' + off; el('mapOk').disabled = true; layout(); return; }
+  if (!M.sel) { el('mapInfo').textContent = 'Auf die Karte tippen, um den Mittelpunkt zu setzen; vom Punkt ziehen: Blickrichtung. Farben: Datenlage je Land.' + off; el('mapOk').disabled = true; layout(); return; }
   const [lat, lon] = fromUtm(M.sel[0], M.sel[1]), land = deLandAt(M.sel[0], M.sel[1]), plan = rwPlan(lat, lon);
   el('mapInfo').textContent = (M.yaw != null ? 'Blick ' + Math.round(M.yaw) + '° (' + COMPASS[Math.round(M.yaw/45) % 8] + ') · ' : '') + (M.hit ? M.hit.name + (M.hits.length > 1 ? ' (' + (M.hits.indexOf(M.hit) + 1) + '/' + M.hits.length + ', Enter: nächster)' : '') + ' · ' : '') + lat.toFixed(5) + ', ' + lon.toFixed(5) + ' · ' + (land || 'außerhalb Deutschlands') + ' · '
     + (plan ? 'Quelle: ' + plan.srcs.map(x => x.name).join(' + ') + (plan.skipped.length ? ' (ohne ' + plan.skipped.map(x => x.name).join(', ') + ': anderes Koordinatensystem)' : '')

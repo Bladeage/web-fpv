@@ -1215,6 +1215,8 @@ function inNrw() {
 }
 const meshWhy = () => i3sWanted(cfg.gfx, MESH_PROBE, rw.on && !!rw.meta, cfg.verbund, rw.on && inNrw());
 const meshOn = () => meshWhy() === 'on';
+// Für das Menü (Prompt 223): Foto 3D wählbar nur in der echten Welt mit Gebiet in NRW, nicht in der DIS-Übung; sonst ausgegraut, Grafik wie Schön
+export const meshAvail = () => cfg.world === 'real' && !cfg.verbund && !!rw.meta && inNrw();
 function meshHint() {
   if (cfg.gfx !== 'mesh' || !rw.on) return;
   const why = meshWhy(), key = rw.ver + ':' + why;
