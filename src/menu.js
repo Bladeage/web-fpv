@@ -557,6 +557,10 @@ document.querySelectorAll('#modeTabs button').forEach(b => b.addEventListener('c
 // Flugart aus dem Hauptmenü
 // DIS-Übung als dritte Flugart (docs/plan-menue.md): eigene Seite, cfg.verbund folgt der Flugart; die ebene Fläche der Übung gilt
 // nicht für Parcours und Taktisch
+// DIS-Übung versteckt (Prompt 231): erst nach 10 Klicks auf den Hintergrund des Hauptmenüs, bis zum Neuladen; war DIS zuletzt gewählt, gleich sichtbar
+let disTaps = 0;
+if (cfg.flight === 'dis') $('goDis').hidden = false;
+menu.addEventListener('click', e => { if (e.target === menu && !document.querySelector('[data-screen=main]').hidden && ++disTaps >= 10) $('goDis').hidden = false; });
 for (const id of ['go', 'goTac', 'goDis']) $(id).addEventListener('click', () => {
   cfg.flight = $(id).dataset.flight; cfg.verbund = isDis();
   if (!isDis() && cfg.rwSrc === 'dis') { rwAbort(); cfg.rwSrc = 'emb'; }
