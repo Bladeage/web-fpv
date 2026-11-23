@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { cfg, game } from '../src/state.js';
 import { buildWorld } from '../src/world.js';
 import { STEP, step, respawn, respawnDrone, PHYS, hoverThrottle } from '../src/physics.js';
-import { setScenario, scenLabel, chargeOn, chargeDue, chargeNext, chargeDrones, booms, CHARGE } from '../src/scenario.js';
+import { setScenario, scenLabel, chargeOn, chargeDue, chargeNext, chargeDrones, booms, CHARGE, chargeLeft } from '../src/scenario.js';
+import { osdLines } from '../src/osd.js';
+import { solidH } from '../src/realworld.js';
 import { vehicles } from '../src/vehicles.js';
 
 buildWorld();
@@ -75,4 +77,15 @@ test('Mission erfüllt: nach dem Ziel steht alles still, Neustart beginnt mit Ve
   assert.equal(game.state, 'done');
   respawn(); assert.equal(game.tries, 1, 'neue Mission'); assert.equal(game.state, 'fly');
   cfg.huntX = 5;
+});
+
+test('OSD zeigt den Zustand der Ladung: erst SCHARF IN x M, dann LADUNG SCHARF; ohne Ladung nichts (Prompt 232)', () => {
+  const bc = c => osdLines({}, { lq: 100, mode: 'angle', label: '', vpack: 16, cell: 4, amp: 1, mah: 0, cap: 1300, flyT: 0, kmh: 0, alt: 0, homeD: 0, thr: 0, pitchDeg: 0, rollDeg: 0, charge: c }).bc.map(l => l.t);
+  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; setScenario('hunt2'); respawn();
+  const s = game.sim, g = solidH(s.p[0], s.p[2]) + PHYS.foot;
+  s.p[1] = g + 4; s.armed = false;
+  assert.ok(Math.abs(chargeLeft() - 6) < 0.01, 'noch 6 m: ' + chargeLeft());
+  assert.ok(bc(chargeLeft()).includes('SCHARF IN 6M'));
+  s.armed = true; assert.equal(chargeLeft(), 0); assert.ok(bc(0).includes('LADUNG SCHARF'));
+  cfg.warhead = 'none'; assert.equal(chargeLeft(), null); assert.ok(!bc(null).some(t => /SCHARF/.test(t)));
 });

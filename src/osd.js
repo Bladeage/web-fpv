@@ -60,6 +60,7 @@ export function osdLines(o, d) {
   add('br', 'speed', pad(Math.round(d.kmh), 3, '0') + ' KMH');
   add('br', 'alt', 'ALT ' + d.alt.toFixed(1) + 'M');
   add('br', 'home', 'H ' + Math.round(d.homeD) + 'M');   // Heimweg bleibt unten, daneben der Pfeil
+  if (d.charge != null) add('bc', 'warn', d.charge ? 'SCHARF IN ' + Math.ceil(d.charge) + 'M' : 'LADUNG SCHARF', d.charge ? YEL : RED);   // Ladung (Prompt 232)
   add('bc', 'tilt', 'P' + pad(Math.round(d.pitchDeg), 4) + ' R' + pad(Math.round(d.rollDeg), 4));
   add('bc', 'thr', 'THR ' + pad(Math.round(d.thr*100), 3));
   return out;
