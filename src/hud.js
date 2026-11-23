@@ -9,7 +9,7 @@ import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget, scen, diff, chargeOn, scenHasGoal } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff, chargeOn, scenHasGoal, chargeLeft } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';
@@ -225,7 +225,7 @@ export function drawHud() {
   const f = qRot(s.q, [0,0,-1]), r = qRot(s.q, [1,0,0]), u = qRot(s.q, [0,1,0]);
   const now = new Date();
   const d = {
-    lq, mode: cfg.mode, label: scenLabel(), tries: scenHasGoal() ? game.tries : 0, crashes: game.crashes,
+    lq, mode: cfg.mode, label: scenLabel(), tries: scenHasGoal() || chargeOn() ? game.tries : 0, charge: chargeLeft(), crashes: game.crashes,
     cur: s.lapStart !== null ? s.t - s.lapStart : null, last: s.lastLap, best: game.best,
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
     god: !!cfg.ghost && !!cfg.infBat && cfg.dmg === 'off',   // Gott-Modus (Spielstil): keine Warnungen zu Akku und Funk (Prompt 177)
