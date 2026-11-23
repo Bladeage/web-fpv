@@ -926,7 +926,7 @@ export function render(dt) {
       if (cfg.cam !== 'fpv' || (hg > 0.5 && hg < 20)) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0); }
     if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
-    if (scen.id === 'hunt2') for (const v of vehicles) add([v.x, v.y || 0, v.z], 1.15, 2.3, v.yaw);
+    if (scen.id === 'hunt2' || scen.id === 'recon') for (const v of vehicles) add([v.x, v.y || 0, v.z], 1.15, 2.3, v.yaw);
     for (const a of traffic.cars) add([a.x, a.y, a.z], 1.15, 2.3, a.yaw);
     if (scen.id === 'follow') { const L = followLead(); add([L.x, L.y || 0, L.z], 1.15, 2.3, L.yaw); }
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -1016,7 +1016,7 @@ export function render(dt) {
     gl.drawArrays(gl.TRIANGLES, 0, pkgMesh.count);
   }
   // Fahrzeuge (Jagd Boden): Farbe nach Tempo, getroffene dunkel und schief
-  if (scen.id === 'hunt2') {
+  if (scen.id === 'hunt2' || scen.id === 'recon') {
     gl.bindVertexArray(vehMesh.vao);
     for (const v of vehicles) {
       gl.uniform1f(P.u.uHeat, v.state === 'hit' ? 0.5 : v.kind === 'parked' ? 0.45 : 0.85);   // fahrend: warmer Motor

@@ -1,7 +1,8 @@
 /* Szenarien auf derselben Karte: Torkurs, Ringparcours, Slalom, Präzisionslandung, Freiflug.
    Ohne DOM, in Node testbar. Die Karte (world.js) bleibt immer gleich; ein Szenario legt
    nur eigene Elemente dazu und tauscht die Aufgabe der Physik (task) aus. */
-import { vAdd, vSub, vScale, vDot, vLen, vNorm, vCross } from './math.js';
+import { vAdd, vSub, vScale, vDot, vLen, vNorm, vCross, qRot, qMul, qAxis, DEG } from './math.js';
+import { birds } from './birds.js';
 import { cfg, game, say, banner, saveBest, loadBest } from './state.js';
 import { COURSE, gates, colliders, rng, MeshBuilder } from './world.js';
 import { PHYS, task, checkGate, collide, contact, fx, bestOk, crash } from './physics.js';
@@ -28,6 +29,7 @@ export const SCENARIOS = [
   { id: 'hunt2',   name: 'Jagd: Fahrzeuge',    info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl berühren.' },
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Dem orangen Auto folgen: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
+  { id: 'recon',   name: 'Aufklärung',         info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
   { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: Monschau eingebaut, andere Orte per Karte. Daten: Geobasis NRW, dl-de/zero-2.0.' },
   { id: 'vbs',     name: 'DIS-Grundtypen',     info: 'Vorschau: 18 einfache Modelle für Einheiten aus DIS. Blau Freund, rot Feind, grün neutral, gelb sonstige, dunkel zerstört.' },
@@ -169,7 +171,7 @@ export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
 // (Schätzung: Last etwa ein Drittel der Startmasse); fx: Dauer der Explosion im Bild (s). Nur Darstellung und Spiel, keine Wirkung.
 export const CHARGE = { mass: 0.3, delay: 1.5, fx: 1.4, arm: 10 };   // arm: scharf ab so viel m über Grund, einmal je Drohne (Nutzer, Prompt 226)
 export const booms = [];   // Explosionen für die Darstellung: { p, t (performance.now) }
-export const chargeOn = () => cfg.flight === 'tactical' && cfg.warhead === 'charge' && ['hunt', 'hunt2', 'hunt3', 'free'].includes(scen.id) && !diff().balloons;   // free: Aufklärung
+export const chargeOn = () => cfg.flight === 'tactical' && cfg.warhead === 'charge' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;   // nur Aufträge zum Zerstören (Prompt 234)
 // Scharf machen (Prompt 226): einmal je Drohne, sobald sie CHARGE.arm Meter über Grund war; auch in der DIS-Übung. Vorher kein Ziel, keine Zündung.
 // chargeLeft: Meter bis scharf, 0 = scharf, null = keine Ladung (Anzeige im OSD, Prompt 232)
 export function chargeLeft() { const s = game.sim; return cfg.warhead !== 'charge' || !(chargeOn() || cfg.flight === 'dis') ? null : s.armed ? 0 : Math.max(0, CHARGE.arm - (s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot)); }
@@ -283,9 +285,9 @@ function reset() {
     dropOrder.length = 0; dropOrder.push(...idx.slice(0, DELIVER_N));
     scen.version++;
   }
-  st.hits = 0; const lr = () => rng(layoutSeed ?? Math.floor(Math.random()*1e9));
+  st.hits = 0; recon.o = null; recon.t = 0; recon.seen.clear(); const lr = () => rng(layoutSeed ?? Math.floor(Math.random()*1e9));
   if (scen.id === 'follow') { lead.s = 0; lead.t = 0; lead.trail = []; lead.trailT = 0; lead.route = rw.on ? leadRouteReal(lr()) : null; const r = routeAt(lead.route || ROUTES[0], 0); lead.x = r.x; lead.y = r.y; lead.z = r.z; lead.yaw = r.yaw; }
-  if (scen.id === 'hunt') initTargets(diff().huntSpeed, rw.on ? huntLayoutReal(lr()) : null); if (scen.id === 'hunt2') initVehicles(diff().huntSpeed, rw.on ? vehLayoutReal(lr()) : null); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed, rw.on ? airLayoutReal(lr()) : null); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
+  if (scen.id === 'hunt') initTargets(diff().huntSpeed, rw.on ? huntLayoutReal(lr()) : null); if (scen.id === 'hunt2' || scen.id === 'recon') initVehicles(diff().huntSpeed, rw.on ? vehLayoutReal(lr()) : null); if (scen.id === 'hunt3') initAircraft(diff().huntSpeed, rw.on ? airLayoutReal(lr()) : null); st.score = 0; st.done = false; st.takeoff = null; st.onPad = false; st.hard = false; st.hold = 0; st.vPrev = [0, 0, 0]; }
 export function scenDone() { return st.done; }
 // Mission erfüllt (Prompt 197): 2,5 s nach dem Ziel steht alles still (game.state 'done'), die Anzeige nennt Zeit und Versuche;
 // Neustart (R, Tippen) beginnt eine neue Mission mit Versuch 1. Gilt für alle Aufgaben mit Ziel. Liefert true beim Umschalten.
@@ -431,6 +433,26 @@ function checkFollow(a, b, h) {
   if (lead.ok) st.inBand += h;
   if (st.inBand >= FOLLOW.need) finish(s.t - st.takeoff);
 }
+// Aufklärung (Prompt 234): fahrende Autos und Vögel beobachten. Ein Ziel ist aufgeklärt, wenn es RECON.hold s am Stück im
+// Fadenkreuz liegt: Winkel zur Kameraachse (mit Uptilt) unter RECON.ang Grad, Abstand unter RECON.dMax m. Werte sind
+// Schätzungen; Annahme: ein Auto (4 m) ist in 90 m noch gut zu erkennen, 6 Grad lassen kleine Lenkfehler zu.
+export const RECON = { need: 3, hold: 4, ang: 6, dMax: 90 };
+const recon = { o: null, t: 0, seen: new Set() };
+const reconObjs = () => [...vehicles.filter(v => v.state === 'drive').map(v => [v, [v.x, v.y + VEH_HALF[1], v.z]]), ...birds.map(b => [b, b.p])].filter(([o]) => !recon.seen.has(o));
+export const reconHold = () => recon.o ? recon.t : 0;
+function checkRecon(a, b, h) {
+  const s = game.sim;
+  stepVehicles(h, a, a, -9);   // Autos fahren, Berührung zählt nicht
+  if (st.done) return;
+  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  const f = qRot(qMul(s.q, qAxis([1, 0, 0], cfg.tilt*DEG)), [0, 0, -1]);
+  let o = null, best = Math.cos(RECON.ang*DEG);
+  for (const [x, p] of reconObjs()) { const d = vSub(p, s.p), l = vLen(d), c = vDot(d, f)/l; if (l < RECON.dMax && c > best) { best = c; o = x; } }
+  recon.t = o && o === recon.o ? recon.t + h : 0; recon.o = o;
+  if (!o || recon.t < RECON.hold) return;
+  recon.seen.add(o); recon.o = null; st.hits++; fx.beep(1100, 0.12);
+  if (st.hits >= RECON.need) finish(s.t - st.takeoff); else banner('ZIEL AUFGEKLÄRT', st.hits + ' / ' + RECON.need);
+}
 export const deliverState = () => ({ carry: st.carry, deliv: st.deliv, inBand: st.inBand });
 
 const TASKS = {
@@ -443,6 +465,7 @@ const TASKS = {
   hunt3:   { check: checkHunt, collide: null, early: true },
   deliver: { check: checkDeliver, collide: null },
   follow:  { check: checkFollow, collide: null },
+  recon:   { check: checkRecon, collide: null },
   free:    { check() {}, collide: null },
   vbs:     { check() {}, collide: null },
   real:    { check() {}, collide: null }
@@ -462,7 +485,7 @@ export function setScenario(id, real = id === 'real') {
   game.homeYaw = !rw.on ? 0 : rw.meta.homeYaw !== undefined ? -rw.meta.homeYaw*Math.PI/180 : Math.atan2(game.home[0], game.home[1]);
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   game.bestScen = id === 'real' || !rw.on ? id : id + '.real';   // Bestzeit je Welt
-  const chk = TASKS[id].check; task.check = ['hunt', 'hunt2', 'hunt3', 'free', 'real', 'vbs'].includes(id) ? (a, b, h) => { chargeArm(); chk(a, b, h); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
+  const chk = TASKS[id].check; task.check = ['hunt', 'hunt2', 'hunt3', 'real', 'vbs'].includes(id) ? (a, b, h) => { chargeArm(); chk(a, b, h); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
   task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
 }
@@ -476,6 +499,7 @@ export function scenLabel() {
   if (scen.id === 'free') return 'FREIFLUG';
   if (scen.id === 'vbs') return 'DIS-GRUNDTYPEN';
   if (scen.id === 'real') { const n = osdOn(cfg.osd, 'place') ? rwNearName(s.p[0], s.p[2]) : '', m = cfg.verbund ? 'DIS' : 'ECHTE WELT'; return n ? m + ' · ' + n.toUpperCase() : m; }   // DIS-Modus: echte Welt im Verbund
+  if (scen.id === 'recon') return st.done ? 'ZIEL' : `AUFGEKLÄRT ${st.hits}/${RECON.need}` + (recon.o ? ' · ' + recon.t.toFixed(1) + 'S' : '');
   if (scen.id === 'deliver') return st.done ? 'ZIEL' : st.carry ? `LIEFERN ${st.deliv + 1}/${DELIVER_N}` : `PAKET HOLEN ${st.deliv + 1}/${DELIVER_N}`;
   if (scen.id === 'follow') return st.done ? 'ZIEL' : `FOLGEN ${Math.floor(st.inBand)}/${FOLLOW.need}S ${lead.ok ? 'OK' : Math.round(lead.dist) + 'M'}`;
   if (scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') return st.done ? 'ZIEL' : `${diff().balloons ? 'BALLONS' : 'TREFFER'} ${st.hits}/${huntNeed()}` + (scen.id === 'hunt3' ? ` ${st.score}P` : '');
@@ -494,6 +518,11 @@ export function scenTarget() {
   if (scen.id === 'hunt2') {   // nächstes noch nicht getroffenes Fahrzeug
     let best = null, bd = 1e9;
     for (const v of vehicles) if (v.state !== 'hit') { const d = Math.hypot(v.x - s.p[0], v.z - s.p[2]); if (d < bd) { bd = d; best = [v.x, v.y + VEH_HALF[1]*2, v.z]; } }
+    return best;
+  }
+  if (scen.id === 'recon') {   // nächstes noch nicht aufgeklärtes Auto oder Vogel
+    let best = null, bd = 1e9;
+    for (const [, p] of reconObjs()) { const d = vLen(vSub(p, s.p)); if (d < bd) { bd = d; best = p; } }
     return best;
   }
   if (scen.id === 'hunt3') {   // nächstes noch fliegendes Luftziel
