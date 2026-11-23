@@ -29,7 +29,8 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
-  { id: 'recon', name: 'Aufklärung', scen: 'free', worlds: ['map', 'real'], info: 'Frei fliegen und beobachten. Mit Wirkmittel: scharf ab 10 m über Grund, zündet bei Aufprall, danach neue Drohne.' },
+  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Wirkmittel.',
+    infoReal: 'Autos auf den Straßen (wenn es welche gibt) und Vögel beobachten: ein Ziel 4 s im Fadenkreuz halten, bis 90 m. 3 Ziele aufklären.' },
   { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map', 'real'], roads: true, info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.',
     infoReal: '7 Fahrzeuge auf den Straßen: grau am Straßenrand, blau langsam, rot schnell. Bei jedem Start neu verteilt.' },
   { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',
@@ -38,7 +39,7 @@ export const TAC = [
     infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' },
   { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
 ];
-const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3'];   // nicht im Parcours (Prompt 176)
+const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'recon'];   // nicht im Parcours (Prompt 176)
 const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
 const ROAD_MODES = ['hunt2', 'follow'];   // brauchen in der echten Welt Straßen (S3)
 // Straßen im Startgebiet: mindestens 500 m (Monschau eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
@@ -195,7 +196,7 @@ export function syncMenu() {
   press('#gfxSeg button', b => b.dataset.gfx === (cfg.gfx === 'mesh' && !m3d ? 'nice' : cfg.gfx));
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
   // Wirkmittel (Prompt 157): im Taktischen Flug und in der DIS-Übung (dort wirkt die Sprengladung gegen Einheiten); zündet bei Kontakt
-  $('whSeg').hidden = !tac && !dis;
+  $('whSeg').hidden = !dis && !(tac && COURSE_HUNT.includes(run) && run !== 'recon');   // nur bei Aufträgen zum Zerstören (Prompt 234)
   press('#whSeg button', b => b.dataset.wh === (cfg.warhead || 'none'));
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));

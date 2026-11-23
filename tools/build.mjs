@@ -39,6 +39,7 @@ function readModule(file) {
     if (/^export\b/.test(line) && !/^export\s+(?:async\s+)?(?:function\*?|class|const|let|var)\s/.test(line)) {
       throw new Error(`${where}: Export-Form nicht erlaubt: ${line}`);
     }
+    if (/^\s*\/\//.test(line)) return;   // reine Kommentarzeilen nicht in die Ausgabe (Platz, Prompt 234; GLSL kennt // ebenso)
     const d = DECL_RE.exec(line);
     if (d) { names.push(d[2]); if (d[1]) exports.add(d[2]); }
     body.push(line.replace(/^export\s+/, ''));
