@@ -20,7 +20,9 @@ Umgesetzt: Auswertung am Ende (`scenResultLines`: Zeit mit Vergleich zur Bestzei
 3. Auftrag „Gemischt“: Ziele am Boden und in der Luft.
 4. Aufklärung ausbauen: mehr Zielarten (stehende Fahrzeuge, Boote); in der echten Welt verdecken auch Gebäude die Sicht.
 
-## F3 Bedienung und Technik
+## F3 Bedienung und Technik (erledigt 24.11.2026)
+
+Umgesetzt: Touch-Knöpfe oben (scharf schalten, Flugmodus, zurückspulen; mit Maus ausgeblendet). Betaflight neu gebaut mit `bf_set_att` (`sitl/platform.c`): Zurückspulen setzt die Lage direkt in Betaflight, die Sperre ist weg; gemessen 2 m Drift statt 79 m und Absturz. Der Build geht in der Arbeitsumgebung (clang 18, wasm-ld, Betaflight-Quellcode vom festgelegten Commit, kein Emscripten nötig). Begriffe vereinheitlicht: „Auftrag“ statt „Mission“ und „Aufgabe“, „Sprengladung“ statt „Wirkmittel“. Test: `test/f3.test.mjs`.
 
 1. Touch-Knöpfe: Scharf schalten, Flugmodus, Zurückspulen.
 2. Betaflight-Rest: Zurückspulen mit Betaflight richtig lösen. Braucht einen neuen Build von `sitl/`; erst prüfen, ob das in der Arbeitsumgebung geht.

@@ -28,7 +28,7 @@ test('Landung auf dem Ziel: Zündung, Treffer, Explosion, Drohne verbraucht; dan
   s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.mah = 500; s.armed = true;   // war schon über 10 m
   const c0 = game.crashes;
   for (let i = 0; i < 3/STEP && game.state === 'fly'; i++) step(STEP);
-  assert.equal(game.state, 'crashed'); assert.ok(/^Wirkmittel/.test(s.crashMsg), s.crashMsg);
+  assert.equal(game.state, 'crashed'); assert.ok(/^Sprengladung im Ziel/.test(s.crashMsg), s.crashMsg);
   assert.equal(game.crashes, c0, 'Treffer zählt nicht als Absturz');
   assert.ok(/TREFFER 1\//.test(scenLabel()), scenLabel()); assert.equal(booms.length, 1, 'Explosion am Ziel');
   assert.equal(chargeDue(s.crashT + 500), false, 'erst nach der Pause');

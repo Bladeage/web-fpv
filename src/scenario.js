@@ -32,7 +32,7 @@ export const SCENARIOS = [
   { id: 'deliver', name: 'Paketlieferung',     info: 'Paket am orangen Platz holen, zur blauen Plattform bringen. 3 Lieferungen, tief und langsam schweben.' },
   { id: 'follow',  name: 'Verfolgung',         info: 'Dem orangen Auto folgen: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
   { id: 'recon',   name: 'Aufklärung',         info: 'Fahrzeuge und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären.' },
-  { id: 'free',    name: 'Freiflug',           info: 'Ohne Aufgabe. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
+  { id: 'free',    name: 'Freiflug',           info: 'Ohne Auftrag. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
   { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: Monschau eingebaut, andere Orte per Karte. Daten: Geobasis NRW, dl-de/zero-2.0.' },
   { id: 'vbs',     name: 'DIS-Grundtypen',     info: 'Vorschau: 18 einfache Modelle für Einheiten aus DIS. Blau Freund, rot Feind, grün neutral, gelb sonstige, dunkel zerstört.' },
 ];
@@ -348,8 +348,8 @@ function finish(time) {
   // Auswertung für die Anzeige am Ende (F2)
   st.result = { time, best: old, rated: bestOk(), tries: game.tries, hits: cnt ? st.hits : null, need: cnt ? (scen.id === 'recon' ? RECON.need : huntNeed()) : null,
     drones: chargeOn() ? st.drones : null, score: scen.id === 'hunt3' ? st.score : null };
-  if (bestOk() && (game.best === null || time < game.best)) { game.best = time; saveBest(); banner('AUFGABE ERFÜLLT', 'Neue Bestzeit ' + fmtTime(time), 4); fx.beep(1320, 0.25); }
-  else banner('AUFGABE ERFÜLLT', fmtTime(time), 4);
+  if (bestOk() && (game.best === null || time < game.best)) { game.best = time; saveBest(); banner('AUFTRAG ERFÜLLT', 'Neue Bestzeit ' + fmtTime(time), 4); fx.beep(1320, 0.25); }
+  else banner('AUFTRAG ERFÜLLT', fmtTime(time), 4);
 }
 function advance(count) {
   const s = game.sim;
@@ -430,7 +430,7 @@ function checkHunt(a, b, h) {
   if (bal) fx.pop(); else fx.beep(1100, 0.12);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
   else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed() + (pts ? '  +' + pts + ' Punkte' : ''));
-  if (chargeOn()) { chargeBoom(s.p); if (!st.done) { crash('Wirkmittel im Ziel umgesetzt'); game.crashes--; } else { fx.crash(); game.payload = 0; s.armed = false; } return; }   // Treffer ist kein Absturz   // Ladung gezündet, Drohne verbraucht
+  if (chargeOn()) { chargeBoom(s.p); if (!st.done) { crash('Sprengladung im Ziel gezündet'); game.crashes--; } else { fx.crash(); game.payload = 0; s.armed = false; } return; }   // Treffer ist kein Absturz   // Ladung gezündet, Drohne verbraucht
   if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
 

@@ -15,6 +15,9 @@
 <div class="topbar">
   <button id="bReset" aria-label="Neustart">↺</button>
   <button id="bCam" aria-label="Kamera wechseln">◎</button>
+  <button id="bArm" class="touchonly" aria-label="Scharf schalten oder ausschalten">⏻</button>
+  <button id="bMode" class="touchonly" aria-label="Flugmodus Angle oder Acro">ANG</button>
+  <button id="bRew" class="touchonly" aria-label="5 Sekunden zurückspulen">↶</button>
 </div>
 
 <div id="menu" class="overlay">
@@ -76,7 +79,7 @@
     <section data-screen="dis" hidden>
       <p class="stepno">Schritt 1 von 2</p>
       <h1>DIS-Übung <small class="tag">experimentell</small></h1>
-      <p class="hint" id="disInfo">Ort und Einheiten kommen vom Partner, ohne Aufgabe. Die Drohne erscheint dort; der Partner übernimmt keinen Schaden.</p>
+      <p class="hint" id="disInfo">Ort und Einheiten kommen vom Partner, ohne Auftrag. Die Drohne erscheint dort; der Partner übernimmt keinen Schaden.</p>
       <div id="disOpts" class="disopts">
         <p class="hint" id="disSt"></p>
         <button class="secondary" id="disGet" hidden>Brücke für Windows herunterladen</button>
@@ -300,7 +303,7 @@
       <div class="tabpane" data-pane="help" hidden>
         <h2>Steuerung</h2>
         <div class="keys" id="helpKeys"></div>
-        <p class="hint"><b>Touch:</b> linker Daumen Gas und Gieren, rechter Daumen Nicken und Rollen. Tippen schaltet scharf und startet nach einem Absturz neu.</p>
+        <p class="hint"><b>Touch:</b> linker Daumen Gas und Gieren, rechter Daumen Nicken und Rollen. Tippen schaltet scharf und startet nach einem Absturz neu. Knöpfe oben: Neustart, Kamera, scharf schalten, Flugmodus (ANG oder ACR), 5 s zurückspulen.</p>
         <h2>Aufträge</h2>
         <p class="hint"><b>Parcours:</b> Tore, Ringe, Slalom, Landung, Lieferung, Verfolgung. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
         <p class="hint"><b>Taktisch:</b> Aufklärung: Auto oder Vogel 4 s im Fadenkreuz halten. Fahrzeuge, Drohnen, Flugzeuge: immer mit Sprengladung. Sie ist scharf ab 10 m über Grund und zündet beim Aufprall, danach kommt eine neue Drohne.</p>

@@ -66,7 +66,7 @@ let chargeSeen = 0;
 function chargeStep() {
   if (!chargeOn()) return;
   const s = game.sim;
-  if (game.state === 'crashed' && chargeSeen !== s.crashT) { chargeSeen = s.crashT; if (s.armed && !/^Wirkmittel/.test(s.crashMsg || '')) chargeBoom(s.p); }   // nur scharf
+  if (game.state === 'crashed' && chargeSeen !== s.crashT) { chargeSeen = s.crashT; if (s.armed && !/^Sprengladung im Ziel/.test(s.crashMsg || '')) chargeBoom(s.p); }   // nur scharf
   if (chargeDue()) { game.state = 'fly'; respawnDrone(true); chargeNext(); say('Neue Drohne ' + chargeDrones() + ': nächstes Ziel suchen', 2); }
 }
 

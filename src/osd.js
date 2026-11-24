@@ -5,7 +5,7 @@ import { fmtTime, fmtClock } from './format.js';
 
 // [id, Name im Menü, Vorgabe an]
 export const OSD_ITEMS = [
-  ['lq', 'Empfang (LQ)', true], ['mode', 'Flugmodus', true], ['task', 'Aufgabe', true], ['crashes', 'Abstürze', true],
+  ['lq', 'Empfang (LQ)', true], ['mode', 'Flugmodus', true], ['task', 'Auftrag', true], ['crashes', 'Abstürze', true],
   ['timer', 'Rundenzeiten', true], ['clock', 'Uhrzeit', false], ['fps', 'Bildrate', false],
   ['volt', 'Akku-Spannung', true], ['cell', 'Zellspannung', true], ['amp', 'Strom', true], ['mah', 'Verbrauch mAh', true], ['vmin', 'Tiefste Spannung', true], ['eff', 'mAh pro Minute', false],
   ['flytime', 'Flugzeit', true], ['speed', 'Tempo', true], ['alt', 'Höhe', true], ['home', 'Heimweg', true],
