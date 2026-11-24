@@ -232,6 +232,8 @@ details{margin-top:10px}
 @media (max-width:560px){.sform{grid-template-columns:1fr}.sform .w2,.sform .w3{grid-column:auto}.nav4{grid-template-columns:1fr 1fr}}
 /* Modus: Reiter „Modi“ und „Spezial“ (echte Welt, später DIS) */
 .tabs.tabs2{grid-template-columns:1fr 1fr;margin-top:6px}
+.tabs.tabs5{display:flex}   /* Einstellungen: fünf Reiter, Breite nach Text (Handy) */
+.tabs.tabs5 button{flex:1 1 auto}
 /* Neuordnung der Menüs (Plan docs/plan-menue.md): Flugart-Knöpfe mit Beschreibung, DIS-Seite, Reiter Steuerung */
 .flight b{display:block}
 .flight span{display:block;font-size:13px;font-weight:500;opacity:.8;margin-top:2px}

@@ -36,8 +36,7 @@ export const TAC = [
   { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',
     infoReal: '9 Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt.' },
   { id: 'air', name: 'Flugzeuge', scen: 'hunt3', worlds: ['map', 'real'], info: '6 Luftziele: Starrflügler (3 Punkte), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).',
-    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' },
-  { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
+    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' }
 ];
 const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'recon'];   // nicht im Parcours (Prompt 176)
 const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
@@ -155,7 +154,7 @@ export function syncMenu() {
   if (!rwBusy && dis) disMsg(true);
   if (!rwBusy && !dis) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Der AXA Campus Köln ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
     : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
-      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
+      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Daten und Quellen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
     : 'Zum Beispiel 50.7753, 6.0839, oder auf der Karte wählen. 15 bis 200 MB, danach gespeichert.';
   rwLock();
@@ -246,7 +245,7 @@ export function show(name) {
 }
 export function openMenu(name = 'settings') {
   if (menu.hidden) from = null; else if (name === 'settings' && screen !== 'settings') from = screen;
-  if (menu.hidden && name === 'settings') showTab('general');   // Pause beginnt immer bei „Allgemein“
+  if (menu.hidden && name === 'settings') showTab('view');   // Pause beginnt immer beim ersten Reiter (Bild)
   game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; document.body.classList.add('menuopen'); show(name);
   audioPause();
 }
@@ -779,7 +778,7 @@ function showTab(id) {
   fitPanel();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
-showTab('general');
+showTab('view');
 // Reiter Steuerung (Knüppel und Funktionen zusammengelegt, Nutzer Prompt 174, docs/plan-menue.md): Gerät [Funke / Gamepad |
 // Tastatur] und Bereich [Knüppel | Funktionen], für beide Geräte gleich. Der Bereich ist Laufzeit-Zustand (Vorgabe Knüppel).
 const ctl = { dev: 'pad', grp: 'sticks' };
