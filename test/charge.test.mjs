@@ -87,5 +87,5 @@ test('OSD zeigt den Zustand der Ladung: erst SCHARF IN x M, dann LADUNG SCHARF; 
   assert.ok(Math.abs(chargeLeft() - 6) < 0.01, 'noch 6 m: ' + chargeLeft());
   assert.ok(bc(chargeLeft()).includes('SCHARF IN 6M'));
   s.armed = true; assert.equal(chargeLeft(), 0); assert.ok(bc(0).includes('LADUNG SCHARF'));
-  cfg.flight = 'course'; assert.equal(chargeLeft(), null); assert.ok(!bc(null).some(t => /SCHARF/.test(t)));
+  cfg.flight = 'course'; respawn(); assert.equal(chargeLeft(), null); assert.ok(!bc(null).some(t => /SCHARF/.test(t)));
 });

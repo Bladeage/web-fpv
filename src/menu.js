@@ -42,7 +42,7 @@ const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'recon'];   // nicht im Parcours 
 const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
 const ROAD_MODES = ['hunt2', 'follow'];   // brauchen in der echten Welt Straßen (S3)
 // Straßen im Startgebiet: mindestens 500 m (Monschau eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
-const roadsOk = () => roadLenNear(rwRoads(true), [0, 0], rw.size*0.75) >= 500;
+const roadsOk = () => roadLenNear(rwRoads(true), rw.meta ? rw.meta.home : [0, 0], 400) >= 500;   // im selben Umkreis um den Start, in dem die Fahrzeuge aufgestellt werden (Prüfung Nr. 5)
 const NO_ROADS = 'Für diesen Ort gibt es keine Straßen (nur NRW; nach dem Laden einige Sekunden warten)';
 // Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
 const REAL_INFO = {

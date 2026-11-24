@@ -2,7 +2,7 @@
    Die Zuordnung (gpMap, padValues) ist ohne DOM und in Node testbar. */
 import { clamp } from './math.js';
 import { cfg, game, say } from './state.js';
-import { respawn, setArmed } from './physics.js';
+import { respawn, setArmed, task } from './physics.js';
 
 export const GP_FN = [['throttle', 'Gas'], ['yaw', 'Gieren'], ['pitch', 'Nicken'], ['roll', 'Rollen']];
 export const GP_PRESETS = {
@@ -75,6 +75,6 @@ export function updGamepad() {
   }
   // Nach einem Absturz startet jede (nicht belegte) Taste neu
   const b = pad.buttons.some((x, i) => x.pressed && !used.has(i));
-  if (b && !gp.btn && (game.state === 'crashed' || game.state === 'done') && !game.paused) respawn();
+  if (b && !gp.btn && (game.state === 'crashed' || game.state === 'done') && !game.paused && !task.hold()) respawn();
   gp.btn = b;
 }

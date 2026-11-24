@@ -56,7 +56,10 @@ export const DIFF = {
   mid:  { name: 'Normal', ringR: 2.2, slalomW: 8, landV: 3.0, padHalf: 1.5, huntSpeed: 0.7, followSpeed: 0.7, info: 'Ohne Hilfen' },
   hard: { name: 'Schwer', ringR: 1.6, slalomW: 6, landV: 2.0, padHalf: 1.0, huntSpeed: 1.0, followSpeed: 1.0, info: 'Kleinere Ringe, engerer Slalom, schnellere Ziele' }
 };
-export const diff = () => DIFF[cfg.diff] || DIFF.mid;
+// Laufende Mission (Prüfung Nr. 4): Flugart, Stufe und nötige Treffer gelten ab dem Start (reset). Änderungen im Menü wirken erst
+// beim nächsten Start, nicht nach „Weiterfliegen“.
+const mis = {};
+export const diff = () => DIFF[mis.diff ?? cfg.diff] || DIFF.mid;
 export const dropR = () => DROP_R*(diff().dropScale || 1);   // Radius der Lieferzonen nach Stufe
 // Landehilfe (Leicht): unter 5 m Höhe höchstens 1,2 m/s plus 0,5 m/s je Meter Höhe sinken (am Boden 1,2 m/s)
 function landAid(s, h) {
@@ -171,15 +174,17 @@ export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
 // (Schätzung: Last etwa ein Drittel der Startmasse); fx: Dauer der Explosion im Bild (s). Nur Darstellung und Spiel, keine Wirkung.
 export const CHARGE = { mass: 0.3, delay: 1.5, fx: 1.4, arm: 10 };   // arm: scharf ab so viel m über Grund, einmal je Drohne (Nutzer, Prompt 226)
 export const booms = [];   // Explosionen für die Darstellung: { p, t (performance.now) }
-export const chargeOn = () => cfg.flight === 'tactical' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;   // fest mit dem Auftrag: immer bei Aufträgen zum Zerstören, nie in der Aufklärung (Prompt 236); Leicht: Ballons
+export const chargeOn = () => (mis.flight ?? cfg.flight) === 'tactical' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;   // fest mit dem Auftrag: immer bei Aufträgen zum Zerstören, nie in der Aufklärung (Prompt 236); Leicht: Ballons
 // Scharf machen (Prompt 226): einmal je Drohne, sobald sie CHARGE.arm Meter über Grund war; auch in der DIS-Übung. Vorher kein Ziel, keine Zündung.
 // chargeLeft: Meter bis scharf, 0 = scharf, null = keine Ladung (Anzeige im OSD, Prompt 232)
-export function chargeLeft() { const s = game.sim; return !(chargeOn() || cfg.flight === 'dis') ? null : s.armed ? 0 : Math.max(0, CHARGE.arm - (s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot)); }
+export function chargeLeft() { const s = game.sim; return st.done || !(chargeOn() || ((mis.flight ?? cfg.flight) === 'dis' && scen.id === 'real' && rw.on)) ? null : s.armed ? 0 : Math.max(0, CHARGE.arm - (s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot)); }
 function chargeArm() { if (!game.sim.armed && chargeLeft() === 0) { game.sim.armed = true; banner('LADUNG SCHARF', 'Zündet bei Aufprall oder am Ziel'); } }
 export function chargeBoom(p) { booms.push({ p: p.slice(), t: performance.now() }); while (booms.length > 8) booms.shift(); }
+// Ladung gezündet, die nächste Drohne kommt von selbst: kein Neustart durch Tippen oder Taste, kein Zurückspulen (Prüfung Nr. 6, 7)
+const chargeWait = () => chargeOn() && !!game.sim.armed && game.state === 'crashed' && !st.done;
 // Nach dem Zünden: neue Drohne fällig? Liefert true, wenn jetzt eine neue Drohne starten soll (Aufrufer setzt sie an den Start).
 export function chargeDue(now = performance.now()) {
-  return chargeOn() && !!game.sim.armed && game.state === 'crashed' && !st.done && now - (game.sim.crashT || 0) > CHARGE.delay*1000;
+  return chargeWait() && now - (game.sim.crashT || 0) > CHARGE.delay*1000;
 }
 export function chargeNext() { st.drones++; game.tries++; game.payload = CHARGE.mass*PHYS.mass; }
 export const chargeDrones = () => st.drones;
@@ -274,6 +279,7 @@ const LAND_HOLD = 1.0;         // so lange ruhig stehen, in s
 /* ---------- Ablauf ---------- */
 const st = { drones: 1, hits: 0, score: 0, carry: false, deliv: 0, inBand: 0, done: false, takeoff: null, onPad: false, hard: false, hold: 0, vPrev: [0, 0, 0] };
 function reset() {
+  mis.flight = cfg.flight; mis.diff = cfg.diff; mis.huntX = cfg.huntX;
   task.gateExtra = diff().gateExtra || 0;   // Tor-Toleranz nach Stufe
   if (scen.id === 'rings' || scen.id === 'slalom' || !rings.length) newLayout();
   st.carry = false; st.deliv = 0; st.inBand = 0; game.payload = 0; st.drones = 1; booms.length = 0;
@@ -293,9 +299,9 @@ export function scenDone() { return st.done; }
 // Neustart (R, Tippen) beginnt eine neue Mission mit Versuch 1. Gilt für alle Aufgaben mit Ziel. Liefert true beim Umschalten.
 export const MISSION = { hold: 2.5 };
 export function missionEnd(now = performance.now()) {
-  if (!st.done || game.state !== 'fly') { if (!st.done) st.doneT = 0; return false; }
+  if (!st.done || (game.state !== 'fly' && game.state !== 'crashed')) { if (!st.done) st.doneT = 0; return false; }
   if (!st.doneT) st.doneT = now;
-  if (now - st.doneT < MISSION.hold*1000) return false;
+  if (game.state === 'fly' && now - st.doneT < MISSION.hold*1000) return false;   // nach dem Ziel abgestürzt: gleich erfüllt (Prüfung Nr. 2)
   game.state = 'done'; return true;
 }
 
@@ -356,7 +362,7 @@ function checkLanding(a, b, h) {
   spotsFollow(h, s);
   landAid(s, h);
   if (st.done) return;
-  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  if (st.takeoff === null && lifted(s)) { st.takeoff = s.t; s.lapStart = s.t; }
   const onPad = s.p[1] - PHYS.foot - PAD.c[1] < 0.03 && Math.abs(s.p[0] - PAD.c[0]) < diff().padHalf && Math.abs(s.p[2] - PAD.c[2]) < diff().padHalf;
   if (onPad && !st.onPad && st.takeoff !== null) {
     const hard = vLen(st.vPrev) > diff().landV;
@@ -373,21 +379,24 @@ function checkLanding(a, b, h) {
 
 // Jagd: Ziele bewegen sich im Physikschritt; Zeit läuft ab dem Abheben, Ziel nach cfg.huntX Treffern
 export const huntTotal = () => scen.id === 'hunt2' ? (vehicles.length || 7) : scen.id === 'hunt3' ? (aircraft.length || 6) : (targets.length || 9);
-export const huntNeed = () => Math.min(cfg.huntX || 5, huntTotal());
+export const huntNeed = () => Math.min((mis.huntX ?? cfg.huntX) || 5, huntTotal());
+// Abgehoben: mehr als 0,1 m über dem Boden. Die Drohne erscheint 5 mm über dem Boden und galt sonst sofort als gestartet (Prüfung Nr. 3).
+const lifted = s => !s.grounded && s.p[1] - PHYS.foot - solidH(s.p[0], s.p[2]) > 0.1;
+const HUNT_OFF = [0, -1e6, 0];
 function checkHunt(a, b, h) {
-  if (chargeOn() && !game.sim.armed) return;   // Ladung noch nicht scharf: Ziele zählen nicht (Prompt 226)
   const s = game.sim;
-  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  if (chargeOn() && !s.armed) a = b = HUNT_OFF;   // Ladung noch nicht scharf: Ziele bewegen sich weiter, zählen aber nicht (Prompt 226, Prüfung Nr. 1)
+  if (st.takeoff === null && lifted(s)) { st.takeoff = s.t; s.lapStart = s.t; }
   const bal = !!diff().balloons;
   let n, pts = 0;
   if (scen.id === 'hunt3') { const left = aircraftLeft(); pts = stepAircraft(h, a, b, bal); n = left - aircraftLeft(); st.score += pts; }   // Punkte je Art
-  else n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius, bal) : stepTargets(h, a, b, b, bal);
+  else n = scen.id === 'hunt2' ? stepVehicles(h, a, b, PHYS.radius, bal) : stepTargets(h, a, b, s.p, bal);
   if (!n || st.done) return;
   st.hits += n;
   if (bal) fx.pop(); else fx.beep(1100, 0.12);
   if (st.hits >= huntNeed()) finish(s.t - (st.takeoff ?? s.t));
   else banner(bal ? 'BALLON GETROFFEN' : 'ZIEL GETROFFEN', st.hits + ' / ' + huntNeed() + (pts ? '  +' + pts + ' Punkte' : ''));
-  if (chargeOn()) { chargeBoom(s.p); if (!st.done) { crash('Wirkmittel im Ziel umgesetzt'); game.crashes--; } else fx.crash(); return; }   // Treffer ist kein Absturz   // Ladung gezündet, Drohne verbraucht
+  if (chargeOn()) { chargeBoom(s.p); if (!st.done) { crash('Wirkmittel im Ziel umgesetzt'); game.crashes--; } else { fx.crash(); game.payload = 0; s.armed = false; } return; }   // Treffer ist kein Absturz   // Ladung gezündet, Drohne verbraucht
   if (!bal) game.pendingRespawn = true;   // Drohne startet neu am Startplatz, kein Einschlag nach dem Anflug. Mit Ballons: weiterfliegen
 }
 
@@ -396,7 +405,7 @@ function checkDeliver(a, b, h) {
   const s = game.sim;
   spotsFollow(h, s);
   if (st.done) return;
-  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  if (st.takeoff === null && lifted(s)) { st.takeoff = s.t; s.lapStart = s.t; }
   const tgt = st.carry ? DROPS[dropOrder[st.deliv]] : PICKUP;
   landAid(s, h);
   const over = Math.hypot(s.p[0] - tgt[0], s.p[2] - tgt[2]) < dropR(), alt = s.p[1] - PHYS.foot - tgt[1];
@@ -418,7 +427,7 @@ function checkDeliver(a, b, h) {
 function checkFollow(a, b, h) {
   const s = game.sim;
   if (st.done) return;
-  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  if (st.takeoff === null && lifted(s)) { st.takeoff = s.t; s.lapStart = s.t; }
   if (st.takeoff !== null) {
     lead.t += h;
     lead.s += (9 + 4*Math.sin(lead.t*0.25))*(diff().followSpeed ?? diff().huntSpeed)*h;
@@ -444,7 +453,7 @@ function checkRecon(a, b, h) {
   const s = game.sim;
   stepVehicles(h, a, a, -9);   // Autos fahren, Berührung zählt nicht
   if (st.done) return;
-  if (st.takeoff === null && !s.grounded) { st.takeoff = s.t; s.lapStart = s.t; }
+  if (st.takeoff === null && lifted(s)) { st.takeoff = s.t; s.lapStart = s.t; }
   const f = qRot(qMul(s.q, qAxis([1, 0, 0], cfg.tilt*DEG)), [0, 0, -1]);
   let o = null, best = Math.cos(RECON.ang*DEG);
   for (const [x, p] of reconObjs()) { const d = vSub(p, s.p), l = vLen(d), c = vDot(d, f)/l; if (l < RECON.dMax && c > best) { best = c; o = x; } }
@@ -470,7 +479,7 @@ const TASKS = {
   vbs:     { check() {}, collide: null },
   real:    { check() {}, collide: null }
 };
-task.reset = reset;
+task.reset = reset; task.hold = chargeWait;
 
 // Szenario wählen. Danach respawn() aufrufen. real: in der echten Welt (Freiflug „real“ immer; Ringe ab Etappe T2)
 export function setScenario(id, real = id === 'real') {
@@ -484,8 +493,9 @@ export function setScenario(id, real = id === 'real') {
   // Blick beim Start: vorgegeben im Gebiet (meta.homeYaw, Grad nach Kompass; AXA Campus), sonst zur Mitte des Gebiets
   game.homeYaw = !rw.on ? 0 : rw.meta.homeYaw !== undefined ? -rw.meta.homeYaw*Math.PI/180 : Math.atan2(game.home[0], game.home[1]);
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
-  game.bestScen = id === 'real' || !rw.on ? id : id + '.real';   // Bestzeit je Welt
-  const chk = TASKS[id].check; task.check = ['hunt', 'hunt2', 'hunt3', 'real', 'vbs'].includes(id) ? (a, b, h) => { chargeArm(); chk(a, b, h); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
+  // Bestzeit je Welt, Stufe (außer Normal) und in der Jagd je Zahl der nötigen Treffer (Prüfung Nr. 9)
+  game.bestScen = (id === 'real' || !rw.on ? id : id + '.real') + (cfg.diff === 'easy' || cfg.diff === 'hard' ? '.' + cfg.diff : '') + (/^hunt/.test(id) ? '.x' + (cfg.huntX || 5) : '');
+  const chk = TASKS[id].check; task.check = ['hunt', 'hunt2', 'hunt3', 'real'].includes(id) ? (a, b, h) => { chargeArm(); chk(a, b, h); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
   task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
 }

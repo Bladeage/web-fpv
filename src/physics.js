@@ -115,7 +115,7 @@ export function cellOcv(soc) {
 export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {}, pop() {} };   // Ton und Vibration, setzt main.js
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
-export const task = { check: checkGate, collide: null, reset() {}, early: false, gateExtra: 0 };   // gateExtra: Tor zählt so viele m neben der Öffnung (Stufe)   // early: vor Boden und Hindernissen prüfen
+export const task = { check: checkGate, collide: null, reset() {}, hold: () => false, early: false, gateExtra: 0 };   // gateExtra: Tor zählt so viele m neben der Öffnung (Stufe)   // early: vor Boden und Hindernissen prüfen
 
 function newSim() {
   return {
@@ -436,7 +436,7 @@ export function toggleFreeze() {
 // Zurückspulen (Lernhilfe): Drohne an den Zustand von vor sec Sekunden setzen, auch nach einem Absturz.
 // Zeit, Akku und Fortschritt im Szenario laufen weiter.
 export function rewind(sec = 5) {
-  if (!history.length) return false;
+  if (!history.length || task.hold()) return false;   // gezündete Ladung: die Drohne ist verbraucht
   const target = game.sim.t - sec;
   let k = history.findIndex(x => x.t >= target);
   if (k < 0) k = 0;
