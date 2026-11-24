@@ -2,7 +2,7 @@
    Ein verbundenes Gamepad überschreibt beides (siehe updTouch). */
 import { clamp } from './math.js';
 import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg, keyOf, keyFns, keyLearn } from './state.js';
-import { respawn, toggleArm, rewind, toggleFreeze, task } from './physics.js';
+import { respawn, toggleArm, rewind, toggleFreeze, touchKind } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam, cycleVision } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
@@ -54,10 +54,11 @@ export const stickR = () => clamp(Math.min(vw, vh)*0.16, 55, 95);
 hud.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' || game.paused) return;
   touchUI = true;
-  if (game.state === 'done') { respawn(); return; }   // Mission erfüllt: Tippen startet eine neue
+  const kind = touchKind();   // neuer Auftrag, Neustart, warten oder Knüppel (physics.js, getestet)
+  if (kind === 'new' || kind === 'restart') { respawn(); return; }
+  if (kind === 'wait') return;
   // Nicht scharf: die Knüppel bleiben bedienbar (Fehler aus der Prüfung, gemeldet in Prompt 249: jede Berührung fing das Scharfschalten ab;
   // stand das Gas nicht auf null, ging weder Scharfschalten noch Gas wegnehmen). Scharf geschaltet wird über den Knopf oben.
-  if (game.state === 'crashed') { if (!task.hold() && performance.now() - game.sim.crashT > 400) respawn(); return; }
   try { hud.setPointerCapture(e.pointerId); } catch (err) {}
   const side = e.clientX < vw/2 ? 'L' : 'R';
   for (const p of ptr.values()) if (p.side === side) return;
