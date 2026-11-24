@@ -23,7 +23,7 @@ export const RW_SOURCES = [{
   attribution: 'Geobasis NRW, Datenlizenz Deutschland – Zero 2.0'
 },
 // Weitere Länder (Q3 Kacheln, Q6 WCS und WMS; Adressen in docs/plan-quellen.md, CORS und Abruf gemessen 21.11.2026). dgm: WCS (coverage),
-// sonst Kacheln: tpl (Adresse mit {e}/{n} in km, zip: Datei darin, xyz: Text), stac (Katalog, Sammlung coll, COG) oder index (Dateiliste,
+// sonst Kacheln: tpl (Adresse mit {e}/{n} in km, zip: Datei darin), stac (Katalog, Sammlung coll, COG) oder index (Dateiliste,
 // Name beginnt mit tpl). Ohne dgm: Höhen aus der Welt-Quelle. dop: WMS-Luftbild (max: größtes Bild des Dienstes). lod2 (Q5): Gebäude,
 // zip: Datei im ZIP. Größe je Kachel gemessen: Brandenburg 30 MB, Berlin 27 MB, Niedersachsen bis 49 MB, Rheinland-Pfalz bis 163 MB (2 km), MV 75 MB (2 km).
 { id: 'bb', roads: OSM_ROADS, name: 'Brandenburg (LGB)', land: 'Brandenburg', crs: 'EPSG:25833', dgm: { url: 'https://isk.geobasis-bb.de/ows/dgm_wcs', coverage: 'bb_dgm' },

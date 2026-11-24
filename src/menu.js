@@ -28,7 +28,7 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // die Welt (cfg.world: Spielkarte oder echte Welt) und der Modus. Der Modus heißt intern weiter cfg.scen (Parcours) bzw. cfg.tac
 // (Taktisch). In der echten Welt gibt es bis zu den Etappen T2 und T3 nur den Freiflug (Szenario 'real').
 // Taktische Modi: die Jagd auf Fahrzeuge, Drohnen und Flugzeuge gehört nur in den Taktischen Flug (Nutzer, Prompt 176; vorher auch
-// im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
+// im Parcours). Seit Prompt 236 tragen die Aufträge zum Zerstören immer die Sprengladung; „Gemischt“ (hunt4) kam mit F2 dazu.
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
   { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrzeuge und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Sprengladung.',
