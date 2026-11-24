@@ -33,6 +33,7 @@
       <p class="best" id="bestTxt"></p>
       <p class="hint firsthint" id="firstHint">Steuerung: Tastatur (W A S D und Pfeile), Touch oder Funke. Mehr unter Einstellungen → Hilfe.</p>
       <p class="ver" id="verTxt"></p>
+      <button class="linkbtn aboutlink" id="bAbout">Neuerungen, Quellen und Lizenzen ›</button>
     </section>
 
     <section data-screen="intro" hidden>
@@ -40,6 +41,16 @@
       <h1 id="introTitle"></h1>
       <ul class="introlist" id="introList"></ul>
       <div class="nav"><button class="secondary" id="introSkip">Überspringen</button><button class="primary" id="introNext">Weiter</button></div>
+    </section>
+
+    <section data-screen="about" hidden>
+      <h1>Über das Programm</h1>
+      <p class="hint" id="aboutVer"></p>
+      <h2>Neuerungen</h2>
+      <div id="aboutNotes"></div>
+      <h2>Quellen und Lizenzen</h2>
+      <dl class="credits" id="aboutCredits"></dl>
+      <div class="nav"><button class="primary" id="aboutBack">Zurück</button></div>
     </section>
 
     <section data-screen="mode" hidden>
@@ -312,6 +323,7 @@
         <h2>Funke</h2>
         <p class="hint">Funke oder Gamepad per USB anstecken und einen Knüppel bewegen. Belegung und Kalibrierung: Reiter „Steuerung“. Fällt die Funke im Flug aus, geht das Gas auf null.</p>
         <button class="linkbtn" id="introAgain">Einführung noch einmal zeigen ›</button>
+        <button class="linkbtn" id="bAbout2">Neuerungen, Quellen und Lizenzen ›</button>
       </div>
       <div class="nav" id="setNav"><button class="secondary" id="bMain" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Fertig</button></div>
     </section>

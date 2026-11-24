@@ -7,7 +7,48 @@ Läuft direkt im Browser, ohne Installation. Empfohlen: Chrome oder Edge (PC), C
 Browser-Simulator für FPV-Drohnen. Reines HTML, CSS, JavaScript, WebGL2. Keine fremden Bibliotheken, einzige Ausnahme: Betaflight als Flugregler (GPLv3, siehe Lizenz).
 Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASCII).
 
-- Stand: Entwicklung vorerst abgeschlossen (13.11.2026). Was fertig ist und was offen bleibt: `docs/abschluss-2026-11-13.md`
+## Anleitung
+
+### Starten
+
+1. Die Seite öffnen: https://bladeage.github.io/web-fpv/
+2. Beim ersten Start erklärt eine Einführung in drei Schritten die Bedienung.
+3. Flugart wählen: „Parcours-Flug“ zum Üben oder „Taktischer Flug“ mit Aufträgen.
+4. Schritt 1: Welt (Spielkarte oder echte Welt) und Auftrag wählen.
+5. Schritt 2: Drohne, Flugmodus und Spielstil wählen, das Lagebild lesen, dann „Start“.
+
+### Steuern
+
+| Gerät | Gas und Drehen | Vor, zurück, seitlich | Neustart | Menü |
+|---|---|---|---|---|
+| Tastatur | W, S und A, D | Pfeiltasten | R | Esc |
+| Handy, Tablet | linker Daumen | rechter Daumen | Tippen nach einem Absturz | Knopf ☰ |
+| Funke, Gamepad | linker Knüppel | rechter Knüppel | freie Taste | Knopf ☰ oder Esc |
+
+- Flugmodus „Angle“ richtet die Drohne selbst gerade aus. „Acro“ steuert die Drehrate.
+- Spielstil „Lernen“ ist voreingestellt: kein Schaden, Akku unendlich.
+- Alle Tasten und die übrigen Funktionen stehen im Programm unter Einstellungen, Hilfe.
+
+### Echte Welt
+
+1. In Schritt 1 „Echte Welt“ wählen. Der AXA Campus Köln ist eingebaut und geht ohne Netz.
+2. Für einen anderen Ort „Ort laden“ wählen und einen Ort, eine Adresse oder Breite und Länge eingeben. „Karte“ öffnet die Karte zur Auswahl.
+3. Die Farben der Karte zeigen, was es je Bundesland gibt: blau alles mit 3D-Mesh, grün Höhen, Luftbild, Gebäude und Bäume, gelb ein Teil davon, rot nur grobe Höhen.
+4. Ein Ort lädt 15 bis 200 MB und bleibt danach im Browser gespeichert. Gespeicherte Orte, Export und die Quellen der Länder stehen unter „Daten und Quellen“.
+
+### Funke anschließen
+
+1. Die Funke per USB anstecken und als Gamepad (Joystick) anmelden. Bei EdgeTX: beim Anstecken „USB Joystick (HID)“ wählen.
+2. Einen Knüppel bewegen. Das Programm meldet „Erkannt: …“.
+3. Stimmt eine Achse nicht: Einstellungen, Steuerung. Dort gibt es Vorlagen, „Lernen“ je Achse und „Kalibrieren“.
+4. Beim Kalibrieren die Knüppel erst loslassen, dann 6 s lang in alle Ecken bewegen.
+5. Fällt die Funke im Flug aus, geht das Gas auf null.
+
+## Für die Entwicklung
+
+- Stand 24.11.2026: Feinschliff zum Release, Plan und Stand in `docs/plan-feinschliff.md`. Versionshinweise: `docs/versionshinweise.md`. Test-Liste für echte Geräte: `docs/test-liste.md`.
+- Prüfung der Funktionen: `docs/pruefung-2026-11-24.md`. Quellen der echten Welt: `docs/plan-quellen.md`.
+- Früherer Abschluss (13.11.2026): `docs/abschluss-2026-11-13.md`
 - Aufbau und Hintergrund: `docs/handover-2026-11-11.md` (ältere Übergaben: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`)
 - Echte Welt (Daten, Quellen, Etappen L1 bis L5): `docs/echte-welt.md`
 - Etappenplan: `docs/PLAN.md`
