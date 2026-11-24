@@ -13,7 +13,7 @@ import { gl, glLost, initGL, render, resize, toggleCam, cycleVision, glName, fra
 import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
-import { missionEnd, setScenario, scen, followLead, chargeOn, chargeDue, chargeNext, chargeBoom, chargeDrones } from './scenario.js';
+import { missionEnd, setScenario, scen, followLead, chargeOn, chargeDue, chargeNext, chargeBoom, chargeDrones, huntCars } from './scenario.js';
 import { applyDrone } from './drone.js';
 import { updSignal } from './signal.js';
 import { stepBirds } from './birds.js';
@@ -86,7 +86,7 @@ function frame(now) {
     stepBirds(dt, game.sim.p);
     ambStep(dt, game.sim.p);
     { const q = game.sim.q, fx = -2*(q[0]*q[2] + q[3]*q[1]), fz = -(1 - 2*(q[0]*q[0] + q[1]*q[1])), fl = Math.hypot(fx, fz);   // Blickrichtung (-z der Drohne) für den Verkehr
-      if (scen.id === 'hunt2' || scen.id === 'follow' || scen.id === 'recon') traffic.cars.length = 0;   // Jagd und Verfolgung: kein Zufallsverkehr (Verwechslung mit den Zielen)
+      if (huntCars() || scen.id === 'follow') traffic.cars.length = 0;   // Jagd und Verfolgung: kein Zufallsverkehr (Verwechslung mit den Zielen)
       else trafficStep(dt, game.sim.p, fl > 0.1 ? [fx/fl, fz/fl] : null); }
     boatsStep(dt, game.sim.p);
     // Foto 3D (Prompt 196): kommt das 3D-Mesh am Start erst nach dem Start an, Aufstellung einmal je Gebiet neu auf dem Mesh,

@@ -662,6 +662,24 @@ export function placeReal() {
   };
   return { groundH: solidH, wet: waterAt, free, bounds: [-S, -S, S, S], home: rw.meta.home.slice() };
 }
+// Schneidet die Strecke a -> b ein Gebäude (Dreiecke aus LoD2 der geladenen Kacheln)? Für die Sichtlinie der Aufklärung (F2).
+// Bäume (Quader) verdecken nicht. Möller-Trumbore wie in der Kollision.
+export function rwSegHit(a, b) {
+  const T = rw.tris; if (!T || !rw.grid) return false;
+  const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], near = rwNear((a[0] + b[0])/2, (a[2] + b[2])/2, Math.hypot(d[0], d[2])/2 + 1);
+  for (const t of near.tris) {
+    const o = t*9, e1 = [T[o + 3] - T[o], T[o + 4] - T[o + 1], T[o + 5] - T[o + 2]], e2 = [T[o + 6] - T[o], T[o + 7] - T[o + 1], T[o + 8] - T[o + 2]];
+    const pv = [d[1]*e2[2] - d[2]*e2[1], d[2]*e2[0] - d[0]*e2[2], d[0]*e2[1] - d[1]*e2[0]], det = e1[0]*pv[0] + e1[1]*pv[1] + e1[2]*pv[2];
+    if (Math.abs(det) < 1e-12) continue;
+    const tv = [a[0] - T[o], a[1] - T[o + 1], a[2] - T[o + 2]], u = (tv[0]*pv[0] + tv[1]*pv[1] + tv[2]*pv[2])/det;
+    if (u < 0 || u > 1) continue;
+    const qv = [tv[1]*e1[2] - tv[2]*e1[1], tv[2]*e1[0] - tv[0]*e1[2], tv[0]*e1[1] - tv[1]*e1[0]], v = (d[0]*qv[0] + d[1]*qv[1] + d[2]*qv[2])/det;
+    if (v < 0 || u + v > 1) continue;
+    const k = (e2[0]*qv[0] + e2[1]*qv[1] + e2[2]*qv[2])/det;
+    if (k > 0.02 && k < 0.98) return true;
+  }
+  return false;
+}
 export function rwNearName(x, z, r = 30) {
   const F = rw.features;
   if (!F || !rw.on) return '';

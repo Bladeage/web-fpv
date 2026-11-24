@@ -12,7 +12,7 @@ import { bfRates } from './bf.js';
 import { rw, rwLoadEmbedded, rwLoadLive, rwFlat, rwPlan, rwNet, rwSources, RW_SHOW, netStat } from './realworld.js';
 import { rwRoads, roadLenNear } from './roads.js';
 import { wmsProbe } from './rwwms.js';
-import { SCENARIOS, DIFF, setScenario } from './scenario.js';
+import { SCENARIOS, DIFF, setScenario, scenBrief } from './scenario.js';
 import { DRONES, applyDrone, droneSpec, DRONE_LIMITS } from './drone.js';
 import { PHYS, DMG, hoverThrottle } from './physics.js';
 import { OSD_ITEMS, OSD_STYLES, osdOn } from './osd.js';
@@ -30,18 +30,20 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
-  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Sprengladung.',
-    infoReal: 'Autos auf den Straßen (wenn es welche gibt) und Vögel beobachten: ein Ziel 4 s im Fadenkreuz halten, bis 90 m. 3 Ziele aufklären.' },
+  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrzeuge und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Sprengladung.',
+    infoReal: 'Fahrzeuge auf den Straßen (wenn es welche gibt), Vögel und Boote beobachten: ein Ziel 4 s im Fadenkreuz halten, bis 90 m. 3 Ziele aufklären.' },
   { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map', 'real'], roads: true, info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.',
     infoReal: '7 Fahrzeuge auf den Straßen: grau am Straßenrand, blau langsam, rot schnell. Bei jedem Start neu verteilt.' },
   { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',
     infoReal: '9 Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt.' },
   { id: 'air', name: 'Flugzeuge', scen: 'hunt3', worlds: ['map', 'real'], info: '6 Luftziele: Starrflügler (3 Punkte), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).',
-    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' }
+    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' },
+  { id: 'mix', name: 'Gemischt', scen: 'hunt4', worlds: ['map', 'real'], roads: true, info: '16 Ziele am Boden und in der Luft: 7 Fahrzeuge und 9 Ziel-Drohnen. Die geforderte Anzahl treffen.',
+    infoReal: '7 Fahrzeuge auf den Straßen und 9 Ziel-Drohnen über Häusern und Bäumen. Bei jedem Start neu verteilt.' }
 ];
-const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'recon'];   // nicht im Parcours (Prompt 176)
+const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'hunt4', 'recon'];   // nicht im Parcours (Prompt 176)
 const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
-const ROAD_MODES = ['hunt2', 'follow'];   // brauchen in der echten Welt Straßen (S3)
+const ROAD_MODES = ['hunt2', 'hunt4', 'follow'];   // brauchen in der echten Welt Straßen (S3)
 // Straßen im Startgebiet: mindestens 500 m (Monschau eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
 const roadsOk = () => roadLenNear(rwRoads(true), rw.meta ? rw.meta.home : [0, 0], 400) >= 500;   // im selben Umkreis um den Start, in dem die Fahrzeuge aufgestellt werden (Prüfung Nr. 5)
 const NO_ROADS = 'Für diesen Ort gibt es keine Straßen (nur NRW; nach dem Laden einige Sekunden warten)';
@@ -160,8 +162,11 @@ export function syncMenu() {
     : 'Zum Beispiel 50.7753, 6.0839, oder auf der Karte wählen. 15 bis 200 MB, danach gespeichert.';
   rwLock();
   press('#diffSeg button', b => b.dataset.id === cfg.diff);
-  $('huntOpts').hidden = run !== 'hunt' && run !== 'hunt2' && run !== 'hunt3';
-  const total = run === 'hunt2' ? 7 : run === 'hunt3' ? 6 : 9;
+  $('huntOpts').hidden = !/^hunt/.test(run);
+  const total = run === 'hunt4' ? 16 : run === 'hunt2' ? 7 : run === 'hunt3' ? 6 : 9;
+  // Lagebild vor dem Start (F2): Ziel und Regeln des gewählten Auftrags
+  const br = scenBrief(run, { tactical: tac, diff: cfg.diff, huntX: cfg.huntX });
+  $('briefBox').hidden = !br; $('briefGoal').textContent = br ? br[0] : ''; $('briefRule').textContent = br ? br[1] : '';
   $('huntX').max = total; cfg.huntX = Math.min(cfg.huntX, total);
   $('huntX').value = cfg.huntX; $('huntXV').textContent = cfg.huntX + ' von ' + total;
   press('#droneSeg button', b => b.dataset.id === cfg.drone.preset);

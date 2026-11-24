@@ -2,7 +2,7 @@
 import { DEG, clamp, vAdd, vSub, vScale, vNorm, qMul, qAxis, qRot, mPersp, mMul, mIdent, mFromQT, mView, mLookAt, mInv } from './math.js';
 import { cfg, game, saveCfg, say, eggsFound, gfxLevel } from './state.js';
 import { COURSE, MeshBuilder, colliders, gates, rayBlocked, buildWorld, buildDrone, buildDisc, PROP_S } from './world.js';
-import { scen, buildScenario, scenHighlight, followLead, diff, chargeOn, booms, CHARGE } from './scenario.js';
+import { scen, buildScenario, scenHighlight, followLead, diff, chargeOn, booms, CHARGE, huntDrones, huntCars } from './scenario.js';
 import { BALLOON, BALLOON_COLORS } from './balloon.js';
 import { VEH_HALF } from './vehicles.js';
 import { aircraft, buildAircraftMesh, AIR_KIND } from './aircraft.js';
@@ -886,7 +886,7 @@ export function render(dt) {
     });
   }
   // Ziel-Drohnen (Jagd): Farbe nach Verhalten, Neigung in Flugrichtung, beim Absturz drehend
-  if (scen.id === 'hunt') {
+  if (huntDrones()) {
     gl.uniform1f(P.u.uHeat, 0.9);   // Ziel-Drohnen: warme Motoren und Akkus
     gl.bindVertexArray(droneMesh.vao);
     const COL = { dumb: [1.0, 0.85, 0.1], random: [0.2, 0.6, 1.0], evade: [1.0, 0.2, 0.25], static: [0.95, 0.95, 0.95] };
@@ -924,9 +924,9 @@ export function render(dt) {
       if (h < 40) blobs.push([p[0] - S[0]/S[1]*h, p[2] - S[2]/S[1]*h, rx*(1 + h*0.03), rz*(1 + h*0.03), yaw, 0.5*Math.max(0, 1 - h/30), g]); };
     { const hg = sim.p[1] - (rw.on ? solidH(sim.p[0], sim.p[2]) : 0);   // eigener Schatten; im Kamerabild erst ab 0,5 m (am Boden deckte er den unteren Rand zu)
       if (cfg.cam !== 'fpv' || (hg > 0.5 && hg < 20)) add(vSub(sim.p, [0, PHYS.foot, 0]), 0.2*PHYS.size, 0.2*PHYS.size, 0); }
-    if (scen.id === 'hunt') for (const t of targets) add(t.p, 0.35, 0.35, 0);
+    if (huntDrones()) for (const t of targets) add(t.p, 0.35, 0.35, 0);
     if (scen.id === 'hunt3') for (const t of aircraft) add(t.p, t.kind === 'hexa' ? 0.9 : 1.1, t.kind === 'hexa' ? 0.9 : 1.1, 0);
-    if (scen.id === 'hunt2' || scen.id === 'recon') for (const v of vehicles) add([v.x, v.y || 0, v.z], 1.15, 2.3, v.yaw);
+    if (huntCars()) for (const v of vehicles) add([v.x, v.y || 0, v.z], 1.15, 2.3, v.yaw);
     for (const a of traffic.cars) add([a.x, a.y, a.z], 1.15, 2.3, a.yaw);
     if (scen.id === 'follow') { const L = followLead(); add([L.x, L.y || 0, L.z], 1.15, 2.3, L.yaw); }
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -959,8 +959,8 @@ export function render(dt) {
     gl.uniform4f(P.u.uOver, 0, 0, 0, 0);
   }
   // Ballons (Stufe „Leicht“): Kugel in der Ballonfarbe, Leine als Linie zum Ziel
-  if ((scen.id === 'hunt' || scen.id === 'hunt2' || scen.id === 'hunt3') && diff().balloons) {
-    const list = scen.id === 'hunt' ? targets.map(t => [t.bal, t.p]) : scen.id === 'hunt3' ? aircraft.map(t => [t.bal, vSub(t.p, [0, 0.4, 0])]) : vehicles.map(v => [v.bal, [v.x, (v.y || 0) + VEH_HALF[1]*2, v.z]]);
+  if (/^hunt/.test(scen.id) && diff().balloons) {
+    const list = scen.id === 'hunt3' ? aircraft.map(t => [t.bal, vSub(t.p, [0, 0.4, 0])]) : [...(huntDrones() ? targets.map(t => [t.bal, t.p]) : []), ...(huntCars() ? vehicles.map(v => [v.bal, [v.x, (v.y || 0) + VEH_HALF[1]*2, v.z]]) : [])];
     gl.uniform1f(P.u.uHeat, 0.35);
     gl.bindVertexArray(balloonMesh.vao);
     const lines = [];
@@ -1017,7 +1017,7 @@ export function render(dt) {
     gl.drawArrays(gl.TRIANGLES, 0, pm.count);
   }
   // Fahrzeuge (Jagd Boden): Farbe nach Tempo, getroffene dunkel und schief
-  if (scen.id === 'hunt2' || scen.id === 'recon') {
+  if (huntCars()) {
     gl.bindVertexArray(vehMesh.vao);
     for (const v of vehicles) {
       gl.uniform1f(P.u.uHeat, v.state === 'hit' ? 0.5 : v.kind === 'parked' ? 0.45 : 0.85);   // fahrend: warmer Motor
