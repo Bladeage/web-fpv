@@ -11,7 +11,9 @@ Umgesetzt: Einführung in drei Schritten je Gerät (`cfg.intro`, erneut über Hi
 3. Klare Fehlermeldungen beim Laden von Orten: Ursache in einfachem Deutsch und was der Nutzer tun kann.
 4. Hilfe neu ordnen: Abschnitte Steuerung, Aufträge, echte Welt, Funke.
 
-## F2 Aufträge
+## F2 Aufträge (erledigt 24.11.2026)
+
+Umgesetzt: Auswertung am Ende (`scenResultLines`: Zeit mit Vergleich zur Bestzeit, Versuche, Treffer, Drohnen, Punkte); Lagebild auf Schritt 2 vor dem Start (`scenBrief`: Ziel und Regeln); Auftrag „Gemischt“ (`hunt4`: 7 Fahrzeuge und 9 Ziel-Drohnen, mit Sprengladung, in der echten Welt nur mit Straßen); Aufklärung mit stehenden Fahrzeugen und Booten (echte Welt), Gebäude aus LoD2 verdecken die Sicht (`rwSegHit`, Prüfung höchstens alle 0,1 s). Nicht im Browser nachgestellt: ein Boot aufklären, Sicht hinter einem echten Gebäude. Tests: `test/f1.test.mjs` (F2-Teil), `test/recon.test.mjs`.
 
 1. Auswertung am Ende: Zeit, Versuche, Treffer, Vergleich mit der Bestzeit.
 2. Lagebild vor dem Start: Ziel, Zahl der Ziele, Regeln.

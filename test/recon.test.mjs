@@ -54,7 +54,7 @@ test('Aufklärung: ein Ziel hinter einem Gebäude zählt nicht (Sichtlinie)', as
   assert.ok(c && 2*R < RECON.dMax, 'großes Gebäude auf der Karte');
   birds.push({ p: [c.c[0] + R, c.c[1], c.c[2]], state: 'fly' });
   const look = x => { const s = game.sim; s.p = [x, c.c[1], c.c[2]]; s.q = qAxis([0, 1, 0], -Math.PI/2); s.grounded = false; };   // Blick nach +x
-  const only = () => { for (const v of vehicles) v.state = 'park'; };   // nur der Vogel ist Ziel
+  const only = () => { for (const v of vehicles) v.state = 'hit'; };   // nur der Vogel ist Ziel (stehende Fahrzeuge zählen seit F2 mit)
   only(); run(RECON.hold + 0.5, () => look(c.c[0] - R)); assert.match(scenLabel(), /0\/3/, 'Gebäude dazwischen');
   only(); run(RECON.hold + 0.5, () => look(c.c[0] + R - 20 > c.c[0] + Math.hypot(c.h[0], c.h[2]) ? c.c[0] + R - 20 : c.c[0] + R - 2)); assert.match(scenLabel(), /1\/3/, 'freie Sicht zählt');
 });

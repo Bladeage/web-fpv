@@ -9,7 +9,7 @@ import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
 import { touchUI, stickR } from './input.js';
 import { osdOn, osdLines, osdWarning, RED } from './osd.js';
-import { scenLabel, scenTarget, scen, diff, chargeOn, scenHasGoal, chargeLeft, scenHint } from './scenario.js';
+import { scenLabel, scenTarget, scen, diff, chargeOn, scenHasGoal, chargeLeft, scenHint, scenResultLines } from './scenario.js';
 import { disPreviewLayout, disBaseInfo } from './distypes.js';
 import { vb, vbLabel } from './verbund.js';
 import { signal } from './signal.js';
@@ -341,8 +341,9 @@ export function drawHud() {
     c.font = `800 ${fs*2.2}px ${FONT}`;
     txt('MISSION ERFÜLLT', W/2, H/2 - fs, 'center', '#7dff9a');
     c.font = `${weight} ${fs}px ${FONT}`;
-    txt((s.lastLap != null ? fmtTime(s.lastLap) + ' \u00b7 ' : '') + game.tries + (game.tries === 1 ? ' Versuch' : ' Versuche'), W/2, H/2 + fs*0.8, 'center');
-    txt(gp.connected ? 'Taste an der Funke oder R für neue Mission' : touchUI ? 'Tippen für neue Mission' : 'R für neue Mission', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
+    // Auswertung (F2): Zeit mit Vergleich zur Bestzeit, darunter Versuche, Treffer, Drohnen
+    const rl = scenResultLines(); rl.forEach((t, i) => txt(t, W/2, H/2 + fs*(0.8 + i*1.4), 'center', i ? '#dfe6ea' : '#ffffff'));
+    txt(gp.connected ? 'Taste an der Funke oder R für neue Mission' : touchUI ? 'Tippen für neue Mission' : 'R für neue Mission', W/2, H/2 + fs*(1.2 + rl.length*1.4), 'center', '#9fd8ff');
   }
   if (game.state === 'crashed') {
     const ch = chargeOn() && s.armed;   // Wirkmittel (Prompt 196): gezündet, die nächste Drohne kommt von selbst; nicht scharf: normaler Absturz
