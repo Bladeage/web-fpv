@@ -2,7 +2,7 @@
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
 import { cfg, game, keys, ptr, saveCfg, KEY_FN, KEY_STICKS, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
 import { loadErrText } from './format.js';
-import { respawn } from './physics.js';
+import { respawn, toggleArm, rewind } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam, meshAvail } from './render.js';
 import { audioInit, audioPause } from './audio.js';
@@ -126,6 +126,7 @@ const currentStyle = () => Object.keys(STYLES).find(k => Object.entries(STYLES[k
 
 export function setMode(m) {
   cfg.mode = m; saveCfg();
+  $('bMode').textContent = m === 'acro' ? 'ACR' : 'ANG';   // Touch-Knopf zeigt den Flugmodus
   press('#modeSeg button', b => b.dataset.mode === m);
   syncStyle();
 }
@@ -548,7 +549,7 @@ $('disHere').addEventListener('click', async () => {
   if (cfg.rwSrc === 'dis') disFlat();
   if (!rw.ready) await rwLoadEmbedded();
   run('real', true);   // Freiflug ohne Aufgabe am Ort der Übung
-  say('Am Ort der Übung, ohne Aufgabe. Esc: Auswahl, dort Gelände wechseln oder mit Weiter die Mission starten.', 6);
+  say('Am Ort der Übung, ohne Auftrag. Esc: Auswahl, dort Gelände wechseln oder mit Weiter den Auftrag starten.', 6);
 });
 function disFlat() {
   const ll = parseLatLon(cfg.disLL);
@@ -880,6 +881,10 @@ $('bBack').addEventListener('click', back);
 $('bMenu').addEventListener('click', toggleMenu);
 $('bReset').addEventListener('click', () => { respawn(); if (game.paused) resume(); });
 $('bCam').addEventListener('click', toggleCam);
+// Touch-Knöpfe (F3): was am PC die Tasten Leertaste, M und Z tun
+$('bArm').addEventListener('click', () => { if (game.state === 'fly') toggleArm(); });
+$('bMode').addEventListener('click', () => { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); });
+$('bRew').addEventListener('click', () => rewind(5));
 // App im Hintergrund oder Bildschirm gesperrt: Einstellungen zeigen, Simulation pausieren, Ton aus
 function toBackground() { if (!game.paused) openMenu('settings'); audioPause(); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) toBackground(); });

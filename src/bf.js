@@ -52,6 +52,9 @@ export function bfRates() {
 }
 // Ein Physikschritt mit Betaflight. s: Zustand der Drohne, h: Schrittweite in s.
 // Gibt die Motorbefehle 0..1 in unserer Reihenfolge zurück (MOTORS: vorne rechts, vorne links, hinten rechts, hinten links).
+// Lage und Geschwindigkeit der Simulation in Betaflight übernehmen (Zurückspulen, F3): Quaternion aus unserem Körpersystem
+// (x rechts, y oben, z hinten) ins Betaflight-System (x vorne, y links, z oben). Gegen die Lage aus dem Kreisel geprüft.
+export function bfSetAtt(s) { const q = s.q; bf.x.bf_set_att(q[3], -q[2], -q[0], q[1]); bf.vPrev = s.v.slice(); }
 export function bfStep(s, h, armed, angle, thr, roll, pitch, yaw) {
   const x = bf.x;
   // Kreisel: unser Körper (x rechts, y oben, z hinten) -> Betaflight (x vorne, y links, z oben), in °/s

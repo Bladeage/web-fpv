@@ -339,11 +339,11 @@ export function drawHud() {
   if (game.state === 'done') {   // Mission erfüllt (Prompt 197): Zeit und Versuche, Neustart beginnt eine neue Mission
     c.fillStyle = 'rgba(0,90,40,.22)'; c.fillRect(0, 0, W, H);
     c.font = `800 ${fs*2.2}px ${FONT}`;
-    txt('MISSION ERFÜLLT', W/2, H/2 - fs, 'center', '#7dff9a');
+    txt('AUFTRAG ERFÜLLT', W/2, H/2 - fs, 'center', '#7dff9a');
     c.font = `${weight} ${fs}px ${FONT}`;
     // Auswertung (F2): Zeit mit Vergleich zur Bestzeit, darunter Versuche, Treffer, Drohnen
     const rl = scenResultLines(); rl.forEach((t, i) => txt(t, W/2, H/2 + fs*(0.8 + i*1.4), 'center', i ? '#dfe6ea' : '#ffffff'));
-    txt(gp.connected ? 'Taste an der Funke oder R für neue Mission' : touchUI ? 'Tippen für neue Mission' : 'R für neue Mission', W/2, H/2 + fs*(1.2 + rl.length*1.4), 'center', '#9fd8ff');
+    txt(gp.connected ? 'Taste an der Funke oder R für neuen Auftrag' : touchUI ? 'Tippen für neuen Auftrag' : 'R für neuen Auftrag', W/2, H/2 + fs*(1.2 + rl.length*1.4), 'center', '#9fd8ff');
   }
   if (game.state === 'crashed') {
     const ch = chargeOn() && s.armed;   // Wirkmittel (Prompt 196): gezündet, die nächste Drohne kommt von selbst; nicht scharf: normaler Absturz
@@ -351,7 +351,7 @@ export function drawHud() {
     c.font = `800 ${fs*2.2}px ${FONT}`;
     txt(ch ? 'GEZÜNDET' : 'ABSTURZ', W/2, H/2 - fs, 'center', ch ? '#ffb347' : '#ff5a4a');
     c.font = `${weight} ${fs}px ${FONT}`;
-    txt(ch && !/^Wirkmittel/.test(s.crashMsg || '') ? 'Ladung ohne Ziel gezündet (' + s.crashMsg + ')' : chargeOn() && !s.armed ? s.crashMsg + ' (Ladung noch nicht scharf)' : s.crashMsg, W/2, H/2 + fs*0.8, 'center');
+    txt(ch && !/^Sprengladung im Ziel/.test(s.crashMsg || '') ? 'Ladung ohne Ziel gezündet (' + s.crashMsg + ')' : chargeOn() && !s.armed ? s.crashMsg + ' (Ladung noch nicht scharf)' : s.crashMsg, W/2, H/2 + fs*0.8, 'center');
     txt(ch ? 'Neue Drohne kommt gleich' : gp.connected ? 'Taste an der Funke oder R für Neustart' : touchUI ? 'Tippen für Neustart' : 'R für Neustart', W/2, H/2 + fs*2.3, 'center', '#dfe6ea');
   }
 }

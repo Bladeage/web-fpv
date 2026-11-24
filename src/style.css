@@ -276,6 +276,9 @@ section[data-screen=settings]{position:relative}
 .segpair > div > h2{margin-top:12px}
 #courseInfo,#specInfo,#droneHint,#styleHint{min-height:2.9em}   /* Beschreibung wechselt die Zeilenzahl nicht: Menü zuckt nicht */
 .firsthint{text-align:center}
+/* Touch-Knöpfe (F3): Scharf schalten, Flugmodus, Zurückspulen; mit Maus und Tastatur ausgeblendet */
+.topbar #bMode{font-size:11px;font-weight:700;letter-spacing:.02em}
+@media (pointer:fine){ .topbar .touchonly{display:none} }
 body.menuopen .topbar{visibility:hidden}   /* Neustart und Kamera nur im Flug */
 @media (max-width:480px){
   .segpair{grid-template-columns:1fr}

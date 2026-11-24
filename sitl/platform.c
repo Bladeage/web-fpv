@@ -202,5 +202,9 @@ EXPORT(bf_flag) int bf_flag(int n) {
   if (n == 2) return FLIGHT_MODE(ANGLE_MODE) ? 1 : 0;
   if (n == 3) return attitude.values.roll;    // geschätzte Lage in 0,1°
   if (n == 4) return attitude.values.pitch;
+  if (n == 5) return attitude.values.yaw;
   return 0;
 }
+// Lage von außen setzen (Zurückspulen, Prüfung Drohne Nr. 2): Betaflight kennt die Lage sonst nur aus dem Kreisel.
+// Quaternion Körper -> Erde im Betaflight-System. Dazu die I-Anteile der Regler leeren.
+EXPORT(bf_set_att) void bf_set_att(float w, float x, float y, float z) { imuSetAttitudeQuat(w, x, y, z); pidResetIterm(); }

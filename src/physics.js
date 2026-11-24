@@ -5,7 +5,7 @@ import { DEG, clamp, vAdd, vSub, vScale, vDot, vLen, vNorm, vCross, qMul, qNorm,
 import { cfg, game, kb, inp, say, saveBest, eggsFound, saveEggs } from './state.js';
 import { colliders, gates, GATE_IN } from './world.js';
 import { fmtTime } from './format.js';
-import { bf, bfStart, bfStep, bfFallbackNote } from './bf.js';
+import { bf, bfStart, bfStep, bfFallbackNote, bfSetAtt } from './bf.js';
 import { town } from './town.js';
 import { EGGS, checkEggs } from './eggs.js';
 import { initBirds } from './birds.js';
@@ -443,13 +443,13 @@ export function toggleFreeze() {
 // Zeit, Akku und Fortschritt im Szenario laufen weiter.
 export function rewind(sec = 5) {
   if (!history.length || task.hold()) return false;   // gezündete Ladung: die Drohne ist verbraucht
-  // Betaflight kennt die Lage nur aus dem Kreisel: nach dem Zurücksetzen stimmte seine Lage nicht mehr, die Drohne driftete weg (Prüfung Drohne Nr. 2)
-  if (cfg.fc === 'bf' && bf.ready) { say('Zurückspulen geht nur mit dem eigenen Regler', 2); return false; }
   // Nach Einträgen zählen (alle 0,1 s einer), nicht nach der Zeit: die Zeit läuft nach dem Zurückspulen weiter (Prüfung Drohne Nr. 6)
   const k = Math.max(0, history.length - 1 - Math.round(sec*10));
   const h = history[k], s = game.sim;
   for (const key of ['p', 'v', 'q', 'w', 'om', 'mot', 'wi', 'hp']) s[key] = h[key].slice();
   s.grounded = false; s.turtle = false; s.flippedT = 0; history.length = k + 1;
+  // Betaflight kennt die Lage sonst nur aus dem Kreisel und driftete nach dem Zurückspulen weg: Lage direkt setzen (Prüfung Drohne Nr. 2, F3)
+  if (cfg.fc === 'bf' && bf.ready) bfSetAtt(s);
   game.state = 'fly';
   say('Zurückgespult', 1);
   return true;
