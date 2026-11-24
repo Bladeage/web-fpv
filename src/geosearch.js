@@ -5,7 +5,7 @@
    Ohne DOM, in Node testbar. */
 export const GEOSEARCH = { url: 'https://nominatim.openstreetmap.org/search', gap: 1100, limit: 5, attribution: '© OpenStreetMap-Mitwirkende (ODbL), Suche über Nominatim' };
 const gs = { last: 0 };
-export const geoSearchUrl = q => GEOSEARCH.url + '?format=jsonv2&addressdetails=1&countrycodes=de&accept-language=de&limit=' + GEOSEARCH.limit + '&q=' + encodeURIComponent(q.trim());
+export const geoSearchUrl = q => GEOSEARCH.url + '?format=jsonv2&addressdetails=1&viewbox=5.8,55.1,15.1,47.2&accept-language=de&limit=' + GEOSEARCH.limit + '&q=' + encodeURIComponent(q.trim());
 // Kurzer Name aus dem langen Treffertext: die ersten zwei Teile, ohne Hausnummer allein („Kölner Dom, Köln“)
 export function geoShortName(r) {
   const parts = String(r.display_name || '').split(',').map(s => s.trim()).filter(s => s && !/^\d+[a-z]?$/i.test(s));

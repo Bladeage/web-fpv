@@ -2,7 +2,7 @@
    Ein verbundenes Gamepad überschreibt beides (siehe updTouch). */
 import { clamp } from './math.js';
 import { cfg, game, kb, tch, inp, keys, ptr, say, saveCfg, keyOf, keyFns, keyLearn } from './state.js';
-import { respawn, toggleArm, rewind, toggleFreeze } from './physics.js';
+import { respawn, toggleArm, rewind, toggleFreeze, task } from './physics.js';
 import { gp } from './gamepad.js';
 import { hud, vw, vh, toggleCam, cycleVision } from './render.js';
 import { toggleMenu, setMode } from './menu.js';
@@ -54,7 +54,8 @@ hud.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' || game.paused) return;
   touchUI = true;
   if (game.state === 'done') { respawn(); return; }   // Mission erfüllt: Tippen startet eine neue
-  if (game.state === 'crashed') { if (performance.now() - game.sim.crashT > 400) respawn(); return; }
+  if (game.state === 'fly' && !game.armed) { toggleArm(); return; }   // Touch: Tippen schaltet scharf, es gibt keine Leertaste (Prüfung Drohne Nr. 1)
+  if (game.state === 'crashed') { if (!task.hold() && performance.now() - game.sim.crashT > 400) respawn(); return; }
   try { hud.setPointerCapture(e.pointerId); } catch (err) {}
   const side = e.clientX < vw/2 ? 'L' : 'R';
   for (const p of ptr.values()) if (p.side === side) return;

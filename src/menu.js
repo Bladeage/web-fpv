@@ -29,21 +29,20 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
-  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Wirkmittel.',
+  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Sprengladung.',
     infoReal: 'Autos auf den Straßen (wenn es welche gibt) und Vögel beobachten: ein Ziel 4 s im Fadenkreuz halten, bis 90 m. 3 Ziele aufklären.' },
   { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map', 'real'], roads: true, info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.',
     infoReal: '7 Fahrzeuge auf den Straßen: grau am Straßenrand, blau langsam, rot schnell. Bei jedem Start neu verteilt.' },
   { id: 'drones', name: 'Drohnen', scen: 'hunt', worlds: ['map', 'real'], info: '9 Ziel-Drohnen: weiß schwebend, gelb feste Route, blau zufällig, rot ausweichend.',
     infoReal: '9 Ziel-Drohnen über Häusern und Bäumen, bis 320 m vom Start, bei jedem Start neu verteilt.' },
   { id: 'air', name: 'Flugzeuge', scen: 'hunt3', worlds: ['map', 'real'], info: '6 Luftziele: Starrflügler (3 Punkte), Hubschrauber (2 Punkte), große Sechs-Rotoren (1 Punkt).',
-    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' },
-  { id: 'mix', name: 'Gemischt', scen: null, worlds: [], info: 'Ziele am Boden und in der Luft. Folgt.' }
+    infoReal: 'Starrflügler kreisen hoch über dem höchsten Boden, Hubschrauber und Sechs-Rotoren auf freien Wegen. Bei jedem Start neu.' }
 ];
 const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'recon'];   // nicht im Parcours (Prompt 176)
 const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
 const ROAD_MODES = ['hunt2', 'follow'];   // brauchen in der echten Welt Straßen (S3)
 // Straßen im Startgebiet: mindestens 500 m (Monschau eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
-const roadsOk = () => roadLenNear(rwRoads(true), [0, 0], rw.size*0.75) >= 500;
+const roadsOk = () => roadLenNear(rwRoads(true), rw.meta ? rw.meta.home : [0, 0], 400) >= 500;   // im selben Umkreis um den Start, in dem die Fahrzeuge aufgestellt werden (Prüfung Nr. 5)
 const NO_ROADS = 'Für diesen Ort gibt es keine Straßen (nur NRW; nach dem Laden einige Sekunden warten)';
 // Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
 const REAL_INFO = {
@@ -142,7 +141,7 @@ export function syncMenu() {
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = tac ? (real && t.infoReal || t.info) : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
+  $('courseInfo').textContent = tac ? (real && t.infoReal || t.info) + (/^hunt/.test(t.scen) ? ' Immer mit Sprengladung: scharf ab 10 m über Grund, zündet bei Aufprall, danach neue Drohne (Leicht: Ballons ohne Ladung).' : '') : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
   $('modeSpec').hidden = !real;
   if (dis) syncDis();
   $('droneBack').dataset.go = dis ? 'dis' : 'mode';   // Schritt 2 zurück zu Schritt 1 der Flugart
@@ -155,7 +154,7 @@ export function syncMenu() {
   if (!rwBusy && dis) disMsg(true);
   if (!rwBusy && !dis) $('rwMsg').textContent = cfg.rwSrc !== 'live' ? 'Der AXA Campus Köln ist eingebaut und geht ohne Netz: 1 x 1 km fein, Umgebung bis 5 km.'
     : rw.live && rw.liveAt ? 'Geladen: ' + rw.meta.place + ', ' + rw.meta.buildings + ' Gebäude, ' + rw.meta.trees + ' Bäume'
-      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Optionen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
+      + (rw.fromStore ? ', aus dem Speicher.' : rw.stored ? ', gespeichert.' : rw.stored === false ? ', nicht gespeichert: Speicher im Browser voll oder gesperrt (Daten und Quellen → Daten).' : '.') + (!rw.water && rw.liveDlm ? ' Ohne Gewässer: Optionen → Daten.' : '')
       + (!rw.far ? ' Ohne Umgebung, kein Nachladen (offline?).' : '')
     : 'Zum Beispiel 50.7753, 6.0839, oder auf der Karte wählen. 15 bis 200 MB, danach gespeichert.';
   rwLock();
@@ -195,9 +194,6 @@ export function syncMenu() {
   mb.disabled = !m3d; mb.title = m3d ? mb.dataset.t || (mb.dataset.t = mb.title) : 'Hier nicht verfügbar: Foto 3D gibt es nur in der echten Welt in NRW. Grafik wie Schön.';
   press('#gfxSeg button', b => b.dataset.gfx === (cfg.gfx === 'mesh' && !m3d ? 'nice' : cfg.gfx));
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
-  // Wirkmittel (Prompt 157): im Taktischen Flug und in der DIS-Übung (dort wirkt die Sprengladung gegen Einheiten); zündet bei Kontakt
-  $('whSeg').hidden = !dis && !(tac && COURSE_HUNT.includes(run) && run !== 'recon');   // nur bei Aufträgen zum Zerstören (Prompt 234)
-  press('#whSeg button', b => b.dataset.wh === (cfg.warhead || 'none'));
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));
   $('propsView').checked = cfg.propsView;
@@ -249,11 +245,14 @@ export function show(name) {
 }
 export function openMenu(name = 'settings') {
   if (menu.hidden) from = null; else if (name === 'settings' && screen !== 'settings') from = screen;
-  if (menu.hidden && name === 'settings') showTab('general');   // Pause beginnt immer bei „Allgemein“
+  if (menu.hidden && name === 'settings') showTab('view');   // Pause beginnt immer beim ersten Reiter (Bild)
   game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; document.body.classList.add('menuopen'); show(name);
   audioPause();
 }
-export function resume() { keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; document.body.classList.remove('menuopen'); game.last = performance.now(); }
+// Andere Drohne im Menü gewählt und dann „Weiterfliegen“: der alte Flug bekäme die neue Drohne. Dann neu starten (Prüfung Drohne Nr. 8).
+const droneKey = () => JSON.stringify(cfg.drone);
+export function resume() { if (game.started && game.droneKey && game.droneKey !== droneKey()) { game.droneKey = droneKey(); applyDrone(cfg.drone); respawn(); say('Neue Drohne: Flug neu gestartet', 2); }
+  keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; document.body.classList.remove('menuopen'); game.last = performance.now(); }
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 // Umschauen am Ort der Übung (Freiflug ohne Aufgabe im DIS-Modus, Prompt 172): Esc öffnet die Auswahl mit dem DIS-Block (Gelände
@@ -379,7 +378,7 @@ async function start() {
 // Flug mit Szenario id beginnen, real: in der echten Welt (auch die Vorschau der Grundtypen, ohne die Wahl im Menü zu ändern)
 function run(id, real = false) {
   setScenario(id, real); applyDrone(cfg.drone); saveCfg();
-  game.scenRun = id;
+  game.scenRun = id; game.droneKey = droneKey();
   respawn(); resume();
 }
 // Modus-Liste nach Flugart und Welt: Parcours auf der Spielkarte alle Modi außer echte Welt und Vorschau; Parcours in der
@@ -570,7 +569,6 @@ for (const id of ['go', 'goTac', 'goDis']) $(id).addEventListener('click', () =>
 $('disKeep').addEventListener('change', e => { cfg.disKeep = e.target.checked; saveCfg(); vbSet({ keep: cfg.disKeep }); });   // vorher unter Optionen → Daten
 // Vorschau der DIS-Grundtypen (aus dem DIS-Block): Spielkarte mit den 18 Modellen, Wahl im Menü bleibt
 $('disBases').addEventListener('click', () => { rwAbort(); run('vbs'); });
-document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
 // Startort: Monschau oder Ort laden (die DIS-Übung ist eine eigene Flugart)
 document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.start;
@@ -724,10 +722,10 @@ function learnDone(src, inv) {
   saveCfg(); syncGpRows();
 }
 // Kalibrieren: 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen; kleinster und größter Wert je Achse
-const calib = { until: 0, min: [], max: [] };
+const calib = { until: 0, min: [], max: [], rest: [] };
 $('bCal').addEventListener('click', () => {
-  calib.until = performance.now() + 6000; calib.min = gp.axes.slice(); calib.max = gp.axes.slice();
-  $('gpHint').textContent = 'Kalibrieren: 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen.';
+  calib.until = performance.now() + 6000; calib.min = gp.axes.slice(); calib.max = gp.axes.slice(); calib.rest = gp.axes.slice();   // Ruhelage: Knüppel beim Antippen losgelassen
+  $('gpHint').textContent = 'Kalibrieren: Knüppel jetzt loslassen, dann 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen.';
 });
 $('bCalReset').addEventListener('click', () => { cfg.gpCal = {}; saveCfg(); $('gpHint').textContent = 'Kalibrierung gelöscht.'; });
 function calibStep() {
@@ -736,7 +734,8 @@ function calibStep() {
   if (performance.now() < calib.until) return;
   calib.until = 0;
   const cal = {};
-  calib.min.forEach((mn, i) => { if (calib.max[i] - mn > 0.5) cal[i] = [mn, calib.max[i]]; });
+  // Nur Achsen mit vollem Weg (über 1,2 von 2): ein nur in eine Richtung bewegter Knüppel bekäme sonst eine falsche Mitte
+  calib.min.forEach((mn, i) => { if (calib.max[i] - mn > 1.2) cal[i] = [mn, calib.max[i], calib.rest[i] ?? 0]; });
   cfg.gpCal = cal; saveCfg();
   $('gpHint').textContent = 'Kalibriert: ' + Object.keys(cal).length + ' Achsen.';
 }
@@ -783,7 +782,7 @@ function showTab(id) {
   fitPanel();
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
-showTab('general');
+showTab('view');
 // Reiter Steuerung (Knüppel und Funktionen zusammengelegt, Nutzer Prompt 174, docs/plan-menue.md): Gerät [Funke / Gamepad |
 // Tastatur] und Bereich [Knüppel | Funktionen], für beide Geräte gleich. Der Bereich ist Laufzeit-Zustand (Vorgabe Knüppel).
 const ctl = { dev: 'pad', grp: 'sticks' };

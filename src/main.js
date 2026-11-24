@@ -51,9 +51,9 @@ respawn();
 let boomed = false;
 function combat() {
   if (game.state === 'fly') boomed = false;
-  if (!rw.on || !game.started) { vb.hits.length = 0; return; }
+  if (!rw.on || !game.started || !cfg.verbund) { vb.hits.length = 0; return; }   // nur in der DIS-Übung (Prüfung Nr. 12)
   for (const h of vb.hits.splice(0)) shotHit(h.heavy, h.heavy ? 'Abgeschossen' : 'Treffer');
-  const s = game.sim, armed = cfg.warhead === 'charge' && !!s.armed, u = vb.contact;   // erst ab 10 m scharf (Prompt 226)
+  const s = game.sim, armed = !!s.armed, u = vb.contact;   // erst ab 10 m scharf (Prompt 226)
   if (game.state === 'fly' && u) {
     const name = disBaseInfo(u.base).name;
     if (armed) { vbDetonate(s.p, u, s.v); boomed = true; crash('Sprengladung gezündet: ' + name + ' getroffen'); }
@@ -92,7 +92,7 @@ function frame(now) {
     // Foto 3D (Prompt 196): kommt das 3D-Mesh am Start erst nach dem Start an, Aufstellung einmal je Gebiet neu auf dem Mesh,
     // solange die Drohne noch am Startplatz steht (Ringe, Plätze und Ziele sonst nach LoD2 und Geländemodell)
     if (rw.meshPhys && meshLaid !== rw.ver && game.state === 'fly' && game.sim.grounded && Math.hypot(game.sim.p[0] - game.home[0], game.sim.p[2] - game.home[1]) < 2) {
-      meshLaid = rw.ver; respawn(); say('Foto 3D: Ziele und Plätze auf das 3D-Mesh gestellt', 2);
+      meshLaid = rw.ver; respawn(); game.tries = Math.max(1, game.tries - 1); say('Foto 3D: Ziele und Plätze auf das 3D-Mesh gestellt', 2);
     }
     // Echte Welt (L5b): etwa jede Sekunde prüfen, ob eine Kachel nachzuladen oder zu entladen ist
     if (rw.on && (streamT -= dt) <= 0) {

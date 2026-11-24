@@ -2,7 +2,7 @@
    Die Zuordnung (gpMap, padValues) ist ohne DOM und in Node testbar. */
 import { clamp } from './math.js';
 import { cfg, game, say } from './state.js';
-import { respawn, setArmed } from './physics.js';
+import { respawn, setArmed, task } from './physics.js';
 
 export const GP_FN = [['throttle', 'Gas'], ['yaw', 'Gieren'], ['pitch', 'Nicken'], ['roll', 'Rollen']];
 export const GP_PRESETS = {
@@ -30,8 +30,15 @@ export function switchOn(src, inv, axes, buttons, cal) {
   else { const b = buttons[+src.slice(1)]; on = !!(b && (b.pressed || b.value > 0.5)); }
   return inv ? !on : on;
 }
-// Rohwert einer Achse mit Kalibrierung (cal[i] = [min, max]) auf -1..1 bringen
-export function calAxis(v, c) { return c && c[1] - c[0] > 0.2 ? clamp((v - c[0])/(c[1] - c[0])*2 - 1, -1, 1) : v; }
+// Rohwert einer Achse mit Kalibrierung (cal[i] = [min, max, Ruhe]) auf -1..1 bringen. Liegt die Ruhelage im mittleren Drittel
+// (Knüppel mit Feder), wird jede Hälfte für sich gerechnet: losgelassen ist dann genau 0, auch wenn der Knüppel nicht in beide
+// Richtungen gleich weit bewegt wurde (Prüfung Drohne Nr. 7). Sonst (Gas, Schalter, alte Kalibrierung) linear von min bis max.
+export function calAxis(v, c) {
+  if (!c || !(c[1] - c[0] > 0.2)) return v;
+  const m = c[2], d = (c[1] - c[0])/3;
+  if (m > c[0] + d && m < c[1] - d) return clamp(v < m ? (v - m)/(m - c[0]) : (v - m)/(c[1] - m), -1, 1);
+  return clamp((v - c[0])/(c[1] - c[0])*2 - 1, -1, 1);
+}
 // Rohachsen (-1..1) nach Zuordnung m in Steuerwerte umrechnen. Gas 0..1, Rest -1..1 mit Totzone.
 export function padValues(axes, m, cal) {
   const ax = fn => { const i = m[fn][0], v = calAxis(axes[i] || 0, cal && cal[i]); return m[fn][1] ? -v : v; };
@@ -44,7 +51,8 @@ export function updGamepad() {
     const ps = navigator.getGamepads ? navigator.getGamepads() : [];
     for (const p of ps) if (p && p.connected && p.axes.length >= 4) { pad = p; break; }
   } catch (e) { pad = null; }
-  if (!pad) { gp.connected = false; return; }
+  // Failsafe: fällt die Funke im Flug aus, Gas aus und Knüppel in die Mitte (vorher blieb das letzte Gas stehen)
+  if (!pad) { if (gp.connected) { gp.throttle = gp.yaw = gp.pitch = gp.roll = 0; game.throttle = 0; say('Funke getrennt: Gas aus (Failsafe)', 3); } gp.connected = false; return; }
   if (!gp.connected || gp.id !== pad.id) say('Erkannt: ' + pad.id.slice(0, 40), 2);
   gp.connected = true; gp.id = pad.id; gp.mapping = pad.mapping; gp.axes = Array.from(pad.axes); gp.buttons = Array.from(pad.buttons);
   Object.assign(gp, padValues(gp.axes, gpMap(), cfg.gpCal));
@@ -75,6 +83,6 @@ export function updGamepad() {
   }
   // Nach einem Absturz startet jede (nicht belegte) Taste neu
   const b = pad.buttons.some((x, i) => x.pressed && !used.has(i));
-  if (b && !gp.btn && (game.state === 'crashed' || game.state === 'done') && !game.paused) respawn();
+  if (b && !gp.btn && (game.state === 'crashed' || game.state === 'done') && !game.paused && !task.hold()) respawn();
   gp.btn = b;
 }

@@ -138,9 +138,9 @@ test('Freiflug: keine Aufgabe, Tore zählen nicht', () => {
 });
 
 test('Schwierigkeit: Normal hat größere Ringe als Schwer, Landung strenger; Leicht mindestens wie Normal, mit Ballons', () => {
-  cfg.diff = 'easy'; const easy = diff();
-  cfg.diff = 'hard'; const hard = diff();
-  cfg.diff = 'mid';
+  cfg.diff = 'easy'; respawn(); const easy = diff();   // die Stufe gilt ab dem Start (Prüfung Nr. 4)
+  cfg.diff = 'hard'; respawn(); const hard = diff();
+  cfg.diff = 'mid'; respawn();
   assert.ok(easy.ringR >= diff().ringR && diff().ringR > hard.ringR);
   assert.ok(diff().landV > hard.landV);
   assert.equal(easy.balloons, true); assert.ok(!diff().balloons && !hard.balloons);

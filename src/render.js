@@ -1010,10 +1010,11 @@ export function render(dt) {
   gl.uniform1f(P.u.uHeat, 0);
   // Paket unter der Drohne (Paketlieferung)
   if (game.payload > 0 && game.state === 'fly') {
-    gl.bindVertexArray((chargeOn() ? chargeMesh : pkgMesh).vao);
+    const pm = chargeOn() ? chargeMesh : pkgMesh;
+    gl.bindVertexArray(pm.vao);
     const pp = vAdd(sim.p, vScale(qRot(sim.q, [0, 1, 0]), -0.09*PHYS.size));
     gl.uniformMatrix4fv(P.u.uModel, false, mFromQT(sim.q, pp));
-    gl.drawArrays(gl.TRIANGLES, 0, pkgMesh.count);
+    gl.drawArrays(gl.TRIANGLES, 0, pm.count);
   }
   // Fahrzeuge (Jagd Boden): Farbe nach Tempo, getroffene dunkel und schief
   if (scen.id === 'hunt2' || scen.id === 'recon') {

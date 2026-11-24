@@ -197,14 +197,22 @@ export async function osmRoads(r, bbox, net) {
   const q = '[out:json][timeout:25];way[highway~"^(' + Object.keys(OSM_W).join('|') + ')(_link)?$"](' + [g.minLat, g.minLon, g.maxLat, g.maxLon].map(f).join(',') + ');out tags geom;';
   const j = await overpass(r, q, net);
   const ec = (bbox[0] + bbox[2])/2, nc = (bbox[1] + bbox[3])/2, out = [];
-  for (const w of j.elements || []) {
-    if (w.type !== 'way' || !w.geometry || w.geometry.length < 2) continue;
-    const t = w.tags || {}, pts = dlmSimplify(w.geometry.map(p => toUtm(p.lat, p.lon, r.zone || 32)), RWROADS.simp);
-    for (const part of clipRect(pts, bbox)) if (part.length > 1)
-      out.push({ name: t.name || '', w: OSM_W[String(t.highway).replace('_link', '')] || 5, pts: part.map(p => [Math.round((p[0] - ec)*10)/10, Math.round(-(p[1] - nc)*10)/10]) });
+  // Kreuzungen (Prüfung Geo Nr. 8): OSM-Wege teilen sich an Kreuzungen einen Punkt, oft mitten im Weg. Dort teilen, sonst entsteht
+  // im Straßennetz keine Abzweigung (es schneidet nur an Linienenden). Brücken ohne gemeinsamen Punkt bleiben getrennt.
+  const ways = (j.elements || []).filter(w => w.type === 'way' && w.geometry && w.geometry.length > 1), seen = new Map();
+  for (const w of ways) for (const k of new Set(w.geometry.map(osmKey))) seen.set(k, (seen.get(k) || 0) + 1);
+  for (const w of ways) {
+    const t = w.tags || {}, G = w.geometry;
+    for (let a = 0, i = 1; i < G.length; i++) {
+      if (i < G.length - 1 && seen.get(osmKey(G[i])) < 2) continue;
+      const pts = dlmSimplify(G.slice(a, i + 1).map(p => toUtm(p.lat, p.lon, r.zone || 32)), RWROADS.simp); a = i;
+      for (const part of clipRect(pts, bbox)) if (part.length > 1)
+        out.push({ name: t.name || '', w: OSM_W[String(t.highway).replace('_link', '')] || 5, pts: part.map(p => [Math.round((p[0] - ec)*10)/10, Math.round(-(p[1] - nc)*10)/10]) });
+    }
   }
   return out;
 }
+const osmKey = p => p.lat.toFixed(7) + ',' + p.lon.toFixed(7);   // derselbe OSM-Punkt in zwei Wegen
 // Overpass: Spiegel der Reihe nach, Antwort als JSON
 async function overpass(r, q, net) {
   let err = null;
@@ -219,7 +227,20 @@ export async function osmWoods(r, bbox, zone, net) {
   const ring = gm => gm.filter(p => p).map(p => { const u = toUtm(p.lat, p.lon, zone); return [u[0] - ec, nc - u[1]]; });
   for (const el of j.elements || []) {
     if (el.geometry) out.push(ring(el.geometry));
-    for (const m of el.members || []) if (m.role === 'outer' && m.geometry) out.push(ring(m.geometry));
+    // Relation: der Umriss besteht oft aus mehreren Teilstücken. An gleichen Endpunkten zu Ringen zusammensetzen (Prüfung Geo Nr. 8);
+    // vorher wurde jedes Teilstück ein eigener „Ring“ und der Wald blieb leer. Löcher (inner) bleiben unbeachtet.
+    const open = (el.members || []).filter(m => m.role === 'outer' && m.geometry).map(m => m.geometry.filter(p => p)).filter(g => g.length > 1);
+    while (open.length) {
+      let c = open.pop().slice();
+      for (let grew = true; grew && osmKey(c[0]) !== osmKey(c[c.length - 1]);) {
+        grew = false;
+        for (let i = 0; i < open.length; i++) {
+          const g = open[i], e = osmKey(c[c.length - 1]), f = osmKey(g[0]) === e, l = osmKey(g[g.length - 1]) === e;
+          if (f || l) { c = c.concat((f ? g : g.slice().reverse()).slice(1)); open.splice(i, 1); grew = true; break; }
+        }
+      }
+      out.push(ring(c));
+    }
   }
   return out;
 }

@@ -20,11 +20,11 @@
 <div id="menu" class="overlay">
   <div class="panel" role="dialog" aria-labelledby="mt">
     <section data-screen="main">
-      <h1 id="mt">FPV-Simulator<small>Modus wählen, Drohne wählen, fliegen</small></h1>
+      <h1 id="mt">FPV-Simulator<small>Auftrag wählen, Drohne wählen, fliegen</small></h1>
       <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
       <button id="bResume" class="primary" hidden>Weiterfliegen</button>
       <button id="go" class="primary flight" data-flight="course"><b>Parcours-Flug</b><span>Tore, Ringe, Slalom, Landung, Lieferung. Spielkarte oder echte Welt</span></button>
-      <button id="goTac" class="secondary flight" data-flight="tactical"><b>Taktischer Flug</b><span>Fahrzeuge, Drohnen, Flugzeuge, Wirkmittel. Spielkarte oder echte Welt</span></button>
+      <button id="goTac" class="secondary flight" data-flight="tactical"><b>Taktischer Flug</b><span>Aufklärung, Fahrzeuge, Drohnen, Flugzeuge. Spielkarte oder echte Welt</span></button>
       <button id="goDis" class="secondary flight" data-flight="dis" hidden><b>DIS-Übung</b><span>Ort und Einheiten eines DIS-Partners. Experimentell</span></button>
       <button class="secondary" data-go="settings">Einstellungen</button>
       <p class="best" id="bestTxt"></p>
@@ -35,11 +35,14 @@
     <section data-screen="mode" hidden>
       <p class="stepno">Schritt 1 von 2</p>
       <h1 id="modeTitle">Parcours</h1>
+      <p class="grp">Welt</p>
       <div class="tabs tabs2" id="modeTabs" role="tablist"><button data-world="map" title="Gebaute Karte mit Kurs und Stadt">Spielkarte</button><button data-world="real" title="Echtes Gelände mit Luftbild, Häusern und Bäumen">Echte Welt</button></div>
       <div id="modeStd">
+        <p class="grp">Auftrag</p>
         <div class="list grid2" id="scenList"></div>
         <p class="hint" id="courseInfo"></p>
         <div id="courseOpts">
+          <p class="grp">Schwierigkeit</p>
           <div class="seg seg3 small" id="diffSeg"></div>
           <div id="huntOpts">
             <label class="row" for="huntX"><span>Nötige Treffer</span><output id="huntXV"></output></label>
@@ -49,7 +52,7 @@
       </div>
       <div id="modeSpec" hidden>
         <div id="rwOpts">
-          <p class="grp">Startort <button class="linkbtn grplink" id="rwOpt" title="Daten, Export und Import, Quellen">Optionen ›</button></p>
+          <p class="grp">Startort <button class="linkbtn grplink" id="rwOpt" title="Gespeicherte Daten, Export und Import, Quellen der Länder">Daten und Quellen ›</button></p>
           <div class="seg small" id="rwSeg"><button data-start="emb" title="Eingebaut, geht ohne Netz">AXA Campus</button><button data-start="live" title="Beliebiger Ort in Deutschland">Ort laden</button></div>
           <div id="rwLive" class="rwlive">
             <input type="text" id="rwLL" placeholder="Ort, Adresse oder Breite, Länge" aria-label="Ort, Adresse oder Breite, Länge" inputmode="decimal" autocomplete="off">
@@ -89,7 +92,7 @@
     </section>
 
     <section data-screen="sources" hidden>
-      <h1>Echte Welt: Optionen</h1>
+      <h1>Echte Welt: Daten und Quellen</h1>
       <div class="tabs tabs3" id="geoTabs" role="tablist"><button data-gtab="data">Daten</button><button data-gtab="src">Quellen</button><button data-gtab="dbg">Debug</button></div>
       <div id="geoData">
         <label class="row geotoggle"><span>Beim Fliegen nachladen (Gebäude, Bäume, Gelände je 1 km)</span><input type="checkbox" id="geoStream"></label>
@@ -139,24 +142,23 @@
 
     <section data-screen="drone" hidden>
       <p class="stepno">Schritt 2 von 2</p>
-      <h1>Drohne</h1>
+      <h1>Drohne und Spielstil</h1>
       <div class="basic">
-        <div class="seg seg4 small" id="styleSeg"></div>
-        <p class="hint" id="styleHint"></p>
+        <p class="grp">Drohne</p>
         <div class="list grid2" id="droneSeg"></div>
         <p class="hint" id="droneHint"></p>
+        <p class="grp">Flugmodus</p>
         <div class="seg small" id="modeSeg">
           <button data-mode="angle" title="Richtet sich selbst gerade aus"><b>Angle</b></button>
           <button data-mode="acro" title="Knüppel steuert die Drehrate"><b>Acro</b></button>
         </div>
-        <div class="seg small" id="whSeg" hidden>
-          <button data-wh="none" title="Ohne Wirkmittel: Berührung zählt als Treffer"><b>Kontakt</b></button>
-          <button data-wh="charge" title="Last unter der Drohne (schwerer). Scharf, sobald die Drohne einmal 10 m über Grund war. Dann zündet sie bei Kontakt mit Ziel, Boden, Gebäude oder Einheit, danach kommt eine neue Drohne. Vorher: normaler Absturz."><b>Sprengladung</b></button>
-        </div>
-
+        <p class="grp">Spielstil</p>
+        <div class="seg seg4 small" id="styleSeg"></div>
+        <p class="hint" id="styleHint"></p>
       </div>
       <button class="linkbtn" id="bFine">Feinwerte ändern ›</button>
       <div class="fine" hidden>
+        <p class="grp">Regler</p>
         <div class="seg small" id="fcSeg">
           <button data-fc="own" title="Eigener Regler des Simulators"><b>Eigener Regler</b></button>
           <button data-fc="bf" title="Echtes Betaflight als WebAssembly (GPLv3)"><b>Betaflight</b></button>
@@ -198,27 +200,15 @@
     <section data-screen="settings" hidden>
       <h1 id="setTitle">Einstellungen</h1>
       <div class="pausedata" id="pauseData" hidden><span id="pdTxt" title="Echte Welt: in dieser Sitzung aus dem Netz geladen · im Browser gespeichert"></span><span class="pdbtn"><button class="secondary" id="pdClear" title="Gespeicherte Daten der echten Welt im Browser löschen">Leeren</button><button class="secondary" id="pdCache" hidden title="3D-Mesh, beim Fliegen nachgeladene Kacheln, Gebäudekacheln">Zwischenspeicher</button><button class="secondary" id="pdAll" hidden title="Dazu gespeicherte Orte und Landesdaten">Alles</button></span></div>
-      <div class="tabs" role="tablist">
-        <button data-tab="general">Allgemein</button><button data-tab="radio">Steuerung</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
+      <div class="tabs tabs5" role="tablist">
+        <button data-tab="view">Bild</button><button data-tab="game">Spiel</button><button data-tab="radio">Steuerung</button><button data-tab="osd">OSD</button><button data-tab="help">Hilfe</button>
       </div>
-      <div class="tabpane" data-pane="general">
-        <div class="sliders three">
+      <div class="tabpane" data-pane="view">
+        <div class="sliders">
           <div><label class="row" for="tilt"><span>Kamerawinkel</span><output id="tiltV"></output></label>
           <input type="range" id="tilt" min="0" max="60" step="1"></div>
           <div><label class="row" for="fov"><span>Blickfeld</span><output id="fovV"></output></label>
           <input type="range" id="fov" min="70" max="150" step="5"></div>
-          <div><label class="row" for="vol"><span>Lautstärke</span><output id="volV"></output></label>
-          <input type="range" id="vol" min="0" max="100" step="5"></div>
-        </div>
-        <div class="checks">
-          <label class="check"><input type="checkbox" id="sound"> Ton</label>
-          <label class="check"><input type="checkbox" id="propsView"> Propeller im Bild</label>
-          <label class="check"><input type="checkbox" id="needArm"> Scharf schalten nötig</label>
-          <label class="check" title="Tageszeit Nacht: Mond, Sterne, beleuchtete Fenster und Lichter. Sicht Nacht ist das Nachtsichtgerät."><input type="checkbox" id="night"> Nachtmodus</label>
-          <label class="check"><input type="checkbox" id="autoRes"> Auflösung automatisch</label>
-          <label class="check"><input type="checkbox" id="infBat"> Akku unendlich</label>
-          <label class="check"><input type="checkbox" id="ghost"> Durch Hindernisse</label>
-          <label class="check"><input type="checkbox" id="trail"> Flugspur</label>
         </div>
         <div class="segpair">
         <div><h2>Videobild</h2>
@@ -241,8 +231,28 @@
           <button data-gfx="mid"><b>Mittel</b></button>
           <button data-gfx="simple"><b>Einfach</b></button>
         </div>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="autoRes"> Auflösung automatisch</label>
+          <label class="check"><input type="checkbox" id="propsView"> Propeller im Bild</label>
+          <label class="check" title="Tageszeit Nacht: Mond, Sterne, beleuchtete Fenster und Lichter. Sicht Nacht ist das Nachtsichtgerät."><input type="checkbox" id="night"> Nachtmodus</label>
+        </div>
+      </div>
+      <div class="tabpane" data-pane="game" hidden>
+        <p class="hint">Der Spielstil (beim Start, Schritt 2) setzt diese Regeln gemeinsam. Hier lassen sie sich einzeln ändern.</p>
         <h2>Schaden</h2>
         <div class="seg seg3 small" id="dmgSeg"></div>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="infBat"> Akku unendlich</label>
+          <label class="check"><input type="checkbox" id="ghost"> Durch Hindernisse</label>
+          <label class="check"><input type="checkbox" id="trail"> Flugspur</label>
+          <label class="check"><input type="checkbox" id="needArm"> Scharf schalten nötig</label>
+        </div>
+        <h2>Ton</h2>
+        <div class="sliders">
+          <div><label class="check"><input type="checkbox" id="sound"> Ton an</label></div>
+          <div><label class="row" for="vol"><span>Lautstärke</span><output id="volV"></output></label>
+          <input type="range" id="vol" min="0" max="100" step="5"></div>
+        </div>
       </div>
       <div class="tabpane" data-pane="radio" hidden>
         <div class="seg small" id="ctlSeg">

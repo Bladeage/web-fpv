@@ -115,7 +115,7 @@ export function cellOcv(soc) {
 export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {}, pop() {} };   // Ton und Vibration, setzt main.js
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
-export const task = { check: checkGate, collide: null, reset() {}, early: false, gateExtra: 0 };   // gateExtra: Tor zählt so viele m neben der Öffnung (Stufe)   // early: vor Boden und Hindernissen prüfen
+export const task = { check: checkGate, collide: null, reset() {}, hold: () => false, early: false, gateExtra: 0 };   // gateExtra: Tor zählt so viele m neben der Öffnung (Stufe)   // early: vor Boden und Hindernissen prüfen
 
 function newSim() {
   return {
@@ -281,7 +281,10 @@ export function step(h) {
   // Wenig Stick dreht langsam, voller Stick schnell.
   // Start nur mit Gas unten (gleiche Grenze wie beim Beenden), sonst schaltet er jeden Schritt an und aus.
   if (!s.turtle && game.armed && s.flippedT > 0.3 && game.throttle <= 0.15) { s.turtle = true; s.turtleAir = 0; say('Turtle-Modus: Stick zum Umdrehen', 2); }
-  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) { s.turtle = false; s.afterTurtle = true; s.flippedT = 0; }
+  else if (s.turtle && (!game.armed || (up[1] > 0.9 && vLen(s.w) < 2) || game.throttle > 0.15 || s.turtleAir > 1)) { s.turtle = false; s.afterTurtle = true; s.flippedT = 0;
+    // Betaflight lief im Turtle-Modus weiter und regelte gegen eine Drehung, die es nicht steuert: der nächste Start zog bis 40 Grad
+    // zur Seite. Darum danach frisch starten (Prüfung Drohne Nr. 4).
+    if (cfg.fc === 'bf' && bf.ready && !bfStart()) bfFallbackNote(); }
   let turtleM = null;
   if (s.turtle) {
     s.turtleAir = s.onGround ? 0 : s.turtleAir + h;
@@ -299,6 +302,8 @@ export function step(h) {
     MOTORS.forEach(([mx, mz], i) => { const k = clamp(mz*sz - mx*sx, 0, 1); s.cmd[i] = k > 0.05 ? 0.15 + 0.35*k : 0; });   // Ton und Propeller
     s.wi[0] = s.wi[1] = s.wi[2] = 0;
   }
+  // Leerer Akku liefert nichts mehr; vorher flog die Drohne mit 3,27 V je Zelle endlos weiter (Prüfung Drohne Nr. 3)
+  if (!cfg.infBat && s.mah >= BAT.cap) { s.cmd[0] = s.cmd[1] = s.cmd[2] = s.cmd[3] = 0; if (!s.flat) { s.flat = true; say('Akku leer', 3); } }
   const E = BAT.cells*cellOcv(1 - s.mah/BAT.cap) - s.vrc;
   let su2 = 0, sue = 0;
   for (let i = 0; i < 4; i++) { su2 += s.cmd[i]*s.cmd[i]; sue += s.cmd[i]*mc.ke*s.om[i]; }
@@ -322,6 +327,7 @@ export function step(h) {
   s.cellRest = cellOcv(1 - s.mah/BAT.cap);
   s.vrc += (s.amp*BAT.r2 - s.vrc)*Math.min(1, h/BAT.tau);
   s.vpack = Vb;
+  s.vavg = (s.vavg ?? Vb) + (Vb - (s.vavg ?? Vb))*Math.min(1, h/2);   // geglättet über etwa 2 s, für die Warnungen im OSD (Prüfung Drohne Nr. 10)
   if (s.thr > 0.05) s.vmin = Math.min(s.vmin, s.vpack);
   if (s.thr > 0.05) s.flyT += h;
 
@@ -403,8 +409,6 @@ export function step(h) {
   if (resolve(ground, PHYS.crashV*1.2*dmgMode().crashK, 'Bodenkontakt zu schnell')) return;
   // Echte Welt: Wasser setzt die Drohne immer außer Gefecht (auch ohne Schadensmodell), nur Neustart hilft
   if (rw.on && waterAt(s.p[0], s.p[2]) && s.p[1] - PHYS.foot < groundH(s.p[0], s.p[2]) + WATER_UP) { crash('Ins Wasser gestürzt. R für Neustart'); return; }
-  // Umgedreht liegen geblieben: startet den Turtle-Modus (siehe oben), sonst Hinweis im OSD
-  s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < 0.5 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;   // auf dem Kopf oder auf der Seite
   // 7. Hindernisse
   if (!cfg.ghost && rw.on && rwCollide(prev, h)) return;   // echte Welt: Gebäude (Dreiecke) und Bäume
   if (!cfg.ghost && !rw.on) {   // Durch Hindernisse fliegen (Lernhilfe): nur der Boden bleibt fest
@@ -412,6 +416,8 @@ export function step(h) {
     for (const c of town) if (collide(c, h)) return;   // kleine Stadt mit Testecken
     if (task.collide && task.collide(h)) return;
   }
+  // Umgedreht liegen geblieben: startet den Turtle-Modus (siehe oben); nach den Hindernissen, damit auch Dächer zählen, sonst Hinweis im OSD
+  s.flippedT = s.onGround && qRot(s.q, [0, 1, 0])[1] < 0.5 && vLen(s.v) < 0.5 ? (s.flippedT || 0) + h : 0;   // auf dem Kopf oder auf der Seite
   // 8. Aufgabe des Szenarios (Tore, Ringe ...)
   if (!task.early) task.check(prev, s.p, h);
   s.t += h;
@@ -436,10 +442,11 @@ export function toggleFreeze() {
 // Zurückspulen (Lernhilfe): Drohne an den Zustand von vor sec Sekunden setzen, auch nach einem Absturz.
 // Zeit, Akku und Fortschritt im Szenario laufen weiter.
 export function rewind(sec = 5) {
-  if (!history.length) return false;
-  const target = game.sim.t - sec;
-  let k = history.findIndex(x => x.t >= target);
-  if (k < 0) k = 0;
+  if (!history.length || task.hold()) return false;   // gezündete Ladung: die Drohne ist verbraucht
+  // Betaflight kennt die Lage nur aus dem Kreisel: nach dem Zurücksetzen stimmte seine Lage nicht mehr, die Drohne driftete weg (Prüfung Drohne Nr. 2)
+  if (cfg.fc === 'bf' && bf.ready) { say('Zurückspulen geht nur mit dem eigenen Regler', 2); return false; }
+  // Nach Einträgen zählen (alle 0,1 s einer), nicht nach der Zeit: die Zeit läuft nach dem Zurückspulen weiter (Prüfung Drohne Nr. 6)
+  const k = Math.max(0, history.length - 1 - Math.round(sec*10));
   const h = history[k], s = game.sim;
   for (const key of ['p', 'v', 'q', 'w', 'om', 'mot', 'wi', 'hp']) s[key] = h[key].slice();
   s.grounded = false; s.turtle = false; s.flippedT = 0; history.length = k + 1;
@@ -643,6 +650,9 @@ export function impact(n, pen, r, rotor, limit, why) {
   const s = game.sim, q = s.q, qi = [-q[0], -q[1], -q[2], q[3]], I = PHYS.I, m = PHYS.mass + (game.payload || 0);
   const vc = vAdd(s.v, vCross(qRot(q, s.w), r));   // Geschwindigkeit des Kontaktpunkts
   const vn = vDot(vc, n);
+  // Aufliegen auf einem Dach oder Hindernis zählt wie der Boden: Turtle-Modus, Hinweis „umgedreht“ und Ruhe mit Gas unten
+  // gab es vorher nur auf dem Gelände (Prüfung Drohne Nr. 5)
+  if (n[1] > 0.7) { s.onGround = true; if (qRot(q, [0, 1, 0])[1] > 0.9) s.grounded = true; }
   s.p = vAdd(s.p, vScale(n, pen));                  // aus dem Hindernis schieben
   if (vn >= 0) return false;                         // trennt sich schon
   if (-vn > limit) { crash(why); return true; }

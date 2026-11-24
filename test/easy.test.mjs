@@ -30,8 +30,8 @@ test('Landehilfe bremst das Sinken unter 5 m, in Normal nicht', () => {
   }
 });
 test('Lieferzonen in Leicht doppelt so groß; Abwurf im Überflug liefert ohne Schweben', () => {
-  cfg.diff = 'easy'; assert.equal(dropR(), 2*DROP_R);
-  cfg.diff = 'mid'; assert.equal(dropR(), DROP_R);
+  cfg.diff = 'easy'; respawn(); assert.equal(dropR(), 2*DROP_R);   // die Stufe gilt ab dem Start (Prüfung Nr. 4)
+  cfg.diff = 'mid'; respawn(); assert.equal(dropR(), DROP_R);
   cfg.diff = 'easy'; setScenario('deliver'); respawn();
   const s = game.sim;
   s.p = [PICKUP[0], PHYS.foot + 0.5, PICKUP[2]]; s.v = [0, 0, 0]; s.grounded = false; game.throttle = hoverThrottle(); run(2);
@@ -50,7 +50,7 @@ test('Verfolgung in Leicht: Auto langsamer, mehr Abstand erlaubt', () => {
     const L = followLead(); dist[d] = L.s;
   }
   assert.ok(dist.easy < dist.mid*0.8, 'Strecke in 5 s: leicht ' + dist.easy.toFixed(1) + ' m, normal ' + dist.mid.toFixed(1) + ' m');
-  cfg.diff = 'easy'; assert.ok(diff().followMax > 12);
+  cfg.diff = 'easy'; respawn(); assert.ok(diff().followMax > 12);
 });
 
 test('Runde 2: Ringe in Leicht höchstens 8 m hoch; Leuchtspur hinter dem Auto nur in Leicht', () => {
