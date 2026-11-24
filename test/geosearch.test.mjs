@@ -5,7 +5,7 @@ import { geoSearch, geoSearchUrl, geoShortName, GEOSEARCH } from '../src/geosear
 
 test('Adresse: nur Deutschland, deutsch, höchstens 5 Treffer, Text kodiert', () => {
   const u = geoSearchUrl(' 51643 Bergisch Gladbach, Josef-Roemer-Str. ');
-  assert.ok(u.startsWith(GEOSEARCH.url) && u.includes('countrycodes=de') && u.includes('accept-language=de') && u.includes('limit=5'));
+  assert.ok(u.startsWith(GEOSEARCH.url) && u.includes('viewbox=5.8,55.1,15.1,47.2') && !u.includes('countrycodes') && u.includes('accept-language=de') && u.includes('limit=5'));
   assert.ok(u.endsWith('q=51643%20Bergisch%20Gladbach%2C%20Josef-Roemer-Str.'));
 });
 

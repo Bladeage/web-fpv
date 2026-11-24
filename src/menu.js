@@ -249,7 +249,10 @@ export function openMenu(name = 'settings') {
   game.paused = true; keys.clear(); ptr.clear(); menu.hidden = false; document.body.classList.add('menuopen'); show(name);
   audioPause();
 }
-export function resume() { keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; document.body.classList.remove('menuopen'); game.last = performance.now(); }
+// Andere Drohne im Menü gewählt und dann „Weiterfliegen“: der alte Flug bekäme die neue Drohne. Dann neu starten (Prüfung Drohne Nr. 8).
+const droneKey = () => JSON.stringify(cfg.drone);
+export function resume() { if (game.started && game.droneKey && game.droneKey !== droneKey()) { game.droneKey = droneKey(); applyDrone(cfg.drone); respawn(); say('Neue Drohne: Flug neu gestartet', 2); }
+  keyLearn.fn = null; audioInit(); game.paused = false; game.started = true; menu.hidden = true; document.body.classList.remove('menuopen'); game.last = performance.now(); }
 function back() { if (from === null && game.started) resume(); else show(from || 'main'); }
 // Esc, P und ☰: Einstellungen öffnen oder wieder schließen
 // Umschauen am Ort der Übung (Freiflug ohne Aufgabe im DIS-Modus, Prompt 172): Esc öffnet die Auswahl mit dem DIS-Block (Gelände
@@ -375,7 +378,7 @@ async function start() {
 // Flug mit Szenario id beginnen, real: in der echten Welt (auch die Vorschau der Grundtypen, ohne die Wahl im Menü zu ändern)
 function run(id, real = false) {
   setScenario(id, real); applyDrone(cfg.drone); saveCfg();
-  game.scenRun = id;
+  game.scenRun = id; game.droneKey = droneKey();
   respawn(); resume();
 }
 // Modus-Liste nach Flugart und Welt: Parcours auf der Spielkarte alle Modi außer echte Welt und Vorschau; Parcours in der

@@ -102,7 +102,7 @@ export function rwPlan(lat, lon, list = rwSources(), opt = {}) {
   if (w && (!main || list.indexOf(w) < list.indexOf(main))) main = w;
   if (!main) return null;
   if (main.kind === 'wms') {   // geografischer Dienst: Gebiet im UTM-Gitter der Zone des Orts, keine weiteren Quellen
-    const z = Math.floor((lon + 180)/6) + 1, [E, N] = toUtm(lat, lon, z);
+    const z = opt.zone || Math.floor((lon + 180)/6) + 1, [E, N] = toUtm(lat, lon, z);
     main = { ...main, crs: 'EPSG:258' + String(z).padStart(2, '0') };
     const area = rwAreaAt(E, N, main); area.place = lat.toFixed(5) + ', ' + lon.toFixed(5);
     return { srcs: [main], area, skipped: [], toLand: () => null };
@@ -171,7 +171,8 @@ export function rwNet(signal, stall = RW_STALL) {
     if (!r.ok) throw new Error(host(u) + ' antwortet ' + r.status);
     const x = await readBody(r, both(null, kick)); return r.status === 206 ? x : x.subarray(a, b + 1);
   }, { headers: { Range: `bytes=${a}-${b}` } });
-  Object.assign(get, { range });   // an get gehängt: rwFetchArea und der Hintergrund-Thread reichen nur get und text weiter
+  const probe = u => fetch(u, { mode: 'no-cors', signal }).then(() => true, () => false);   // Server erreichbar, auch wenn er ohne CORS antwortet?
+  Object.assign(get, { range, probe });   // an get gehängt: rwFetchArea und der Hintergrund-Thread reichen nur get und text weiter
   return { get, text, post };
 }
 // Straßen eines Gebiets (S2) im Hintergrund-Thread laden und in Mittellinien umwandeln (sonst im Hauptprogramm). null ohne Quelle.
@@ -249,7 +250,12 @@ export async function rwWmsPhoto(src, bbox, crs, px, get) {
   return rw.photoWarp(await wmsFetchPhoto(src, layer, bbox, +(crs.match(/258(\d\d)/) || [0, 32])[1], px, get), px);
 }
 const farBox = (a, size = RW_FAR.size) => { const ec = (a.bbox[0] + a.bbox[2])/2, nc = (a.bbox[1] + a.bbox[3])/2; return [ec - size/2, nc - size/2, ec + size/2, nc + size/2]; };
+// Scheitert das Laden, bleibt das alte Gebiet und mit ihm seine Quellenwahl für Kacheln und Umgebung (Prüfung Geo Nr. 12)
 export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = null, store = null, po = {}) {
+  const old = rw.liveDis;
+  try { return await rwLoadLive0(lat, lon, say, signal, mergeImg, store, po); } catch (e) { rw.liveDis = old; throw e; }
+}
+async function rwLoadLive0(lat, lon, say, signal, mergeImg, store, po) {
   const plan = rwPlan(lat, lon, rwSources(), po);
   rw.liveDis = po.wms || po.dis ? { wms: po.wms || null, dis: !!po.dis } : null;   // Kacheln und Umgebung planen mit denselben Quellen
   if (!plan) throw new Error('Für diesen Ort ist keine Quelle hinterlegt. Eigene Quellen unter „Quellen“ eintragen.');
@@ -263,7 +269,7 @@ export async function rwLoadLive(lat, lon, say = () => {}, signal, mergeImg = nu
     // Ohne Umgebung (gespeichert vor L5a oder damals nicht erreichbar) gibt es kein Nachladen beim Fliegen (rwStreamStep braucht rw.far):
     // Umgebung jetzt nachholen, wenn das Netz da ist; ohne Netz öffnet der Ort wie bisher (Nutzer, Prompt 123)
     let far = null;
-    if (!saved.farq && srcs[0].dgm) {
+    if (!saved.farq) {
       far = await rwFetchFar(plan.area, srcs[0], rwNet(signal).get, say).catch(() => null);
       if (signal && signal.aborted) throw new Error('Abgebrochen');
       if (far) { saved.farq = far.q; saved.fardop = far.dop; saved.meta.far = far.meta; }
@@ -924,7 +930,7 @@ export function rwStreamPlan(x, z, now = Date.now()) {
 // Eine Kachel laden (aus dem Speicher oder von den Diensten) und als Kachel-Objekt liefern (Weltkoordinaten des Startgebiets)
 export async function rwLoadTile(i, j, store, say = () => {}, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + i*S, nc = (m.bbox[1] + m.bbox[3])/2 - j*S;
-  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), rw.liveDis || {});
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), { ...(rw.liveDis || {}), zone });   // Welt-Quelle: Zone des Startgebiets, auch jenseits des 6-Grad-Meridians (Prüfung Geo Nr. 6)
   if (!plan) throw new Error('keine Quelle');
   const srcs = plan.srcs.filter(s => s.crs === m.crs);
   if (!srcs.length) throw new Error('anderes Koordinatensystem');
@@ -1002,8 +1008,8 @@ export async function rwStreamStep(x, z, store, say = () => {}) {
 export const RW_FAR_MOVE = 1500;
 export async function rwLoadFar(cx, cz, store, signal) {
   const m = rw.meta, S = rw.size, ec = (m.bbox[0] + m.bbox[2])/2 + cx, nc = (m.bbox[1] + m.bbox[3])/2 - cz;
-  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), rw.liveDis || {});
-  const src = plan && plan.srcs.find(s => s.crs === m.crs && (s.dgm || s.kind === 'wms'));
+  const zone = +(m.crs.match(/258(\d\d)/) || [0, 32])[1], [lat, lon] = fromUtm(ec, nc, zone), plan = rwPlan(lat, lon, rwSources(), { ...(rw.liveDis || {}), zone });   // Welt-Quelle: Zone des Startgebiets, auch jenseits des 6-Grad-Meridians (Prüfung Geo Nr. 6)
+  const src = plan && plan.srcs.find(s => s.crs === m.crs);   // auch Länder ohne eigene Höhen: rwFetchFar nimmt dann die Welt-Quelle (Prüfung Geo Nr. 3)
   if (!src) throw new Error(plan ? 'anderes Koordinatensystem' : 'keine Quelle');
   if (src.store === false) store = null;   // nur Arbeitsspeicher (Lizenz der Quelle)
   const a = { bbox: [ec - S/2, nc - S/2, ec + S/2, nc + S/2], crs: m.crs }, key = rwAreaKey(lat, lon, [src]) + '|umgebung';

@@ -52,3 +52,20 @@ test('Nr. 9, 11: Bestzeit je Stufe und Trefferzahl; Zeit rundet sauber', () => {
   cfg.diff = 'mid'; setScenario('rings'); assert.equal(game.bestScen, 'rings');
   assert.equal(fmtTime(59.996), '1:00.00'); assert.equal(fmtTime(59.994), '0:59.99'); assert.equal(fmtTime(5), '0:05.00');
 });
+
+test('Drohne Nr. 3, 6: leerer Akku trägt nicht mehr; Zurückspulen zählt nach Einträgen, auch beim zweiten Mal', async () => {
+  const { BAT, hoverThrottle } = await import('../src/physics.js');
+  cfg.flight = 'course'; cfg.dmg = 'off'; cfg.infBat = false; cfg.fc = 'own'; cfg.mode = 'angle'; setScenario('free'); respawn();
+  const s = game.sim; s.p[1] = 30; s.grounded = false; game.throttle = hoverThrottle(); run(2);
+  assert.ok(s.p[1] > 25, 'schwebt mit vollem Akku: ' + s.p[1].toFixed(1));
+  s.mah = BAT.cap + 1; run(3);
+  assert.ok(s.p[1] < 10, 'fällt mit leerem Akku: ' + s.p[1].toFixed(1));
+  cfg.infBat = true; respawn();
+  const d = game.sim; d.p[1] = 30; d.grounded = false; game.throttle = hoverThrottle()*1.08;   // steigt stetig: die Höhe ist die Uhr
+  const y = []; for (let i = 0; i < 12; i++) { run(1); y.push(d.p[1]); }
+  assert.equal(rewind(5), true); const a = d.p[1];
+  assert.ok(Math.abs(a - y[6]) < (y[7] - y[6]), 'erstes Mal 5 s zurück: ' + a.toFixed(1) + ' statt ' + y[6].toFixed(1));
+  run(2); const c = d.p[1]; assert.equal(rewind(5), true); const b = d.p[1];   // 2 s weiter, dann wieder 5 s zurück (vorher nur 2 s)
+  assert.ok(Math.abs((c - b) - 5*(y[7] - y[6])) < (y[7] - y[6]), 'zweites Mal wieder 5 s zurück: von ' + c.toFixed(1) + ' auf ' + b.toFixed(1) + ' (nach dem ersten Mal ' + a.toFixed(1) + ')');
+  cfg.infBat = false;
+});

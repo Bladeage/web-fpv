@@ -104,7 +104,7 @@ export function geoPack(areas, land) {
   for (const r of areas) {
     const parts = {};
     for (const k of ['q', 'b16', 't16', 'dop', 'water', 'farq', 'fardop']) if (r[k]) { parts[k] = [geoType(r[k]), r[k].byteLength]; blobs.push(bytes(r[k])); }
-    head.areas.push({ key: r.key, meta: r.meta, lat: r.lat, lon: r.lon, srcs: r.srcs, features: r.features || null, date: r.date || null, parts });
+    head.areas.push({ key: r.key, meta: r.meta, lat: r.lat, lon: r.lon, srcs: r.srcs, features: r.features || null, date: r.date || null, tile: r.tile || undefined, parts });
   }
   for (const { key, data } of land) { head.land.push({ key, len: data.byteLength }); blobs.push(bytes(data)); }
   const h = new TextEncoder().encode(JSON.stringify(head)), pre = new Uint8Array(GEO_MAGIC.length + 4);
@@ -118,7 +118,7 @@ export function geoUnpack(u8) {
   if (head.version !== 1) throw new Error('Unbekannte Version ' + head.version);
   let o = m + 4 + hl;
   const take = (type, len) => { if (o + len > u8.length) throw new Error('Datei unvollständig'); const b = u8.slice(o, o + len); o += len; const T = GEO_TYPES[type] || Uint8Array; return new T(b.buffer, 0, len/T.BYTES_PER_ELEMENT); };
-  const areas = head.areas.map(a => { const r = { key: a.key, meta: a.meta, lat: a.lat, lon: a.lon, srcs: a.srcs, features: a.features, date: a.date, dop: null, water: null };
+  const areas = head.areas.map(a => { const r = { key: a.key, meta: a.meta, lat: a.lat, lon: a.lon, srcs: a.srcs, features: a.features, date: a.date, tile: a.tile || undefined, dop: null, water: null };
     for (const [k, [type, len]] of Object.entries(a.parts)) r[k] = take(type, len); return r; });
   const land = head.land.map(l => ({ key: l.key, data: take('u8', l.len) }));
   return { areas, land, created: head.created };

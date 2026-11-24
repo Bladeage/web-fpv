@@ -299,6 +299,8 @@ export function step(h) {
     MOTORS.forEach(([mx, mz], i) => { const k = clamp(mz*sz - mx*sx, 0, 1); s.cmd[i] = k > 0.05 ? 0.15 + 0.35*k : 0; });   // Ton und Propeller
     s.wi[0] = s.wi[1] = s.wi[2] = 0;
   }
+  // Leerer Akku liefert nichts mehr; vorher flog die Drohne mit 3,27 V je Zelle endlos weiter (Prüfung Drohne Nr. 3)
+  if (!cfg.infBat && s.mah >= BAT.cap) { s.cmd[0] = s.cmd[1] = s.cmd[2] = s.cmd[3] = 0; if (!s.flat) { s.flat = true; say('Akku leer', 3); } }
   const E = BAT.cells*cellOcv(1 - s.mah/BAT.cap) - s.vrc;
   let su2 = 0, sue = 0;
   for (let i = 0; i < 4; i++) { su2 += s.cmd[i]*s.cmd[i]; sue += s.cmd[i]*mc.ke*s.om[i]; }
@@ -437,9 +439,10 @@ export function toggleFreeze() {
 // Zeit, Akku und Fortschritt im Szenario laufen weiter.
 export function rewind(sec = 5) {
   if (!history.length || task.hold()) return false;   // gezündete Ladung: die Drohne ist verbraucht
-  const target = game.sim.t - sec;
-  let k = history.findIndex(x => x.t >= target);
-  if (k < 0) k = 0;
+  // Betaflight kennt die Lage nur aus dem Kreisel: nach dem Zurücksetzen stimmte seine Lage nicht mehr, die Drohne driftete weg (Prüfung Drohne Nr. 2)
+  if (cfg.fc === 'bf' && bf.ready) { say('Zurückspulen geht nur mit dem eigenen Regler', 2); return false; }
+  // Nach Einträgen zählen (alle 0,1 s einer), nicht nach der Zeit: die Zeit läuft nach dem Zurückspulen weiter (Prüfung Drohne Nr. 6)
+  const k = Math.max(0, history.length - 1 - Math.round(sec*10));
   const h = history[k], s = game.sim;
   for (const key of ['p', 'v', 'q', 'w', 'om', 'mot', 'wi', 'hp']) s[key] = h[key].slice();
   s.grounded = false; s.turtle = false; s.flippedT = 0; history.length = k + 1;

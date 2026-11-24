@@ -40,7 +40,7 @@ export const RW_SOURCES = [{
 { id: 'rp', roads: OSM_ROADS, name: 'Rheinland-Pfalz (GeoBasis-RLP)', land: 'Rheinland-Pfalz', crs: 'EPSG:25832', dgm: { index: 'https://geobasis-rlp.de/data/dgm1/current/tif/', tpl: 'dgm1_32_{e}_{n}_1_rp_', km: 1 },
   dop: { url: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi', layer: 'rp_dop20' },
   lod2: { url: 'https://geobasis-rlp.de/data/geb3dlo/current/gml/LoD2_32_{E}_{N}_2_RP.gml', tileKm: 2 }, attribution: 'GeoBasis-DE / LVermGeoRP 2026, dl-de/by-2-0' },
-{ id: 'mv', roads: OSM_ROADS, name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm' },
+{ id: 'mv', roads: OSM_ROADS, name: 'Mecklenburg-Vorpommern (LAiV)', land: 'Mecklenburg-Vorpommern', crs: 'EPSG:25833', dgm: { url: 'https://www.geodaten-mv.de/dienste/dgm_wcs', coverage: 'mv_dgm', nodata: 0 },
   dom: { url: 'https://www.geodaten-mv.de/dienste/dom_wcs', coverage: 'mv_dom1' },   // Oberfläche für Bäume (Prompt 227, CORS gemessen)
   dop: { url: 'https://www.geodaten-mv.de/dienste/adv_dop', layer: 'mv_dop' },
   lod2: { url: 'https://www.geodaten-mv.de/dienste/gebaeude_download?index=0&dataset=8397b554-5cb9-4274-8be8-c20490d9a6e8&file=lod2_33_{E}_{N}_2_gml.zip', tileKm: 2, zip: '.gml' }, attribution: 'GeoBasis-DE/M-V 2026, CC BY 4.0' },
@@ -49,7 +49,7 @@ export const RW_SOURCES = [{
   dgm: { url: 'https://owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1', coverage: 'EL.ElevationGridCoverage', axes: ['E', 'N'] },
   dop: { url: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', layer: 'IMAGES_DOP_20_RGB' }, attribution: 'LGL, www.lgl-bw.de, dl-de/by-2-0' },
 { id: 'sl', roads: OSM_ROADS, name: 'Saarland (LVGL)', land: 'Saarland', crs: 'EPSG:25832',
-  dgm: { url: 'https://geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel', coverage: 'EL.GridCoverage', scale: 0.01 },
+  dgm: { url: 'https://geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel', coverage: 'EL.GridCoverage', scale: 0.01, nodata: 0 },   // nodata 0: gemessen, 29 % der Zellen im Umland genau 0
   dop: { url: 'https://geoportal.saarland.de/freewms/dop2023', layer: 'sl_dop20_rgb' }, attribution: 'LVGL Saarland 2026' },
 // Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
 ...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0'],
@@ -94,7 +94,11 @@ export function wcsUrl(svc, bbox, crs, n) {
 // WCS-Antwort lesen (auch Deflate); svc.scale rechnet die Einheit um (Saarland: Zentimeter)
 export async function wcsTiff(svc, u8) {
   const t = await readTiffAsync(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength));
-  if (svc.scale) for (let k = 0; k < t.data.length; k++) if (t.data[k] !== t.nodata) t.data[k] *= svc.scale;
+  // Füllwerte zu NaN (Prüfung Geo Nr. 1): Füllwert der Datei und svc.nodata; dazu alles unter -1000 m und ab 9000 m
+  // (Baden-Württemberg füllt zusätzlich mit 32768). Danach die Einheit umrechnen.
+  const sc = svc.scale || 1;
+  for (let k = 0; k < t.data.length; k++) { const v = t.data[k], x = v*sc; t.data[k] = Number.isFinite(v) && v !== t.nodata && v !== svc.nodata && x > -1000 && x < 9000 ? x : NaN; }
+  t.nodata = NaN;
   return t;
 }
 export function wmsUrl(svc, bbox, crs, n) {
@@ -297,10 +301,14 @@ export async function tileRaster(svc, bbox, crs, n, get, text) {
   return { w: n, h: n, data: out, nodata: NaN };
 }
 // Gebäude-Kachel als Text; lod2.zip (Q5): ZIP ganz laden, Datei darin (Brandenburg, Berlin). Fehlt die Kachel (404): null.
+// Manche Server (NRW, Brandenburg) schicken ihr 404 ohne CORS-Freigabe: der Browser meldet dann nur „keine Verbindung“. Antwortet
+// der Server auf eine Probe ohne CORS, gilt die Kachel als fehlend ('': nicht dauerhaft merken). Prüfung Geo Nr. 2.
 async function lod2Text(svc, u, text, get, prog) {
-  if (!svc.zip) return text(u, prog);
-  const z = await get(u, prog).catch(e => { if (/ 404/.test(e.message)) return null; throw e; });
-  return z && new TextDecoder().decode(await zipGet(async (a, b) => z.subarray(a, b + 1), z.length, svc.zip));
+  try {
+    if (!svc.zip) return await text(u, prog);
+    const z = await get(u, prog).catch(e => { if (/ 404/.test(e.message)) return null; throw e; });
+    return z && new TextDecoder().decode(await zipGet(async (a, b) => z.subarray(a, b + 1), z.length, svc.zip));
+  } catch (e) { if (/^Keine Verbindung/.test(e.message) && get.probe && await get.probe(u)) return ''; throw e; }
 }
 export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   const srcs = Array.isArray(src) ? src : [src], multi = srcs.length > 1 && opt.cells;
@@ -329,9 +337,16 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
   // WMS-Höhendienst: Höhen aus dem Dienst (geografisch, umgerechnet auf unser Gitter); keine Oberfläche, kein Luftbild, keine Gebäude
   const wms = srcs[0].kind === 'wms';
   const dgm = wms || !srcs[0].dgm ? { w: n, h: n, nodata: NaN, data: (await wmsFetchHeights(wms ? srcs[0] : RW_SOURCES.find(x => x.tiles), a.bbox, crsZone(a.crs), n, get)).data } : await raster('dgm', 'Höhen');   // ohne dgm: Welt (Q6)
+  // Zellen ohne gültige Höhe (Nachbarland ohne eigene Höhen, Ausland, Lücken) aus der Welt-Quelle füllen statt als Ebene auf dem
+  // tiefsten Wert (Prüfung Geo Nr. 4). Ohne Antwort bleibt es wie bisher.
+  const welt = RW_SOURCES.find(x => x.tiles), hBad = v => !(Number.isFinite(v) && v !== dgm.nodata && v > -1000 && v < 9000);
+  if (!wms && srcs[0].dgm && welt && welt.use !== 'nie' && dgm.data.some(hBad)) {
+    const w = await wmsFetchHeights(welt, a.bbox, crsZone(a.crs), n, get).catch(() => null);
+    if (w) for (let k = 0; k < dgm.data.length; k++) if (hBad(dgm.data[k]) && Number.isFinite(w.data[k])) dgm.data[k] = w.data[k];
+  }
   if (!dgm) throw new Error('Quelle ohne Höhen (WCS)');
   say('Oberfläche (Bäume)', 0.1);
-  const domR = !wms && srcs[0].dgm && (srcs[0].dom || multi) ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
+  const domR = !wms && srcs[0].dgm && (multi ? srcs.some(s => s.dom) : srcs[0].dom) ? await raster('dom', 'Oberflächen') : null, dom = domR ? domR.data : null;
   say('Luftbild', 0.2);
   // Fortschritt beim Herunterladen großer Dateien: Schritt mit MB
   const mb = (what, f, w = 0) => (n, t) => say(what + ' (' + (n/1e6).toFixed(1) + (t ? ' von ' + (t/1e6).toFixed(1) : '') + ' MB)', t ? f + w*n/t : f);   // w: Anteil des Schritts
@@ -361,7 +376,7 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
       if (!t) {
         const xml = await lod2Text(srcs[si].lod2, u, text, get, mb(step, f, 0.45/jobs.length));
         t = xml ? lod2Pack(opt.async ? await readLod2Async(xml) : readLod2(xml)) : { empty: true };
-        await opt.lod2Cache.put(u, t);
+        if (xml !== '') await opt.lod2Cache.put(u, t);
       } else say(step + ' (aus dem Speicher)', f);
       if (t.empty) continue;   // Kachel ohne Gebäude
       o = lod2Filter(lod2Unpack(t), keep);
@@ -408,7 +423,7 @@ export async function rwCheckSource(s, E, N, get, text) {
   if (s.dom) await run('Oberfläche', () => tif(s.dom));
   if (s.dop) await run('Luftbild', async () => { const b = await get(wmsUrl(s.dop, bb, s.crs, 64)); if (!(b[0] === 0xff && b[1] === 0xd8) && !(b[0] === 0x89 && b[1] === 0x50)) throw new Error('kein Bild'); return (b.length/1024).toFixed(0) + ' KB Bild'; });
   if (s.lod2) await run('Gebäude', async () => { const u = lod2Urls(s.lod2, bb)[0], t = await text(u); if (t === null) return 'keine Kachel an diesem Ort (' + u.split('/').pop() + ')';
-    if (!/CityModel/.test(t.slice(0, 5000))) throw new Error('kein CityGML'); return 'Kachel erreichbar (' + u.split('/').pop() + ')'; });
+    if (s.lod2.zip ? !t.startsWith('PK') : !/CityModel/.test(t.slice(0, 5000))) throw new Error(s.lod2.zip ? 'kein ZIP' : 'kein CityGML'); return 'Kachel erreichbar (' + u.split('/').pop() + ')'; });
   return out;
 }
 // Eigene Quellen aus einer Datei lesen (Export dieses Programms). Prüft die nötigen Felder. Rückgabe { sources, errors }.

@@ -40,7 +40,7 @@ export async function s2Photo(bbox, zone, px, get, text) {
   v.setInt32(18, px, true); v.setInt32(22, -px, true); v.setUint16(26, 1, true); v.setUint16(28, 24, true); v.setUint32(34, row*px, true);
   let empty = 0;
   for (let j = 0; j < px; j++) for (let i = 0; i < px; i++) {
-    const k = (j*px + i)*2, c = pos[k] - 0.5, r = pos[k + 1] - 0.5, ci = Math.floor(c), ri = Math.floor(r), fx = c - ci, fy = r - ri, o = 54 + j*row + i*3;
+    const k = (j*px + i)*2, c = pos[k], r = pos[k + 1], ci = Math.floor(c), ri = Math.floor(r), fx = c - ci, fy = r - ri, o = 54 + j*row + i*3;
     for (let ch = 0; ch < 3; ch++) b[o + 2 - ch] = Math.round((at(ci, ri, ch)*(1 - fx) + at(ci + 1, ri, ch)*fx)*(1 - fy) + (at(ci, ri + 1, ch)*(1 - fx) + at(ci + 1, ri + 1, ch)*fx)*fy);
     if (!b[o] && !b[o + 1] && !b[o + 2]) empty++;
   }
