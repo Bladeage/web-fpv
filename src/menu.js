@@ -1,6 +1,7 @@
 /* Menü in Schritten: Hauptmenü -> Modus -> Parcours -> Drohne -> Start.
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
 import { cfg, game, keys, ptr, saveCfg, KEY_FN, KEY_STICKS, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
+import { loadErrText } from './format.js';
 import { respawn } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam, meshAvail } from './render.js';
@@ -235,6 +236,7 @@ export function show(name) {
   screen = name;
   document.body.classList.toggle('menuopen', !menu.hidden);   // Flug-Knöpfe oben nur ohne Menü
   if (name === 'drone') showFine(false);
+  if (name === 'intro') introShow(0);
   document.querySelectorAll('#menu section').forEach(s => { s.hidden = s.dataset.screen !== name; });
   syncMenu();
   menu.scrollTop = 0;
@@ -285,7 +287,7 @@ async function rwLiveDo() {
   let ll = parseLatLon(cfg.rwLL);
   if (!ll && /\p{L}/u.test(cfg.rwLL || '')) {   // Name oder Adresse (Prompt 192): erst suchen, dann laden
     msgEl().textContent = 'Suche „' + cfg.rwLL + '“ …';
-    const hits = await geoSearch(cfg.rwLL, rwNet(null, 15000)).catch(e => { msgEl().textContent = 'Suche nicht erreichbar: ' + String(e && e.message || e).slice(0, 80); return null; });
+    const hits = await geoSearch(cfg.rwLL, rwNet(null, 15000)).catch(e => { msgEl().textContent = 'Die Ortssuche ist nicht erreichbar. Prüfe deine Internetverbindung oder gib Breite und Länge ein, zum Beispiel 50.7753, 6.0839.'; return null; });
     if (!hits) return false;
     if (!hits.length) { msgEl().textContent = 'Nichts gefunden für „' + cfg.rwLL + '“. Anders schreiben oder die Karte nutzen.'; return false; }
     ll = [hits[0].lat, hits[0].lon]; cfg.rwLL = ll[0].toFixed(5) + ', ' + ll[1].toFixed(5); saveCfg(); syncMenu();
@@ -304,7 +306,7 @@ async function rwLiveDo() {
     // Flug in der echten Welt läuft (Menü offen): neu beginnen, sonst steht die Drohne an der alten Stelle im neuen Gelände
     if (game.started && rw.on) { setScenario(game.scenRun, true); respawn(); }
   } catch (e) {
-    msgEl().textContent = 'Nicht geladen: ' + (e.message || e); msgEl().dataset.dis = 'err';
+    msgEl().textContent = loadErrText(e.message || e); msgEl().dataset.dis = 'err';   // Ursache und was zu tun ist (F1)
     if (/Keine Verbindung|antwortet 5\d\d/.test(String(e.message))) {   // Server nicht erreichbar: Import gespeicherter Geodaten anbieten
       const b = document.createElement('button'); b.className = 'secondary linkbtn'; b.textContent = 'Geodaten importieren';
       b.addEventListener('click', () => { srcFrom = isDis() ? 'dis' : 'mode'; srcOpen('data'); }); msgEl().append(' ', b);
@@ -846,6 +848,27 @@ function buildHelpKeys() {
   add('+ / −', 'Blickfeld'); add('Esc / P', 'Einstellungen');
 }
 syncCtl();
+// Einführung beim ersten Start (F1): drei Schritte, je nach Gerät. Danach nie wieder (cfg.intro); erneut über Hilfe.
+const INTRO = [
+  ['Steuern', () => gp.connected ? ['Die Funke ist erkannt. Linker Knüppel: Gas und Drehen. Rechter Knüppel: vor, zurück und seitlich.', 'Stimmt eine Richtung nicht, änderst du sie unter Einstellungen, Steuerung.', 'Eine freie Taste an der Funke startet nach einem Absturz neu.']
+    : matchMedia('(pointer: coarse)').matches ? ['Linker Daumen: hoch und runter ist Gas, links und rechts dreht die Drohne.', 'Rechter Daumen: vor, zurück und seitlich fliegen.', 'Tippen startet nach einem Absturz neu.']
+    : ['W und S: mehr und weniger Gas. A und D: die Drohne drehen.', 'Pfeiltasten: vor, zurück und seitlich fliegen.', 'R startet neu. Esc öffnet das Menü.', 'Eine Funke oder ein Gamepad per USB wird von selbst erkannt.']],
+  ['Auftrag wählen', () => ['Parcours-Flug: Tore, Ringe, Landung und mehr zum Üben.', 'Taktischer Flug: aufklären und Ziele treffen.', 'Jeder Auftrag geht auf der Spielkarte oder in der echten Welt.', 'Der Spielstil „Lernen“ ist voreingestellt: kein Schaden, Akku unendlich.']],
+  ['Hilfe finden', () => ['Im Flug öffnet der Knopf ☰ oben links (oder Esc) die Pause mit den Einstellungen.', 'Einstellungen, Hilfe erklärt Steuerung, Aufträge, echte Welt und Funke.', 'Dort findest du auch diese Einführung wieder.']]
+];
+let introAt = 0;
+function introShow(k) {
+  introAt = k;
+  $('introNo').textContent = 'Einführung ' + (k + 1) + ' von ' + INTRO.length; $('introTitle').textContent = INTRO[k][0];
+  const ul = $('introList'); ul.textContent = '';
+  for (const t of INTRO[k][1]()) { const li = document.createElement('li'); li.textContent = t; ul.append(li); }
+  $('introNext').textContent = k === INTRO.length - 1 ? 'Los geht es' : 'Weiter';
+  fitPanel();
+}
+const introEnd = () => { cfg.intro = false; saveCfg(); show('main'); };
+$('introSkip').addEventListener('click', introEnd);
+$('introNext').addEventListener('click', () => { if (introAt < INTRO.length - 1) introShow(introAt + 1); else introEnd(); });
+$('introAgain').addEventListener('click', () => { show('intro'); });
 $('bResume').addEventListener('click', resume);
 $('bStart').addEventListener('click', start);
 $('bBack').addEventListener('click', back);

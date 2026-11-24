@@ -133,7 +133,7 @@ function frame(now) {
 bfPrepare(); dePrepare();
 rwThreadInit();   // Hintergrund-Thread für die echte Welt (Prüfbericht Etappe 5); ohne ihn rechnet das Hauptprogramm
 resize();
-show('main');
+show(cfg.intro ? 'intro' : 'main');   // erster Start: Einführung (F1)
 if (!gl) {
   $('glErr').hidden = false; $('go').disabled = true; $('bStart').disabled = true;
 } else {
