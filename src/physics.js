@@ -159,6 +159,15 @@ export function respawnDrone(fresh = false) {
 }
 
 // Scharf schalten oder aus (wie der Arm-Schalter an der Funke). Scharf nur mit Gas unten, wie bei Betaflight.
+// Berührung des Bildschirms (Touch): was geschieht? Ohne DOM, damit es sich testen lässt (Prompt 251; der Fehler aus Prompt 249
+// steckte in input.js und fiel in keinem Test auf). 'new': neuer Auftrag, 'restart': Neustart nach einem Absturz,
+// 'wait': nichts (zu früh nach dem Absturz, oder die nächste Drohne kommt von selbst), 'stick': die Berührung führt einen Knüppel.
+// Nicht scharf geschaltet gilt 'stick': die Knüppel bleiben bedienbar, scharf geschaltet wird über den Knopf.
+export function touchKind(now = performance.now()) {
+  if (game.state === 'done') return 'new';
+  if (game.state === 'crashed') return task.hold() || now - game.sim.crashT <= 400 ? 'wait' : 'restart';
+  return 'stick';
+}
 export function toggleArm() {
   if (game.armed) { game.armed = false; say('Disarmed', 1.2); return false; }
   if (game.throttle > 0.05) { say('Gas runter zum scharf schalten', 1.6); return false; }

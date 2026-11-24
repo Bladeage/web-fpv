@@ -43,7 +43,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url }}
     concurrency:
       group: pages
       cancel-in-progress: true
@@ -63,7 +63,36 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      # Ausliefern mit zweitem Versuch (25.11.2026): Zweimal an einem Abend scheiterte der Schritt mit „Fetching artifact metadata
+      # failed“, 0,4 s nach dem Hochladen des Pakets. Build und Tests waren grün, die Seite blieb aber auf dem alten Stand.
+      # Darum kurz warten, bei einem Fehler nach 30 s noch einmal versuchen und am Ende die ausgelieferte Seite prüfen.
+      - name: Kurz warten, bis GitHub das Paket kennt
+        run: sleep 10
       - id: deploy
         uses: actions/deploy-pages@v4
+        continue-on-error: true
         with:
-          timeout: 1200000   # 20 min: GitHub brauchte beim Abgleich zweimal länger als die vorgegebenen 10 min (06.11.2026)
+          timeout: 600000   # 10 min ist das erlaubte Höchstmaß (mehr kürzt GitHub selbst)
+      - name: Vor dem zweiten Versuch warten
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+      - id: deploy2
+        name: Ausliefern, zweiter Versuch
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000
+      # Prüfen, was wirklich ausgeliefert wird: Die Seite trägt im Hauptmenü den Kurz-Hash des gebauten Commits (tools/build.mjs).
+      # Bis zu 5 min lang alle 15 s abrufen (mit wechselnder Adresse, damit kein Zwischenspeicher antwortet). Ohne Treffer: Lauf rot.
+      - name: Ausgelieferte Seite prüfen
+        env:
+          PAGE_URL: ${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url }}
+        run: |
+          want="${GITHUB_SHA::7}"
+          url="${PAGE_URL:-https://bladeage.github.io/web-fpv/}"
+          for i in $(seq 1 20); do
+            if curl -fsS -m 30 -o seite.html "${url}?v=${GITHUB_SHA}-${i}" && grep -q "$want" seite.html; then echo "Live: Stand $want ist ausgeliefert (Versuch $i)."; exit 0; fi
+            sleep 15
+          done
+          echo "::error::Die Seite ${url} zeigt nach 5 Minuten nicht den Stand $want."
+          exit 1
