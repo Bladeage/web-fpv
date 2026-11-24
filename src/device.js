@@ -21,7 +21,6 @@ export const DEV_LEVELS = [
 // einzeln, mindestens die Werte vor G3 (Kacheln 400 MB, Mesh 500 MB, Handy 150 MB), höchstens max MB. Sparsam: genau die Werte vor G3.
 // Annahme: Zusammen 40 % (Viel 70 %) lassen Platz für gespeicherte Orte und Landesdaten; die Grenze bei 90 % (rwstore.js) bleibt.
 export const DEV_STORE = { low: { share: 0, max: 0 }, auto: { share: 0.2, max: 4000 }, high: { share: 0.35, max: 16000 } };
-export const DEV_MODES = [['auto', 'Automatisch'], ['low', 'Sparsam'], ['high', 'Viel']];
 // Was zuletzt galt (für die Anzeige und den Ruckelschutz)
 export const dev = { info: null, mode: 'auto', p: null, cut: false };
 
