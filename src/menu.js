@@ -2,6 +2,7 @@
    Einstellungen (Kamera, Ton, Steuerung) sind über Esc oder ☰ von überall erreichbar. */
 import { cfg, game, keys, ptr, saveCfg, KEY_FN, KEY_STICKS, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
 import { loadErrText } from './format.js';
+import { NOTES, creditRows } from './notes.js';
 import { respawn, toggleArm, rewind } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam, meshAvail } from './render.js';
@@ -862,6 +863,21 @@ const INTRO = [
   ['Auftrag wählen', () => ['Parcours-Flug: Tore, Ringe, Landung und mehr zum Üben.', 'Taktischer Flug: aufklären und Ziele treffen.', 'Jeder Auftrag geht auf der Spielkarte oder in der echten Welt.', 'Der Spielstil „Lernen“ ist voreingestellt: kein Schaden, Akku unendlich.']],
   ['Hilfe finden', () => ['Im Flug öffnet der Knopf ☰ oben links (oder Esc) die Pause mit den Einstellungen.', 'Einstellungen, Hilfe erklärt Steuerung, Aufträge, echte Welt und Funke.', 'Dort findest du auch diese Einführung wieder.']]
 ];
+// Über das Programm (F4): Neuerungen und alle Quellen mit Lizenz; die Dienste der Länder kommen aus der aktuellen Quellenliste
+let aboutFrom = 'main';
+function aboutShow(from) {
+  aboutFrom = from; show('about');
+  $('aboutVer').textContent = $('verTxt').textContent;
+  const el = (tag, text) => { const e = document.createElement(tag); e.textContent = text; return e; };
+  const nb = $('aboutNotes'); nb.textContent = '';
+  for (const [title, items] of NOTES) { const ul = document.createElement('ul'); for (const t of items) ul.append(el('li', t)); nb.append(el('h3', title), ul); }
+  const cb = $('aboutCredits'); cb.textContent = '';
+  for (const [what, src] of creditRows(rwSources())) cb.append(el('dt', what), el('dd', src));
+  fitPanel(); menu.scrollTop = 0;
+}
+$('bAbout').addEventListener('click', () => aboutShow('main'));
+$('bAbout2').addEventListener('click', () => aboutShow('settings'));
+$('aboutBack').addEventListener('click', () => show(aboutFrom));
 let introAt = 0;
 function introShow(k) {
   introAt = k;

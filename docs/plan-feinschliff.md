@@ -30,7 +30,9 @@ Umgesetzt: Touch-Knöpfe oben (scharf schalten, Flugmodus, zurückspulen; mit Ma
 
 Nicht gewählt: Leistung auf Handys messen und verbessern.
 
-## F4 Abnahme und Release
+## F4 Abnahme und Release (umgesetzt 24.11.2026, Abnahme durch den Nutzer offen)
+
+Umgesetzt: Test-Liste `docs/test-liste.md` (PC, Handy, Funke, drei Orte); Seite „Über das Programm“ im Hauptmenü und in der Hilfe mit Neuerungen und allen Quellen samt Lizenz (`src/notes.js`; die Dienste der Länder kommen aus der Quellenliste); Anleitung im `README.md` (starten, steuern, echte Welt, Funke); Versionshinweise `docs/versionshinweise.md`, vom Test `test/f4.test.mjs` gegen das Programm geprüft. Offen: Der Nutzer arbeitet die Test-Liste ab, Auffälligkeiten werden danach behoben. Nicht rechtlich geprüft: Die Lizenzangaben stammen aus `docs/plan-quellen.md`; beim Saarland nennt der Dienst keine Lizenz (Vermerk vermutet), beim Basis-DLM Niedersachsen ist CC BY 4.0 vom Land übernommen.
 
 1. Test-Liste für den Nutzer auf echten Geräten (Handy, PC, Funke, drei Orte); Auffälligkeiten beheben.
 2. Quellen und Lizenzen: eine Seite im Programm, vollständig und geprüft.
