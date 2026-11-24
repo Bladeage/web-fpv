@@ -24,7 +24,7 @@
       <p id="glErr" class="err" hidden>Dieser Browser bietet kein WebGL2. Bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen.</p>
       <button id="bResume" class="primary" hidden>Weiterfliegen</button>
       <button id="go" class="primary flight" data-flight="course"><b>Parcours-Flug</b><span>Tore, Ringe, Slalom, Landung, Lieferung. Spielkarte oder echte Welt</span></button>
-      <button id="goTac" class="secondary flight" data-flight="tactical"><b>Taktischer Flug</b><span>Fahrzeuge, Drohnen, Flugzeuge, Wirkmittel. Spielkarte oder echte Welt</span></button>
+      <button id="goTac" class="secondary flight" data-flight="tactical"><b>Taktischer Flug</b><span>Aufklärung, Fahrzeuge, Drohnen, Flugzeuge. Spielkarte oder echte Welt</span></button>
       <button id="goDis" class="secondary flight" data-flight="dis" hidden><b>DIS-Übung</b><span>Ort und Einheiten eines DIS-Partners. Experimentell</span></button>
       <button class="secondary" data-go="settings">Einstellungen</button>
       <p class="best" id="bestTxt"></p>
@@ -148,10 +148,6 @@
         <div class="seg small" id="modeSeg">
           <button data-mode="angle" title="Richtet sich selbst gerade aus"><b>Angle</b></button>
           <button data-mode="acro" title="Knüppel steuert die Drehrate"><b>Acro</b></button>
-        </div>
-        <div class="seg small" id="whSeg" hidden>
-          <button data-wh="none" title="Ohne Wirkmittel: Berührung zählt als Treffer"><b>Kontakt</b></button>
-          <button data-wh="charge" title="Last unter der Drohne (schwerer). Scharf, sobald die Drohne einmal 10 m über Grund war. Dann zündet sie bei Kontakt mit Ziel, Boden, Gebäude oder Einheit, danach kommt eine neue Drohne. Vorher: normaler Absturz."><b>Sprengladung</b></button>
         </div>
 
       </div>

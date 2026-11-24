@@ -53,7 +53,7 @@ function combat() {
   if (game.state === 'fly') boomed = false;
   if (!rw.on || !game.started) { vb.hits.length = 0; return; }
   for (const h of vb.hits.splice(0)) shotHit(h.heavy, h.heavy ? 'Abgeschossen' : 'Treffer');
-  const s = game.sim, armed = cfg.warhead === 'charge' && !!s.armed, u = vb.contact;   // erst ab 10 m scharf (Prompt 226)
+  const s = game.sim, armed = !!s.armed, u = vb.contact;   // erst ab 10 m scharf (Prompt 226)
   if (game.state === 'fly' && u) {
     const name = disBaseInfo(u.base).name;
     if (armed) { vbDetonate(s.p, u, s.v); boomed = true; crash('Sprengladung gezündet: ' + name + ' getroffen'); }

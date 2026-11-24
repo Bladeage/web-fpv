@@ -29,7 +29,7 @@ let rwBusy = null;   // echte Welt: laufendes Laden (AbortController)
 // im Parcours). Bis Etappe T4 zählt die Berührung wie in der Jagd; „Gemischt“ und Fahrzeuge in der echten Welt folgen (T5, T6).
 // info: Spielkarte, infoReal: echte Welt (Aufstellung über den Platzierungsdienst, bei jedem Start neu)
 export const TAC = [
-  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Wirkmittel.',
+  { id: 'recon', name: 'Aufklärung', scen: 'recon', worlds: ['map', 'real'], info: 'Fahrende Autos und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären. Ohne Sprengladung.',
     infoReal: 'Autos auf den Straßen (wenn es welche gibt) und Vögel beobachten: ein Ziel 4 s im Fadenkreuz halten, bis 90 m. 3 Ziele aufklären.' },
   { id: 'ground', name: 'Fahrzeuge', scen: 'hunt2', worlds: ['map', 'real'], roads: true, info: '7 Fahrzeuge: grau stehend, blau langsam, rot schnell. Die geforderte Anzahl treffen.',
     infoReal: '7 Fahrzeuge auf den Straßen: grau am Straßenrand, blau langsam, rot schnell. Bei jedem Start neu verteilt.' },
@@ -142,7 +142,7 @@ export function syncMenu() {
   document.querySelectorAll('#modeTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.world === cfg.world)));
   buildModeList();
   const t = TAC.find(x => x.id === cfg.tac) || TAC[0];
-  $('courseInfo').textContent = tac ? (real && t.infoReal || t.info) : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
+  $('courseInfo').textContent = tac ? (real && t.infoReal || t.info) + (/^hunt/.test(t.scen) ? ' Immer mit Sprengladung: scharf ab 10 m über Grund, zündet bei Aufprall, danach neue Drohne (Leicht: Ballons ohne Ladung).' : '') : real && REAL_INFO[run] ? REAL_INFO[run] : sc.info;
   $('modeSpec').hidden = !real;
   if (dis) syncDis();
   $('droneBack').dataset.go = dis ? 'dis' : 'mode';   // Schritt 2 zurück zu Schritt 1 der Flugart
@@ -195,9 +195,6 @@ export function syncMenu() {
   mb.disabled = !m3d; mb.title = m3d ? mb.dataset.t || (mb.dataset.t = mb.title) : 'Hier nicht verfügbar: Foto 3D gibt es nur in der echten Welt in NRW. Grafik wie Schön.';
   press('#gfxSeg button', b => b.dataset.gfx === (cfg.gfx === 'mesh' && !m3d ? 'nice' : cfg.gfx));
   press('#dmgSeg button', b => b.dataset.id === cfg.dmg);
-  // Wirkmittel (Prompt 157): im Taktischen Flug und in der DIS-Übung (dort wirkt die Sprengladung gegen Einheiten); zündet bei Kontakt
-  $('whSeg').hidden = !dis && !(tac && COURSE_HUNT.includes(run) && run !== 'recon');   // nur bei Aufträgen zum Zerstören (Prompt 234)
-  press('#whSeg button', b => b.dataset.wh === (cfg.warhead || 'none'));
   document.querySelectorAll('#osdList input').forEach(el => { el.checked = osdOn(cfg.osd, el.dataset.osd); });
   press('#osdStyleSeg button', b => b.dataset.style === (cfg.osdStyle || 'bf'));
   $('propsView').checked = cfg.propsView;
@@ -570,7 +567,6 @@ for (const id of ['go', 'goTac', 'goDis']) $(id).addEventListener('click', () =>
 $('disKeep').addEventListener('change', e => { cfg.disKeep = e.target.checked; saveCfg(); vbSet({ keep: cfg.disKeep }); });   // vorher unter Optionen → Daten
 // Vorschau der DIS-Grundtypen (aus dem DIS-Block): Spielkarte mit den 18 Modellen, Wahl im Menü bleibt
 $('disBases').addEventListener('click', () => { rwAbort(); run('vbs'); });
-document.querySelectorAll('#whSeg button').forEach(b => b.addEventListener('click', () => { cfg.warhead = b.dataset.wh; saveCfg(); syncMenu(); fitPanel(); }));
 // Startort: Monschau oder Ort laden (die DIS-Übung ist eine eigene Flugart)
 document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.start;

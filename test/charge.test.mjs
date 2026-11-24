@@ -10,20 +10,20 @@ import { solidH } from '../src/realworld.js';
 import { vehicles } from '../src/vehicles.js';
 
 buildWorld();
-after(() => { cfg.flight = 'course'; cfg.warhead = 'none'; setScenario('gates'); });
+after(() => { cfg.flight = 'course'; setScenario('gates'); });
 
-test('Ladung nur im Taktischen Flug mit Sprengladung in der Jagd; macht die Drohne schwerer', () => {
-  cfg.flight = 'course'; cfg.warhead = 'charge'; cfg.diff = 'mid'; setScenario('hunt2'); respawn();
+test('Ladung fest im Taktischen Flug in der Jagd (nicht Leicht, nicht im Parcours); macht die Drohne schwerer', () => {
+  cfg.flight = 'course'; cfg.diff = 'mid'; setScenario('hunt2'); respawn();
   assert.equal(chargeOn(), false); assert.equal(game.payload, 0);
-  cfg.flight = 'tactical'; cfg.warhead = 'none'; respawn(); assert.equal(chargeOn(), false);
+  cfg.flight = 'tactical'; cfg.diff = 'easy'; respawn(); assert.equal(chargeOn(), false, 'Leicht: Ballons statt Ladung');
   assert.equal(game.tries, 2, 'zweiter Neustart derselben Mission: Versuch 2');
-  cfg.warhead = 'charge'; setScenario('hunt2'); respawn();
+  cfg.diff = 'mid'; setScenario('hunt2'); respawn();
   assert.equal(chargeOn(), true); assert.ok(Math.abs(game.payload - CHARGE.mass*PHYS.mass) < 1e-9);
   assert.equal(game.tries, 1, 'Versuch 1');
 });
 
 test('Landung auf dem Ziel: Zündung, Treffer, Explosion, Drohne verbraucht; danach neue Drohne mit vollem Akku', () => {
-  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; cfg.dmg = 'off'; cfg.mode = 'angle'; setScenario('hunt2'); respawn();
+  cfg.flight = 'tactical'; cfg.diff = 'mid'; cfg.dmg = 'off'; cfg.mode = 'angle'; setScenario('hunt2'); respawn();
   const v = vehicles.find(x => x.kind === 'parked'), s = game.sim;
   s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.mah = 500; s.armed = true;   // war schon über 10 m
   const c0 = game.crashes;
@@ -41,7 +41,7 @@ test('Landung auf dem Ziel: Zündung, Treffer, Explosion, Drohne verbraucht; dan
 });
 
 test('Prompt 226: scharf erst ab 10 m über Grund; vorher kein Ziel, keine Zündung, keine neue Drohne', () => {
-  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
+  cfg.flight = 'tactical'; cfg.diff = 'mid'; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
   const s = game.sim, v = vehicles.find(x => x.kind === 'parked');
   s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0;
   for (let i = 0; i < 0.5/STEP && game.state === 'fly'; i++) step(STEP);
@@ -56,7 +56,7 @@ test('Prompt 226: scharf erst ab 10 m über Grund; vorher kein Ziel, keine Zünd
 });
 
 test('Absturz ohne Ziel zündet auch (kein Treffer), danach neue Drohne', () => {
-  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
+  cfg.flight = 'tactical'; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
   const s = game.sim; s.p = [game.home[0] + 5, 20, game.home[1] + 5]; s.v = [0, -25, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.armed = true;
   for (let i = 0; i < 3/STEP && game.state === 'fly'; i++) step(STEP);
   assert.equal(game.state, 'crashed'); assert.ok(/TREFFER 0\//.test(scenLabel()));
@@ -66,7 +66,7 @@ test('Absturz ohne Ziel zündet auch (kein Treffer), danach neue Drohne', () => 
 
 test('Mission erfüllt: nach dem Ziel steht alles still, Neustart beginnt mit Versuch 1', async () => {
   const { missionEnd, MISSION } = await import('../src/scenario.js');
-  cfg.flight = 'tactical'; cfg.warhead = 'none'; cfg.huntX = 1; setScenario('hunt2'); respawn(); respawn();
+  cfg.flight = 'course'; cfg.huntX = 1; setScenario('hunt2'); respawn(); respawn();
   assert.equal(game.tries, 2);
   const v = vehicles.find(x => x.kind === 'parked'), s = game.sim; cfg.dmg = 'off';
   s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0;
@@ -81,11 +81,11 @@ test('Mission erfüllt: nach dem Ziel steht alles still, Neustart beginnt mit Ve
 
 test('OSD zeigt den Zustand der Ladung: erst SCHARF IN x M, dann LADUNG SCHARF; ohne Ladung nichts (Prompt 232)', () => {
   const bc = c => osdLines({}, { lq: 100, mode: 'angle', label: '', vpack: 16, cell: 4, amp: 1, mah: 0, cap: 1300, flyT: 0, kmh: 0, alt: 0, homeD: 0, thr: 0, pitchDeg: 0, rollDeg: 0, charge: c }).bc.map(l => l.t);
-  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; setScenario('hunt2'); respawn();
+  cfg.flight = 'tactical'; cfg.diff = 'mid'; setScenario('hunt2'); respawn();
   const s = game.sim, g = solidH(s.p[0], s.p[2]) + PHYS.foot;
   s.p[1] = g + 4; s.armed = false;
   assert.ok(Math.abs(chargeLeft() - 6) < 0.01, 'noch 6 m: ' + chargeLeft());
   assert.ok(bc(chargeLeft()).includes('SCHARF IN 6M'));
   s.armed = true; assert.equal(chargeLeft(), 0); assert.ok(bc(0).includes('LADUNG SCHARF'));
-  cfg.warhead = 'none'; assert.equal(chargeLeft(), null); assert.ok(!bc(null).some(t => /SCHARF/.test(t)));
+  cfg.flight = 'course'; assert.equal(chargeLeft(), null); assert.ok(!bc(null).some(t => /SCHARF/.test(t)));
 });

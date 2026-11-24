@@ -10,7 +10,7 @@ import { birds } from '../src/birds.js';
 import { qAxis } from '../src/math.js';
 
 buildWorld();
-after(() => { cfg.flight = 'course'; cfg.warhead = 'none'; cfg.tilt = 0; setScenario('gates'); });
+after(() => { cfg.flight = 'course'; cfg.tilt = 0; setScenario('gates'); });
 
 // Drohne d m hinter das Ziel setzen, Kamera genau darauf; off: seitlicher Versatz des Blicks in Grad
 function aim(p, d, off = 0) {
@@ -25,7 +25,7 @@ function aim(p, d, off = 0) {
 const run = (sec, follow) => { for (let i = 0; i < sec/STEP; i++) { follow(); task.check(game.sim.p, game.sim.p, STEP); } };
 
 test('Aufklärung: kein Wirkmittel, Auto 4 s im Fadenkreuz zählt, daneben und zu weit nicht', () => {
-  cfg.flight = 'tactical'; cfg.warhead = 'charge'; cfg.diff = 'mid'; cfg.tilt = 0;
+  cfg.flight = 'tactical'; cfg.diff = 'mid'; cfg.tilt = 0;
   setScenario('recon'); respawn(); birds.length = 0;
   assert.equal(chargeOn(), false); assert.equal(chargeLeft(), null); assert.equal(game.payload, 0);
   assert.match(scenLabel(), /AUFGEKLÄRT 0\/3/);

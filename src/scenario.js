@@ -171,10 +171,10 @@ export const FOLLOW = { dMin: 4, dMax: 12, hMin: 1.5, hMax: 10, need: 30 };
 // (Schätzung: Last etwa ein Drittel der Startmasse); fx: Dauer der Explosion im Bild (s). Nur Darstellung und Spiel, keine Wirkung.
 export const CHARGE = { mass: 0.3, delay: 1.5, fx: 1.4, arm: 10 };   // arm: scharf ab so viel m über Grund, einmal je Drohne (Nutzer, Prompt 226)
 export const booms = [];   // Explosionen für die Darstellung: { p, t (performance.now) }
-export const chargeOn = () => cfg.flight === 'tactical' && cfg.warhead === 'charge' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;   // nur Aufträge zum Zerstören (Prompt 234)
+export const chargeOn = () => cfg.flight === 'tactical' && ['hunt', 'hunt2', 'hunt3'].includes(scen.id) && !diff().balloons;   // fest mit dem Auftrag: immer bei Aufträgen zum Zerstören, nie in der Aufklärung (Prompt 236); Leicht: Ballons
 // Scharf machen (Prompt 226): einmal je Drohne, sobald sie CHARGE.arm Meter über Grund war; auch in der DIS-Übung. Vorher kein Ziel, keine Zündung.
 // chargeLeft: Meter bis scharf, 0 = scharf, null = keine Ladung (Anzeige im OSD, Prompt 232)
-export function chargeLeft() { const s = game.sim; return cfg.warhead !== 'charge' || !(chargeOn() || cfg.flight === 'dis') ? null : s.armed ? 0 : Math.max(0, CHARGE.arm - (s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot)); }
+export function chargeLeft() { const s = game.sim; return !(chargeOn() || cfg.flight === 'dis') ? null : s.armed ? 0 : Math.max(0, CHARGE.arm - (s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot)); }
 function chargeArm() { if (!game.sim.armed && chargeLeft() === 0) { game.sim.armed = true; banner('LADUNG SCHARF', 'Zündet bei Aufprall oder am Ziel'); } }
 export function chargeBoom(p) { booms.push({ p: p.slice(), t: performance.now() }); while (booms.length > 8) booms.shift(); }
 // Nach dem Zünden: neue Drohne fällig? Liefert true, wenn jetzt eine neue Drohne starten soll (Aufrufer setzt sie an den Start).
