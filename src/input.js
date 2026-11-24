@@ -47,7 +47,8 @@ export function updKeyboard(dt) {
 }
 
 /* ---------- Eingabe: Touch ---------- */
-export let touchUI = false;
+// Handy und Tablet: schon vor der ersten Berührung Touch-Hinweise und Knüppel zeigen (vorher stand dort „W drücken“)
+export let touchUI = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 export const stickR = () => clamp(Math.min(vw, vh)*0.16, 55, 95);
 
 hud.addEventListener('pointerdown', e => {

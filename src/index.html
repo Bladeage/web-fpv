@@ -32,6 +32,13 @@
       <p class="ver" id="verTxt"></p>
     </section>
 
+    <section data-screen="intro" hidden>
+      <p class="stepno" id="introNo"></p>
+      <h1 id="introTitle"></h1>
+      <ul class="introlist" id="introList"></ul>
+      <div class="nav"><button class="secondary" id="introSkip">Überspringen</button><button class="primary" id="introNext">Weiter</button></div>
+    </section>
+
     <section data-screen="mode" hidden>
       <p class="stepno">Schritt 1 von 2</p>
       <h1 id="modeTitle">Parcours</h1>
@@ -290,9 +297,17 @@
         <div class="osdgrid" id="osdList"></div>
       </div>
       <div class="tabpane" data-pane="help" hidden>
+        <h2>Steuerung</h2>
         <div class="keys" id="helpKeys"></div>
-        <p class="hint"><b>Touch:</b> links Gas und Gieren, rechts Nicken und Rollen. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
-        <p class="hint"><b>Echte Welt:</b> Der AXA Campus Köln ist eingebaut, andere Orte über „Ort laden“. Weitere Länder und Höhendienste: Karte → Quellen. Wasser ist ein Absturz. <b>DIS-Übung</b> (experimentell): Hauptmenü → DIS-Übung, Brücke starten, „Dorthin“.</p>
+        <p class="hint"><b>Touch:</b> linker Daumen Gas und Gieren, rechter Daumen Nicken und Rollen. Tippen schaltet scharf und startet nach einem Absturz neu.</p>
+        <h2>Aufträge</h2>
+        <p class="hint"><b>Parcours:</b> Tore, Ringe, Slalom, Landung, Lieferung, Verfolgung. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
+        <p class="hint"><b>Taktisch:</b> Aufklärung: Auto oder Vogel 4 s im Fadenkreuz halten. Fahrzeuge, Drohnen, Flugzeuge: immer mit Sprengladung. Sie ist scharf ab 10 m über Grund und zündet beim Aufprall, danach kommt eine neue Drohne.</p>
+        <h2>Echte Welt</h2>
+        <p class="hint">Der AXA Campus Köln ist eingebaut. Andere Orte: Schritt 1, Echte Welt, „Ort laden“. Gespeicherte Orte, Export und Quellen der Länder stehen unter „Daten und Quellen“. Wasser ist ein Absturz.</p>
+        <h2>Funke</h2>
+        <p class="hint">Funke oder Gamepad per USB anstecken und einen Knüppel bewegen. Belegung und Kalibrierung: Reiter „Steuerung“. Fällt die Funke im Flug aus, geht das Gas auf null.</p>
+        <button class="linkbtn" id="introAgain">Einführung noch einmal zeigen ›</button>
       </div>
       <div class="nav" id="setNav"><button class="secondary" id="bMain" data-go="main">Hauptmenü</button><button class="primary" id="bBack">Fertig</button></div>
     </section>

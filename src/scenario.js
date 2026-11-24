@@ -525,6 +525,20 @@ export function scenLabel() {
   if (scen.id === 'slalom') return `SLALOM ${s.next + 1}/${poles.length} ${poles[s.next].side > 0 ? 'RECHTS' : 'LINKS'}`;
   return 'LANDEN';
 }
+// Nächster Schritt in einem Satz, für den Hinweis am Start des Flugs (F1), oder null.
+export function scenHint() {
+  const id = scen.id;
+  if (st.done) return null;
+  if (id === 'gates') return 'Durch das grün leuchtende Tor fliegen';
+  if (id === 'rings') return 'Durch den grün leuchtenden Ring fliegen';
+  if (id === 'slalom') return 'Die Stange auf der angezeigten Seite umfliegen';
+  if (id === 'landing') return 'Zur Plattform fliegen, sanft landen, 1 s ruhig stehen';
+  if (id === 'deliver') return st.carry ? 'Zur blauen Plattform: tief und langsam darüber schweben' : 'Zum orangen Platz: tief und langsam darüber schweben';
+  if (id === 'follow') return 'Dem orangen Auto folgen: 4 bis 12 m Abstand';
+  if (id === 'recon') return 'Auto oder Vogel 4 s im Fadenkreuz halten';
+  if (/^hunt/.test(id)) return chargeOn() ? (game.sim.armed ? 'Ziel treffen: die Ladung zündet beim Aufprall' : 'Erst über 10 m steigen, dann ist die Ladung scharf') : diff().balloons ? 'Den Ballon über dem Ziel treffen' : 'Das Ziel berühren';
+  return null;
+}
 // Punkt für den Zielmarker im OSD, oder null.
 export function scenTarget() {
   const s = game.sim;

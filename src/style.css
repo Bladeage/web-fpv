@@ -92,6 +92,8 @@ select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--lin
   background:var(--chip);color:var(--panel-text);font:inherit;font-size:16px;font-weight:600;cursor:pointer}
 .panel section > .primary:first-of-type{margin-top:20px}
 .stepno{margin:0 0 2px;font-size:13px;color:var(--muted);font-weight:600}
+.introlist{margin:12px 0 16px;padding-left:20px;line-height:1.45}
+.introlist li{margin:6px 0}
 .list{display:grid;gap:8px;margin-top:14px}
 .list button{text-align:left;border:0;border-radius:12px;padding:10px 12px;background:var(--chip);color:var(--panel-text);cursor:pointer;font:inherit}
 .list button b{display:block;font-size:16px}

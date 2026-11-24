@@ -2,7 +2,9 @@
 
 Stand 24.11.2026. Auswahl des Nutzers (Prompt 240, Mehrfachauswahl je Etappe). Pro Sitzung eine Etappe: umsetzen, prüfen, committen, berichten, auf Freigabe warten.
 
-## F1 Erster Eindruck
+## F1 Erster Eindruck (erledigt 24.11.2026)
+
+Umgesetzt: Einführung in drei Schritten je Gerät (`cfg.intro`, erneut über Hilfe); nächster Schritt des Auftrags als Zeile im Flug (`scenHint`), Touch-Hinweise schon vor der ersten Berührung; Fehlermeldungen beim Laden über `loadErrText` (Ursache, was zu tun ist, technische Meldung dahinter); Hilfe in vier Abschnitten. Wer den Simulator schon benutzt hat, sieht die Einführung nicht von selbst. Tests: `test/f1.test.mjs`.
 
 1. Einführung beim ersten Start: drei kurze Schritte (steuern, Auftrag wählen, Hilfe finden). Danach nie wieder, abschaltbar.
 2. Hinweise im Flug: je Gerät (Tastatur, Touch, Funke) die passenden Tasten und der nächste Schritt.

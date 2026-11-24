@@ -14,7 +14,8 @@ export function gfxLevel(g) { return g === 'simple' ? 0 : g === 'mid' ? 1 : 2; }
 export const cfg = { mode: 'angle', tilt: 20, sound: true, cam: 'fpv', analog: true, propsView: true, gpPreset: 'auto', gpMap: null, scen: 'gates',
   diff: 'mid', drone: { preset: '5' }, video: 'clean', osd: {}, huntX: 5, gfx: (globalThis.matchMedia && matchMedia('(pointer:coarse)').matches) ? 'mid' : 'nice',   // Handy: erst "Mittel" (Annahme: schwächere Grafik)
   batWarn: 3.5, batMin: 3.3, dmg: 'off', infBat: true, mem: 'auto',   // Schaden standardmäßig aus; Akku unendlich; mem: Zwischenspeicher (G3, device.js)
-  fov: 110, needArm: false, autoRes: true,
+  fov: 110, needArm: false, autoRes: true, intro: true,   // intro: Einführung beim ersten Start (F1)
+ 
   gpSw: {}, gpCal: {},
   ghost: false, trail: true, vol: 0.7, keys: {}, fc: 'own', vision: 'normal', night: false,
   rwSrc: 'emb', rwLL: '', rwSources: [], rwStream: true, rwShow: {}, verbund: false, disPort: 3000, disEx: 1, disLL: '', disH: 0, disKeep: false, flight: 'course', world: 'map', tac: 'recon',   // verbund: DIS-Modus über die Brücke; Port, Übung; Einheiten behalten bis zur Abmeldung; Ort und Höhe (NHN) der Übung für rwSrc 'dis'
@@ -72,6 +73,7 @@ export function keyName(code) {
 let storedCfg = {};
 try { storedCfg = JSON.parse(localStorage.getItem(STORE_CFG) || '{}') || {}; } catch (e) {}
 Object.assign(cfg, storedCfg);
+if (Object.keys(storedCfg).length && storedCfg.intro === undefined) cfg.intro = false;   // wer den Simulator schon kennt, bekommt die Einführung nicht
 cfgMigrate(cfg);
 // Menü mit Flugart und Welt (Etappe T1): alte Wahl „Echte Welt“ (scen 'real') wird Welt 'real' mit Freiflug, die Vorschau der
 // Grundtypen ist kein Modus mehr. Alte DIS-Wahl (verbund) bleibt: Startort „DIS-Übung“.
