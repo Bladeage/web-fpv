@@ -55,7 +55,8 @@ hud.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' || game.paused) return;
   touchUI = true;
   if (game.state === 'done') { respawn(); return; }   // Mission erfüllt: Tippen startet eine neue
-  if (game.state === 'fly' && !game.armed) { toggleArm(); return; }   // Touch: Tippen schaltet scharf, es gibt keine Leertaste (Prüfung Drohne Nr. 1)
+  // Nicht scharf: die Knüppel bleiben bedienbar (Fehler aus der Prüfung, gemeldet in Prompt 249: jede Berührung fing das Scharfschalten ab;
+  // stand das Gas nicht auf null, ging weder Scharfschalten noch Gas wegnehmen). Scharf geschaltet wird über den Knopf oben.
   if (game.state === 'crashed') { if (!task.hold() && performance.now() - game.sim.crashT > 400) respawn(); return; }
   try { hud.setPointerCapture(e.pointerId); } catch (err) {}
   const side = e.clientX < vw/2 ? 'L' : 'R';

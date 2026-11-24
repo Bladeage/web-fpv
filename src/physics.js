@@ -112,7 +112,7 @@ export function cellOcv(soc) {
 }
 
 // Rückmeldungen nach außen. In Node bleiben sie leer.
-export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {}, pop() {} };   // Ton und Vibration, setzt main.js
+export const fx = { beep() {}, vibrate() {}, hit() {}, crash() {}, pop() {}, boom() {} };   // Ton und Vibration, setzt main.js
 // Aufgabe des aktiven Szenarios. Vorgabe ist der Torkurs; scenario.js tauscht sie aus.
 // check(a, b, h): Fortschritt prüfen. collide(h): eigene Hindernisse, true bei Absturz. reset(): bei Neustart.
 export const task = { check: checkGate, collide: null, reset() {}, hold: () => false, early: false, gateExtra: 0 };   // gateExtra: Tor zählt so viele m neben der Öffnung (Stufe)   // early: vor Boden und Hindernissen prüfen
@@ -393,7 +393,7 @@ export function step(h) {
   }
   // 6. Boden: jede Kugel der Hitbox gegen den Boden. Kufe unten trägt die Drohne, Propeller können aufsetzen.
   // Normaler Modus: Ebene y = 0. Echte Welt: Geländeebene unter dem Teil (Höhe und Neigung aus dem Höhenmodell).
-  s.grounded = false; s.onGround = false;
+  s.grounded = false; s.onGround = false; s.touch = false;
   const hb = hitbox(), ground = [], upB = qRot(s.q, [0, 1, 0]);
   for (let i = 0; i < hb.length; i++) {
     const [x, y, z, rad, rot, thick] = hb[i], r = qRot(s.q, [x, y, z]), pc = vAdd(s.p, r);
@@ -652,6 +652,7 @@ export function impact(n, pen, r, rotor, limit, why) {
   const vn = vDot(vc, n);
   // Aufliegen auf einem Dach oder Hindernis zählt wie der Boden: Turtle-Modus, Hinweis „umgedreht“ und Ruhe mit Gas unten
   // gab es vorher nur auf dem Gelände (Prüfung Drohne Nr. 5)
+  s.touch = true;   // irgendeine Berührung in diesem Schritt (Boden, Hindernis, Gebäude): zündet eine scharfe Ladung (scenario.js)
   if (n[1] > 0.7) { s.onGround = true; if (qRot(q, [0, 1, 0])[1] > 0.9) s.grounded = true; }
   s.p = vAdd(s.p, vScale(n, pen));                  // aus dem Hindernis schieben
   if (vn >= 0) return false;                         // trennt sich schon

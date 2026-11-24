@@ -284,6 +284,11 @@ section[data-screen=settings]{position:relative}
 /* Touch-Knöpfe (F3): Scharf schalten, Flugmodus, Zurückspulen; mit Maus und Tastatur ausgeblendet */
 .topbar #bMode{font-size:11px;font-weight:700;letter-spacing:.02em}
 @media (pointer:fine){ .topbar .touchonly{display:none} }
+.topbar button svg{display:block;margin:auto}
+.topbar button.warn{border-color:#ffd27a;color:#ffd27a}   /* nicht scharf: Knopf Ein/Aus hervorgehoben */
+.topbar button.on{background:var(--accent);color:#111}     /* eingefroren */
+/* Handy: sechs Knöpfe passen nicht mittig neben ☰, darum links daneben und etwas kleiner */
+@media (pointer:coarse) and (max-width:520px){ .topbar{left:calc(env(safe-area-inset-left,0px) + 60px);transform:none;gap:5px;flex-wrap:wrap;max-width:calc(100vw - 64px)} .topbar button{width:42px;height:42px} }
 body.menuopen .topbar{visibility:hidden}   /* Neustart und Kamera nur im Flug */
 @media (max-width:480px){
   .segpair{grid-template-columns:1fr}

@@ -27,7 +27,7 @@ test('Nr. 3: Zeit und Auto der Verfolgung starten erst beim Abheben', () => {
 test('Nr. 2, 6, 7: Absturz nach dem letzten Treffer erfüllt die Mission; gezündete Drohne lässt sich nicht zurückholen', () => {
   cfg.flight = 'tactical'; cfg.diff = 'mid'; cfg.huntX = 2; cfg.dmg = 'real'; setScenario('hunt2'); respawn();
   const hit = () => { const v = vehicles.find(x => x.kind === 'parked' && x.state !== 'hit'), s = game.sim; run(0.5);
-    s.p = [v.x, 3, v.z]; s.v = [0, -8, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; s.armed = true; game.throttle = 0;
+    s.p = [v.x, 2.2, v.z]; s.v = [0, -8, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; s.armed = true; s.touch = false; game.throttle = 0;   // umgesetzt: die alte Berührung gilt nicht mehr
     for (let i = 0; i < 3/STEP && game.state === 'fly' && !/ZIEL/.test(scenLabel()); i++) step(STEP); };
   hit();
   assert.equal(game.state, 'crashed'); assert.equal(task.hold(), true, 'neue Drohne kommt von selbst');

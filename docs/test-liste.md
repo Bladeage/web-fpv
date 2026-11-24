@@ -13,7 +13,8 @@ Seite: https://bladeage.github.io/web-fpv/ (vor dem Test neu laden, damit der ne
 - [ ] A4 Die Zeit oben rechts läuft erst nach dem Abheben.
 - [ ] A5 Schritt 2 zeigt das Lagebild mit Ziel und Regeln des Auftrags.
 - [ ] A6 Taktisch, Fahrzeuge: unten „SCHARF IN 10M“, ab 10 m Höhe „LADUNG SCHARF“. Die Autos fahren schon vorher.
-- [ ] A7 Ein Fahrzeug treffen: Explosion, „Neue Drohne kommt gleich“, neue Drohne am Start, Zähler „TREFFER 1/5“.
+- [ ] A7 Ein Fahrzeug treffen: Explosion mit Knall, „Neue Drohne kommt gleich“, neue Drohne am Start, Zähler „TREFFER 1/5“.
+- [ ] A7a Mit scharfer Ladung auf den Boden oder gegen ein Gebäude fliegen: Explosion mit Knall, danach kommt die nächste Drohne. Das gilt auch im Spielstil „Lernen“.
 - [ ] A8 Auftrag erfüllen: „AUFTRAG ERFÜLLT“ mit Zeit, Bestzeit-Vergleich, Versuchen, Treffern und Drohnen.
 - [ ] A9 Taktisch, Aufklärung: Ein Fahrzeug 4 s im Fadenkreuz halten zählt. Hinter einem Gebäude zählt es nicht.
 - [ ] A10 Taktisch, Gemischt: Fahrzeuge und Ziel-Drohnen sind beide da und zählen beide.
@@ -27,8 +28,9 @@ Seite: https://bladeage.github.io/web-fpv/ (vor dem Test neu laden, damit der ne
 
 - [ ] B1 Erster Start: Die Einführung nennt die Daumen, nicht die Tasten.
 - [ ] B2 Im Flug stehen am Start die Hinweise für Touch über den Werten unten, nichts überdeckt sich.
-- [ ] B3 Oben fünf Knöpfe neben ☰: Neustart, Kamera, scharf schalten, Flugmodus (ANG oder ACR), zurückspulen. Alle reagieren.
-- [ ] B4 Spielstil „Realistisch“: Die Drohne ist am Start nicht scharf. Tippen oder der Knopf ⏻ schaltet scharf.
+- [ ] B3 Oben sechs Knöpfe neben ☰: Neustart, Kamera, scharf schalten (Ein/Aus-Zeichen), Flugmodus (ANG oder ACR), zurückspulen, einfrieren (zwei Balken). Alle Zeichen sind lesbar, alle Knöpfe reagieren.
+- [ ] B4 Spielstil „Realistisch“: Die Drohne ist am Start nicht scharf, der Knopf Ein/Aus ist gelb. Er schaltet scharf. Im Flug ausschalten, Gas mit dem linken Daumen ganz runter, wieder scharf schalten: geht.
+- [ ] B4a Spielstil „Lernen“: Der Knopf mit den zwei Balken friert den Flug ein und setzt ihn fort.
 - [ ] B5 Taktisch, Fahrzeuge: Die Zeile „SCHARF IN 10M“ ist sichtbar.
 - [ ] B6 Während „Neue Drohne kommt gleich“ tippen: Der Auftrag startet nicht neu, die Treffer bleiben.
 - [ ] B7 Alle Menüseiten passen auf den Bildschirm, im Hochformat und im Querformat.

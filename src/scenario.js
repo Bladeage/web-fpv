@@ -183,8 +183,17 @@ export const chargeOn = () => (mis.flight ?? cfg.flight) === 'tactical' && /^hun
 // Scharf machen (Prompt 226): einmal je Drohne, sobald sie CHARGE.arm Meter über Grund war; auch in der DIS-Übung. Vorher kein Ziel, keine Zündung.
 // chargeLeft: Meter bis scharf, 0 = scharf, null = keine Ladung (Anzeige im OSD, Prompt 232)
 export function chargeLeft() { const s = game.sim; return st.done || !(chargeOn() || ((mis.flight ?? cfg.flight) === 'dis' && scen.id === 'real' && rw.on)) ? null : s.armed ? 0 : Math.max(0, CHARGE.arm - (s.p[1] - solidH(s.p[0], s.p[2]) - PHYS.foot)); }
+// Scharfe Ladung und Berührung mit Boden, Hindernis oder Gebäude: sie zündet, auch ohne Schadensmodell (Nutzer, Prompt 249).
+// Vorher blieb die Drohne im Spielstil „Lernen“ mit scharfer Ladung einfach liegen. Danach kommt die nächste Drohne (chargeDue).
+// Erst nach einem Moment ohne Berührung (armAir): Wird die Ladung auf einem hohen Dach scharf, zündet sie nicht sofort.
+function chargeTouch() {
+  const s = game.sim;
+  if (!s.armed || game.state !== 'fly') return;
+  if (!s.touch) { s.armAir = true; return; }
+  if (s.armAir && chargeLeft() === 0) crash('Aufprall');
+}
 function chargeArm() { if (!game.sim.armed && chargeLeft() === 0) { game.sim.armed = true; banner('LADUNG SCHARF', 'Zündet bei Aufprall oder am Ziel'); } }
-export function chargeBoom(p) { booms.push({ p: p.slice(), t: performance.now() }); while (booms.length > 8) booms.shift(); }
+export function chargeBoom(p) { fx.boom(); booms.push({ p: p.slice(), t: performance.now() }); while (booms.length > 8) booms.shift(); }
 // Ladung gezündet, die nächste Drohne kommt von selbst: kein Neustart durch Tippen oder Taste, kein Zurückspulen (Prüfung Nr. 6, 7)
 const chargeWait = () => chargeOn() && !!game.sim.armed && game.state === 'crashed' && !st.done;
 // Nach dem Zünden: neue Drohne fällig? Liefert true, wenn jetzt eine neue Drohne starten soll (Aufrufer setzt sie an den Start).
@@ -541,7 +550,7 @@ export function setScenario(id, real = id === 'real') {
   const pp = placePilot(); PILOT[0] = pp[0]; PILOT[1] = pp[1] + PILOT_POS.antenna; PILOT[2] = pp[2];   // Signal geht von der Funke des Piloten aus
   // Bestzeit je Welt, Stufe (außer Normal) und in der Jagd je Zahl der nötigen Treffer (Prüfung Nr. 9)
   game.bestScen = (id === 'real' || !rw.on ? id : id + '.real') + (cfg.diff === 'easy' || cfg.diff === 'hard' ? '.' + cfg.diff : '') + (/^hunt/.test(id) ? '.x' + (cfg.huntX || 5) : '');
-  const chk = TASKS[id].check; task.check = /^hunt/.test(id) || id === 'real' ? (a, b, h) => { chargeArm(); chk(a, b, h); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
+  const chk = TASKS[id].check; task.check = /^hunt/.test(id) || id === 'real' ? (a, b, h) => { chargeArm(); chk(a, b, h); chargeTouch(); } : chk;   // Scharf machen in jedem Schritt, wo es eine Ladung gibt
   task.collide = TASKS[id].collide; task.early = !!TASKS[id].early;
   loadBest();
 }

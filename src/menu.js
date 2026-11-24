@@ -3,7 +3,7 @@
 import { cfg, game, keys, ptr, saveCfg, KEY_FN, KEY_STICKS, keyOf, keyName, setKey, keyLearn, VERSION, say } from './state.js';
 import { loadErrText } from './format.js';
 import { NOTES, creditRows } from './notes.js';
-import { respawn, toggleArm, rewind } from './physics.js';
+import { respawn, toggleArm, rewind, toggleFreeze } from './physics.js';
 import { GP_FN, GP_SW, gp, gpMap } from './gamepad.js';
 import { toggleCam, meshAvail } from './render.js';
 import { audioInit, audioPause } from './audio.js';
@@ -901,6 +901,14 @@ $('bCam').addEventListener('click', toggleCam);
 $('bArm').addEventListener('click', () => { if (game.state === 'fly') toggleArm(); });
 $('bMode').addEventListener('click', () => { setMode(cfg.mode === 'acro' ? 'angle' : 'acro'); say(cfg.mode === 'acro' ? 'Acro' : 'Angle', 1); });
 $('bRew').addEventListener('click', () => rewind(5));
+$('bFreeze').addEventListener('click', toggleFreeze);
+// Zustand an den Knöpfen zeigen: Ein/Aus gelb, solange nicht scharf; Einfrieren orange, solange eingefroren. Je Bild geprüft, nur bei Wechsel geschrieben.
+let flyKey = '';
+export function syncFlyBtns() {
+  const k = (game.armed ? 'a' : 'd') + (game.frozen ? 'f' : '');
+  if (k === flyKey) return;
+  flyKey = k; $('bArm').classList.toggle('warn', !game.armed); $('bFreeze').classList.toggle('on', !!game.frozen);
+}
 // App im Hintergrund oder Bildschirm gesperrt: Einstellungen zeigen, Simulation pausieren, Ton aus
 function toBackground() { if (!game.paused) openMenu('settings'); audioPause(); }
 document.addEventListener('visibilitychange', () => { if (document.hidden) toBackground(); });
