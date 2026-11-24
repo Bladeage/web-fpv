@@ -69,3 +69,29 @@ test('Drohne Nr. 3, 6: leerer Akku trägt nicht mehr; Zurückspulen zählt nach 
   assert.ok(Math.abs((c - b) - 5*(y[7] - y[6])) < (y[7] - y[6]), 'zweites Mal wieder 5 s zurück: von ' + c.toFixed(1) + ' auf ' + b.toFixed(1) + ' (nach dem ersten Mal ' + a.toFixed(1) + ')');
   cfg.infBat = false;
 });
+
+test('Geo Nr. 8: OSM-Wege teilen sich an Kreuzungen; Wald aus mehreren Teilstücken wird ein Ring', async () => {
+  const { osmRoads, osmWoods } = await import('../src/rwroads.js');
+  const { roadGraph } = await import('../src/roads.js');
+  const { fromUtm } = await import('../src/geo.js');
+  const bb = [400000, 5600000, 401000, 5601000], P = (e, n) => { const [lat, lon] = fromUtm(e, n, 32); return { lat, lon }; };
+  const X = P(400500, 5600500), net = j => ({ text: async () => JSON.stringify(j) });
+  const roads = await osmRoads({ overpass: ['https://o/api'], zone: 32 }, bb, net({ elements: [
+    { type: 'way', tags: { highway: 'residential' }, geometry: [P(400300, 5600500), X, P(400700, 5600500)] },
+    { type: 'way', tags: { highway: 'residential' }, geometry: [P(400500, 5600300), X, P(400500, 5600700)] }] }));
+  assert.equal(roads.length, 4, 'zwei Wege, an der Kreuzung geteilt');
+  const G = roadGraph(roads); assert.equal(G.nodes.length, 5); assert.equal(G.edges.length, 4);
+  const c = [P(400200, 5600200), P(400800, 5600200), P(400800, 5600800), P(400200, 5600800)];
+  const woods = await osmWoods({ overpass: ['https://o/api'] }, bb, 32, net({ elements: [{ type: 'relation', members: [
+    { role: 'outer', geometry: [c[0], c[1]] }, { role: 'outer', geometry: [c[2], c[1]] }, { role: 'outer', geometry: [c[2], c[3]] }, { role: 'outer', geometry: [c[3], c[0]] }] }] }));
+  assert.equal(woods.length, 1); assert.equal(woods[0].length, 5, 'ein geschlossener Ring');
+});
+
+test('Drohne Nr. 7: Kalibrierung mit Ruhelage: losgelassen ist 0, Enden sind -1 und 1; Gas und alte Werte linear', async () => {
+  const { calAxis } = await import('../src/gamepad.js');
+  const c = [-0.8, 1, 0.05];   // Knüppel mit Feder, nach links weniger Weg
+  assert.equal(calAxis(0.05, c), 0); assert.equal(calAxis(-0.8, c), -1); assert.equal(calAxis(1, c), 1);
+  assert.ok(Math.abs(calAxis(0.525, c) - 0.5) < 1e-9);
+  assert.equal(calAxis(-1, [-1, 1, -1]), -1); assert.equal(calAxis(0, [-1, 1, -1]), 0, 'Gas: Ruhe am Ende, linear');
+  assert.ok(Math.abs(calAxis(0.1, [-0.8, 1]) - 0) < 1e-9, 'alte Kalibrierung ohne Ruhelage wie bisher');
+});

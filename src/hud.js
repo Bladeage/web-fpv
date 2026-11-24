@@ -3,7 +3,7 @@ import { DEG, clamp, vSub, vLen, qRot, mApply } from './math.js';
 import { fmtTime } from './format.js';
 import { cfg, game, tch, inp, ptr, messages, keyOf, keyName } from './state.js';
 import { bf } from './bf.js';
-import { rw, groundH, rwLatLon, rwPlace, rwPlaceCenters } from './realworld.js';
+import { rw, groundH, solidH, rwLatLon, rwPlace, rwPlaceCenters } from './realworld.js';
 import { PHYS, BAT } from './physics.js';
 import { gp } from './gamepad.js';
 import { glc, glLost, hctx, vw, vh, inset, lastVP, lastCamQ, lastVf, frameStat } from './render.js';
@@ -229,7 +229,7 @@ export function drawHud() {
     cur: s.lapStart !== null ? s.t - s.lapStart : null, last: s.lastLap, best: game.best,
     clock: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
     god: !!cfg.ghost && !!cfg.infBat && cfg.dmg === 'off',   // Gott-Modus (Spielstil): keine Warnungen zu Akku und Funk (Prompt 177)
-    vpack: s.vpack, vmin: s.vmin, hp: s.hp, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
+    vpack: s.vpack, vmin: s.vmin, hp: s.hp, warnV: cfg.batWarn, minV: cfg.batMin, cell: s.vpack/BAT.cells, cellAvg: (s.vavg ?? s.vpack)/BAT.cells, cellRest: s.cellRest, amp: s.amp, mah: s.mah, cap: BAT.cap, flyT: s.flyT,
     kmh: vLen(s.v)*3.6, alt: Math.max(0, s.p[1] - PHYS.foot), homeD: Math.hypot(s.p[0] - game.home[0], s.p[2] - game.home[1]),
     fps: frameStat.fps, res: cfg.autoRes ? frameStat.scale : 1, lite: frameStat.lite, thr: game.throttle, pitchDeg: Math.atan2(-f[1], u[1])/DEG, rollDeg: Math.atan2(-r[1], u[1])/DEG
   };
@@ -313,7 +313,7 @@ export function drawHud() {
   }
   // Sinkraten-Anzeige (Leicht, Landung und Lieferung): grün sicher, gelb knapp, rot zu schnell
   if ((scen.id === 'landing' || scen.id === 'deliver') && diff().sinkHud && game.state === 'fly') {
-    const alt = s.p[1] - PHYS.foot, sink = Math.max(0, -s.v[1]), lim = scen.id === 'landing' ? diff().landV : 2.5;
+    const alt = s.p[1] - PHYS.foot - (rw.on ? solidH(s.p[0], s.p[2]) : 0), sink = Math.max(0, -s.v[1]), lim = scen.id === 'landing' ? diff().landV : 2.5;
     if (alt < 15 && !s.grounded) {
       const col = sink < lim*0.6 ? '#7dff9a' : sink < lim ? '#ffd27a' : RED;
       txt('\u2193 ' + sink.toFixed(1) + ' M/S   ALT ' + alt.toFixed(1) + ' M', W/2, H/2 + fs*3.2, 'center', col);

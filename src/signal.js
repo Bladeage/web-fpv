@@ -17,7 +17,7 @@ export const PILOT = [-1.6, 1.35, 3.6];   // wird je Szenario auf die Funke des 
 export const signal = { video: 100, lq: 100, block: 0, t: 0 };
 
 // Schneidet die Strecke a->b den gedrehten Quader c? (Quader-Koordinaten, Slab-Test)
-function segHitsBox(a, b, c) {
+export function segHitsBox(a, b, c) {
   const loc = p => { const dx = p[0]-c.c[0], dz = p[2]-c.c[2]; return [dx*c.cs - dz*c.sn, p[1]-c.c[1], dx*c.sn + dz*c.cs]; };
   const p = loc(a), q = loc(b);
   let t0 = 0, t1 = 1;

@@ -10,8 +10,8 @@ import { fmtTime } from './format.js';
 import { targets, initTargets, stepTargets, HUNT_N, huntRoutePts, REGION } from './targets.js';
 import { vehicles, initVehicles, stepVehicles, VEH_HALF, ROUTES, routeAt } from './vehicles.js';
 import { aircraft, initAircraft, stepAircraft, aircraftLeft } from './aircraft.js';
-import { TOWN } from './town.js';
-import { PILOT } from './signal.js';
+import { TOWN, town } from './town.js';
+import { PILOT, segHitsBox } from './signal.js';
 import { placePilot, PILOT_POS } from './pilot.js';
 import { rw, rwNearName, placeReal, groundH, solidH } from './realworld.js';
 import { rwRoads, roadRoutes, parkSpots } from './roads.js';
@@ -449,6 +449,13 @@ export const RECON = { need: 3, hold: 4, ang: 6, dMax: 90 };
 const recon = { o: null, t: 0, seen: new Set() };
 const reconObjs = () => [...vehicles.filter(v => v.state === 'drive').map(v => [v, [v.x, v.y + VEH_HALF[1], v.z]]), ...birds.map(b => [b, b.p])].filter(([o]) => !recon.seen.has(o));
 export const reconHold = () => recon.o ? recon.t : 0;
+// Freie Sicht von a nach p? Spielkarte: kein dickes Hindernis (Gebäude, über 1 m) dazwischen; Stangen und Stämme verdecken nicht.
+// Echte Welt: Gelände (und 3D-Mesh) an 11 Punkten der Strecke; Gebäude aus LoD2 verdecken dort noch nicht.
+function reconSees(a, p) {
+  if (!rw.on) return ![colliders, town].some(L => L.some(c => Math.min(c.h[0], c.h[2]) > 0.5 && segHitsBox(a, p, c)));
+  for (let k = 1; k < 12; k++) { const t = k/12; if (solidH(a[0] + (p[0] - a[0])*t, a[2] + (p[2] - a[2])*t) > a[1] + (p[1] - a[1])*t + 0.5) return false; }
+  return true;
+}
 function checkRecon(a, b, h) {
   const s = game.sim;
   stepVehicles(h, a, a, -9);   // Autos fahren, Berührung zählt nicht
@@ -456,7 +463,7 @@ function checkRecon(a, b, h) {
   if (st.takeoff === null && lifted(s)) { st.takeoff = s.t; s.lapStart = s.t; }
   const f = qRot(qMul(s.q, qAxis([1, 0, 0], cfg.tilt*DEG)), [0, 0, -1]);
   let o = null, best = Math.cos(RECON.ang*DEG);
-  for (const [x, p] of reconObjs()) { const d = vSub(p, s.p), l = vLen(d), c = vDot(d, f)/l; if (l < RECON.dMax && c > best) { best = c; o = x; } }
+  for (const [x, p] of reconObjs()) { const d = vSub(p, s.p), l = vLen(d), c = vDot(d, f)/l; if (l < RECON.dMax && c > best && reconSees(s.p, p)) { best = c; o = x; } }
   recon.t = o && o === recon.o ? recon.t + h : 0; recon.o = o;
   if (!o || recon.t < RECON.hold) return;
   recon.seen.add(o); recon.o = null; st.hits++; fx.beep(1100, 0.12);

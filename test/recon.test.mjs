@@ -46,3 +46,15 @@ test('Aufklärung: drei Ziele erfüllen den Auftrag; Vögel zählen auch', () =>
   run(RECON.hold + 0.2, () => aim(birds[0].p, 20));
   assert.equal(scenLabel(), 'ZIEL');
 });
+
+test('Aufklärung: ein Ziel hinter einem Gebäude zählt nicht (Sichtlinie)', async () => {
+  const { colliders } = await import('../src/world.js');
+  cfg.flight = 'tactical'; cfg.tilt = 0; setScenario('recon'); respawn(); birds.length = 0;
+  const c = colliders.filter(x => Math.min(x.h[0], x.h[2]) > 2 && x.h[1] > 2).sort((a, b) => b.h[0]*b.h[2] - a.h[0]*a.h[2])[0], R = Math.hypot(c.h[0], c.h[2]) + 3;
+  assert.ok(c && 2*R < RECON.dMax, 'großes Gebäude auf der Karte');
+  birds.push({ p: [c.c[0] + R, c.c[1], c.c[2]], state: 'fly' });
+  const look = x => { const s = game.sim; s.p = [x, c.c[1], c.c[2]]; s.q = qAxis([0, 1, 0], -Math.PI/2); s.grounded = false; };   // Blick nach +x
+  const only = () => { for (const v of vehicles) v.state = 'park'; };   // nur der Vogel ist Ziel
+  only(); run(RECON.hold + 0.5, () => look(c.c[0] - R)); assert.match(scenLabel(), /0\/3/, 'Gebäude dazwischen');
+  only(); run(RECON.hold + 0.5, () => look(c.c[0] + R - 20 > c.c[0] + Math.hypot(c.h[0], c.h[2]) ? c.c[0] + R - 20 : c.c[0] + R - 2)); assert.match(scenLabel(), /1\/3/, 'freie Sicht zählt');
+});

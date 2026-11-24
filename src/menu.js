@@ -722,10 +722,10 @@ function learnDone(src, inv) {
   saveCfg(); syncGpRows();
 }
 // Kalibrieren: 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen; kleinster und größter Wert je Achse
-const calib = { until: 0, min: [], max: [] };
+const calib = { until: 0, min: [], max: [], rest: [] };
 $('bCal').addEventListener('click', () => {
-  calib.until = performance.now() + 6000; calib.min = gp.axes.slice(); calib.max = gp.axes.slice();
-  $('gpHint').textContent = 'Kalibrieren: 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen.';
+  calib.until = performance.now() + 6000; calib.min = gp.axes.slice(); calib.max = gp.axes.slice(); calib.rest = gp.axes.slice();   // Ruhelage: Knüppel beim Antippen losgelassen
+  $('gpHint').textContent = 'Kalibrieren: Knüppel jetzt loslassen, dann 6 s lang alle Knüppel in alle Ecken bewegen und Schalter umlegen.';
 });
 $('bCalReset').addEventListener('click', () => { cfg.gpCal = {}; saveCfg(); $('gpHint').textContent = 'Kalibrierung gelöscht.'; });
 function calibStep() {
@@ -734,7 +734,8 @@ function calibStep() {
   if (performance.now() < calib.until) return;
   calib.until = 0;
   const cal = {};
-  calib.min.forEach((mn, i) => { if (calib.max[i] - mn > 0.5) cal[i] = [mn, calib.max[i]]; });
+  // Nur Achsen mit vollem Weg (über 1,2 von 2): ein nur in eine Richtung bewegter Knüppel bekäme sonst eine falsche Mitte
+  calib.min.forEach((mn, i) => { if (calib.max[i] - mn > 1.2) cal[i] = [mn, calib.max[i], calib.rest[i] ?? 0]; });
   cfg.gpCal = cal; saveCfg();
   $('gpHint').textContent = 'Kalibriert: ' + Object.keys(cal).length + ' Achsen.';
 }
