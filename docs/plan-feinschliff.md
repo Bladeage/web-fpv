@@ -38,3 +38,8 @@ Umgesetzt: Test-Liste `docs/test-liste.md` (PC, Handy, Funke, drei Orte); Seite 
 2. Quellen und Lizenzen: eine Seite im Programm, vollständig und geprüft.
 3. Anleitung im Repository (README): starten, steuern, echte Welt, Funke anschließen.
 4. Versionshinweise: Neuerungen je Version im Programm und im Repository.
+
+## Optik (24.11.2026, nach F4)
+
+Auswahl des Nutzers (Prompt 246): Boden schärfer, Bäume plastischer, kräftigere Farben. Nicht gewählt: Propeller dezenter.
+Umgesetzt in `src/render.js` (Welt-Shader, nur echte Welt): Bodenmuster über dem Luftbild in zwei Stufen (feines Korn bis 18 m wie bisher, grobes Muster bis 70 m, nur „Schön“); Baumkronen mit mehr Grün, heller oben und dunkler unten nach der Flächenrichtung, auf „Schön“ dazu ein Laubmuster; Sättigung 1,22 für Mittel und Schön, vor Dunst und Nebel. „Einfach“ und die Spielkarte bleiben unverändert, das 3D-Mesh (Foto 3D) auch. Alle Werte sind Schätzungen nach Augenmaß. Rechenzeit: je Bildpunkt bis zu drei Rauschwerte mehr in Bodennähe; nicht auf einer echten Grafikkarte gemessen.

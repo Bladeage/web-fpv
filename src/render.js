@@ -262,11 +262,19 @@ void main(){
     if (e > -1.0) c = mix(c, texture(uGround, clamp(uv, 0.0, 1.0)).rgb, smoothstep(-1.0, 25.0, e));
     if (vCol.a > 0.07) {   // Baumkrone: Farbe des Luftbilds darunter (unscharf, sonst Streifen an den Seiten), Licht weich
       c = mix(far, texture(uGround, clamp(uv, 0.0, 1.0), 3.0).rgb, smoothstep(-1.0, 25.0, e));
-      c = mix(c, vec3(0.20, 0.30, 0.15), 0.15);
+      // Plastischer (Optik, Prompt 245): mehr Grün und Sättigung, oben heller und unten dunkler (nach der Flächenrichtung),
+      // auf „Schön“ dazu ein Laubmuster. Werte Schätzung nach Augenmaß; vorher wirkten die Kronen blass und flach.
+      c = mix(c, vec3(0.17, 0.29, 0.13), 0.28);
+      if (uGfx > 0.5) {
+        c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.08)*mix(0.62, 1.04, clamp(n.y*0.5 + 0.5, 0.0, 1.0));
+        if (full && dCam < 120.0) c *= 0.90 + 0.20*vnoise(vW.xz*2.3 + vW.y*1.7);
+      }
       n = normalize(n + vec3(0.0, 1.3, 0.0));
-    } else if (full && dCam < 15.0) {   // „Schön“: feines Korn nah am Boden; das Luftbild (0,25 m je Pixel) verwischt unter 10 m. Stärke 0,22: Schätzung
-      float g = vnoise(vW.xz*7.0)*0.6 + vnoise(vW.xz*19.0)*0.4;
-      c *= 1.0 + (g - 0.5)*0.22*(1.0 - smoothstep(8.0, 15.0, dCam));
+    } else if (full && dCam < 70.0) {   // „Schön“: Muster über dem Luftbild, das aus der Nähe verwischt (0,25 m je Pixel und gröber)
+      // Zwei Stufen (Optik, Prompt 245): feines Korn bis 18 m (Stärke 0,22 wie bisher), grobes Muster bis 70 m (0,16). Schätzung.
+      float g = (vnoise(vW.xz*7.0)*0.6 + vnoise(vW.xz*19.0)*0.4 - 0.5)*0.22*(1.0 - smoothstep(8.0, 18.0, dCam));
+      g += (vnoise(vW.xz*1.3)*0.6 + vnoise(vW.xz*3.1)*0.4 - 0.5)*0.16*(1.0 - smoothstep(35.0, 70.0, dCam));
+      c *= 1.0 + g;
     }
   }
   // Wasser (echte Welt, Alpha 0,7): Luftbild des Flusses mit leichter Tönung, Spiegelung des Horizonts zum flachen Blick hin
@@ -349,6 +357,9 @@ void main(){
   vec3 lc = vec3(1.0, 0.88, 0.70)*1.5;
   if (uNight > 0.5) { amb *= vec3(0.06, 0.08, 0.12); lc = vec3(0.25, 0.30, 0.45)*0.25; }   // Nacht: Mondlicht bläulich und schwach (Schätzung)
   vec3 col = base*(amb*ao + dif*lc) + pow(uOver.rgb, vec3(2.2))*uOver.a*0.5 + vec3(1.0, 0.95, 0.85)*wGlint;
+  // Echte Welt, Mittel und Schön: Luftbilder sind flau, darum etwas mehr Sättigung (1,22, Schätzung). Vor Dunst und Nebel,
+  // damit der Horizont zum Himmel passt (Optik, Prompt 245).
+  if (uPhoto > 0.5 && uGfx > 0.5) col = max(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, 1.22), 0.0);
   float d = dCam;
   float f = 1.0 - exp(-pow(d*uFogD, 1.6));
   float hz = full && uPhoto < 0.5 ? exp(-max(vW.y, 0.0)/18.0)*(1.0 - exp(-d/450.0))*0.12 : 0.0;   // Dunst nah am Boden
