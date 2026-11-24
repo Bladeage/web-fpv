@@ -323,13 +323,19 @@ export function drawHud() {
   // Betaflight schaltet nur mit Gas unten scharf (Sicherheit). Stand das Gas beim Start oben, bleibt es aus: Hinweis wie im Betaflight-OSD.
   else if (game.state === 'fly' && cfg.fc === 'bf' && bf.ready && bf.x && !bf.x.bf_flag(0) && blink) txt('BETAFLIGHT AUS: GAS GANZ RUNTER', W/2, H/2 + fs*1.6, 'center', '#ffd27a');
   const hy = touchUI ? bot - lh*7 : H*0.8;   // Touch: über den Werten unten, die dort über den Knüppeln stehen
-  if (!game.armed && game.state === 'fly' && s.grounded) txt(touchUI ? 'Tippen: scharf schalten' : 'Leertaste: scharf schalten', W/2, hy, 'center', '#ffffff');
+  if (!game.armed && game.state === 'fly' && s.grounded) txt(touchUI ? (game.throttle > 0.05 ? 'Erst Gas ganz runter, dann oben den Knopf Ein/Aus' : 'Knopf Ein/Aus oben: scharf schalten') : 'Leertaste: scharf schalten', W/2, hy, 'center', '#ffffff');
   else if (game.state === 'fly' && s.t < 6 && s.grounded && game.throttle < 0.2) {
     const hint = gp.connected ? 'Gasknüppel hoch' : touchUI ? 'Linken Daumen nach oben schieben für Gas' : 'W drücken für Gas, S für weniger';
     txt(hint, W/2, hy, 'center', '#ffffff');   // unter Horizont und Zielmarker, über der Knüppel-Anzeige
   }
   // Nächster Schritt des Auftrags (F1): am Start und in den ersten 8 s des Flugs
-  if (game.state === 'fly' && game.armed && s.flyT < 8) { const nx = scenHint(); if (nx) txt(nx, W/2, hy + fs*1.5, 'center', '#c8ffd4'); }
+  if (game.state === 'fly' && game.armed && s.flyT < 8) {
+    const nx = scenHint();
+    if (nx) {   // zu breit für das Bild (Handy hochkant): an einem Leerzeichen nahe der Mitte in zwei Zeilen teilen
+      const m = c.measureText(nx).width > W - 24 ? nx.lastIndexOf(' ', Math.ceil(nx.length/2) + 6) : -1;
+      (m > 0 ? [nx.slice(0, m), nx.slice(m + 1)] : [nx]).forEach((t, i) => txt(t, W/2, hy + fs*(1.5 + i*1.25), 'center', '#c8ffd4'));
+    }
+  }
   if (glLost.on) {   // Grafik verloren: Bild bleibt stehen, Flug ruht; meist kommt sie nach Sekunden zurück
     c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, H);
     txt('GRAFIK UNTERBROCHEN, WIRD NEU GESTARTET', W/2, H/2, 'center', '#ffd27a');

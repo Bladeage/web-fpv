@@ -8,9 +8,9 @@ import { cfg, game, inp, say } from './state.js';
 import { gates } from './world.js';
 import { STEP, fx, respawn, step, rewind, freezeOk, crash, shotHit, respawnDrone } from './physics.js';
 import { updGamepad, gpAct } from './gamepad.js';
-import { audioUpd, beep, hit, crashSound, popSound } from './audio.js';
+import { audioUpd, beep, hit, crashSound, popSound, boomSound } from './audio.js';
 import { gl, glLost, initGL, render, resize, toggleCam, cycleVision, glName, frameStat } from './render.js';
-import { $, menu, resume, show, updGpUI, setMode } from './menu.js';
+import { $, menu, resume, show, updGpUI, setMode, syncFlyBtns } from './menu.js';
 import { updKeyboard, updTouch } from './input.js';
 import { drawHud } from './hud.js';
 import { missionEnd, setScenario, scen, followLead, chargeOn, chargeDue, chargeNext, chargeBoom, chargeDrones, huntCars } from './scenario.js';
@@ -35,7 +35,7 @@ import { devRefresh } from './srcui.js';
 let streamT = 1;   // Takt fürs Nachladen der echten Welt (s)
 let tileErrShown = '';   // zuletzt gezeigter Fehler beim Nachladen
 
-fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound;
+fx.beep = beep; fx.hit = hit; fx.crash = crashSound; fx.pop = popSound; fx.boom = boomSound;
 gpAct.cam = toggleCam; gpAct.vision = cycleVision; gpAct.rewind = () => rewind(5); gpAct.mode = m => { setMode(m); say(m === 'acro' ? 'Acro' : 'Angle', 1); };
 fx.vibrate = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 setScenario(cfg.scen); game.scenRun = cfg.scen;
@@ -56,10 +56,10 @@ function combat() {
   const s = game.sim, armed = !!s.armed, u = vb.contact;   // erst ab 10 m scharf (Prompt 226)
   if (game.state === 'fly' && u) {
     const name = disBaseInfo(u.base).name;
-    if (armed) { vbDetonate(s.p, u, s.v); boomed = true; crash('Sprengladung gezündet: ' + name + ' getroffen'); }
+    if (armed) { vbDetonate(s.p, u, s.v); boomed = true; fx.boom(); crash('Sprengladung gezündet: ' + name + ' getroffen'); }
     else if (cfg.dmg !== 'off' && Math.hypot(...s.v) > 2) crash('An ' + name + ' geprallt');
   }
-  if (armed && !boomed && game.state === 'crashed') { vbDetonate(s.p, null, s.v); boomed = true; }
+  if (armed && !boomed && game.state === 'crashed') { vbDetonate(s.p, null, s.v); boomed = true; fx.boom(); }
 }
 // Wirkmittel im Taktischen Flug (Prompt 196): Absturz zündet die Ladung (Explosion), nach kurzer Zeit kommt eine neue Drohne
 let chargeSeen = 0;
@@ -79,6 +79,7 @@ function frame(now) {
   game.last = now;
   updGamepad();
   if (!menu.hidden) updGpUI();
+  syncFlyBtns();
   if (!game.paused) {
     updKeyboard(dt);
     updTouch();

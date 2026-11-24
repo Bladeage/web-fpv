@@ -124,6 +124,15 @@ export function crashSound() {
   burst('lowpass', 1500, 0.45, 0.5, t);
   burst('bandpass', 3500, 0.2, 0.25, t + 0.03);
 }
+// Explosion der Sprengladung (Prompt 249): tiefer Schlag, breites Rauschen, kurzer Nachhall. Lauter und länger als der Absturz.
+export function boomSound() {
+  if (!ac || !vol()) return;
+  const t = ac.currentTime;
+  thump(70, 0.9, 0.6, t);
+  burst('lowpass', 900, 0.7, 0.9, t);
+  burst('bandpass', 2200, 0.3, 0.35, t + 0.02);
+  burst('lowpass', 400, 0.35, 1.4, t + 0.12);
+}
 // Ballon platzt: kurzer heller Knall, dann ein leises Flattern
 export function popSound() {
   if (!ac || !vol()) return;

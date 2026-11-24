@@ -72,7 +72,8 @@ void main(){
 }`;
 // Bodenmuster für „Schön“: Gras mit Struktur, Erdflecken, Wege entlang des Kurses. Wird einmal in eine Textur gerechnet (bakeGround).
 const NOISE = `
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+// Ohne Sinus (Hoskins): der Sinus großer Zahlen ist auf Handy-Grafikchips ungenau, das gab blockige Wolken (Bildschirmfotos Prompt 249; Ursache vermutet)
+float hash(vec2 p){ vec3 q = fract(vec3(p.xyx)*0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y)*q.z); }
 float vnoise(vec2 p){
   vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
   return mix(mix(hash(i), hash(i + vec2(1,0)), f.x), mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);

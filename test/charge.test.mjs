@@ -25,7 +25,7 @@ test('Ladung fest im Taktischen Flug in der Jagd (nicht Leicht, nicht im Parcour
 test('Landung auf dem Ziel: Zündung, Treffer, Explosion, Drohne verbraucht; danach neue Drohne mit vollem Akku', () => {
   cfg.flight = 'tactical'; cfg.diff = 'mid'; cfg.dmg = 'off'; cfg.mode = 'angle'; setScenario('hunt2'); respawn();
   const v = vehicles.find(x => x.kind === 'parked'), s = game.sim;
-  s.p = [v.x, 3, v.z]; s.v = [0, -2, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.mah = 500; s.armed = true;   // war schon über 10 m
+  s.p = [v.x, 2.2, v.z]; s.v = [0, -2, 0]; s.w = [0, 0, 0]; s.q = [0, 0, 0, 1]; game.throttle = 0; s.mah = 500; s.armed = true;   // war schon über 10 m; Start unter dem Dach des Parkhauses (eine Berührung zündet seit Prompt 249)
   const c0 = game.crashes;
   for (let i = 0; i < 3/STEP && game.state === 'fly'; i++) step(STEP);
   assert.equal(game.state, 'crashed'); assert.ok(/^Sprengladung im Ziel/.test(s.crashMsg), s.crashMsg);
@@ -88,4 +88,16 @@ test('OSD zeigt den Zustand der Ladung: erst SCHARF IN x M, dann LADUNG SCHARF; 
   assert.ok(bc(chargeLeft()).includes('SCHARF IN 6M'));
   s.armed = true; assert.equal(chargeLeft(), 0); assert.ok(bc(0).includes('LADUNG SCHARF'));
   cfg.flight = 'course'; respawn(); assert.equal(chargeLeft(), null); assert.ok(!bc(null).some(t => /SCHARF/.test(t)));
+});
+
+test('Scharfe Ladung und Aufprall auf den Boden: zündet auch ohne Schadensmodell, danach kommt die nächste Drohne (Prompt 249)', () => {
+  cfg.flight = 'tactical'; cfg.diff = 'mid'; cfg.dmg = 'off'; cfg.mode = 'angle'; setScenario('hunt2'); respawn();
+  const s = game.sim, n0 = booms.length;
+  for (let i = 0; i < 1/STEP; i++) step(STEP);
+  assert.equal(game.state, 'fly', 'am Boden mit nicht scharfer Ladung passiert nichts');
+  s.p = [game.home[0] + 30, 12 + solidH(game.home[0] + 30, game.home[1]), game.home[1]]; s.v = [0, 0, 0]; s.grounded = false; s.touch = false; game.throttle = 0;
+  for (let i = 0; i < 6/STEP && game.state === 'fly'; i++) step(STEP);
+  assert.equal(s.armed, true, 'über 10 m scharf geworden'); assert.equal(game.state, 'crashed'); assert.equal(s.crashMsg, 'Aufprall');
+  assert.equal(chargeDue(s.crashT + CHARGE.delay*1000 + 10), true, 'die nächste Drohne kommt von selbst');
+  assert.equal(booms.length, n0, 'die Explosion setzt die Bildschleife (main.js chargeStep)');
 });

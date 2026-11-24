@@ -15,9 +15,10 @@
 <div class="topbar">
   <button id="bReset" aria-label="Neustart">↺</button>
   <button id="bCam" aria-label="Kamera wechseln">◎</button>
-  <button id="bArm" class="touchonly" aria-label="Scharf schalten oder ausschalten">⏻</button>
+  <button id="bArm" class="touchonly" aria-label="Scharf schalten oder ausschalten"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0"/></svg></button>
   <button id="bMode" class="touchonly" aria-label="Flugmodus Angle oder Acro">ANG</button>
   <button id="bRew" class="touchonly" aria-label="5 Sekunden zurückspulen">↶</button>
+  <button id="bFreeze" class="touchonly" aria-label="Einfrieren oder weiterfliegen"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/></svg></button>
 </div>
 
 <div id="menu" class="overlay">
@@ -314,7 +315,7 @@
       <div class="tabpane" data-pane="help" hidden>
         <h2>Steuerung</h2>
         <div class="keys" id="helpKeys"></div>
-        <p class="hint"><b>Touch:</b> linker Daumen Gas und Gieren, rechter Daumen Nicken und Rollen. Tippen schaltet scharf und startet nach einem Absturz neu. Knöpfe oben: Neustart, Kamera, scharf schalten, Flugmodus (ANG oder ACR), 5 s zurückspulen.</p>
+        <p class="hint"><b>Touch:</b> linker Daumen Gas und Gieren, rechter Daumen Nicken und Rollen. Tippen startet nach einem Absturz neu. Knöpfe oben: Neustart, Kamera, scharf schalten (Ein/Aus-Zeichen), Flugmodus (ANG oder ACR), 5 s zurückspulen, einfrieren.</p>
         <h2>Aufträge</h2>
         <p class="hint"><b>Parcours:</b> Tore, Ringe, Slalom, Landung, Lieferung, Verfolgung. Das nächste Ziel leuchtet grün, der Marker zeigt die Richtung.</p>
         <p class="hint"><b>Taktisch:</b> Aufklärung: Auto oder Vogel 4 s im Fadenkreuz halten. Fahrzeuge, Drohnen, Flugzeuge: immer mit Sprengladung. Sie ist scharf ab 10 m über Grund und zündet beim Aufprall, danach kommt eine neue Drohne.</p>
