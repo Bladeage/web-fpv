@@ -239,3 +239,11 @@ test('Gebäudekacheln wiederverwenden: gleiche Gebäude wie ohne Zwischenspeiche
   assert.ok(!urls.some(u => u.includes('_305_5603')), 'Kachel 305_5603 aus dem Speicher');
   assert.equal(pB.meta.buildings, 1, 'nur das Haus im Gebiet B');
 });
+
+test('Luftbild des Landes nicht abrufbar (Sachsen-Anhalt, Prompt 254): Ort lädt ohne Bild weiter, Abbruch bleibt Abbruch', async () => {
+  const n = 32, A = { ...rwAreaAt(305000, 5604000, srcA), n, place: 'A' };
+  const get = msg => async u => { if (u.includes('wms')) throw new Error(msg); return makeTiff(n, 450); };
+  const p = await rwFetchArea(A, srcA, get('Keine Verbindung zu a.test (offline oder Zugriff gesperrt)'), async () => null, () => {}, { far: false });
+  assert.equal(p.dop, null, 'kein Luftbild, das Hauptprogramm nimmt Sentinel-2'); assert.ok(p.meta, 'Gebiet ist geladen');
+  await assert.rejects(rwFetchArea(A, srcA, get('Abgebrochen'), async () => null, () => {}, { far: false }), /Abgebrochen/);
+});

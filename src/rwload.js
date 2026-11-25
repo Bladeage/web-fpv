@@ -355,7 +355,10 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     const imgs = [];
     for (const s of srcs) imgs.push(s.dop ? await get(wmsUrl(s.dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2, 0.25)).catch(() => null) : null);
     dop = await opt.mergeImg(imgs, opt.cells);
-  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2, 0.25));
+  // Luftbild des Landes nicht abrufbar: ohne Bild weiter, das Hauptprogramm nimmt dann Sentinel-2 (wie bei Ländern ohne eigenes
+  // Luftbild). Vorher brach der ganze Ort ab. Gemessen 25.11.2026: Sachsen-Anhalt schickt den Kopf Access-Control-Allow-Origin
+  // doppelt, Browser lehnen die Antwort ab (Prompt 254). Ein Abbruch durch den Nutzer bleibt ein Abbruch.
+  } else if (srcs[0].dop) dop = await get(wmsUrl(srcs[0].dop, a.bbox, a.crs, a.dopN || RW_DOPN), mb('Luftbild', 0.2, 0.25)).catch(e => { if (/Abgebrochen/.test(String(e && e.message))) throw e; return null; });
   const inBox = (e, nn) => e >= a.bbox[0] && e <= a.bbox[2] && nn >= a.bbox[1] && nn <= a.bbox[3];
   // Gebäude: je Quelle ihre Kacheln; bei mehreren nur Gebäude, deren Mitte in einer Zelle dieser Quelle liegt
   const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
