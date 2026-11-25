@@ -1,9 +1,9 @@
 /* Echte Welt: Gebiet aus offenen Geodiensten laden (Etappe L1). Ohne DOM: läuft im Browser (Laden per Koordinate)
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
-import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, gridTo, gridMask, fromUtm } from './geo.js';
+import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, gridTo, gridMask, fromUtm, triangulate } from './geo.js';
 import { wmsFetchHeights, wmsFill } from './rwwms.js';
-import { osmWoods } from './rwroads.js';
+import { osmWoods, osmBuildings } from './rwroads.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
@@ -47,18 +47,23 @@ export const RW_SOURCES = [{
 // WCS gefunden am 21.11.2026 (Prompt 221): Baden-Württemberg (INSPIRE, Achsen E und N), Saarland (INSPIRE, Werte in cm)
 { id: 'bw', roads: OSM_ROADS, name: 'Baden-Württemberg (LGL)', land: 'Baden-Württemberg', crs: 'EPSG:25832',
   dgm: { url: 'https://owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1', coverage: 'EL.ElevationGridCoverage', axes: ['E', 'N'] },
-  dop: { url: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', layer: 'IMAGES_DOP_20_RGB' }, attribution: 'LGL, www.lgl-bw.de, dl-de/by-2-0' },
+  dop: { url: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', layer: 'IMAGES_DOP_20_RGB' },
+  lod2ref: 'https://opengeodata.lgl-bw.de/data/lod2/LoD2_32_{E}_{N}_2_bw.zip (CORS nur eigene Domain)', attribution: 'LGL, www.lgl-bw.de, dl-de/by-2-0' },
 { id: 'sl', roads: OSM_ROADS, name: 'Saarland (LVGL)', land: 'Saarland', crs: 'EPSG:25832',
   dgm: { url: 'https://geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel', coverage: 'EL.GridCoverage', scale: 0.01, nodata: 0 },   // nodata 0: gemessen, 29 % der Zellen im Umland genau 0
-  dop: { url: 'https://geoportal.saarland.de/freewms/dop2023', layer: 'sl_dop20_rgb' }, attribution: 'LVGL Saarland 2026' },
-// Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
-...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0'],
-  ['hb', 'Bremen', 'https://geodienste.bremen.de/wms_dop20_2023', 'DOP20_2023_HB', 'Landesamt GeoInformation Bremen, CC BY'],
-  ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000],
-  ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0'],
-  ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0'],
-  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0']
-].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, attribution })),
+  dop: { url: 'https://geoportal.saarland.de/freewms/dop2023', layer: 'sl_dop20_rgb' },
+  lod2ref: 'https://geoportal.saarland.de/gdi-sl/inspirewfs_Gebaeude_3D_LoD2 (nur INSPIRE-GML, kein CityGML/UTM)', attribution: 'LVGL Saarland 2026' },
+// Nur Luftbild (Höhen aus der Welt-Quelle). lod2ref: amtliche Gebäude-Adresse als Notiz-Vorlage, im Browser nicht ladbar (Prompt 257); der Simulator nutzt dort OSM-Gebäude.
+...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0', 0, 'https://download1.bayernwolke.de/a/lod2/citygml/{E}_{N}.gml (ohne CORS)'],
+  ['hb', 'Bremen', 'https://geodienste.bremen.de/wms_dop20_2023', 'DOP20_2023_HB', 'Landesamt GeoInformation Bremen, CC BY', 0, 'https://gdi2.geo.bremen.de/inspire/download/LoD/data/LOD2_CITYGML_HB.zip (ohne CORS, Stadt-Gesamtpaket)'],
+  ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000, 'https://gds.hessen.de/downloadcenter (Pakete je Gemarkung, rollendes Datum)'],
+  ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0', 0, 'https://opengeodata.schleswig-holstein.de (LoD2_32_{E}_{N}_1_SH.xml, nicht geprüft)'],
+  ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0', 0, 'https://geocloud.landesvermessung.sachsen.de (ohne CORS, WebDAV mit Token)'],
+  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0', 0, 'INSPIRE-ATOM (kein CityGML/UTM); Sammel-ZIP-Adresse nicht auffindbar'],
+  // Thüringen und Hamburg (Prompt 253): Luftbild-WMS mit CORS, selbst geprüft 25.11.2026. Höhen aus der Welt-Quelle, Gebäude aus OpenStreetMap (Rückfall). Hamburg begrenzt große Abrufe (max 4000).
+  ['th', 'Thüringen', 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP', 'th_dop', '© GDI-Th, CC BY 4.0', 0, 'https://geoportal.geoportal-th.de/dienste/atom_th_gebaeude (ohne CORS)'],
+  ['hh', 'Hamburg', 'https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt', 'dop_zeitreihe_belaubt', 'Freie und Hansestadt Hamburg, LGV, dl-de/by-2-0', 4000, 'https://daten-hamburg.de/opendata/3d_stadtmodell_lod2/LoD2-DE_HH_2026-04-28.zip (CORS, 629 MB, nur Teilabruf einer Kachel)']
+].map(([id, land, url, layer, attribution, max, lod2ref]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, lod2ref, attribution })),
 {
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.
   // Gilt überall (box null), ohne Gebäude, Bäume, Luftbild. Nie im Browser speichern (Lizenz der Quelle). use: 'dis' (nur für den
@@ -393,6 +398,21 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     for (const i of o.roofId) bld.roofId.push(i + base);
     for (const i of o.wallId) bld.wallId.push(i + base);
   }
+  // Gebäude aus OpenStreetMap (Rückfall, Prompt 253): nur wenn die Quelle keine eigenen (LoD2) hat und Overpass kennt. Amtliches
+  // LoD2 geht vor. Grundrisse als Klötze mit Höhe nach Stockwerkszahl; das Gelände liefert dgm. So gibt es Gebäude in jedem Land.
+  if (!bld.info.length && !jobs.length && !wms && srcs[0].roads && srcs[0].roads.overpass) {
+    say('Gebäude (OpenStreetMap)', 0.9);
+    const builds = await osmBuildings(srcs[0].roads, a.bbox, crsZone(a.crs), { text }).catch(() => null);
+    if (builds && builds.length) {
+      const gb = a.bbox, gn = dgm.w, gw = gb[2] - gb[0], gh = gb[3] - gb[1];
+      let fb = NaN; for (const v of dgm.data) if (isFinite(v) && v > -1000) { fb = v; break; }   // Rückfall-Gelände, falls eine Zelle ungültig ist
+      const groundAt = (E, N) => { const x = Math.max(0, Math.min(gn - 1, Math.round((E - gb[0])/gw*(gn - 1)))), y = Math.max(0, Math.min(gn - 1, Math.round((gb[3] - N)/gh*(gn - 1)))); const v = dgm.data[y*gn + x]; return isFinite(v) && v > -1000 ? v : fb; };
+      const ob = osmBuildBld(builds, groundAt);
+      for (const x of ob.roof) bld.roof.push(x); for (const x of ob.wall) bld.wall.push(x);
+      for (const x of ob.info) bld.info.push(x);
+      for (const i of ob.roofId) bld.roofId.push(i); for (const i of ob.wallId) bld.wallId.push(i);
+    }
+  }
   say('Bäume', 0.92);
   // Ohne DOM: Bäume in Waldflächen aus OpenStreetMap (Prompt 229), wenn die Quelle Overpass kennt; ohne Antwort keine Bäume
   const woods = !dom && srcs[0].roads && srcs[0].roads.overpass ? await osmWoods(srcs[0].roads, a.bbox, crsZone(a.crs), { text }).catch(() => null) : null;
@@ -460,6 +480,34 @@ export function rwSourcesParse(json) {
 // Packen wie die eingebetteten Dateien: Höhen 16 Bit in dm über dem tiefsten Punkt; Gebäude als 16 Bit in dm
 // (Kartenkoordinaten: Mitte = Ursprung, x nach Osten, z nach Süden, y über dem Startplatz), erst Dächer, dann Wände,
 // dahinter je Dreieck die Gebäudenummer und je Gebäude Klasse + 16 x Flachdach; Bäume x, z, Höhe, Kronenradius in dm.
+// OSM-Grundrisse zu Gebaeude-Dreiecken (Rueckfall ohne LoD2, Prompt 253): Waende vom Boden bis zur Hoehe, Flachdach oben.
+// groundAt(E, N) liefert das Gelaende. Format wie readLod2 (roof/wall in UTM und Hoehe, je Dreieck eine Gebaeudenummer).
+// Ring einheitlich gegen den Uhrzeigersinn, damit die Wandnormalen nach aussen zeigen (kein Culling, aber das Licht stimmt sonst nicht).
+// Flachdach (roof '1000', +16 in rwPack); fn generisch Wohngebaeude. Boden 1,5 m tiefer gezogen, damit am Hang keine Luecke klafft.
+export function osmBuildBld(builds, groundAt) {
+  const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
+  for (const bdg of builds) {
+    let ring = bdg.ring;
+    const m = ring.length;
+    if (m > 3 && ring[0][0] === ring[m - 1][0] && ring[0][1] === ring[m - 1][1]) ring = ring.slice(0, -1);   // Ring offen
+    const n = ring.length;
+    if (n < 3) continue;
+    let area = 0; for (let i = 0; i < n; i++) { const a = ring[i], b = ring[(i + 1) % n]; area += a[0]*b[1] - b[0]*a[1]; }
+    if (area < 0) ring = ring.slice().reverse();   // gegen den Uhrzeigersinn
+    let g = Infinity; for (const p of ring) { const v = groundAt(p[0], p[1]); if (v < g) g = v; }
+    if (!isFinite(g)) continue;
+    const base = g - 1.5, top = g + bdg.h, id = bld.info.length;
+    for (let i = 0; i < n; i++) {
+      const a = ring[i], b = ring[(i + 1) % n];
+      const A = [a[0], a[1], base], B = [b[0], b[1], base], C = [b[0], b[1], top], D = [a[0], a[1], top];
+      bld.wall.push(A, B, C, A, C, D); bld.wallId.push(id, id);
+    }
+    const poly = ring.map(p => [p[0], p[1], top]);
+    for (const t of triangulate(poly)) { bld.roof.push(poly[t[0]], poly[t[1]], poly[t[2]]); bld.roofId.push(id); }
+    bld.info.push({ fn: '31001_1000', roof: '1000', cx: bdg.cx, cy: bdg.cy });
+  }
+  return bld;
+}
 export function rwPack(a, dgm, dom, bld, dop, woods = null) {
   const n = dgm.w;
   let lo = 1e9, hi = -1e9;

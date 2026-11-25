@@ -213,6 +213,48 @@ export async function osmRoads(r, bbox, net) {
   return out;
 }
 const osmKey = p => p.lat.toFixed(7) + ',' + p.lon.toFixed(7);   // derselbe OSM-Punkt in zwei Wegen
+// Hoehe eines Gebaeudes aus den OSM-Merkmalen, in m. 'height' ('12' oder '12 m') gilt zuerst; sonst Stockwerke mal 3,2 m plus
+// 1,5 m fuers Dach; sonst 8 m geschaetzt (etwa zwei Vollgeschosse mit Dach). Werte sind Schaetzungen.
+export function osmHeight(t) {
+  const h = parseFloat(t.height);
+  if (h > 0) return Math.min(200, Math.max(2.5, h));
+  const lv = parseFloat(t['building:levels']);
+  if (lv > 0) return Math.min(200, Math.max(2.5, lv*3.2 + 1.5));
+  return 8;
+}
+// Gebaeude aus OpenStreetMap (Rueckfall, wo kein amtliches LoD2 erreichbar ist, Prompt 253). Grundrisse (Wege und aeussere Ringe
+// von Relationen) in UTM (absolut, nicht zur Mitte verschoben, weil rwPack absolut rechnet), dazu eine Hoehe und die Mitte.
+// Wie Strassen und Wald nur mit erfundenen Antworten getestet (Overpass ist aus der Arbeitsumgebung nicht erreichbar).
+export async function osmBuildings(r, bbox, zone, net) {
+  const g = geoBoxOf(bbox, zone), b = [g.minLat, g.minLon, g.maxLat, g.maxLon].map(v => v.toFixed(6)).join(',');
+  const j = await overpass(r, '[out:json][timeout:25];nwr[building](' + b + ');out geom;', net), out = [];
+  const ring = gm => gm.filter(p => p).map(p => toUtm(p.lat, p.lon, zone));   // absolut [E, N]
+  const add = (pts, t) => {
+    if (pts.length < 3) return;
+    const q = pts.length > 3 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1] ? pts.slice(0, -1) : pts;   // Schlusspunkt zaehlt die Mitte sonst doppelt
+    let cx = 0, cy = 0; for (const p of q) { cx += p[0]; cy += p[1]; } cx /= q.length; cy /= q.length;
+    if (cx < bbox[0] || cx > bbox[2] || cy < bbox[1] || cy > bbox[3]) return;   // Mitte ausserhalb: die Nachbarkachel nimmt es
+    out.push({ ring: pts, h: osmHeight(t || {}), cx, cy });
+  };
+  for (const el of j.elements || []) {
+    if (el.geometry && (el.tags || {}).building) add(ring(el.geometry), el.tags);
+    if (el.members) {   // Relation (Gebaeude mit Loch oder mehrteilig): aeussere Ringe zusammensetzen wie beim Wald, Loecher egal
+      const open = el.members.filter(m => m.role === 'outer' && m.geometry).map(m => m.geometry.filter(p => p)).filter(x => x.length > 1);
+      while (open.length) {
+        let c = open.pop().slice();
+        for (let grew = true; grew && osmKey(c[0]) !== osmKey(c[c.length - 1]);) {
+          grew = false;
+          for (let i = 0; i < open.length; i++) {
+            const gg = open[i], e = osmKey(c[c.length - 1]), f = osmKey(gg[0]) === e, l = osmKey(gg[gg.length - 1]) === e;
+            if (f || l) { c = c.concat((f ? gg : gg.slice().reverse()).slice(1)); open.splice(i, 1); grew = true; break; }
+          }
+        }
+        add(ring(c), el.tags);
+      }
+    }
+  }
+  return out;
+}
 // Overpass: Spiegel der Reihe nach, Antwort als JSON
 async function overpass(r, q, net) {
   let err = null;

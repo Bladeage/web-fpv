@@ -183,3 +183,29 @@ Gemessen mit `Origin` unserer Seite: Fähigkeiten, `GetMap` 256² und 4096² (JP
 - Gefunden und eingebaut: Baden-Württemberg `owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1`, Coverage `EL.ElevationGridCoverage` (Ausschnitt mit Achsen `E`, `N`, Skalierung trotzdem `x`, `y`; Höhen in ganzen Metern, Stuttgart 237 bis 327 m). Saarland `geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel`, Coverage `EL.GridCoverage` (Werte in cm, `scale: 0.01`; Saarbrücken 185 bis 231 m). Beide CORS `*`. Quelle der Adressen: Websuche und die Übersicht opendem.info (OpenDTM-DE).
 - Code: `dgm.axes` und `dgm.scale` in `wcsUrl` und `wcsTiff` (`src/rwload.js`).
 - Nicht offen oder nicht gefunden: Hessen `inspire-hessen.de/raster/dgm1/ows` (403, kein CORS), Sachsen-Anhalt `ST_LVermGeo_DGM1_WCS_OpenData` (403), Thüringen (Fähigkeiten ohne Coverage-Namen), Bayern, Sachsen, Bremen, Schleswig-Holstein, Hamburg (kein WCS gefunden; geprüfte Adressen 404). Dort bleiben die Höhen aus der Welt-Quelle. Der Katalog der GDI-DE war aus der Cloud-Umgebung nicht erreichbar.
+
+## Gebäude aus OpenStreetMap als Rückfall (Prompt 253/254, 25.11.2026)
+
+Ziel des Nutzers: Straßen und Gebäude für jedes Bundesland. Straßen kommen schon überall aus OSM (Overpass). Für Gebäude gibt es
+amtliches LoD2 nur in sechs Ländern (NRW, Brandenburg, Berlin, Niedersachsen, Rheinland-Pfalz, Mecklenburg-Vorpommern). Damit es
+überall Gebäude gibt, holt der Simulator Grundrisse aus OpenStreetMap, wo die Quelle kein eigenes LoD2 hat:
+- `osmBuildings` (`src/rwroads.js`): Overpass `nwr[building]`, äußere Ringe (auch Relationen) in UTM, Höhe aus `height` oder
+  `building:levels`×3,2 m, sonst 8 m geschätzt.
+- `osmBuildBld` (`src/rwload.js`): Grundriss zu Wänden (Boden bis Höhe) und Flachdach; Gelände aus dgm; Format wie LoD2, darum
+  dieselbe Darstellung (einfache Klötze, keine echten Dachformen).
+- Rückfall greift in `rwFetchArea` nur, wenn die Quelle kein LoD2 hat (amtliches LoD2 geht vor) und Overpass kennt.
+- Gilt damit für Baden-Württemberg, Saarland, Bayern, Bremen, Hessen, Schleswig-Holstein, Sachsen, Sachsen-Anhalt und für Orte
+  ohne Landesquelle (weltweit). Wie Straßen und Wald nur mit erfundenen Antworten getestet (Overpass aus der Arbeitsumgebung nicht erreichbar).
+
+Offen (Recherche läuft, Prompt 253): amtliche öffentliche LoD2-Quellen mit CORS für die Länder ohne eigene Gebäude, sowie Luftbild
+für Thüringen und Hamburg (beide bisher gar nicht in der Liste). Gefundene amtliche Quellen ersetzen dort später den OSM-Rückfall.
+
+## Thüringen und Hamburg nachgeliefert (Prompt 253, 25.11.2026)
+
+Recherche-Agenten und selbst nachgeprüft (GetMap mit `Origin: https://bladeage.github.io`, CORS `*`, echtes JPEG):
+- Thüringen Luftbild: WMS `https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP`, Layer `th_dop` (20 cm RGB), CC BY 4.0 (© GDI-Th). Das alte „Missing WMS:GetMap right“ ist weg.
+- Hamburg Luftbild: WMS `https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt`, Layer `dop_zeitreihe_belaubt` (belaubt/Sommer), dl-de/by-2-0. Große Übersichten sperrt der Dienst (MaxScaleDenominator 5000); die Umgebung kommt dann aus Sentinel-2/Welt.
+
+Beide als reine Luftbild-Länder eingetragen (Höhe aus der Welt-Quelle, Straßen und Gebäude aus OpenStreetMap). Damit sind alle 16 Bundesländer in der Liste; auf der Auswahlkarte sind Thüringen und Hamburg jetzt gelb statt rot.
+
+Gebäude amtlich, aber im Browser nicht nutzbar (bleiben beim OSM-Rückfall): Bayern, Sachsen, Thüringen (Download-Hosts ohne CORS), Bremen (ohne CORS, nur Stadt-Gesamtpaket). Hamburg hat ein CORS-fähiges LoD2-ZIP (629 MB, Deflate, 1-km-Kacheln `LoD2_32_{E}_{N}_1_HH.gml`), nutzbar nur per Teilabruf aus dem ZIP (anderer Pfad als heute, offen). Schleswig-Holstein und Sachsen-Anhalt aus der Arbeitsumgebung nicht abschließend prüfbar.
