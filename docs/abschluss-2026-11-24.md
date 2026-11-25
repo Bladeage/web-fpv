@@ -13,9 +13,14 @@ Stand nach dem Feinschliff zum Release. Wer weiterarbeitet, liest zuerst dieses 
 
 ## Zahlen
 
-- 385 Tests, alle grün (`npm test`).
+- 385 Tests, alle grün (`npm test`). Stand 25.11.2026: 391 Tests, 390 grün, 1 übersprungen (Windows-Brücke, braucht PowerShell).
 - `dist/fpvsim.html`: 7,77 MB, Grenze im Test 7,9 MB. Der Build lässt reine Kommentarzeilen weg; das sparte etwa 155 KB.
 - Betaflight lässt sich in der Arbeitsumgebung neu bauen: `node sitl/build.mjs <Pfad zum Betaflight-Quellcode>` (clang 18, wasm-ld; Commit steht in `sitl/build.mjs`).
+
+## Nachtrag 25.11.2026
+
+- Handy-Korrekturen (Scharfschalten, Knopf Einfrieren, Zündung beim Aufprall) und robusteres Ausliefern sind übernommen (PR #24, #25).
+- Funktionsprüfung des gebauten Stands im Test-Browser: kein Fehler im Programm. Protokoll: `docs/pruefung-2026-11-25.md`.
 
 ## Offen
 

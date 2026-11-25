@@ -1,6 +1,6 @@
 # Arbeitsregeln für Claude Code
 
-- Stand 24.11.2026: Feinschliff zum Release umgesetzt (F1 bis F4, Optik). Offen ist die Abnahme durch den Nutzer nach `docs/test-liste.md`. Lies zuerst `docs/abschluss-2026-11-24.md`, dann `docs/plan-feinschliff.md`, `docs/pruefung-2026-11-24.md` und `docs/plan-quellen.md` (Vorgeschichte: `docs/abschluss-2026-11-13.md`, `docs/handover-2026-11-11.md`, `docs/PLAN.md`, `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`).
+- Stand 25.11.2026: Feinschliff zum Release umgesetzt (F1 bis F4, Optik), Funktionsprüfung zum Abschluss ohne Fehler (`docs/pruefung-2026-11-25.md`). Offen ist die Abnahme durch den Nutzer nach `docs/test-liste.md`. Lies zuerst `docs/abschluss-2026-11-24.md`, dann `docs/plan-feinschliff.md`, `docs/pruefung-2026-11-24.md` und `docs/plan-quellen.md` (Vorgeschichte: `docs/abschluss-2026-11-13.md`, `docs/handover-2026-11-11.md`, `docs/PLAN.md`, `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`).
 - Jeden Prompt des Nutzers gestrafft in `docs/prompt-historie.md` eintragen (Nr., Datum, Prompt, Ergebnis), auch Antworten auf Rückfragen. Mit dem nächsten Commit ablegen.
 - Arbeite in Etappen. Pro Sitzung genau eine Etappe: umsetzen, prüfen, committen, kurz berichten, dann anhalten und auf Freigabe warten.
 - Keine Bibliotheken, keine externen Quellen, keine CDNs. Nur HTML, CSS, JavaScript und WebGL2. Build und Tests nur mit Node-Standardmodulen.

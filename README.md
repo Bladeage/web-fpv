@@ -47,7 +47,7 @@ Ausgaben: `dist/fpvsim.html` und `dist/fpvsim.aspx` (für SharePoint, reines ASC
 ## Für die Entwicklung
 
 - Stand 24.11.2026: Feinschliff zum Release umgesetzt, Zusammenfassung und offene Punkte in `docs/abschluss-2026-11-24.md`, Plan in `docs/plan-feinschliff.md`. Versionshinweise: `docs/versionshinweise.md`. Test-Liste für echte Geräte: `docs/test-liste.md`.
-- Prüfung der Funktionen: `docs/pruefung-2026-11-24.md`. Quellen der echten Welt: `docs/plan-quellen.md`.
+- Prüfung der Funktionen: `docs/pruefung-2026-11-24.md`. Funktionsprüfung zum Abschluss (25.11.2026): `docs/pruefung-2026-11-25.md`. Quellen der echten Welt: `docs/plan-quellen.md`.
 - Früherer Abschluss (13.11.2026): `docs/abschluss-2026-11-13.md`
 - Aufbau und Hintergrund: `docs/handover-2026-11-11.md` (ältere Übergaben: `docs/handover-2026-11-06.md`, `docs/handover-2026-10-30.md`)
 - Echte Welt (Daten, Quellen, Etappen L1 bis L5): `docs/echte-welt.md`
