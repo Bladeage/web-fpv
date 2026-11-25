@@ -160,6 +160,9 @@ Gemessen mit `Origin` unserer Seite: Fähigkeiten, `GetMap` 256² und 4096² (JP
 | Sachsen | Welt | `geodienste.sachsen.de/wms_geosn_dop-rgb/guest`, `sn_dop_020` | kostenfrei, Nutzungsbedingungen GeoSN |
 | Sachsen-Anhalt | Welt | `geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest`, `lsa_lvermgeo_dop20_2` | dl-de/by-2-0 (aus der Liste) |
 
+Nachtrag 25.11.2026: Der Dienst von Sachsen-Anhalt schickt `Access-Control-Allow-Origin` doppelt, Browser lehnen das Bild ab. Das Programm nimmt dort Sentinel-2, bis der Dienst das ändert (`docs/pruefung-2026-11-25.md`).
+
+
 - Nicht gefunden oder nicht offen: Hamburg (alle geprüften Adressen 404), Thüringen (WMS verlangt Rechte: „Missing WMS:GetMap right“; WCS-Fähigkeiten da, Abdeckung nicht geprüft), WCS für Bayern, Baden-Württemberg, Bremen, Hessen, Schleswig-Holstein, Saarland, Sachsen, Sachsen-Anhalt (geprüfte Adressen 404).
 - Code: Quellen ohne `dgm` (nur Luftbild) nehmen die Höhen der Welt-Quelle; `dop.max` begrenzt die Bildgröße; Umgebung mit Luftbild des Landes. Im Browser geladen und geflogen: Berlin 33 s, München 24 s, Frankfurt 39 s (die Zeit geht vor allem in das Luftbild 4096², 2,5 bis 12 MB je Dienst).
 - Die XYZ-Kacheln von Berlin nutzt keine Vorlage mehr. Der Leser bleibt (Q1, getestet); bei Platznot zuerst entfernen (etwa 1 KB).
