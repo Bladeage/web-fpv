@@ -424,7 +424,10 @@ export async function rwCheckSource(s, E, N, get, text) {
   const tiles = async svc => { const t = await tileRaster(svc, bb, s.crs, 16, get, text), v = [...t.data].filter(x => !isNaN(x)); if (!v.length) throw new Error('keine Kachel an diesem Ort'); return 'Höhe ' + v[0].toFixed(1) + ' m (Kacheln)'; };
   if (s.dgm) await run('Höhen', () => s.dgm.coverage ? tif(s.dgm) : tiles(s.dgm)); else if (s.dgm === null) out.push({ was: 'Höhen', ok: true, text: 'aus der Welt-Quelle' }); else out.push({ was: 'Höhen', ok: false, text: 'fehlt (nötig)' });
   if (s.dom) await run('Oberfläche', () => tif(s.dom));
-  if (s.dop) await run('Luftbild', async () => { const b = await get(wmsUrl(s.dop, bb, s.crs, 64)); if (!(b[0] === 0xff && b[1] === 0xd8) && !(b[0] === 0x89 && b[1] === 0x50)) throw new Error('kein Bild'); return (b.length/1024).toFixed(0) + ' KB Bild'; });
+  // Luftbild nicht abrufbar: Der Ort lädt trotzdem, mit Sentinel-2 (rwFetchArea). Das steht dabei, sonst liest es sich wie ein Ausfall
+  // des ganzen Landes (Nutzer, Prompt 255: Sachsen-Anhalt auf dem Handy).
+  const dopHint = fn => async () => { try { return await fn(); } catch (e) { throw new Error(String(e.message || e) + '. Der Ort lädt trotzdem, mit dem groben Luftbild Sentinel-2'); } };
+  if (s.dop) await run('Luftbild', dopHint(async () => { const b = await get(wmsUrl(s.dop, bb, s.crs, 64)); if (!(b[0] === 0xff && b[1] === 0xd8) && !(b[0] === 0x89 && b[1] === 0x50)) throw new Error('kein Bild'); return (b.length/1024).toFixed(0) + ' KB Bild'; }));
   if (s.lod2) await run('Gebäude', async () => { const u = lod2Urls(s.lod2, bb)[0], t = await text(u); if (t === null) return 'keine Kachel an diesem Ort (' + u.split('/').pop() + ')';
     if (s.lod2.zip ? !t.startsWith('PK') : !/CityModel/.test(t.slice(0, 5000))) throw new Error(s.lod2.zip ? 'kein ZIP' : 'kein CityGML'); return 'Kachel erreichbar (' + u.split('/').pop() + ')'; });
   return out;
