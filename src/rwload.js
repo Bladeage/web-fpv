@@ -57,7 +57,10 @@ export const RW_SOURCES = [{
   ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000],
   ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0'],
   ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0'],
-  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0']
+  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0'],
+  // Thüringen und Hamburg (Prompt 253): Luftbild-WMS mit CORS, selbst geprüft 25.11.2026. Höhen aus der Welt-Quelle, Gebäude aus OpenStreetMap (Rückfall). Hamburg begrenzt große Abrufe (max 4000).
+  ['th', 'Thüringen', 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP', 'th_dop', '© GDI-Th, CC BY 4.0'],
+  ['hh', 'Hamburg', 'https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt', 'dop_zeitreihe_belaubt', 'Freie und Hansestadt Hamburg, LGV, dl-de/by-2-0', 4000]
 ].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, attribution })),
 {
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.

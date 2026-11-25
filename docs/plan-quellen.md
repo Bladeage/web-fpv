@@ -199,3 +199,13 @@ amtliches LoD2 nur in sechs Ländern (NRW, Brandenburg, Berlin, Niedersachsen, R
 
 Offen (Recherche läuft, Prompt 253): amtliche öffentliche LoD2-Quellen mit CORS für die Länder ohne eigene Gebäude, sowie Luftbild
 für Thüringen und Hamburg (beide bisher gar nicht in der Liste). Gefundene amtliche Quellen ersetzen dort später den OSM-Rückfall.
+
+## Thüringen und Hamburg nachgeliefert (Prompt 253, 25.11.2026)
+
+Recherche-Agenten und selbst nachgeprüft (GetMap mit `Origin: https://bladeage.github.io`, CORS `*`, echtes JPEG):
+- Thüringen Luftbild: WMS `https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP`, Layer `th_dop` (20 cm RGB), CC BY 4.0 (© GDI-Th). Das alte „Missing WMS:GetMap right“ ist weg.
+- Hamburg Luftbild: WMS `https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt`, Layer `dop_zeitreihe_belaubt` (belaubt/Sommer), dl-de/by-2-0. Große Übersichten sperrt der Dienst (MaxScaleDenominator 5000); die Umgebung kommt dann aus Sentinel-2/Welt.
+
+Beide als reine Luftbild-Länder eingetragen (Höhe aus der Welt-Quelle, Straßen und Gebäude aus OpenStreetMap). Damit sind alle 16 Bundesländer in der Liste; auf der Auswahlkarte sind Thüringen und Hamburg jetzt gelb statt rot.
+
+Gebäude amtlich, aber im Browser nicht nutzbar (bleiben beim OSM-Rückfall): Bayern, Sachsen, Thüringen (Download-Hosts ohne CORS), Bremen (ohne CORS, nur Stadt-Gesamtpaket). Hamburg hat ein CORS-fähiges LoD2-ZIP (629 MB, Deflate, 1-km-Kacheln `LoD2_32_{E}_{N}_1_HH.gml`), nutzbar nur per Teilabruf aus dem ZIP (anderer Pfad als heute, offen). Schleswig-Holstein und Sachsen-Anhalt aus der Arbeitsumgebung nicht abschließend prüfbar.
