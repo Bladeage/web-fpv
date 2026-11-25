@@ -1,9 +1,9 @@
 /* Echte Welt: Gebiet aus offenen Geodiensten laden (Etappe L1). Ohne DOM: läuft im Browser (Laden per Koordinate)
    und in Node (tools/realworld.mjs legt so das eingebettete Monschau ab). Netz nur über die übergebene Funktion get(url).
    Ergebnis „Paket“: dieselben Daten wie die eingebetteten Dateien (Beschreibung, Höhen 16 Bit, Luftbild JPEG, Gebäude, Bäume). */
-import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, gridTo, gridMask, fromUtm } from './geo.js';
+import { readTiff, readTiffAsync, readLod2, readLod2Async, cogOpen, cogWindow, zipGet, gridTo, gridMask, fromUtm, triangulate } from './geo.js';
 import { wmsFetchHeights, wmsFill } from './rwwms.js';
-import { osmWoods } from './rwroads.js';
+import { osmWoods, osmBuildings } from './rwroads.js';
 
 // Voreingestellte Quellen. NRW: Geobasis NRW, Datenlizenz Deutschland – Zero 2.0 (jede Nutzung ohne Bedingungen).
 // Gebiet als Rechteck in UTM (grob, mit Rand); an Grenzen entscheidet später die Reihenfolge der Quellen (L3).
@@ -393,6 +393,21 @@ export async function rwFetchArea(a, src, get, text, say = () => {}, opt = {}) {
     for (const i of o.roofId) bld.roofId.push(i + base);
     for (const i of o.wallId) bld.wallId.push(i + base);
   }
+  // Gebäude aus OpenStreetMap (Rückfall, Prompt 253): nur wenn die Quelle keine eigenen (LoD2) hat und Overpass kennt. Amtliches
+  // LoD2 geht vor. Grundrisse als Klötze mit Höhe nach Stockwerkszahl; das Gelände liefert dgm. So gibt es Gebäude in jedem Land.
+  if (!bld.info.length && !jobs.length && !wms && srcs[0].roads && srcs[0].roads.overpass) {
+    say('Gebäude (OpenStreetMap)', 0.9);
+    const builds = await osmBuildings(srcs[0].roads, a.bbox, crsZone(a.crs), { text }).catch(() => null);
+    if (builds && builds.length) {
+      const gb = a.bbox, gn = dgm.w, gw = gb[2] - gb[0], gh = gb[3] - gb[1];
+      let fb = NaN; for (const v of dgm.data) if (isFinite(v) && v > -1000) { fb = v; break; }   // Rückfall-Gelände, falls eine Zelle ungültig ist
+      const groundAt = (E, N) => { const x = Math.max(0, Math.min(gn - 1, Math.round((E - gb[0])/gw*(gn - 1)))), y = Math.max(0, Math.min(gn - 1, Math.round((gb[3] - N)/gh*(gn - 1)))); const v = dgm.data[y*gn + x]; return isFinite(v) && v > -1000 ? v : fb; };
+      const ob = osmBuildBld(builds, groundAt);
+      for (const x of ob.roof) bld.roof.push(x); for (const x of ob.wall) bld.wall.push(x);
+      for (const x of ob.info) bld.info.push(x);
+      for (const i of ob.roofId) bld.roofId.push(i); for (const i of ob.wallId) bld.wallId.push(i);
+    }
+  }
   say('Bäume', 0.92);
   // Ohne DOM: Bäume in Waldflächen aus OpenStreetMap (Prompt 229), wenn die Quelle Overpass kennt; ohne Antwort keine Bäume
   const woods = !dom && srcs[0].roads && srcs[0].roads.overpass ? await osmWoods(srcs[0].roads, a.bbox, crsZone(a.crs), { text }).catch(() => null) : null;
@@ -460,6 +475,34 @@ export function rwSourcesParse(json) {
 // Packen wie die eingebetteten Dateien: Höhen 16 Bit in dm über dem tiefsten Punkt; Gebäude als 16 Bit in dm
 // (Kartenkoordinaten: Mitte = Ursprung, x nach Osten, z nach Süden, y über dem Startplatz), erst Dächer, dann Wände,
 // dahinter je Dreieck die Gebäudenummer und je Gebäude Klasse + 16 x Flachdach; Bäume x, z, Höhe, Kronenradius in dm.
+// OSM-Grundrisse zu Gebaeude-Dreiecken (Rueckfall ohne LoD2, Prompt 253): Waende vom Boden bis zur Hoehe, Flachdach oben.
+// groundAt(E, N) liefert das Gelaende. Format wie readLod2 (roof/wall in UTM und Hoehe, je Dreieck eine Gebaeudenummer).
+// Ring einheitlich gegen den Uhrzeigersinn, damit die Wandnormalen nach aussen zeigen (kein Culling, aber das Licht stimmt sonst nicht).
+// Flachdach (roof '1000', +16 in rwPack); fn generisch Wohngebaeude. Boden 1,5 m tiefer gezogen, damit am Hang keine Luecke klafft.
+export function osmBuildBld(builds, groundAt) {
+  const bld = { roof: [], wall: [], roofId: [], wallId: [], info: [] };
+  for (const bdg of builds) {
+    let ring = bdg.ring;
+    const m = ring.length;
+    if (m > 3 && ring[0][0] === ring[m - 1][0] && ring[0][1] === ring[m - 1][1]) ring = ring.slice(0, -1);   // Ring offen
+    const n = ring.length;
+    if (n < 3) continue;
+    let area = 0; for (let i = 0; i < n; i++) { const a = ring[i], b = ring[(i + 1) % n]; area += a[0]*b[1] - b[0]*a[1]; }
+    if (area < 0) ring = ring.slice().reverse();   // gegen den Uhrzeigersinn
+    let g = Infinity; for (const p of ring) { const v = groundAt(p[0], p[1]); if (v < g) g = v; }
+    if (!isFinite(g)) continue;
+    const base = g - 1.5, top = g + bdg.h, id = bld.info.length;
+    for (let i = 0; i < n; i++) {
+      const a = ring[i], b = ring[(i + 1) % n];
+      const A = [a[0], a[1], base], B = [b[0], b[1], base], C = [b[0], b[1], top], D = [a[0], a[1], top];
+      bld.wall.push(A, B, C, A, C, D); bld.wallId.push(id, id);
+    }
+    const poly = ring.map(p => [p[0], p[1], top]);
+    for (const t of triangulate(poly)) { bld.roof.push(poly[t[0]], poly[t[1]], poly[t[2]]); bld.roofId.push(id); }
+    bld.info.push({ fn: '31001_1000', roof: '1000', cx: bdg.cx, cy: bdg.cy });
+  }
+  return bld;
+}
 export function rwPack(a, dgm, dom, bld, dop, woods = null) {
   const n = dgm.w;
   let lo = 1e9, hi = -1e9;
