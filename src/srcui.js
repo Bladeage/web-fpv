@@ -24,8 +24,9 @@ function srcList() {
   const box = srcEl('srcList'); box.textContent = '';
   const row = (s, label, btn, fn) => {
     const r = document.createElement('div'); r.className = 'srcrow';
+    if (s.lod2ref) r.title = 'Amtliche Gebäude (LoD2), im Browser nicht ladbar: ' + s.lod2ref;   // Notiz-Vorlage (Prompt 257)
     const t = document.createElement('div'), b = document.createElement('b'), sm = document.createElement('small');
-    b.textContent = s.name; sm.textContent = label; t.append(b, sm);
+    b.textContent = s.name; sm.textContent = label + (s.lod2ref ? ' · amtl. Gebäude als Notiz' : ''); t.append(b, sm);
     const k = document.createElement('button'); k.className = 'secondary'; k.textContent = btn; k.addEventListener('click', fn);
     r.append(t, k); box.append(r);
   };
@@ -127,8 +128,9 @@ function srcForm(i) {
   srcKind();
   srcEl('sfTitle').textContent = i >= 0 ? 'Quelle bearbeiten' : 'Neue Quelle';
   srcEl('sfDel').disabled = i < 0;
-  srcEl('sfMsg').textContent = s.dgm && !s.dgm.coverage ? 'Höhen aus Kacheln der Vorlage bleiben erhalten (nicht im Formular). Eine WCS-Adresse ersetzt sie.'
-    : 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen leer: aus der Welt-Quelle. Weitere Einstellungen der Vorlage bleiben erhalten.';
+  srcEl('sfMsg').textContent = (s.dgm && !s.dgm.coverage ? 'Höhen aus Kacheln der Vorlage bleiben erhalten (nicht im Formular). Eine WCS-Adresse ersetzt sie.'
+    : 'Adressen ohne „?“ und ohne Parameter eintragen (nur den Dienst). Höhen leer: aus der Welt-Quelle. Weitere Einstellungen der Vorlage bleiben erhalten.')
+    + (s.lod2ref ? '  Amtliche Gebäude (LoD2), im Browser nicht ladbar (CORS): ' + s.lod2ref + '. Standard bleibt OpenStreetMap; mit eigenem Weiterleitungsdienst (Proxy) nutzbar.' : '');
   SRC.show('source');
 }
 // Art der Quelle: Felder der Landesdienste oder des WMS-Höhendienstes zeigen

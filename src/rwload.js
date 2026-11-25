@@ -47,21 +47,23 @@ export const RW_SOURCES = [{
 // WCS gefunden am 21.11.2026 (Prompt 221): Baden-Württemberg (INSPIRE, Achsen E und N), Saarland (INSPIRE, Werte in cm)
 { id: 'bw', roads: OSM_ROADS, name: 'Baden-Württemberg (LGL)', land: 'Baden-Württemberg', crs: 'EPSG:25832',
   dgm: { url: 'https://owsproxy.lgl-bw.de/owsproxy/wcs/WCS_INSP_BW_Hoehe_Coverage_DGM1', coverage: 'EL.ElevationGridCoverage', axes: ['E', 'N'] },
-  dop: { url: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', layer: 'IMAGES_DOP_20_RGB' }, attribution: 'LGL, www.lgl-bw.de, dl-de/by-2-0' },
+  dop: { url: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C', layer: 'IMAGES_DOP_20_RGB' },
+  lod2ref: 'https://opengeodata.lgl-bw.de/data/lod2/LoD2_32_{E}_{N}_2_bw.zip (CORS nur eigene Domain)', attribution: 'LGL, www.lgl-bw.de, dl-de/by-2-0' },
 { id: 'sl', roads: OSM_ROADS, name: 'Saarland (LVGL)', land: 'Saarland', crs: 'EPSG:25832',
   dgm: { url: 'https://geoportal.saarland.de/gdi-sl/inspireraster/inspirewcsel', coverage: 'EL.GridCoverage', scale: 0.01, nodata: 0 },   // nodata 0: gemessen, 29 % der Zellen im Umland genau 0
-  dop: { url: 'https://geoportal.saarland.de/freewms/dop2023', layer: 'sl_dop20_rgb' }, attribution: 'LVGL Saarland 2026' },
-// Nur Luftbild (Höhen aus der Welt-Quelle, bis ein WCS gefunden ist)
-...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0'],
-  ['hb', 'Bremen', 'https://geodienste.bremen.de/wms_dop20_2023', 'DOP20_2023_HB', 'Landesamt GeoInformation Bremen, CC BY'],
-  ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000],
-  ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0'],
-  ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0'],
-  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0'],
+  dop: { url: 'https://geoportal.saarland.de/freewms/dop2023', layer: 'sl_dop20_rgb' },
+  lod2ref: 'https://geoportal.saarland.de/gdi-sl/inspirewfs_Gebaeude_3D_LoD2 (nur INSPIRE-GML, kein CityGML/UTM)', attribution: 'LVGL Saarland 2026' },
+// Nur Luftbild (Höhen aus der Welt-Quelle). lod2ref: amtliche Gebäude-Adresse als Notiz-Vorlage, im Browser nicht ladbar (Prompt 257); der Simulator nutzt dort OSM-Gebäude.
+...[['by', 'Bayern', 'https://geoservices.bayern.de/od/wms/dop/v1/dop40', 'by_dop40c', 'Bayerische Vermessungsverwaltung 2026, CC BY 4.0', 0, 'https://download1.bayernwolke.de/a/lod2/citygml/{E}_{N}.gml (ohne CORS)'],
+  ['hb', 'Bremen', 'https://geodienste.bremen.de/wms_dop20_2023', 'DOP20_2023_HB', 'Landesamt GeoInformation Bremen, CC BY', 0, 'https://gdi2.geo.bremen.de/inspire/download/LoD/data/LOD2_CITYGML_HB.zip (ohne CORS, Stadt-Gesamtpaket)'],
+  ['he', 'Hessen', 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows', 'he_dop_rgb', 'HVBG, Nutzung frei (HVGG § 24)', 3000, 'https://gds.hessen.de/downloadcenter (Pakete je Gemarkung, rollendes Datum)'],
+  ['sh', 'Schleswig-Holstein', 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD', 'sh_dop20_rgb', '© GeoBasis-DE/LVermGeo SH/CC BY 4.0', 0, 'https://opengeodata.schleswig-holstein.de (LoD2_32_{E}_{N}_1_SH.xml, nicht geprüft)'],
+  ['sn', 'Sachsen', 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest', 'sn_dop_020', 'GeoSN 2026, dl-de/by-2-0', 0, 'https://geocloud.landesvermessung.sachsen.de (ohne CORS, WebDAV mit Token)'],
+  ['st', 'Sachsen-Anhalt', 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest', 'lsa_lvermgeo_dop20_2', 'GeoBasis-DE / LVermGeo ST 2026, dl-de/by-2-0', 0, 'INSPIRE-ATOM (kein CityGML/UTM); Sammel-ZIP-Adresse nicht auffindbar'],
   // Thüringen und Hamburg (Prompt 253): Luftbild-WMS mit CORS, selbst geprüft 25.11.2026. Höhen aus der Welt-Quelle, Gebäude aus OpenStreetMap (Rückfall). Hamburg begrenzt große Abrufe (max 4000).
-  ['th', 'Thüringen', 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP', 'th_dop', '© GDI-Th, CC BY 4.0'],
-  ['hh', 'Hamburg', 'https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt', 'dop_zeitreihe_belaubt', 'Freie und Hansestadt Hamburg, LGV, dl-de/by-2-0', 4000]
-].map(([id, land, url, layer, attribution, max]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, attribution })),
+  ['th', 'Thüringen', 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP', 'th_dop', '© GDI-Th, CC BY 4.0', 0, 'https://geoportal.geoportal-th.de/dienste/atom_th_gebaeude (ohne CORS)'],
+  ['hh', 'Hamburg', 'https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt', 'dop_zeitreihe_belaubt', 'Freie und Hansestadt Hamburg, LGV, dl-de/by-2-0', 4000, 'https://daten-hamburg.de/opendata/3d_stadtmodell_lod2/LoD2-DE_HH_2026-04-28.zip (CORS, 629 MB, nur Teilabruf einer Kachel)']
+].map(([id, land, url, layer, attribution, max, lod2ref]) => ({ id, name: land + ' (Luftbild)', land, crs: 'EPSG:25832', dgm: null, roads: OSM_ROADS, dop: { url, layer, max: max || 0 }, lod2ref, attribution })),
 {
   // WMS-Höhendienst (Etappe W2, docs/plan-gelaende-wms.md): Höhen eines OGC-WMS in EPSG:4326, etwa vom Rechner einer DIS-Übung.
   // Gilt überall (box null), ohne Gebäude, Bäume, Luftbild. Nie im Browser speichern (Lizenz der Quelle). use: 'dis' (nur für den
