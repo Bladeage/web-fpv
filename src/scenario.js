@@ -33,7 +33,7 @@ export const SCENARIOS = [
   { id: 'follow',  name: 'Verfolgung',         info: 'Dem orangen Auto folgen: 4 bis 12 m Abstand, 1,5 bis 10 m Höhe. 30 s im Band.' },
   { id: 'recon',   name: 'Aufklärung',         info: 'Fahrzeuge und Vögel beobachten: ein Ziel 4 s am Stück im Fadenkreuz halten, bis 90 m Abstand. 3 Ziele aufklären.' },
   { id: 'free',    name: 'Freiflug',           info: 'Ohne Auftrag. Testecken rundherum: Haus im Westen, Spielplatz im Südwesten, Baustelle im Norden, Parkhaus im Osten, Ruine im Süden.' },
-  { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: Monschau eingebaut, andere Orte per Karte. Daten: Geobasis NRW, dl-de/zero-2.0.' },
+  { id: 'real',    name: 'Echte Welt',         info: 'Echtes Gelände mit Luftbild, Häusern und Bäumen: AXA Campus Köln eingebaut, andere Orte per Karte. Daten: Geobasis NRW, dl-de/zero-2.0.' },
   { id: 'vbs',     name: 'DIS-Grundtypen',     info: 'Vorschau: 18 einfache Modelle für Einheiten aus DIS. Blau Freund, rot Feind, grün neutral, gelb sonstige, dunkel zerstört.' },
 ];
 export const scen = { id: 'gates', version: 0 };   // version steigt bei jedem Wechsel (für render.js)

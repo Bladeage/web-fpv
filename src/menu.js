@@ -45,7 +45,7 @@ export const TAC = [
 const COURSE_HUNT = ['hunt', 'hunt2', 'hunt3', 'hunt4', 'recon'];   // nicht im Parcours (Prompt 176)
 const COURSE_REAL = ['free', 'rings', 'landing', 'deliver', 'follow'];   // Parcours in der echten Welt (T2: Ringe, T3: Landung, Lieferung; S3: Verfolgung)
 const ROAD_MODES = ['hunt2', 'hunt4', 'follow'];   // brauchen in der echten Welt Straßen (S3)
-// Straßen im Startgebiet: mindestens 500 m (Monschau eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
+// Straßen im Startgebiet: mindestens 500 m (AXA Campus eingebaut; geladene Orte in NRW einige Sekunden nach dem Laden)
 const roadsOk = () => roadLenNear(rwRoads(true), rw.meta ? rw.meta.home : [0, 0], 400) >= 500;   // im selben Umkreis um den Start, in dem die Fahrzeuge aufgestellt werden (Prüfung Nr. 5)
 const NO_ROADS = 'Für diesen Ort gibt es keine Straßen (nur NRW; nach dem Laden einige Sekunden warten)';
 // Hinweise in der echten Welt: Aufstellung über den Platzierungsdienst, bei jedem Start neu
@@ -372,13 +372,13 @@ const rwWanted = () => { const ll = parseLatLon(cfg.rwLL); return ll && rw.live 
 async function start() {
   const real = isReal();
   if (real && cfg.rwSrc === 'live' && rwJob) { say('Lade Gebiet …', 60); await rwJob; }   // läuft schon: abwarten
-  if (real && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst Monschau
+  if (real && cfg.rwSrc === 'live' && !rwWanted()) {   // noch nicht geladen: jetzt laden, sonst der eingebaute AXA Campus
     say('Lade Gebiet …', 60);
     if (!await rwLiveRun()) { say('Ort nicht geladen, fliege den AXA Campus. ' + msgEl().textContent, 5); await rwLoadEmbedded(); }
     else say('Gebiet geladen', 1.5);
   }
   if (real && cfg.rwSrc === 'dis') disFlat();   // Ort der DIS-Übung ohne Kartendaten
-  if (real && cfg.rwSrc === 'emb' && rw.live) await rwLoadEmbedded();   // zurück zu Monschau
+  if (real && cfg.rwSrc === 'emb' && rw.live) await rwLoadEmbedded();   // zurück zum eingebauten AXA Campus
   if (real && !rw.ready) await rwLoadEmbedded();   // Gelände entpacken (dauert nur kurz)
   if (real && !rw.ready) say('Gelände konnte nicht geladen werden: ' + rw.err, 4);
   run(flightScen(), real);
@@ -531,7 +531,7 @@ for (const [id, key, lo, hi] of [['disPort', 'disPort', 1, 65535], ['disEx', 'di
 }
 // Am Ort der Übung fliegen (Nutzer, Prompt 148: ein Klick lädt und startet): Ort festhalten; mit Quelle (zum Beispiel NRW)
 // die Kartendaten laden wie „Ort laden“ (Abbrechen bleibt möglich), sonst ebene Fläche; dann der Flug dort, auch aus einem
-// laufenden Flug heraus. Schlägt das Laden fehl, bleibt das Menü mit der Meldung offen, kein Start in Monschau.
+// laufenden Flug heraus. Schlägt das Laden fehl, bleibt das Menü mit der Meldung offen, kein Start am eingebauten Ort.
 // „Dorthin“ (Nutzer, Prompt 172): nicht mehr sofort die Mission. Gelände laden, dann Freiflug ohne Aufgabe am Ort der Übung zum
 // Umschauen (die Drohne erscheint dabei schon beim Partner). Im Menü lässt sich das Gelände wechseln; „Weiter“ und „Start“
 // beginnen die Mission am selben Ort, ohne neu zu laden.
@@ -578,7 +578,7 @@ for (const id of ['go', 'goTac', 'goDis']) $(id).addEventListener('click', () =>
 $('disKeep').addEventListener('change', e => { cfg.disKeep = e.target.checked; saveCfg(); vbSet({ keep: cfg.disKeep }); });   // vorher unter Optionen → Daten
 // Vorschau der DIS-Grundtypen (aus dem DIS-Block): Spielkarte mit den 18 Modellen, Wahl im Menü bleibt
 $('disBases').addEventListener('click', () => { rwAbort(); run('vbs'); });
-// Startort: Monschau oder Ort laden (die DIS-Übung ist eine eigene Flugart)
+// Startort: AXA Campus (eingebaut) oder Ort laden (die DIS-Übung ist eine eigene Flugart)
 document.querySelectorAll('#rwSeg button[data-start]').forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.start;
   if (v !== cfg.rwSrc) rwAbort(); cfg.rwSrc = v;
