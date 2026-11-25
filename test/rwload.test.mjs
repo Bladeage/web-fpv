@@ -136,7 +136,7 @@ test('L3: Quelle prüfen (Höhen, Luftbild, Gebäude) mit verständlichen Ergebn
   assert.match(ok[0].text, /321\.5/);
   const bad = await rwCheckSource(srcA, 305000, 5604000, async u => { if (u.includes('wcs')) return makeTiff(16, -9999); throw new Error('Keine Verbindung zu a.test'); }, async () => null);
   assert.deepEqual(bad.map(r => r.ok), [false, false, true]);
-  assert.match(bad[0].text, /Füllwerte/); assert.match(bad[1].text, /Keine Verbindung/); assert.match(bad[2].text, /keine Kachel/);
+  assert.match(bad[0].text, /Füllwerte/); assert.match(bad[1].text, /Keine Verbindung/); assert.match(bad[1].text, /lädt trotzdem.*Sentinel-2/, 'Hinweis auf den Ersatz (Prompt 255)'); assert.match(bad[2].text, /keine Kachel/);
 });
 
 test('L3: Quellen-Datei lesen: gültige übernehmen, Fehler benennen', () => {
